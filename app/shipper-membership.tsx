@@ -226,20 +226,22 @@ export default function ShipperMembershipScreen() {
             const isIncreaseRevenue = w.title === 'Increase Revenue';
             const isAdvancedSecurity = w.title === 'Advanced Security';
             const isPrioritySupport = w.title === 'Priority Support';
-            const isLink = isIncreaseRevenue || isAdvancedSecurity || isPrioritySupport;
+            const isAiTools = w.title === 'AI-Powered Tools';
+            const isLink = isIncreaseRevenue || isAdvancedSecurity || isPrioritySupport || isAiTools;
             const RowComp = isLink ? TouchableOpacity : View;
             const onPress = () => {
               console.log('why.open', w.title);
               if (isIncreaseRevenue) router.push('/increase-revenue');
               if (isAdvancedSecurity) router.push('/advance-security');
               if (isPrioritySupport) router.push('/priority-support');
+              if (isAiTools) router.push('/ai-tools');
             };
             return (
               <RowComp
                 key={w.title}
                 style={styles.whyRow}
                 {...(isLink ? { activeOpacity: 0.85, onPress } : {})}
-                testID={isIncreaseRevenue ? 'why-increase-revenue' : isAdvancedSecurity ? 'why-advanced-security' : isPrioritySupport ? 'why-priority-support' : undefined}
+                testID={isIncreaseRevenue ? 'why-increase-revenue' : isAdvancedSecurity ? 'why-advanced-security' : isPrioritySupport ? 'why-priority-support' : isAiTools ? 'why-ai-tools' : undefined}
               >
                 <View style={styles.whyIcon}>
                   <w.icon size={20} color={theme.colors.secondary} />
