@@ -225,19 +225,21 @@ export default function ShipperMembershipScreen() {
           {why.map((w) => {
             const isIncreaseRevenue = w.title === 'Increase Revenue';
             const isAdvancedSecurity = w.title === 'Advanced Security';
-            const isLink = isIncreaseRevenue || isAdvancedSecurity;
+            const isPrioritySupport = w.title === 'Priority Support';
+            const isLink = isIncreaseRevenue || isAdvancedSecurity || isPrioritySupport;
             const RowComp = isLink ? TouchableOpacity : View;
             const onPress = () => {
               console.log('why.open', w.title);
               if (isIncreaseRevenue) router.push('/increase-revenue');
               if (isAdvancedSecurity) router.push('/advance-security');
+              if (isPrioritySupport) router.push('/priority-support');
             };
             return (
               <RowComp
                 key={w.title}
                 style={styles.whyRow}
                 {...(isLink ? { activeOpacity: 0.85, onPress } : {})}
-                testID={isIncreaseRevenue ? 'why-increase-revenue' : isAdvancedSecurity ? 'why-advanced-security' : undefined}
+                testID={isIncreaseRevenue ? 'why-increase-revenue' : isAdvancedSecurity ? 'why-advanced-security' : isPrioritySupport ? 'why-priority-support' : undefined}
               >
                 <View style={styles.whyIcon}>
                   <w.icon size={20} color={theme.colors.secondary} />
