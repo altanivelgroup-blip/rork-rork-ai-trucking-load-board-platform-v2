@@ -27,9 +27,9 @@ function AuthGate({ children }: PropsWithChildren) {
     if (isLoading) return;
     const inAuthGroup = (segments?.[0] ?? "") === "(auth)";
     if (!isAuthenticated && !inAuthGroup) {
-      router.replace("/login");
+      router.replace("/(auth)/login");
     } else if (isAuthenticated && inAuthGroup) {
-      router.replace("/dashboard");
+      router.replace("/(tabs)/dashboard");
     }
   }, [isLoading, isAuthenticated, segments, router]);
 
