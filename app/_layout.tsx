@@ -29,7 +29,7 @@ function AuthGate({ children }: PropsWithChildren) {
     if (!isAuthenticated && !inAuthGroup) {
       router.replace("/login");
     } else if (isAuthenticated && inAuthGroup) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [isLoading, isAuthenticated, segments, router]);
 
