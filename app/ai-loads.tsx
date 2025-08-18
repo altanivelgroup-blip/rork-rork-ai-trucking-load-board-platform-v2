@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Brain, Sparkles, Wand2, ListChecks, Map, BarChart3 } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
@@ -11,7 +11,7 @@ interface AIPlanStep { title: string; detail: string }
 
 export default function AILoadsScreen() {
   const router = useRouter();
-  const { filters, setFilters, addLoadsBulk } = useLoads();
+  const { filters, setFilters, addLoadsBulk, currentLoad } = useLoads();
   const [prompt, setPrompt] = useState<string>('Find profitable backhauls from current destination within 150 miles for a flatbed.');
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [plan, setPlan] = useState<AIPlanStep[]>([]);
@@ -28,6 +28,26 @@ export default function AILoadsScreen() {
     'trailer': 'trailer',
     'truck': 'truck',
   }), []);
+
+  const params = useLocalSearchParams();
+
+  useEffect(() => {
+    try {
+      const preset = typeof params?.prompt === 'string' ? params.prompt : undefined;
+      const backhaul = typeof params?.backhaul === 'string' ? params.backhaul : undefined;
+      if (preset && preset.length > 0) setPrompt(preset);
+      if (backhaul === '1') {
+        const next = { ...filters, showBackhaul: true };
+        if (!next.backhaulCenter && currentLoad?.destination) {
+          next.backhaulCenter = { lat: currentLoad.destination.lat, lng: currentLoad.destination.lng };
+          next.backhaulRadiusMiles = next.backhaulRadiusMiles ?? 100;
+        }
+        setFilters(next);
+      }
+    } catch (e) {
+      console.log('[AI Loads] preset params error', e);
+    }
+  }, [params, filters, setFilters, currentLoad]);
 
   const applyVoice = useCallback((text: string) => {
     const lower = text.toLowerCase();

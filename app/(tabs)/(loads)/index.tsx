@@ -103,6 +103,7 @@ export default function LoadsScreen() {
       <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', gap: 8 }}>
         <VoiceCapture onTranscribed={onVoiceToFilters} size="sm" label="Voice Search" testID="loads-voice" />
         <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
+        <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
       </View>
       <FlatList
         data={filteredLoads}
