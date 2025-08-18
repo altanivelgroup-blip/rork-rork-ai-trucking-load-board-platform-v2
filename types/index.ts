@@ -1,0 +1,171 @@
+export type UserRole = 'driver' | 'shipper' | 'admin';
+
+export type VehicleType = 
+  | 'truck'
+  | 'box-truck'
+  | 'cargo-van'
+  | 'trailer'
+  | 'car-hauler'
+  | 'flatbed'
+  | 'enclosed-trailer'
+  | 'reefer';
+
+export type LoadStatus = 'available' | 'in-transit' | 'delivered' | 'cancelled';
+
+export type DocumentType = 
+  | 'cdl'
+  | 'insurance'
+  | 'registration'
+  | 'medical-card'
+  | 'hazmat'
+  | 'twic';
+
+export interface User {
+  id: string;
+  role: UserRole;
+  email: string;
+  name: string;
+  phone: string;
+  company?: string;
+  membershipTier: 'basic' | 'premium' | 'enterprise';
+  createdAt: Date;
+}
+
+export interface Driver extends User {
+  role: 'driver';
+  cdlNumber: string;
+  vehicleTypes: VehicleType[];
+  rating: number;
+  completedLoads: number;
+  documents: Document[];
+  wallet: Wallet;
+  currentLocation?: Location;
+  isAvailable: boolean;
+  mcNumber?: string;
+  dotNumber?: string;
+  insuranceCarrier?: string;
+  insurancePolicy?: string;
+  vehicleInfo?: string;
+  trailerInfo?: string;
+  verificationStatus?: 'unverified' | 'pending' | 'verified';
+}
+
+export interface Document {
+  id: string;
+  type: DocumentType;
+  name: string;
+  expiryDate?: Date;
+  verified: boolean;
+  uploadedAt: Date;
+  url?: string;
+}
+
+export interface Wallet {
+  balance: number;
+  pendingEarnings: number;
+  totalEarnings: number;
+  transactions: Transaction[];
+}
+
+export interface Transaction {
+  id: string;
+  amount: number;
+  type: 'earning' | 'withdrawal' | 'fee';
+  description: string;
+  date: Date;
+  loadId?: string;
+}
+
+export interface Load {
+  id: string;
+  shipperId: string;
+  shipperName: string;
+  origin: Location;
+  destination: Location;
+  distance: number;
+  weight: number;
+  vehicleType: VehicleType;
+  rate: number;
+  ratePerMile: number;
+  pickupDate: Date;
+  deliveryDate: Date;
+  status: LoadStatus;
+  description: string;
+  special_requirements?: string[];
+  assignedDriverId?: string;
+  isBackhaul?: boolean;
+  aiScore?: number; // AI matching score
+}
+
+export interface Location {
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  lat: number;
+  lng: number;
+}
+
+export interface PreTripInspection {
+  id: string;
+  driverId: string;
+  vehicleId: string;
+  date: Date;
+  items: InspectionItem[];
+  signature?: string;
+  notes?: string;
+}
+
+export interface InspectionItem {
+  category: string;
+  item: string;
+  status: 'pass' | 'fail' | 'na';
+  notes?: string;
+}
+
+export interface MaintenanceRecord {
+  id: string;
+  vehicleType: VehicleType;
+  vehicleId: string;
+  serviceType: string;
+  date: Date;
+  mileage: number;
+  cost: number;
+  notes: string;
+  nextServiceDue?: Date;
+}
+
+export type LogLevel = 'info' | 'warning' | 'error';
+
+export interface LogEntry {
+  id: string;
+  level: LogLevel;
+  message: string;
+  timestamp: Date;
+  meta?: Record<string, unknown>;
+}
+
+export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface AlertItem {
+  id: string;
+  severity: AlertSeverity;
+  title: string;
+  body: string;
+  createdAt: Date;
+  read: boolean;
+  relatedLoadId?: string;
+}
+
+export type ScheduleType = 'pickup' | 'delivery' | 'maintenance' | 'meeting' | 'reminder';
+
+export interface ScheduleItem {
+  id: string;
+  title: string;
+  type: ScheduleType;
+  start: Date;
+  end: Date;
+  location?: string;
+  notes?: string;
+  relatedLoadId?: string;
+}
