@@ -118,6 +118,13 @@ function RootLayoutNav() {
           title: "Driver Membership",
         }} 
       />
+      <Stack.Screen 
+        name="ai-loads" 
+        options={{ 
+          title: "AI for Loads",
+          presentation: "modal",
+        }} 
+      />
     </Stack>
   );
 }

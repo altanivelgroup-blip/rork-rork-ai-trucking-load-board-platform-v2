@@ -100,8 +100,9 @@ export default function LoadsScreen() {
         onOpenFilters={handleOpenFilters}
       />
       
-      <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
+      <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', gap: 8 }}>
         <VoiceCapture onTranscribed={onVoiceToFilters} size="sm" label="Voice Search" testID="loads-voice" />
+        <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
       </View>
       <FlatList
         data={filteredLoads}
@@ -156,5 +157,15 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
+  },
+  aiLink: {
+    backgroundColor: theme.colors.secondary,
+    color: theme.colors.white,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    textAlignVertical: 'center',
+    textAlign: 'center',
+    fontWeight: '800',
+    overflow: 'hidden',
   },
 });
