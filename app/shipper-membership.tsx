@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Crown, Check, Zap, TrendingUp, Shield, UserRound, Smartphone } from 'lucide-react-native';
 
@@ -149,6 +149,7 @@ const TierCard = memo(function TierCard({ tier, selected, onSelect }: { tier: Ti
 
 export default function ShipperMembershipScreen() {
   const { selected, onSelect } = useSelection();
+  const router = useRouter();
 
   type WhyItem = {
     icon: React.ComponentType<{ size?: number; color?: string }>;
@@ -221,22 +222,31 @@ export default function ShipperMembershipScreen() {
 
         <View style={styles.whyCard} testID="why-upgrade">
           <Text style={styles.whyTitle}>Why Upgrade?</Text>
-          {why.map((w) => (
-            <View key={w.title} style={styles.whyRow}>
-              <View style={styles.whyIcon}>
-                <w.icon size={20} color={theme.colors.secondary} />
-              </View>
-              <View style={styles.whyTextWrap}>
-                <Text style={styles.whyHeading}>{w.title}</Text>
-                {w.bullets.map((b) => (
-                  <View key={b} style={styles.whyBulletRow} testID="why-bullet">
-                    <Check size={14} color={theme.colors.success} />
-                    <Text style={styles.whyDesc}>{b}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
+          {why.map((w) => {
+            const isIncreaseRevenue = w.title === 'Increase Revenue';
+            const RowComp = isIncreaseRevenue ? TouchableOpacity : View;
+            return (
+              <RowComp
+                key={w.title}
+                style={styles.whyRow}
+                {...(isIncreaseRevenue ? { activeOpacity: 0.85, onPress: () => { console.log('why.open', w.title); router.push('/increase-revenue'); } } : {})}
+                testID={isIncreaseRevenue ? 'why-increase-revenue' : undefined}
+              >
+                <View style={styles.whyIcon}>
+                  <w.icon size={20} color={theme.colors.secondary} />
+                </View>
+                <View style={styles.whyTextWrap}>
+                  <Text style={[styles.whyHeading, isIncreaseRevenue && styles.linkHeading]}>{w.title}</Text>
+                  {w.bullets.map((b) => (
+                    <View key={b} style={styles.whyBulletRow} testID="why-bullet">
+                      <Check size={14} color={theme.colors.success} />
+                      <Text style={styles.whyDesc}>{b}</Text>
+                    </View>
+                  ))}
+                </View>
+              </RowComp>
+            );
+          })}
         </View>
 
         <TouchableOpacity activeOpacity={0.9} onPress={onUpgrade} style={styles.upgradeBar} testID="upgrade-now">
@@ -397,6 +407,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.dark,
     fontSize: theme.fontSize.md,
+  },
+  linkHeading: {
+    textDecorationLine: 'underline',
+    color: theme.colors.secondary,
   },
   whyDesc: {
     color: theme.colors.gray,
