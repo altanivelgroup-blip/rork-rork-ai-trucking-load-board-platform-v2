@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { TrendingUp, DollarSign, Route, Clock, BadgeCheck, Bell, BarChart3, Sparkles } from 'lucide-react-native';
 
@@ -48,6 +48,7 @@ function useRoiCalc() {
 }
 
 export default function IncreaseRevenueScreen() {
+  const router = useRouter();
   const { monthlyLoads, avgRate, upliftPct, monthlyRevenue, projectedUplift, inc, onChangeNum } = useRoiCalc();
 
   const trends = useMemo(
@@ -172,7 +173,7 @@ export default function IncreaseRevenueScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.cta} activeOpacity={0.9} onPress={() => console.log('increase-revenue.cta', Platform.OS)} testID="cta-start">
+        <TouchableOpacity style={styles.cta} activeOpacity={0.9} onPress={() => { try { console.log('increase-revenue.cta', Platform.OS); router.push('/ai-tools'); } catch (e) { console.error('increase-revenue.navigate.error', e); } }} testID="cta-start">
           <Text style={styles.ctaText}>Start Increasing Revenue</Text>
         </TouchableOpacity>
       </ScrollView>

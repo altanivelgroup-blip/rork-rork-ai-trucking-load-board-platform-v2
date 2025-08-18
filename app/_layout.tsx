@@ -125,6 +125,12 @@ function RootLayoutNav() {
           presentation: "modal",
         }} 
       />
+      <Stack.Screen 
+        name="increase-revenue" 
+        options={{ 
+          title: "Increase Revenue",
+        }} 
+      />
     </Stack>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Sparkles, Bot, Mic, FileText, BarChart3, Clock, BrainCircuit, MessageSquareMore, Wand2, Database } from 'lucide-react-native';
 
@@ -8,6 +8,7 @@ import { Sparkles, Bot, Mic, FileText, BarChart3, Clock, BrainCircuit, MessageSq
  type Benefit = { icon: React.ComponentType<{ size?: number; color?: string }>; title: string; desc: string };
 
  export default function AIToolsScreen() {
+   const router = useRouter();
    const stats: Stat[] = useMemo(
      () => [
        { icon: Clock, label: 'Ops Time Saved', value: '25–45%', footnote: 'drafting posts, docs, follow-ups' },
@@ -78,7 +79,12 @@ import { Sparkles, Bot, Mic, FileText, BarChart3, Clock, BrainCircuit, MessageSq
            style={styles.cta}
            activeOpacity={0.9}
            onPress={() => {
-             console.log('ai-tools.cta', Platform.OS);
+             try {
+               console.log('ai-tools.cta', Platform.OS);
+               router.push('/increase-revenue');
+             } catch (e) {
+               console.error('ai-tools.navigate.error', e);
+             }
            }}
            testID="cta-enable-ai"
          >
