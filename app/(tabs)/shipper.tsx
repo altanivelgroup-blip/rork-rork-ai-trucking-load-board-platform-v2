@@ -1,2 +1,2 @@
-import AdminScreen from './admin';
-export default AdminScreen;
+import ShipperMembershipScreen from '../shipper-membership';
+export default ShipperMembershipScreen;
