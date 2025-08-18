@@ -1,18 +1,19 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { ShieldCheck, Lock, Eye, KeyRound, FileAxis3d, Fingerprint, Activity, BadgeCheck } from 'lucide-react-native';
+import { ShieldCheck, Lock, Eye, KeyRound, FileCheck2, Fingerprint, Activity, BadgeCheck } from 'lucide-react-native';
 
 type Stat = { icon: React.ComponentType<{ size?: number; color?: string }>; label: string; value: string; footnote?: string };
 type Benefit = { icon: React.ComponentType<{ size?: number; color?: string }>; title: string; desc: string };
 
 export default function AdvanceSecurityScreen() {
+  const router = useRouter();
   const stats: Stat[] = useMemo(
     () => [
       { icon: Activity, label: 'Cargo Theft Cost', value: '$1.1B+', footnote: 'annual losses across US trucking (2024 est.)' },
       { icon: Eye, label: 'Phishing Growth', value: '+18%', footnote: 'YoY in logistics-focused scams' },
-      { icon: FileAxis3d, label: 'Doc Fraud Attempts', value: '1 in 20', footnote: 'loads see altered BOL/COI attempts' },
+      { icon: FileCheck2, label: 'Doc Fraud Attempts', value: '1 in 20', footnote: 'loads see altered BOL/COI attempts' },
       { icon: BadgeCheck, label: 'Verified Partners', value: '100%', footnote: 'KYB/KYC vetting required' },
     ],
     [],
@@ -23,7 +24,7 @@ export default function AdvanceSecurityScreen() {
       { icon: ShieldCheck, title: 'End-to-End Secure Workspace', desc: 'Encrypted at rest and in transit. Sensitive load details protected by modern TLS and key management.' },
       { icon: Lock, title: 'Role-Based Access Control', desc: 'Granular permissions for shippers, dispatchers, and admins. Prevent overexposure of rates and documents.' },
       { icon: KeyRound, title: 'Two-Factor Authentication', desc: 'Add a second step at sign-in to block unauthorized access, even if a password leaks.' },
-      { icon: FileAxis3d, title: 'Trusted Document Vault', desc: 'COI, BOL, W-9, safety docs kept in a tamper-evident vault with versioning and watermarking.' },
+      { icon: FileCheck2, title: 'Trusted Document Vault', desc: 'COI, BOL, W-9, safety docs kept in a tamper-evident vault with versioning and watermarking.' },
       { icon: Fingerprint, title: 'Fraud & Impersonation Signals', desc: 'Behavioral flags for spoofed emails, sudden banking changes, and mismatched MC/SCAC metadata.' },
       { icon: Eye, title: 'Audit Trails & Alerts', desc: 'Every sensitive action is logged. Get alerts for risky changes like pay-to updates or modified addresses.' },
     ],
@@ -40,16 +41,19 @@ export default function AdvanceSecurityScreen() {
         </View>
 
         <View style={styles.kpiGrid}>
-          {stats.map((s) => (
-            <View key={s.label} style={styles.kpiCard} testID="security-kpi">
-              <View style={styles.kpiIconWrap}>
-                <s.icon size={18} color={theme.colors.secondary} />
+          {stats.map((s, idx) => {
+            const rightMargin = idx % 2 === 0 ? 8 : 0;
+            return (
+              <View key={s.label} style={[styles.kpiCard, { marginRight: rightMargin, marginBottom: 8 }]} testID="security-kpi">
+                <View style={styles.kpiIconWrap}>
+                  <s.icon size={18} color={theme.colors.secondary} />
+                </View>
+                <Text style={styles.kpiValue}>{s.value}</Text>
+                <Text style={styles.kpiLabel}>{s.label}</Text>
+                {s.footnote ? <Text style={styles.kpiFootnote}>{s.footnote}</Text> : null}
               </View>
-              <Text style={styles.kpiValue}>{s.value}</Text>
-              <Text style={styles.kpiLabel}>{s.label}</Text>
-              {s.footnote ? <Text style={styles.kpiFootnote}>{s.footnote}</Text> : null}
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         <View style={styles.section}>
@@ -77,6 +81,7 @@ export default function AdvanceSecurityScreen() {
           activeOpacity={0.9}
           onPress={() => {
             console.log('advance-security.cta', Platform.OS);
+            router.push('/privacy-security');
           }}
           testID="cta-enable-security"
         >
@@ -115,10 +120,10 @@ const styles = StyleSheet.create({
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12 as unknown as number,
+    justifyContent: 'space-between',
   },
   kpiCard: {
-    flexBasis: '48%',
+    width: '48%',
     backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
