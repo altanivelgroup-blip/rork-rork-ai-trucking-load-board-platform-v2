@@ -149,12 +149,55 @@ const TierCard = memo(function TierCard({ tier, selected, onSelect }: { tier: Ti
 
 export default function ShipperMembershipScreen() {
   const { selected, onSelect } = useSelection();
-  const why = useMemo(
+
+  type WhyItem = {
+    icon: React.ComponentType<{ size?: number; color?: string }>;
+    title: string;
+    bullets: string[];
+  };
+
+  const why: WhyItem[] = useMemo(
     () => [
-      { icon: TrendingUp, title: 'Increase Revenue', desc: 'Priority access to high-paying loads and exclusive opportunities' },
-      { icon: Shield, title: 'Advanced Security', desc: 'Enhanced fraud protection and secure payment processing' },
-      { icon: UserRound, title: 'Priority Support', desc: '24/7 customer support with dedicated account management' },
-      { icon: Smartphone, title: 'AI-Powered Tools', desc: 'Advanced AI features for load matching and business optimization' },
+      {
+        icon: TrendingUp,
+        title: 'Increase Revenue',
+        bullets: [
+          'Priority placement on high-paying lanes',
+          'Instant access to backhauls that fit your routes',
+          'Smart pricing tips based on market demand',
+          'Featured shipper badge to attract top carriers',
+        ],
+      },
+      {
+        icon: Shield,
+        title: 'Advanced Security',
+        bullets: [
+          'Enhanced fraud screening on posts and payments',
+          'Escrow-style payment protections with dispute workflow',
+          'Multi-factor authentication for teams',
+          'Audit trails on quotes, edits, and approvals',
+        ],
+      },
+      {
+        icon: UserRound,
+        title: 'Priority Support',
+        bullets: [
+          '24/7 live support with <10 min first response',
+          'Dedicated account manager for onboarding',
+          'Fast-track issue resolution and carrier outreach',
+          'Proactive health checks on your active loads',
+        ],
+      },
+      {
+        icon: Smartphone,
+        title: 'AI-Powered Tools',
+        bullets: [
+          'AI matchmaker to pair loads with best-fit carriers',
+          'Auto-generate postings, rate confirmations, and updates',
+          'Voice assistant for quick post, edit, and search',
+          'Analytics insights: lane trends, seasonality, and spend',
+        ],
+      },
     ],
     [],
   );
@@ -185,7 +228,12 @@ export default function ShipperMembershipScreen() {
               </View>
               <View style={styles.whyTextWrap}>
                 <Text style={styles.whyHeading}>{w.title}</Text>
-                <Text style={styles.whyDesc}>{w.desc}</Text>
+                {w.bullets.map((b) => (
+                  <View key={b} style={styles.whyBulletRow} testID="why-bullet">
+                    <Check size={14} color={theme.colors.success} />
+                    <Text style={styles.whyDesc}>{b}</Text>
+                  </View>
+                ))}
               </View>
             </View>
           ))}
@@ -354,6 +402,12 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     marginTop: 2,
     fontSize: theme.fontSize.sm,
+  },
+  whyBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8 as unknown as number,
+    marginTop: 4,
   },
   upgradeBar: {
     marginTop: theme.spacing.lg,
