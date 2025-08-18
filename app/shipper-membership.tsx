@@ -224,19 +224,26 @@ export default function ShipperMembershipScreen() {
           <Text style={styles.whyTitle}>Why Upgrade?</Text>
           {why.map((w) => {
             const isIncreaseRevenue = w.title === 'Increase Revenue';
-            const RowComp = isIncreaseRevenue ? TouchableOpacity : View;
+            const isAdvancedSecurity = w.title === 'Advanced Security';
+            const isLink = isIncreaseRevenue || isAdvancedSecurity;
+            const RowComp = isLink ? TouchableOpacity : View;
+            const onPress = () => {
+              console.log('why.open', w.title);
+              if (isIncreaseRevenue) router.push('/increase-revenue');
+              if (isAdvancedSecurity) router.push('/advance-security');
+            };
             return (
               <RowComp
                 key={w.title}
                 style={styles.whyRow}
-                {...(isIncreaseRevenue ? { activeOpacity: 0.85, onPress: () => { console.log('why.open', w.title); router.push('/increase-revenue'); } } : {})}
-                testID={isIncreaseRevenue ? 'why-increase-revenue' : undefined}
+                {...(isLink ? { activeOpacity: 0.85, onPress } : {})}
+                testID={isIncreaseRevenue ? 'why-increase-revenue' : isAdvancedSecurity ? 'why-advanced-security' : undefined}
               >
                 <View style={styles.whyIcon}>
                   <w.icon size={20} color={theme.colors.secondary} />
                 </View>
                 <View style={styles.whyTextWrap}>
-                  <Text style={[styles.whyHeading, isIncreaseRevenue && styles.linkHeading]}>{w.title}</Text>
+                  <Text style={[styles.whyHeading, isLink && styles.linkHeading]}>{w.title}</Text>
                   {w.bullets.map((b) => (
                     <View key={b} style={styles.whyBulletRow} testID="why-bullet">
                       <Check size={14} color={theme.colors.success} />
