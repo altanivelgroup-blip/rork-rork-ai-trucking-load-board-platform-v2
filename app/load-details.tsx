@@ -9,15 +9,18 @@ import {
   Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X } from 'lucide-react-native';
+import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useLoads } from '@/hooks/useLoads';
 import { mockLoads } from '@/mocks/loads';
+import { useAuth } from '@/hooks/useAuth';
+import { estimateFuelForLoad, formatCurrency } from '@/utils/fuel';
 
 export default function LoadDetailsScreen() {
   const { loadId } = useLocalSearchParams();
   const router = useRouter();
   const { acceptLoad, setFilters } = useLoads();
+  const { user } = useAuth();
   const [isAccepting, setIsAccepting] = useState(false);
   
   const load = mockLoads.find(l => l.id === loadId);
@@ -166,6 +169,19 @@ export default function LoadDetailsScreen() {
               <Package size={20} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Weight</Text>
               <Text style={styles.detailValue}>{(load.weight / 1000).toFixed(1)}k lbs</Text>
+            </View>
+
+            <View style={styles.detailRow}>
+              <Fuel size={20} color={theme.colors.gray} />
+              <Text style={styles.detailLabel}>Estimated Fuel</Text>
+              {(() => {
+                try {
+                  const f = estimateFuelForLoad(load, user);
+                  return <Text style={styles.detailValue}>{f.gallons.toFixed(1)} gal • {formatCurrency(f.cost)} (@ {f.mpg.toFixed(1)} mpg)</Text>;
+                } catch (e) {
+                  return <Text style={styles.detailValue}>N/A</Text>;
+                }
+              })()}
             </View>
 
             {load.special_requirements && load.special_requirements.length > 0 && (

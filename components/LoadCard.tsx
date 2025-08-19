@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { MapPin, DollarSign, Package, Calendar, TrendingUp } from 'lucide-react-native';
+import { MapPin, DollarSign, Package, Calendar, TrendingUp, Fuel } from 'lucide-react-native';
 import { Load } from '@/types';
 import { theme } from '@/constants/theme';
+import { useAuth } from '@/hooks/useAuth';
+import { estimateFuelForLoad, formatCurrency } from '@/utils/fuel';
 
 interface LoadCardProps {
   load: Load;
@@ -10,10 +12,19 @@ interface LoadCardProps {
 }
 
 export const LoadCard: React.FC<LoadCardProps> = ({ load, onPress }) => {
+  const { user } = useAuth();
   const vehicleColor = theme.colors[load.vehicleType as keyof typeof theme.colors] || theme.colors.primary;
+  const fuel = useMemo(() => {
+    try {
+      return estimateFuelForLoad(load, user);
+    } catch (e) {
+      console.log('[LoadCard] fuel estimate error', e);
+      return undefined;
+    }
+  }, [load, user]);
   
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7} testID="load-card">
       {load.aiScore && load.aiScore > 90 && (
         <View style={styles.aiRecommended}>
           <TrendingUp size={14} color={theme.colors.white} />
@@ -66,6 +77,16 @@ export const LoadCard: React.FC<LoadCardProps> = ({ load, onPress }) => {
           <Text style={styles.ratePerMile}>(${load.ratePerMile.toFixed(2)}/mi)</Text>
         </View>
       </View>
+
+      {fuel ? (
+        <View style={styles.fuelRow} testID="fuel-estimate-row">
+          <Fuel size={14} color={theme.colors.gray} />
+          <Text style={styles.fuelText}>
+            Est fuel {fuel.gallons.toFixed(1)} gal • {formatCurrency(fuel.cost)}
+          </Text>
+          <Text style={styles.fuelMeta}>@ {fuel.mpg.toFixed(1)} mpg • {formatCurrency(fuel.pricePerGallon)}/gal</Text>
+        </View>
+      ) : null}
 
       <Text style={styles.description} numberOfLines={2}>{load.description}</Text>
       
@@ -187,6 +208,22 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
     marginBottom: theme.spacing.sm,
+  },
+  fuelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: theme.spacing.sm,
+  },
+  fuelText: {
+    color: theme.colors.dark,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+  },
+  fuelMeta: {
+    marginLeft: 6,
+    color: theme.colors.gray,
+    fontSize: theme.fontSize.xs,
   },
   shipper: {
     fontSize: theme.fontSize.sm,

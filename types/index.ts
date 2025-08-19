@@ -31,6 +31,13 @@ export interface User {
   createdAt: Date;
 }
 
+export interface FuelProfile {
+  vehicleType: VehicleType;
+  averageMpg: number;
+  fuelPricePerGallon: number;
+  fuelType: 'diesel' | 'gasoline';
+}
+
 export interface Driver extends User {
   role: 'driver';
   cdlNumber: string;
@@ -48,6 +55,7 @@ export interface Driver extends User {
   vehicleInfo?: string;
   trailerInfo?: string;
   verificationStatus?: 'unverified' | 'pending' | 'verified';
+  fuelProfile?: FuelProfile;
 }
 
 export interface Document {

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert,
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Phone, User as UserIcon, Building, Shield, Lock } from 'lucide-react-native';
+import { Mail, Phone, User as UserIcon, Building, Shield, Lock, Fuel } from 'lucide-react-native';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -14,6 +14,9 @@ export default function EditProfileScreen() {
   const [company, setCompany] = useState<string>(user?.company ?? '');
   const [password, setPassword] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [avgMpg, setAvgMpg] = useState<string>(user?.fuelProfile?.averageMpg ? String(user.fuelProfile.averageMpg) : '');
+  const [fuelPrice, setFuelPrice] = useState<string>(user?.fuelProfile?.fuelPricePerGallon ? String(user.fuelProfile.fuelPricePerGallon) : '');
+  const [fuelType, setFuelType] = useState<'diesel' | 'gasoline'>(user?.fuelProfile?.fuelType ?? 'diesel');
 
   const canSave = useMemo(() => {
     return (name !== (user?.name ?? '')) || (email !== (user?.email ?? '')) || (phone !== (user?.phone ?? '')) || (company !== (user?.company ?? '')) || password.length > 0;
@@ -24,6 +27,14 @@ export default function EditProfileScreen() {
       if (!user) return;
       setIsSaving(true);
       const updates: Record<string, unknown> = { name, email, phone, company };
+      if (avgMpg || fuelPrice || fuelType) {
+        updates.fuelProfile = {
+          vehicleType: (user?.vehicleTypes?.[0] ?? 'truck'),
+          averageMpg: Number(avgMpg || 0),
+          fuelPricePerGallon: Number(fuelPrice || 0),
+          fuelType,
+        };
+      }
       if (password) {
         (updates as { password: string }).password = password;
       }
@@ -48,6 +59,16 @@ export default function EditProfileScreen() {
           <Field icon={<Phone size={18} color={theme.colors.gray} />} placeholder="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
           <Field icon={<Building size={18} color={theme.colors.gray} />} placeholder="Company" value={company} onChangeText={setCompany} />
         </View>
+        <Text style={styles.sectionTitle}>Fuel Profile</Text>
+        <View style={styles.card}>
+          <Field icon={<Fuel size={18} color={theme.colors.gray} />} placeholder="Average MPG" value={avgMpg} onChangeText={setAvgMpg} keyboardType="numeric" />
+          <Field icon={<Fuel size={18} color={theme.colors.gray} />} placeholder="Fuel Price $/gal" value={fuelPrice} onChangeText={setFuelPrice} keyboardType="numeric" />
+          <Text style={styles.noteText}>Fuel type: {fuelType.toUpperCase()} (tap to toggle)</Text>
+          <TouchableOpacity onPress={() => setFuelType((p) => (p === 'diesel' ? 'gasoline' : 'diesel'))} style={[styles.save, { backgroundColor: '#0ea5e9' }]}>
+            <Text style={styles.saveText}>Toggle Fuel Type</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>Security</Text>
         <View style={styles.card}>
           <Field icon={<Lock size={18} color={theme.colors.gray} />} placeholder="New Password (optional)" value={password} onChangeText={setPassword} secureTextEntry />
