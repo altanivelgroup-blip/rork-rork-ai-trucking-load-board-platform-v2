@@ -27,21 +27,13 @@ export default function MembershipScreen() {
   );
 
   const onActivate = useCallback(async () => {
-    if (isActive) {
-      router.back();
-      return;
-    }
     try {
-      setIsUpdating(true);
-      updateProfile({ membershipTier: 'premium' });
-      Alert.alert('Activated', 'Driver membership is now active.');
-      router.back();
+      console.log('membership.driver.cta -> /payment-methods');
+      router.push('/payment-methods');
     } catch (e) {
-      Alert.alert('Error', 'Could not activate membership. Please try again.');
-    } finally {
-      setIsUpdating(false);
+      Alert.alert('Error', 'Could not open payment page. Please try again.');
     }
-  }, [isActive, router, updateProfile]);
+  }, [router]);
 
   return (
     <View style={styles.container} testID="membership-container">

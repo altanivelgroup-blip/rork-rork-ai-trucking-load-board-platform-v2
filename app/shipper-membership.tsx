@@ -207,7 +207,7 @@ export default function ShipperMembershipScreen() {
   const onUpgrade = useCallback(() => {
     try {
       console.log('membership.upgrade', selected, Platform.OS);
-      router.push('/ai-tools');
+      router.push('/payment-methods');
     } catch (e) {
       console.error('membership.upgrade.error', e);
     }
