@@ -25,6 +25,15 @@ export default function PaymentMethodsScreen() {
     if (allowed.includes(p as PlanId)) return p as PlanId;
     return undefined;
   }, [params.plan]);
+
+  const activePlan: PlanId | undefined = useMemo(() => {
+    const tier = user?.membershipTier;
+    const allowed: PlanId[] = ['basic', 'pro', 'business'];
+    return allowed.includes((tier as PlanId) ?? 'basic') ? (tier as PlanId) : undefined;
+  }, [user?.membershipTier]);
+
+  const effectivePlan: PlanId | undefined = selectedPlan ?? activePlan;
+  const isLockedFromActive = !selectedPlan && !!activePlan;
   const { methods, services, setDefault, deleteMethod, isHydrating, toggleService } = usePayments();
 
   const iconForType = useCallback((type: string) => {
@@ -56,22 +65,24 @@ export default function PaymentMethodsScreen() {
     <View style={styles.container} testID="paymentMethodsScreen">
       <Stack.Screen options={{ title: 'Payment Methods', headerRight: () => headerRight }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {!!selectedPlan && (
+        {!!effectivePlan && (
           <View style={styles.planBanner} testID="selectedPlanBanner">
             <View style={styles.planIconWrap}>
-              {selectedPlan === 'pro' ? (
+              {effectivePlan === 'pro' ? (
                 <Zap color={theme.colors.warning} size={20} />
               ) : (
-                <Crown color={selectedPlan === 'business' ? theme.colors.secondary : theme.colors.primary} size={20} />
+                <Crown color={effectivePlan === 'business' ? theme.colors.secondary : theme.colors.primary} size={20} />
               )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.planBannerTitle}>Locked Plan</Text>
+              <Text style={styles.planBannerTitle}>{isLockedFromActive ? 'Active Plan' : 'Locked Plan'}</Text>
               <Text style={styles.planBannerSubtitle}>
-                {PLAN_META[selectedPlan].label} {PLAN_META[selectedPlan].price}
-                <Text style={{ color: theme.colors.gray }}> {PLAN_META[selectedPlan].period}</Text>
+                {PLAN_META[effectivePlan].label} {PLAN_META[effectivePlan].price}
+                <Text style={{ color: theme.colors.gray }}> {PLAN_META[effectivePlan].period}</Text>
               </Text>
-              <Text style={styles.planBannerHint}>Plan is locked from ?plan. You can confirm below.</Text>
+              <Text style={styles.planBannerHint}>
+                {isLockedFromActive ? 'This is your current subscription. Plan selection is locked.' : 'Plan is locked from ?plan. You can confirm below.'}
+              </Text>
             </View>
             <Lock size={18} color={theme.colors.gray} />
           </View>
@@ -153,36 +164,42 @@ export default function PaymentMethodsScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {!!selectedPlan && (
+      {!!effectivePlan && (
         <View style={styles.lockedFooter} testID="lockedFooter">
           <View style={styles.footerSummary}>
-            <Text style={styles.footerPlan}>{PLAN_META[selectedPlan].label}</Text>
+            <Text style={styles.footerPlan}>{PLAN_META[effectivePlan].label}</Text>
             <Text style={styles.footerPrice}>
-              {PLAN_META[selectedPlan].price}
-              <Text style={styles.footerPeriod}> {PLAN_META[selectedPlan].period}</Text>
+              {PLAN_META[effectivePlan].price}
+              <Text style={styles.footerPeriod}> {PLAN_META[effectivePlan].period}</Text>
             </Text>
           </View>
-          <TouchableOpacity
-            testID="confirmSubscribeBtn"
-            style={[styles.confirmBtn, isConfirming && { opacity: 0.6 }]}
-            onPress={async () => {
-              if (!selectedPlan) return;
-              try {
-                setIsConfirming(true);
-                await updateProfile({ membershipTier: selectedPlan });
-                Alert.alert('Success', `Subscribed to ${PLAN_META[selectedPlan].label}.`, [
-                  { text: 'OK', onPress: () => router.back() },
-                ]);
-              } catch (e) {
-                Alert.alert('Error', 'Could not update membership. Please try again.');
-              } finally {
-                setIsConfirming(false);
-              }
-            }}
-            disabled={isConfirming}
-          >
-            <Text style={styles.confirmText}>Confirm / Subscribe</Text>
-          </TouchableOpacity>
+          {!isLockedFromActive ? (
+            <TouchableOpacity
+              testID="confirmSubscribeBtn"
+              style={[styles.confirmBtn, isConfirming && { opacity: 0.6 }]}
+              onPress={async () => {
+                if (!effectivePlan) return;
+                try {
+                  setIsConfirming(true);
+                  await updateProfile({ membershipTier: effectivePlan });
+                  Alert.alert('Success', `Subscribed to ${PLAN_META[effectivePlan].label}.`, [
+                    { text: 'OK', onPress: () => router.back() },
+                  ]);
+                } catch (e) {
+                  Alert.alert('Error', 'Could not update membership. Please try again.');
+                } finally {
+                  setIsConfirming(false);
+                }
+              }}
+              disabled={isConfirming}
+            >
+              <Text style={styles.confirmText}>Confirm / Subscribe</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.confirmBtn, { backgroundColor: '#E5E7EB' }]} accessibilityRole="button" accessibilityState={{ disabled: true }}>
+              <Text style={[styles.confirmText, { color: theme.colors.dark }]}>Current Plan</Text>
+            </View>
+          )}
         </View>
       )}
     </View>
