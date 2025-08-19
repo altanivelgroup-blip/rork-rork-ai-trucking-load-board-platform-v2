@@ -1,12 +1,21 @@
 import React, { useMemo, useCallback } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Switch } from 'react-native';
-import { CreditCard, Banknote, Fuel, Plus, Shield, DollarSign, Check, Trash2, Edit2, Lightbulb } from 'lucide-react-native';
+import { CreditCard, Banknote, Fuel, Plus, Shield, DollarSign, Check, Trash2, Edit2, Lightbulb, Crown, Zap } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { usePayments } from '@/hooks/usePayments';
 
+type PlanId = 'basic' | 'pro' | 'business';
+
 export default function PaymentMethodsScreen() {
   const router = useRouter(); // reserved for future navigation
+  const params = useLocalSearchParams<{ plan?: string }>();
+  const selectedPlan: PlanId | undefined = useMemo(() => {
+    const p = (params.plan ?? '').toString().toLowerCase();
+    const allowed: PlanId[] = ['basic', 'pro', 'business'];
+    if (allowed.includes(p as PlanId)) return p as PlanId;
+    return undefined;
+  }, [params.plan]);
   const { methods, services, setDefault, deleteMethod, isHydrating, toggleService } = usePayments();
 
   const iconForType = useCallback((type: string) => {
@@ -33,6 +42,21 @@ export default function PaymentMethodsScreen() {
     <View style={styles.container} testID="paymentMethodsScreen">
       <Stack.Screen options={{ title: 'Payment Methods', headerRight: () => headerRight }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {!!selectedPlan && (
+          <View style={styles.planBanner} testID="selectedPlanBanner">
+            <View style={styles.planIconWrap}>
+              {selectedPlan === 'pro' ? (
+                <Zap color={theme.colors.warning} size={20} />
+              ) : (
+                <Crown color={selectedPlan === 'business' ? theme.colors.secondary : theme.colors.primary} size={20} />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.planBannerTitle}>Selected Plan</Text>
+              <Text style={styles.planBannerSubtitle}>{selectedPlan.toUpperCase()}</Text>
+            </View>
+          </View>
+        )}
         <Text style={styles.sectionTitle}>Payment Methods</Text>
 
         {methods.map((m) => (
@@ -137,6 +161,10 @@ const ServiceToggle = React.memo(function ServiceToggle({ title, subtitle, icon,
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
   scroll: { padding: theme.spacing.lg },
+  planBanner: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md },
+  planIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFF7ED', alignItems: 'center' as const, justifyContent: 'center' as const, marginRight: theme.spacing.md },
+  planBannerTitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  planBannerSubtitle: { fontSize: theme.fontSize.lg, fontWeight: '800' as const, color: theme.colors.dark },
   sectionTitle: { fontSize: theme.fontSize.xl, fontWeight: '700' as const, color: theme.colors.dark, marginBottom: theme.spacing.md },
   sectionSubtitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginBottom: theme.spacing.md },
   card: { backgroundColor: theme.colors.card, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },

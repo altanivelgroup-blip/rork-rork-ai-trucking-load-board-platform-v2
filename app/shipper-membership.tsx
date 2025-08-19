@@ -207,7 +207,8 @@ export default function ShipperMembershipScreen() {
   const onUpgrade = useCallback(() => {
     try {
       console.log('membership.upgrade', selected, Platform.OS);
-      router.push('/payment-methods');
+      const path = `/payment-methods?plan=${encodeURIComponent(selected)}`;
+      router.push(path);
     } catch (e) {
       console.error('membership.upgrade.error', e);
     }
