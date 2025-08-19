@@ -1,0 +1,76 @@
+export type StateCode = string;
+
+const EIA_STATE_DIESEL_AVG: Record<StateCode, number> = {
+  AL: 3.92,
+  AK: 4.31,
+  AZ: 4.08,
+  AR: 3.88,
+  CA: 4.97,
+  CO: 3.95,
+  CT: 4.21,
+  DE: 4.03,
+  FL: 3.99,
+  GA: 4.02,
+  HI: 5.40,
+  ID: 4.05,
+  IL: 4.19,
+  IN: 4.11,
+  IA: 3.89,
+  KS: 3.87,
+  KY: 3.96,
+  LA: 3.86,
+  ME: 4.12,
+  MD: 4.06,
+  MA: 4.15,
+  MI: 4.03,
+  MN: 3.92,
+  MS: 3.84,
+  MO: 3.86,
+  MT: 4.06,
+  NE: 3.90,
+  NV: 4.28,
+  NH: 4.10,
+  NJ: 4.07,
+  NM: 3.98,
+  NY: 4.29,
+  NC: 3.95,
+  ND: 4.00,
+  OH: 3.99,
+  OK: 3.82,
+  OR: 4.13,
+  PA: 4.34,
+  RI: 4.11,
+  SC: 3.90,
+  SD: 3.95,
+  TN: 3.93,
+  TX: 3.79,
+  UT: 3.99,
+  VT: 4.18,
+  VA: 3.97,
+  WA: 4.50,
+  WV: 3.98,
+  WI: 3.96,
+  WY: 3.92,
+};
+
+export function normalizeStateCode(input: string): StateCode {
+  const s = input.trim().toUpperCase();
+  if (s.length === 2) return s as StateCode;
+  const map: Record<string, StateCode> = {
+    ALABAMA: 'AL', ALASKA: 'AK', ARIZONA: 'AZ', ARKANSAS: 'AR', CALIFORNIA: 'CA', COLORADO: 'CO', CONNECTICUT: 'CT',
+    DELAWARE: 'DE', FLORIDA: 'FL', GEORGIA: 'GA', HAWAII: 'HI', IDAHO: 'ID', ILLINOIS: 'IL', INDIANA: 'IN', IOWA: 'IA',
+    KANSAS: 'KS', KENTUCKY: 'KY', LOUISIANA: 'LA', MAINE: 'ME', MARYLAND: 'MD', MASSACHUSETTS: 'MA', MICHIGAN: 'MI',
+    MINNESOTA: 'MN', MISSISSIPPI: 'MS', MISSOURI: 'MO', MONTANA: 'MT', NEBRASKA: 'NE', NEVADA: 'NV', NEW HAMPSHIRE: 'NH',
+    NEW JERSEY: 'NJ', NEW MEXICO: 'NM', NEW YORK: 'NY', NORTH CAROLINA: 'NC', NORTH DAKOTA: 'ND', OHIO: 'OH',
+    OKLAHOMA: 'OK', OREGON: 'OR', PENNSYLVANIA: 'PA', RHODE ISLAND: 'RI', SOUTH CAROLINA: 'SC', SOUTH DAKOTA: 'SD',
+    TENNESSEE: 'TN', TEXAS: 'TX', UTAH: 'UT', VERMONT: 'VT', VIRGINIA: 'VA', WASHINGTON: 'WA', WEST VIRGINIA: 'WV',
+    WISCONSIN: 'WI', WYOMING: 'WY', DISTRICT OF COLUMBIA: 'DC', WASHINGTON DC: 'DC', DC: 'DC',
+  };
+  return map[s] ?? s;
+}
+
+export function getStateAvgPrice(state: string | undefined): number | undefined {
+  if (!state) return undefined;
+  const code = normalizeStateCode(state);
+  return EIA_STATE_DIESEL_AVG[code];
+}

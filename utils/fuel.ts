@@ -35,20 +35,21 @@ export function getDefaultsFor(vehicleType: VehicleType): { mpg: number; price: 
   return { mpg, price };
 }
 
-export function estimateFuelForLoad(load: Load, driver?: Driver | null): FuelEstimate {
+export function estimateFuelForLoad(load: Load, driver?: Driver | null, opts?: { overrideMpg?: number; overridePricePerGallon?: number }): FuelEstimate {
   const vt = load.vehicleType;
   const defaults = getDefaultsFor(vt);
-  const mpg = driver?.fuelProfile?.averageMpg ?? defaults.mpg;
-  const pricePerGallon = driver?.fuelProfile?.fuelPricePerGallon ?? defaults.price;
-  const gallons = load.distance / (mpg || 1);
+  const mpg = opts?.overrideMpg ?? driver?.fuelProfile?.averageMpg ?? defaults.mpg;
+  const pricePerGallon = opts?.overridePricePerGallon ?? driver?.fuelProfile?.fuelPricePerGallon ?? defaults.price;
+  const safeMpg = mpg || 1;
+  const gallons = load.distance / safeMpg;
   const cost = gallons * pricePerGallon;
-  return { gallons, cost, mpg, pricePerGallon };
+  return { gallons, cost, mpg: safeMpg, pricePerGallon };
 }
 
 export function formatCurrency(n: number): string {
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
   } catch {
-    return `$${Math.round(n).toLocaleString()}`;
+    return `${Math.round(n).toLocaleString()}`;
   }
 }
