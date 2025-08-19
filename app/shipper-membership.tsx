@@ -152,6 +152,16 @@ export default function ShipperMembershipScreen() {
   const { selected, onSelect } = useSelection();
   const router = useRouter();
 
+  const handleSelect = useCallback((id: Tier['id']) => {
+    onSelect(id);
+    try {
+      const path = `/payment-methods?plan=${encodeURIComponent(id)}`;
+      router.push(path);
+    } catch (e) {
+      console.error('membership.select.navigate.error', e);
+    }
+  }, [onSelect, router]);
+
   type WhyItem = {
     icon: React.ComponentType<{ size?: number; color?: string }>;
     title: string;
@@ -224,7 +234,7 @@ export default function ShipperMembershipScreen() {
         </View>
 
         {tiers.map((t) => (
-          <TierCard key={t.id} tier={t} selected={selected === t.id} onSelect={onSelect} />
+          <TierCard key={t.id} tier={t} selected={selected === t.id} onSelect={handleSelect} />
         ))}
 
         <View style={styles.whyCard} testID="why-upgrade">
