@@ -131,6 +131,12 @@ function RootLayoutNav() {
           title: "Increase Revenue",
         }} 
       />
+      <Stack.Screen 
+        name="edit-profile" 
+        options={{ 
+          title: "Edit Profile",
+        }} 
+      />
     </Stack>
   );
 }

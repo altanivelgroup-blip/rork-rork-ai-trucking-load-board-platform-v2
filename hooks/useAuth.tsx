@@ -7,6 +7,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   User as FirebaseUser,
   updateEmail as fbUpdateEmail,
   updatePassword as fbUpdatePassword,
@@ -28,6 +29,7 @@ interface AuthState {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, profile?: Partial<Driver>) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Driver>) => Promise<void>;
 }
@@ -202,9 +204,17 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     isAuthenticated: !!user,
     login,
     register,
+    resetPassword: async (email: string) => {
+      try {
+        await sendPasswordResetEmail(auth, email);
+      } catch (e) {
+        console.error('[auth] reset password error', e);
+        throw e as Error;
+      }
+    },
     logout,
     updateProfile,
-  }), [user, isLoading, login, register, logout, updateProfile]);
+  }), [user, isLoading, login, register, auth, logout, updateProfile]);
 
   return value;
 });

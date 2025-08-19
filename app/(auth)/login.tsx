@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,9 +17,9 @@ import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
   const { login, isAuthenticated } = useAuth();
 
@@ -29,32 +29,32 @@ export default function LoginScreen() {
     }
   }, [isAuthenticated]);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
     if (!email || !password) return;
-    
     setIsLoading(true);
     try {
+      console.log('[login] attempting login for', email);
       await login(email, password);
       router.replace('/(tabs)');
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('[login] failed', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [email, password, login, router]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="login-safe">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Truck size={48} color={theme.colors.primary} />
             </View>
-            <Text style={styles.title}>LoadBoard AI</Text>
+            <Text style={styles.title} testID="login-title">LoadBoard AI</Text>
             <Text style={styles.subtitle}>Smart Trucking Platform</Text>
           </View>
 
@@ -69,6 +69,8 @@ export default function LoginScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
+                testID="login-email"
               />
             </View>
 
@@ -81,6 +83,8 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
+                autoComplete="password"
+                testID="login-password"
               />
             </View>
 
@@ -88,6 +92,7 @@ export default function LoginScreen() {
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={isLoading}
+              testID="login-submit"
             >
               {isLoading ? (
                 <ActivityIndicator color={theme.colors.white} />
@@ -96,20 +101,16 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.forgotPassword}>
+            <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/(auth)/reset-password')} testID="forgot-password-link">
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account?</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(auth)/signup')} testID="signup-link">
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.demo}>
-            <Text style={styles.demoText}>Demo: Use any email/password</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -209,14 +210,5 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-  },
-  demo: {
-    alignItems: 'center',
-    marginTop: theme.spacing.xl,
-  },
-  demoText: {
-    color: theme.colors.gray,
-    fontSize: theme.fontSize.xs,
-    fontStyle: 'italic',
   },
 });
