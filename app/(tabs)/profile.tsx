@@ -31,7 +31,7 @@ export default function ProfileScreen() {
         title: 'Membership',
         subtitle: `${user?.membershipTier ? `${user.membershipTier} Plan` : 'Free Plan'} - 0/month`,
         icon: Crown,
-        onPress: () => router.push('/membership'),
+        onPress: () => router.push('/payment-methods'),
         testID: 'row-membership',
       },
       {
