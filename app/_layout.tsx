@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { PropsWithChildren, useEffect } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { LoadsProvider } from "@/hooks/useLoads";
@@ -14,7 +15,9 @@ import { PlatformGuards } from "@/components/PlatformGuards";
 import HeaderBack from "@/components/HeaderBack";
 import { theme } from "@/constants/theme";
 
-SplashScreen.preventAutoHideAsync();
+if (Platform.OS !== "web") {
+  SplashScreen.preventAutoHideAsync();
+}
 
 const queryClient = new QueryClient();
 
@@ -144,7 +147,9 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useEffect(() => {
-    SplashScreen.hideAsync();
+    if (Platform.OS !== "web") {
+      SplashScreen.hideAsync();
+    }
   }, []);
 
   return (
