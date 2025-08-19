@@ -1,7 +1,9 @@
+import { Platform } from 'react-native';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, initializeAuth, setPersistence, Auth, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type FirebaseServices = {
   app: FirebaseApp;
@@ -25,7 +27,24 @@ export function getFirebase(): FirebaseServices {
   if (services) return services;
   try {
     const app = getApps().length ? getApp() : initializeApp(config);
-    const auth = getAuth(app);
+
+    let auth: Auth;
+    if (Platform.OS === 'web') {
+      auth = getAuth(app);
+      void setPersistence(auth, browserLocalPersistence);
+    } else {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getReactNativePersistence } = require('firebase/auth');
+        auth = initializeAuth(app, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+      } catch (e) {
+        console.warn('[firebase] RN persistence unavailable, falling back to default', e);
+        auth = getAuth(app);
+      }
+    }
+
     const db = getFirestore(app);
     const storage = getStorage(app);
     services = { app, auth, db, storage };
