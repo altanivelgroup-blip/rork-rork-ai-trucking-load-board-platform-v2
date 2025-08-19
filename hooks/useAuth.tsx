@@ -118,20 +118,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         }
       } catch (e) {
         console.error('[auth] load cached user error', e);
-      } finally {
-        setIsLoading(false);
       }
 
       unsub = onAuthStateChanged(auth, async (fbUser) => {
         console.log('[auth] onAuthStateChanged', fbUser?.uid);
-        if (!fbUser) {
-          setUser(null);
-          await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
-          return;
+        try {
+          if (!fbUser) {
+            setUser(null);
+            await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
+          } else {
+            const profile = await fetchOrCreateProfile(db, fbUser);
+            setUser(profile);
+            await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
+          }
+        } finally {
+          setIsLoading(false);
         }
-        const profile = await fetchOrCreateProfile(db, fbUser);
-        setUser(profile);
-        await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
       });
     })();
 
