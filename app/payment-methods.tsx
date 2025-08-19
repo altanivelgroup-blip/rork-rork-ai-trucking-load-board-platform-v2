@@ -64,14 +64,25 @@ export default function PaymentMethodsScreen() {
   const headerRight = useMemo(() => (
     <TouchableOpacity
       testID="addMethodBtn"
-      style={[styles.addBtn, !!selectedPlan && { opacity: 0.5 }]}
+      style={styles.addBtn}
       onPress={() => console.log('Add pressed')}
-      disabled={!!selectedPlan}
     >
       <Plus color={theme.colors.white} size={18} />
       <Text style={styles.addBtnText}>Add</Text>
     </TouchableOpacity>
-  ), [selectedPlan]);
+  ), []);
+
+  const getNextChargeDate = useCallback((): string => {
+    try {
+      const now = new Date();
+      const next = new Date(now.getTime());
+      next.setMonth(now.getMonth() + 1);
+      return next.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' } as const);
+    } catch (e) {
+      console.log('paymentMethods.nextChargeDate.error', e);
+      return '';
+    }
+  }, []);
 
   return (
     <View style={styles.container} testID="paymentMethodsScreen">
@@ -193,7 +204,7 @@ export default function PaymentMethodsScreen() {
               <Text style={styles.footerPeriod}> {PLAN_META[effectivePlan].period}</Text>
             </Text>
             <Text style={styles.footerNote}>
-              {services.autoPay ? 'Auto Pay: ON (charges default method on renewal)' : 'Auto Pay: OFF'}
+              {services.autoPay ? `Auto Pay: ON • Next charge: ${getNextChargeDate()}` : 'Auto Pay: OFF'}
             </Text>
           </View>
           {!isLockedFromActive ? (
@@ -203,6 +214,34 @@ export default function PaymentMethodsScreen() {
               onPress={async () => {
                 if (!effectivePlan) return;
                 try {
+                  if (!services.autoPay) {
+                    Alert.alert(
+                      'Enable Auto Pay',
+                      'Auto Pay is required to subscribe. Turn it on?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Turn On', onPress: async () => { await toggleService('autoPay', true); } },
+                      ],
+                    );
+                    return;
+                  }
+                  const defaultMethod = methods.find((m) => m.isDefault);
+                  if (!defaultMethod) {
+                    Alert.alert(
+                      'Set a Default Payment Method',
+                      methods.length > 0
+                        ? 'Choose a default method before continuing.'
+                        : 'Add a payment method and set it as default before continuing.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        methods.length > 0
+                          ? { text: 'Set First As Default', onPress: async () => { await setDefault(methods[0].id); scrollRef.current?.scrollTo({ y: 0, animated: true }); } }
+                          : { text: 'Go to Methods', onPress: () => { scrollRef.current?.scrollTo({ y: 0, animated: true }); } },
+                      ],
+                    );
+                    return;
+                  }
+
                   setIsConfirming(true);
                   await updateProfile({ membershipTier: effectivePlan });
                   Alert.alert('Success', `Subscribed to ${PLAN_META[effectivePlan].label}.`, [
