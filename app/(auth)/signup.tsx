@@ -1,10 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserPlus, Mail, Lock, Phone, Building } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+
+const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/26wbvri4j4j5lt84ceaac';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -39,7 +41,15 @@ export default function SignUpScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <UserPlus size={48} color={theme.colors.primary} />
+            <View style={styles.logoContainer}>
+              <Image
+                source={{ uri: AUTH_ICON_URL }}
+                style={styles.logoImage}
+                resizeMode="cover"
+                accessibilityLabel="App icon"
+                testID="signup-logo-image"
+              />
+            </View>
             <Text style={styles.title}>Create your account</Text>
             <Text style={styles.subtitle}>Start moving smarter</Text>
           </View>
@@ -83,6 +93,21 @@ const styles = StyleSheet.create({
   keyboardView: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: theme.spacing.lg },
   header: { alignItems: 'center', marginBottom: theme.spacing.xl },
+  logoContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+    backgroundColor: theme.colors.lightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+  },
   title: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.dark, marginTop: theme.spacing.sm },
   subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 2 },
   form: { marginTop: theme.spacing.md },

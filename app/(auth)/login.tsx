@@ -9,12 +9,15 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Truck, Mail, Lock } from 'lucide-react-native';
+import { Mail, Lock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+
+const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/26wbvri4j4j5lt84ceaac';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
@@ -52,7 +55,13 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Truck size={48} color={theme.colors.primary} />
+              <Image
+                source={{ uri: AUTH_ICON_URL }}
+                style={styles.logoImage}
+                resizeMode="cover"
+                accessibilityLabel="App icon"
+                testID="login-logo-image"
+              />
             </View>
             <Text style={styles.title} testID="login-title">LoadBoard AI</Text>
             <Text style={styles.subtitle}>Smart Trucking Platform</Text>
@@ -138,11 +147,17 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 100,
     height: 100,
-    borderRadius: 50,
+    borderRadius: 24,
     backgroundColor: theme.colors.lightGray,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
   },
   title: {
     fontSize: theme.fontSize.xxl,
