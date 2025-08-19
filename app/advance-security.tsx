@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import HeaderBack from '@/components/HeaderBack';
 import { theme } from '@/constants/theme';
 import { ShieldCheck, Lock, Eye, KeyRound, FileCheck2, Fingerprint, Activity, BadgeCheck } from 'lucide-react-native';
 
@@ -33,7 +34,7 @@ export default function AdvanceSecurityScreen() {
 
   return (
     <View style={styles.container} testID="advance-security-container">
-      <Stack.Screen options={{ title: 'Advanced Security' }} />
+      <Stack.Screen options={{ title: 'Advanced Security', headerLeft: () => <HeaderBack /> }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Text style={styles.title}>Protect Every Load, Every Step</Text>

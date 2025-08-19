@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Stack } from 'expo-router';
+import HeaderBack from '@/components/HeaderBack';
 import { theme } from '@/constants/theme';
 import { Headset, Clock, MessageCircle, Users, Zap, LifeBuoy, PhoneCall, BadgeCheck } from 'lucide-react-native';
 
@@ -32,7 +33,7 @@ export default function PrioritySupportScreen() {
 
   return (
     <View style={styles.container} testID="priority-support-container">
-      <Stack.Screen options={{ title: 'Priority Support' }} />
+      <Stack.Screen options={{ title: 'Priority Support', headerLeft: () => <HeaderBack /> }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Text style={styles.title}>Get Help First—Any Time, Any Load</Text>

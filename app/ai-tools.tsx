@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import HeaderBack from '@/components/HeaderBack';
 import { theme } from '@/constants/theme';
 import { Sparkles, Bot, Mic, FileText, BarChart3, Clock, BrainCircuit, MessageSquareMore, Wand2, Database } from 'lucide-react-native';
 
@@ -33,7 +34,7 @@ import { Sparkles, Bot, Mic, FileText, BarChart3, Clock, BrainCircuit, MessageSq
 
    return (
      <View style={styles.container} testID="ai-tools-container">
-       <Stack.Screen options={{ title: 'AI-Powered Tools' }} />
+       <Stack.Screen options={{ title: 'AI-Powered Tools', headerLeft: () => <HeaderBack /> }} />
        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
          <View style={styles.hero}>
            <Text style={styles.title}>Work Smarter With AI</Text>

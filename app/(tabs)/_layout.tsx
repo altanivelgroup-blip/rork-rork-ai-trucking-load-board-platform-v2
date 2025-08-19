@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { Home, PlusCircle, User, Truck, Crown, Search } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
+import HeaderBack from '@/components/HeaderBack';
 
 export default function TabsLayout() {
   return (
@@ -58,7 +59,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="shipper"
         options={{
-          title: 'Shipper',
+          title: 'Membership',
+          headerShown: true,
+          headerTitleAlign: 'center',
+          headerLeft: () => <HeaderBack />,
           tabBarIcon: ({ color, size }) => <Crown color={color} size={size} />,
         }}
       />

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Crown, Check, Zap, TrendingUp, Shield, UserRound, Smartphone } from 'lucide-react-native';
+import HeaderBack from '@/components/HeaderBack';
 
 type Tier = {
   id: 'basic' | 'pro' | 'business';
@@ -209,7 +210,7 @@ export default function ShipperMembershipScreen() {
 
   return (
     <View style={styles.container} testID="shipper-membership-container">
-      <Stack.Screen options={{ title: 'Membership' }} />
+      <Stack.Screen options={{ title: 'Membership', headerLeft: () => <HeaderBack /> }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.headerWrap}>
           <Text style={styles.pageTitle}>Choose Your Plan</Text>
