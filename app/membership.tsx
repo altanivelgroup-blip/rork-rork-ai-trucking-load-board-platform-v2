@@ -28,8 +28,8 @@ export default function MembershipScreen() {
 
   const onActivate = useCallback(async () => {
     try {
-      console.log('membership.driver.cta -> /payment-methods');
-      router.push('/payment-methods');
+      console.log('membership.driver.cta -> /payment-methods?plan=basic');
+      router.push('/payment-methods?plan=basic');
     } catch (e) {
       Alert.alert('Error', 'Could not open payment page. Please try again.');
     }

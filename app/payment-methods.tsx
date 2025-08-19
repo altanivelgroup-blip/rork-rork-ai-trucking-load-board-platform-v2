@@ -1,15 +1,24 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Switch } from 'react-native';
-import { CreditCard, Banknote, Fuel, Plus, Shield, DollarSign, Check, Trash2, Edit2, Lightbulb, Crown, Zap } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Switch, Alert } from 'react-native';
+import { CreditCard, Banknote, Fuel, Plus, Shield, DollarSign, Check, Trash2, Edit2, Lightbulb, Crown, Zap, Lock } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { usePayments } from '@/hooks/usePayments';
+import { useAuth } from '@/hooks/useAuth';
 
 type PlanId = 'basic' | 'pro' | 'business';
 
+const PLAN_META: Record<PlanId, { label: string; price: string; period: string; description: string }> = {
+  basic: { label: 'Basic', price: '$5', period: '/month', description: 'Starter tier' },
+  pro: { label: 'Pro', price: '$49', period: '/month', description: 'Most popular' },
+  business: { label: 'Business', price: '$99.99', period: '/month', description: 'For teams' },
+};
+
 export default function PaymentMethodsScreen() {
-  const router = useRouter(); // reserved for future navigation
+  const router = useRouter();
   const params = useLocalSearchParams<{ plan?: string }>();
+  const { updateProfile, user } = useAuth();
+  const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const selectedPlan: PlanId | undefined = useMemo(() => {
     const p = (params.plan ?? '').toString().toLowerCase();
     const allowed: PlanId[] = ['basic', 'pro', 'business'];
@@ -32,11 +41,16 @@ export default function PaymentMethodsScreen() {
   }, []);
 
   const headerRight = useMemo(() => (
-    <TouchableOpacity testID="addMethodBtn" style={styles.addBtn} onPress={() => console.log('Add pressed')}>
+    <TouchableOpacity
+      testID="addMethodBtn"
+      style={[styles.addBtn, !!selectedPlan && { opacity: 0.5 }]}
+      onPress={() => console.log('Add pressed')}
+      disabled={!!selectedPlan}
+    >
       <Plus color={theme.colors.white} size={18} />
       <Text style={styles.addBtnText}>Add</Text>
     </TouchableOpacity>
-  ), []);
+  ), [selectedPlan]);
 
   return (
     <View style={styles.container} testID="paymentMethodsScreen">
@@ -52,9 +66,14 @@ export default function PaymentMethodsScreen() {
               )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.planBannerTitle}>Selected Plan</Text>
-              <Text style={styles.planBannerSubtitle}>{selectedPlan.toUpperCase()}</Text>
+              <Text style={styles.planBannerTitle}>Locked Plan</Text>
+              <Text style={styles.planBannerSubtitle}>
+                {PLAN_META[selectedPlan].label} {PLAN_META[selectedPlan].price}
+                <Text style={{ color: theme.colors.gray }}> {PLAN_META[selectedPlan].period}</Text>
+              </Text>
+              <Text style={styles.planBannerHint}>Plan is locked from ?plan. You can confirm below.</Text>
             </View>
+            <Lock size={18} color={theme.colors.gray} />
           </View>
         )}
         <Text style={styles.sectionTitle}>Payment Methods</Text>
@@ -102,7 +121,7 @@ export default function PaymentMethodsScreen() {
           testID="toggle-quickpay"
           title="Quick Pay"
           subtitle="Get paid within 24 hours\nFee: 2.5%"
-          icon={<Lightbulb color={theme.colors.primary} size={22} />}
+          icon={Lightbulb}
           value={services.quickPay}
           onValueChange={(v) => toggleService('quickPay', v)}
         />
@@ -110,7 +129,7 @@ export default function PaymentMethodsScreen() {
           testID="toggle-fuel"
           title="Fuel Advance"
           subtitle="Get fuel money upfront\nFee: 3%"
-          icon={<Fuel color={theme.colors.primary} size={22} />}
+          icon={Fuel}
           value={services.fuelAdvance}
           onValueChange={(v) => toggleService('fuelAdvance', v)}
         />
@@ -118,7 +137,7 @@ export default function PaymentMethodsScreen() {
           testID="toggle-factoring"
           title="Invoice Factoring"
           subtitle="Sell invoices for immediate cash\nFee: 2-5%"
-          icon={<Shield color={theme.colors.primary} size={22} />}
+          icon={Shield}
           value={services.invoiceFactoring}
           onValueChange={(v) => toggleService('invoiceFactoring', v)}
         />
@@ -126,22 +145,58 @@ export default function PaymentMethodsScreen() {
           testID="toggle-crypto"
           title="Cryptocurrency"
           subtitle="Accept Bitcoin and other crypto\nFee: 1%"
-          icon={<DollarSign color={theme.colors.primary} size={22} />}
+          icon={DollarSign}
           value={services.crypto}
           onValueChange={(v) => toggleService('crypto', v)}
         />
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
+
+      {!!selectedPlan && (
+        <View style={styles.lockedFooter} testID="lockedFooter">
+          <View style={styles.footerSummary}>
+            <Text style={styles.footerPlan}>{PLAN_META[selectedPlan].label}</Text>
+            <Text style={styles.footerPrice}>
+              {PLAN_META[selectedPlan].price}
+              <Text style={styles.footerPeriod}> {PLAN_META[selectedPlan].period}</Text>
+            </Text>
+          </View>
+          <TouchableOpacity
+            testID="confirmSubscribeBtn"
+            style={[styles.confirmBtn, isConfirming && { opacity: 0.6 }]}
+            onPress={async () => {
+              if (!selectedPlan) return;
+              try {
+                setIsConfirming(true);
+                await updateProfile({ membershipTier: selectedPlan });
+                Alert.alert('Success', `Subscribed to ${PLAN_META[selectedPlan].label}.`, [
+                  { text: 'OK', onPress: () => router.back() },
+                ]);
+              } catch (e) {
+                Alert.alert('Error', 'Could not update membership. Please try again.');
+              } finally {
+                setIsConfirming(false);
+              }
+            }}
+            disabled={isConfirming}
+          >
+            <Text style={styles.confirmText}>Confirm / Subscribe</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
 
-const ServiceToggle = React.memo(function ServiceToggle({ title, subtitle, icon, value, onValueChange, testID }: { title: string; subtitle: string; icon: React.ReactElement; value: boolean; onValueChange: (v: boolean) => void; testID?: string; }) {
+const ServiceToggle = React.memo(function ServiceToggle({ title, subtitle, icon, value, onValueChange, testID }: { title: string; subtitle: string; icon: React.ComponentType<{ size?: number; color?: string }>; value: boolean; onValueChange: (v: boolean) => void; testID?: string; }) {
+  const Icon = icon;
   return (
     <View style={styles.serviceCard} testID={testID}>
       <View style={styles.row}>
-        <View style={styles.iconWrapSmall}>{icon}</View>
+        <View style={styles.iconWrapSmall}>
+          <Icon color={theme.colors.primary} size={22} />
+        </View>
         <View style={styles.flex}>
           <Text style={styles.serviceTitle}>{title}</Text>
           <Text style={styles.serviceSubtitle}>{subtitle}</Text>
@@ -161,10 +216,11 @@ const ServiceToggle = React.memo(function ServiceToggle({ title, subtitle, icon,
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
   scroll: { padding: theme.spacing.lg },
-  planBanner: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md },
+  planBanner: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md, gap: 10 as unknown as number },
   planIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFF7ED', alignItems: 'center' as const, justifyContent: 'center' as const, marginRight: theme.spacing.md },
   planBannerTitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
   planBannerSubtitle: { fontSize: theme.fontSize.lg, fontWeight: '800' as const, color: theme.colors.dark },
+  planBannerHint: { marginTop: 2, fontSize: theme.fontSize.xs, color: theme.colors.gray },
   sectionTitle: { fontSize: theme.fontSize.xl, fontWeight: '700' as const, color: theme.colors.dark, marginBottom: theme.spacing.md },
   sectionSubtitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginBottom: theme.spacing.md },
   card: { backgroundColor: theme.colors.card, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
@@ -190,4 +246,11 @@ const styles = StyleSheet.create({
   serviceCard: { backgroundColor: theme.colors.card, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
   serviceTitle: { fontSize: theme.fontSize.lg, fontWeight: '700' as const, color: theme.colors.dark, marginBottom: 2 },
   serviceSubtitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  lockedFooter: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: theme.spacing.md, backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.border, flexDirection: 'row' as const, alignItems: 'center' as const, gap: theme.spacing.md as unknown as number },
+  footerSummary: { flex: 1 },
+  footerPlan: { fontSize: theme.fontSize.md, fontWeight: '700' as const, color: theme.colors.dark },
+  footerPrice: { fontSize: theme.fontSize.lg, fontWeight: '800' as const, color: theme.colors.dark },
+  footerPeriod: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  confirmBtn: { backgroundColor: theme.colors.secondary, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12 },
+  confirmText: { color: theme.colors.white, fontWeight: '800' as const },
 });
