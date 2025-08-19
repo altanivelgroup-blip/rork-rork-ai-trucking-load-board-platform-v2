@@ -105,7 +105,7 @@ export default function PostLoadStep5() {
       if (!created) return;
       Alert.alert('Load Posted', 'Your load has been posted to the board.');
       reset();
-      router.replace('/(tabs)/(loads)');
+      router.replace('/(tabs)/(loads)/');
     } catch (e) {
       console.log('[PostLoadStep5] submit error', e);
       Alert.alert('Error', 'Failed to post load. Please try again.');

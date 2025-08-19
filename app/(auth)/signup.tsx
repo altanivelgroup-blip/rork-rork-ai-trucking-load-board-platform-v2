@@ -25,7 +25,7 @@ export default function SignUpScreen() {
     try {
       console.log('[signup] creating account for', email);
       await register(email, password, { name, phone, company });
-      router.replace('/(tabs)/dashboard');
+      router.replace('/dashboard');
     } catch (e) {
       console.error('[signup] error', e);
       Alert.alert('Sign Up Failed', 'Please check your details and try again.');
