@@ -34,7 +34,7 @@ import { Sparkles, Bot, Mic, FileText, BarChart3, Clock, BrainCircuit, MessageSq
 
    return (
      <View style={styles.container} testID="ai-tools-container">
-       <Stack.Screen options={{ title: 'AI-Powered Tools', headerLeft: () => <HeaderBack /> }} />
+       <Stack.Screen options={{ title: 'AI-Powered Tools', headerLeft: () => <HeaderBack fallbackPath="/shipper" /> }} />
        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
          <View style={styles.hero}>
            <Text style={styles.title}>Work Smarter With AI</Text>

@@ -33,7 +33,7 @@ export default function PrioritySupportScreen() {
 
   return (
     <View style={styles.container} testID="priority-support-container">
-      <Stack.Screen options={{ title: 'Priority Support', headerLeft: () => <HeaderBack /> }} />
+      <Stack.Screen options={{ title: 'Priority Support', headerLeft: () => <HeaderBack fallbackPath="/shipper" /> }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Text style={styles.title}>Get Help First—Any Time, Any Load</Text>

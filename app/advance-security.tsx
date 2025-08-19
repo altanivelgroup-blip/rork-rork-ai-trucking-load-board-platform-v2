@@ -34,7 +34,7 @@ export default function AdvanceSecurityScreen() {
 
   return (
     <View style={styles.container} testID="advance-security-container">
-      <Stack.Screen options={{ title: 'Advanced Security', headerLeft: () => <HeaderBack /> }} />
+      <Stack.Screen options={{ title: 'Advanced Security', headerLeft: () => <HeaderBack fallbackPath="/shipper" /> }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Text style={styles.title}>Protect Every Load, Every Step</Text>

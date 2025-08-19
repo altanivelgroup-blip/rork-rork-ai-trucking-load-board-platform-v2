@@ -75,7 +75,7 @@ export default function IncreaseRevenueScreen() {
 
   return (
     <View style={styles.container} testID="increase-revenue-container">
-      <Stack.Screen options={{ title: 'Increase Revenue', headerLeft: () => <HeaderBack /> }} />
+      <Stack.Screen options={{ title: 'Increase Revenue', headerLeft: () => <HeaderBack fallbackPath="/shipper" /> }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Text style={styles.title}>Grow Revenue With Better Lanes</Text>

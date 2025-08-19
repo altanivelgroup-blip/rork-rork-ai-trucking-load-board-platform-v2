@@ -7,22 +7,30 @@ interface HeaderBackProps {
   tintColor?: string;
   size?: number;
   testID?: string;
+  fallbackPath?: string;
+  targetPath?: string;
 }
 
-export default function HeaderBack({ tintColor, size = 28, testID }: HeaderBackProps) {
+export default function HeaderBack({ tintColor, size = 28, testID, fallbackPath, targetPath }: HeaderBackProps) {
   const router = useRouter();
 
   const onPress = useCallback(() => {
     try {
+      if (targetPath) {
+        router.replace(targetPath as any);
+        return;
+      }
       if ((router as any).canGoBack?.()) {
         router.back();
+      } else if (fallbackPath) {
+        router.replace(fallbackPath as any);
       } else {
         router.replace('/');
       }
     } catch (e) {
       console.log('[HeaderBack] back press error', e);
     }
-  }, [router]);
+  }, [router, fallbackPath, targetPath]);
 
   return (
     <Pressable
