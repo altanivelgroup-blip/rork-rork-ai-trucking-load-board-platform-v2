@@ -41,7 +41,7 @@ export default function MembershipScreen() {
         options={{
           title: 'Driver Membership',
           headerLeft: ({ tintColor }) => (
-            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} targetPath="/admin" />
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} targetPath="/settings" />
           ),
         }}
       />
@@ -67,8 +67,9 @@ export default function MembershipScreen() {
             activeOpacity={0.8}
             onPress={onActivate}
             style={[styles.cta, isActive && styles.ctaActive]}
-            disabled={isUpdating}
+            disabled={isUpdating || isActive}
             testID="membership-cta"
+            accessibilityState={{ disabled: isUpdating || isActive }}
           >
             <Text style={[styles.ctaText, isActive && styles.ctaTextActive]}>
               {isActive ? 'Active' : isUpdating ? 'Activating…' : 'Activate Free Plan'}

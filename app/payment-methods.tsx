@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Switch, Alert } from 'react-native';
 import { CreditCard, Banknote, Fuel, Plus, Shield, DollarSign, Check, Trash2, Edit2, Lightbulb, Crown, Zap, Lock } from 'lucide-react-native';
@@ -18,6 +18,7 @@ export default function PaymentMethodsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ plan?: string }>();
   const { updateProfile, user } = useAuth();
+  const scrollRef = useRef<ScrollView>(null);
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const selectedPlan: PlanId | undefined = useMemo(() => {
     const p = (params.plan ?? '').toString().toLowerCase();
@@ -33,6 +34,17 @@ export default function PaymentMethodsScreen() {
   }, [user?.membershipTier]);
 
   const effectivePlan: PlanId | undefined = selectedPlan ?? activePlan;
+  useEffect(() => {
+    try {
+      if (selectedPlan && scrollRef.current) {
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated: true });
+        }, 300);
+      }
+    } catch (e) {
+      console.log('paymentMethods.autoscroll.error', e);
+    }
+  }, [selectedPlan]);
   const isLockedFromActive = !selectedPlan && !!activePlan;
   const { methods, services, setDefault, deleteMethod, isHydrating, toggleService } = usePayments();
 
@@ -64,7 +76,7 @@ export default function PaymentMethodsScreen() {
   return (
     <View style={styles.container} testID="paymentMethodsScreen">
       <Stack.Screen options={{ title: 'Payment Methods', headerRight: () => headerRight }} />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} testID="paymentMethodsScroll">
         {!!effectivePlan && (
           <View style={styles.planBanner} testID="selectedPlanBanner">
             <View style={styles.planIconWrap}>
