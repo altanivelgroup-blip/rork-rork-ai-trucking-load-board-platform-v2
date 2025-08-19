@@ -141,6 +141,14 @@ export default function PaymentMethodsScreen() {
         <Text style={styles.sectionSubtitle}>Enable additional payment features to get paid faster</Text>
 
         <ServiceToggle
+          testID="toggle-autopay"
+          title="Auto Pay"
+          subtitle="Automatically charge your default method on renewal"
+          icon={Check}
+          value={services.autoPay}
+          onValueChange={(v) => toggleService('autoPay', v)}
+        />
+        <ServiceToggle
           testID="toggle-quickpay"
           title="Quick Pay"
           subtitle="Get paid within 24 hours\nFee: 2.5%"
@@ -183,6 +191,9 @@ export default function PaymentMethodsScreen() {
             <Text style={styles.footerPrice}>
               {PLAN_META[effectivePlan].price}
               <Text style={styles.footerPeriod}> {PLAN_META[effectivePlan].period}</Text>
+            </Text>
+            <Text style={styles.footerNote}>
+              {services.autoPay ? 'Auto Pay: ON (charges default method on renewal)' : 'Auto Pay: OFF'}
             </Text>
           </View>
           {!isLockedFromActive ? (
@@ -280,6 +291,7 @@ const styles = StyleSheet.create({
   footerPlan: { fontSize: theme.fontSize.md, fontWeight: '700' as const, color: theme.colors.dark },
   footerPrice: { fontSize: theme.fontSize.lg, fontWeight: '800' as const, color: theme.colors.dark },
   footerPeriod: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  footerNote: { marginTop: 4, fontSize: theme.fontSize.xs, color: theme.colors.gray },
   confirmBtn: { backgroundColor: theme.colors.secondary, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12 },
   confirmText: { color: theme.colors.white, fontWeight: '800' as const },
 });

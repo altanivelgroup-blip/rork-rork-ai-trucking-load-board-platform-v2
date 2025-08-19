@@ -19,6 +19,7 @@ export interface PaymentServicesState {
   fuelAdvance: boolean;
   invoiceFactoring: boolean;
   crypto: boolean;
+  autoPay: boolean;
 }
 
 interface PaymentsState {
@@ -39,6 +40,7 @@ const initialServices: PaymentServicesState = {
   fuelAdvance: true,
   invoiceFactoring: false,
   crypto: false,
+  autoPay: true,
 };
 
 const seedMethods: PaymentMethod[] = [
@@ -80,9 +82,9 @@ export const [PaymentsProvider, usePayments] = createContextHook<PaymentsState>(
         console.log('[Payments] hydrate');
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
-          const parsed = JSON.parse(raw) as { methods: PaymentMethod[]; services: PaymentServicesState };
+          const parsed = JSON.parse(raw) as { methods: PaymentMethod[]; services: Partial<PaymentServicesState> };
           setMethods(Array.isArray(parsed.methods) ? parsed.methods : seedMethods);
-          setServices(parsed.services ?? initialServices);
+          setServices({ ...initialServices, ...(parsed.services ?? {}) });
         } else {
           setMethods(seedMethods);
           setServices(initialServices);
