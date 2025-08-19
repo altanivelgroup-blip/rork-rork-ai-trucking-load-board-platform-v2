@@ -26,7 +26,7 @@ function AuthGate({ children }: PropsWithChildren) {
   useEffect(() => {
     if (isLoading) return;
     const first = (segments?.[0] ?? "") as string;
-    const inAuthGroup = ["login", "signup", "reset-password"].includes(first);
+    const inAuthGroup = first === "(auth)";
     if (!isAuthenticated && !inAuthGroup) {
       router.replace("/login");
     } else if (isAuthenticated && inAuthGroup) {
