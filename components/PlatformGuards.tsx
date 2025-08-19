@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { Platform, Linking, Alert } from 'react-native';
+import { memo, useEffect, useRef } from 'react';
+import { Platform, Linking, Alert, AppState, AppStateStatus } from 'react-native';
 
 export function safeOpenURL(url: string): void {
   try {
@@ -33,6 +33,52 @@ export function safeVibrate(): void {
   }
 }
 
-const Guards = () => null;
+function Guards() {
+  const appState = useRef<AppStateStatus | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    let interval: number | undefined;
+    const ping = async () => {
+      try {
+        console.log('[PlatformGuards] keep-alive ping');
+        await fetch('/', { method: 'HEAD', cache: 'no-store' });
+      } catch (e) {
+        console.log('[PlatformGuards] keep-alive error', e);
+      }
+    };
+    const start = () => {
+      if (interval) return;
+      interval = window.setInterval(ping, 30000);
+      ping();
+    };
+    const stop = () => {
+      if (interval) {
+        window.clearInterval(interval);
+        interval = undefined;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') start();
+      else stop();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    onVisibility();
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      appState.current = next;
+      console.log('[PlatformGuards] app state', next);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  return null;
+}
 export const PlatformGuards = memo(Guards);
 export default PlatformGuards;
