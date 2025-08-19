@@ -25,7 +25,7 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace('/(tabs)');
+      router.replace('/dashboard');
     }
   }, [isAuthenticated]);
 
@@ -35,7 +35,7 @@ export default function LoginScreen() {
     try {
       console.log('[login] attempting login for', email);
       await login(email, password);
-      router.replace('/(tabs)');
+      router.replace('/dashboard');
     } catch (error) {
       console.error('[login] failed', error);
     } finally {
@@ -101,14 +101,14 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/(auth)/reset-password')} testID="forgot-password-link">
+            <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/reset-password')} testID="forgot-password-link">
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account?</Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/signup')} testID="signup-link">
+            <TouchableOpacity onPress={() => router.push('/signup')} testID="signup-link">
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
