@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { theme } from '@/constants/theme';
-import { Truck, FileUp, Download, AlertCircle } from 'lucide-react-native';
+import { Truck, FileUp, Download, AlertCircle, ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePostLoad } from '@/hooks/usePostLoad';
 import { useLoads } from '@/hooks/useLoads';
@@ -54,6 +54,15 @@ export default function PostLoadScreen() {
       console.log('[PostLoad] onNext error', e);
     }
   }, [canProceed, draft, router]);
+
+  const onBack = useCallback(() => {
+    try {
+      console.log('[PostLoad] Back pressed');
+      router.back();
+    } catch (e) {
+      console.log('[PostLoad] onBack error', e);
+    }
+  }, [router]);
 
   const toVehicleType = useCallback((v: string | undefined): VehicleType | null => {
     if (!v) return null;
@@ -200,7 +209,19 @@ export default function PostLoadScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle} testID="postLoadHeaderTitle">Post Load</Text>
+            <View style={styles.headerRow}>
+              <Pressable
+                onPress={onBack}
+                style={styles.backBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                testID="backButton"
+              >
+                <ArrowLeft size={22} color={theme.colors.dark} />
+              </Pressable>
+              <Text style={styles.headerTitle} testID="postLoadHeaderTitle">Post Load</Text>
+              <View style={styles.headerRightSpacer} />
+            </View>
             <Stepper current={1} total={5} />
           </View>
 
@@ -357,11 +378,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     alignItems: 'center',
   },
+  headerRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
   headerTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
     color: theme.colors.dark,
-    marginBottom: 12,
   },
   stepper: {
     flexDirection: 'row',
@@ -401,6 +429,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#cbd5e1',
     marginHorizontal: 8,
     borderRadius: 2,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+  },
+  headerRightSpacer: {
+    width: 36,
+    height: 36,
   },
   card: {
     backgroundColor: theme.colors.card,
