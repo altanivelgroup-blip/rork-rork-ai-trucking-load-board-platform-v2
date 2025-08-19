@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { PropsWithChildren, useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -22,17 +22,17 @@ function AuthGate({ children }: PropsWithChildren) {
   const { isLoading, isAuthenticated } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (isLoading) return;
     const first = (segments?.[0] ?? "") as string;
     const inAuthGroup = first === "(auth)";
-    if (!isAuthenticated && !inAuthGroup) {
-      router.replace("/login");
-    } else if (isAuthenticated && inAuthGroup) {
-      router.replace("/dashboard");
+    const target = !isAuthenticated && !inAuthGroup ? "/login" : (isAuthenticated && inAuthGroup ? "/dashboard" : null);
+    if (target && pathname !== target) {
+      router.replace(target as any);
     }
-  }, [isLoading, isAuthenticated, segments, router]);
+  }, [isLoading, isAuthenticated, segments, pathname, router]);
 
   return <>{children}</>;
 }
