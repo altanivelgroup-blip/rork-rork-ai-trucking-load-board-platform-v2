@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import HeaderBack from '@/components/HeaderBack';
 import { Crown, CheckCircle2, Shield, Truck, Wallet, Bell, Image as ImageIcon, Wrench, Search } from 'lucide-react-native';
 
 export default function MembershipScreen() {
@@ -44,7 +45,14 @@ export default function MembershipScreen() {
 
   return (
     <View style={styles.container} testID="membership-container">
-      <Stack.Screen options={{ title: 'Driver Membership' }} />
+      <Stack.Screen
+        options={{
+          title: 'Driver Membership',
+          headerLeft: ({ tintColor }) => (
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} targetPath="/admin" />
+          ),
+        }}
+      />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.planCard} testID="membership-plan-card">
