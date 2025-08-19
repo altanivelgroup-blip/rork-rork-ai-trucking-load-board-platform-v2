@@ -43,12 +43,29 @@ function toDate(d: unknown): Date | undefined {
   return undefined;
 }
 
+function removeUndefined<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
+  const walk = (val: unknown): unknown => {
+    if (Array.isArray(val)) return val.map(walk);
+    if (val && typeof val === 'object' && !(val instanceof Date)) {
+      const out: Record<string, unknown> = {};
+      Object.entries(val as Record<string, unknown>).forEach(([k, v]) => {
+        if (v === undefined) return;
+        const w = walk(v);
+        if (w !== undefined) out[k] = w;
+      });
+      return out;
+    }
+    return val === undefined ? undefined : val;
+  };
+  return walk(obj) as Record<string, unknown>;
+}
+
 const driverConverter: FirestoreDataConverter<Driver> = {
   toFirestore: (driver: Driver) => {
-    return {
+    return removeUndefined({
       ...driver,
       createdAt: driver.createdAt,
-    } as Record<string, unknown>;
+    });
   },
   fromFirestore: (snap) => {
     const data = snap.data();
@@ -143,10 +160,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       setIsLoading(true);
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const base: Driver = buildDefaultDriver(cred.user, profile);
-      await setDoc(doc(db, 'profiles', cred.user.uid), {
+      const payload = removeUndefined({
         ...base,
         createdAt: serverTimestamp(),
       });
+      await setDoc(doc(db, 'profiles', cred.user.uid), payload);
       setUser(base);
       await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(base));
     } catch (e) {
@@ -174,7 +192,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     try {
       if (!user) return;
       const ref = doc(db, 'profiles', user.id);
-      await updateDoc(ref, updates as Partial<Driver>);
+      const cleaned = removeUndefined(updates as Record<string, unknown>);
+      await updateDoc(ref, cleaned as Partial<Driver>);
       const updated = { ...user, ...updates } satisfies Driver;
       setUser(updated);
       await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(updated));
@@ -228,14 +247,14 @@ async function fetchOrCreateProfile(db: ReturnType<typeof getFirebase>['db'], fb
       return driver;
     }
     const created = buildDefaultDriver(fbUser);
-    await setDoc(doc(db, 'profiles', fbUser.uid), {
+    const payload = removeUndefined({
       ...created,
       createdAt: serverTimestamp(),
     });
+    await setDoc(doc(db, 'profiles', fbUser.uid), payload);
     return created;
   } catch (e) {
     console.error('[auth] fetchOrCreateProfile error', e);
-    // Fallback minimal profile
     return buildDefaultDriver(fbUser);
   }
 }
