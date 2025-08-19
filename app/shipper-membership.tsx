@@ -215,7 +215,7 @@ export default function ShipperMembershipScreen() {
 
   return (
     <View style={styles.container} testID="shipper-membership-container">
-      <Stack.Screen options={{ title: 'Membership', headerLeft: () => <HeaderBack fallbackPath="/shipper" /> }} />
+      <Stack.Screen options={{ title: 'Membership', headerLeft: () => <HeaderBack targetPath="/shipper" /> }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.headerWrap}>
           <Text style={styles.pageTitle}>Choose Your Plan</Text>
