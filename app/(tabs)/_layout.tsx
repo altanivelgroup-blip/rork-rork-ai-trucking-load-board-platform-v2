@@ -62,7 +62,7 @@ export default function TabsLayout() {
           title: 'Membership',
           headerShown: true,
           headerTitleAlign: 'center',
-          headerLeft: () => <HeaderBack />,
+          headerLeft: () => <HeaderBack fallbackPath="/shipper" />,
           tabBarIcon: ({ color, size }) => <Crown color={color} size={size} />,
         }}
       />
