@@ -103,50 +103,60 @@ const driverConverter: FirestoreDataConverter<Driver> = {
 };
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
-  const { auth, db } = getFirebase();
   const [user, setUser] = useState<Driver | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [firebaseServices, setFirebaseServices] = useState<ReturnType<typeof getFirebase> | null>(null);
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
     (async () => {
       try {
+        console.log('[auth] initializing firebase services');
+        const services = getFirebase();
+        setFirebaseServices(services);
+        console.log('[auth] firebase services initialized');
+        
         const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
         if (cached) {
           const parsed = JSON.parse(cached) as Driver;
           setUser(parsed);
+          console.log('[auth] loaded cached user');
         }
-      } catch (e) {
-        console.error('[auth] load cached user error', e);
-      }
 
-      unsub = onAuthStateChanged(auth, async (fbUser) => {
-        console.log('[auth] onAuthStateChanged', fbUser?.uid);
-        try {
-          if (!fbUser) {
-            setUser(null);
-            await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
-          } else {
-            const profile = await fetchOrCreateProfile(db, fbUser);
-            setUser(profile);
-            await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
+        unsub = onAuthStateChanged(services.auth, async (fbUser) => {
+          console.log('[auth] onAuthStateChanged', fbUser?.uid);
+          try {
+            if (!fbUser) {
+              setUser(null);
+              await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
+            } else {
+              const profile = await fetchOrCreateProfile(services.db, fbUser);
+              setUser(profile);
+              await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
+            }
+          } catch (profileError) {
+            console.error('[auth] profile fetch/create error', profileError);
+          } finally {
+            setIsLoading(false);
           }
-        } finally {
-          setIsLoading(false);
-        }
-      });
+        });
+      } catch (e) {
+        console.error('[auth] initialization error', e);
+        setIsLoading(false);
+      }
     })();
 
     return () => {
       if (unsub) unsub();
     };
-  }, [auth, db]);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    if (!firebaseServices) throw new Error('Firebase not initialized');
     try {
       setIsLoading(true);
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      const profile = await fetchOrCreateProfile(db, cred.user);
+      const cred = await signInWithEmailAndPassword(firebaseServices.auth, email, password);
+      const profile = await fetchOrCreateProfile(firebaseServices.db, cred.user);
       setUser(profile);
       await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
     } catch (e) {
@@ -155,18 +165,19 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     } finally {
       setIsLoading(false);
     }
-  }, [auth, db]);
+  }, [firebaseServices]);
 
   const register = useCallback(async (email: string, password: string, profile?: Partial<Driver>) => {
+    if (!firebaseServices) throw new Error('Firebase not initialized');
     try {
       setIsLoading(true);
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const cred = await createUserWithEmailAndPassword(firebaseServices.auth, email, password);
       const base: Driver = buildDefaultDriver(cred.user, profile);
       const payload = removeUndefined({
         ...base,
         createdAt: serverTimestamp(),
       });
-      await setDoc(doc(db, 'profiles', cred.user.uid), payload);
+      await setDoc(doc(firebaseServices.db, 'profiles', cred.user.uid), payload);
       setUser(base);
       await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(base));
     } catch (e) {
@@ -175,12 +186,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     } finally {
       setIsLoading(false);
     }
-  }, [auth, db]);
+  }, [firebaseServices]);
 
   const logout = useCallback(async () => {
+    if (!firebaseServices) return;
     try {
       setIsLoading(true);
-      await signOut(auth);
+      await signOut(firebaseServices.auth);
     } catch (e) {
       console.error('[auth] logout error', e);
     } finally {
@@ -188,12 +200,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       setUser(null);
       setIsLoading(false);
     }
-  }, [auth]);
+  }, [firebaseServices]);
 
   const updateProfile = useCallback(async (updates: Partial<Driver>) => {
+    if (!firebaseServices || !user) return;
     try {
-      if (!user) return;
-      const ref = doc(db, 'profiles', user.id);
+      const ref = doc(firebaseServices.db, 'profiles', user.id);
       const cleaned = removeUndefined(updates as Record<string, unknown>);
       await updateDoc(ref, cleaned as Partial<Driver>);
       const updated = { ...user, ...updates } satisfies Driver;
@@ -201,14 +213,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(updated));
       if (updates.email && updates.email !== user.email) {
         try {
-          await fbUpdateEmail(auth.currentUser!, updates.email);
+          await fbUpdateEmail(firebaseServices.auth.currentUser!, updates.email);
         } catch (err) {
           console.warn('[auth] update email failed', err);
         }
       }
       if ((updates as { password?: string }).password) {
         try {
-          await fbUpdatePassword(auth.currentUser!, (updates as { password: string }).password);
+          await fbUpdatePassword(firebaseServices.auth.currentUser!, (updates as { password: string }).password);
         } catch (err) {
           console.warn('[auth] update password failed', err);
         }
@@ -217,7 +229,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       console.error('[auth] update profile error', e);
       throw e as Error;
     }
-  }, [auth, db, user]);
+  }, [firebaseServices, user]);
 
   const value = useMemo(() => ({
     user,
@@ -226,8 +238,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     login,
     register,
     resetPassword: async (email: string) => {
+      if (!firebaseServices) throw new Error('Firebase not initialized');
       try {
-        await sendPasswordResetEmail(auth, email);
+        await sendPasswordResetEmail(firebaseServices.auth, email);
       } catch (e) {
         console.error('[auth] reset password error', e);
         throw e as Error;
@@ -235,7 +248,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     },
     logout,
     updateProfile,
-  }), [user, isLoading, login, register, auth, logout, updateProfile]);
+  }), [user, isLoading, login, register, firebaseServices, logout, updateProfile]);
 
   return value;
 });

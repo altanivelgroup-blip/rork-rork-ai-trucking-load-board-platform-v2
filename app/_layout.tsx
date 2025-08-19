@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { PropsWithChildren, useEffect } from "react";
-import { Platform } from "react-native";
+import React, { PropsWithChildren, useEffect, useState } from "react";
+import { Platform, View, Text, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { LoadsProvider } from "@/hooks/useLoads";
@@ -16,7 +16,9 @@ import HeaderBack from "@/components/HeaderBack";
 import { theme } from "@/constants/theme";
 
 if (Platform.OS !== "web") {
-  SplashScreen.preventAutoHideAsync();
+  SplashScreen.preventAutoHideAsync().catch((error) => {
+    console.warn('[SplashScreen] preventAutoHideAsync failed:', error);
+  });
 }
 
 const queryClient = new QueryClient();
@@ -28,14 +30,25 @@ function AuthGate({ children }: PropsWithChildren) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading) {
+      console.log('[AuthGate] still loading, waiting...');
+      return;
+    }
+    
+    console.log('[AuthGate] auth state:', { isAuthenticated, segments, pathname });
     const first = (segments?.[0] ?? "") as string;
     const inAuthGroup = first === "(auth)";
     const target = !isAuthenticated && !inAuthGroup ? "/login" : (isAuthenticated && inAuthGroup ? "/dashboard" : null);
+    
     if (target && pathname !== target) {
+      console.log('[AuthGate] redirecting to:', target);
       router.replace(target as any);
     }
   }, [isLoading, isAuthenticated, segments, pathname, router]);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return <>{children}</>;
 }
@@ -145,12 +158,50 @@ function RootLayoutNav() {
   );
 }
 
+function LoadingScreen() {
+  return (
+    <View style={{ 
+      flex: 1, 
+      backgroundColor: '#0b1220', 
+      alignItems: 'center', 
+      justifyContent: 'center' 
+    }}>
+      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <Text style={{ 
+        color: '#ffffff', 
+        marginTop: 16, 
+        fontSize: 16 
+      }}>Loading...</Text>
+    </View>
+  );
+}
+
 export default function RootLayout() {
+  const [isReady, setIsReady] = useState(false);
+
   useEffect(() => {
-    if (Platform.OS !== "web") {
-      SplashScreen.hideAsync();
-    }
+    const initializeApp = async () => {
+      try {
+        console.log('[RootLayout] initializing app');
+        await new Promise(resolve => setTimeout(resolve, 100));
+        setIsReady(true);
+        console.log('[RootLayout] app ready');
+        
+        if (Platform.OS !== "web") {
+          await SplashScreen.hideAsync();
+        }
+      } catch (error) {
+        console.error('[RootLayout] initialization error', error);
+        setIsReady(true);
+      }
+    };
+
+    initializeApp();
   }, []);
+
+  if (!isReady) {
+    return <LoadingScreen />;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
