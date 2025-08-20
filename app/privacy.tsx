@@ -52,12 +52,12 @@ export default function PrivacyPolicyScreen() {
         <Section title="Your Controls">
           <Bullet>Access/Export: Settings → Data & Storage → Export Data</Bullet>
           <Bullet>Delete: Settings → Delete Account</Bullet>
-          <Bullet>Contact: privacy@yourcompany.com</Bullet>
+          <Bullet>Contact: privacy@rork.com</Bullet>
         </Section>
 
         <TouchableOpacity
           style={styles.linkRow}
-          onPress={() => openExternal('https://yourcompany.com/privacy')}
+          onPress={() => openExternal('https://rork.com/privacy')}
           testID="privacy-external-link"
         >
           <Text style={styles.linkText}>Read the full policy on our website</Text>

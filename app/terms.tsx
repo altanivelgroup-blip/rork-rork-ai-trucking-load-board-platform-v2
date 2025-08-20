@@ -48,7 +48,7 @@ export default function TermsScreen() {
 
         <TouchableOpacity
           style={styles.linkRow}
-          onPress={() => openExternal('https://yourcompany.com/terms')}
+          onPress={() => openExternal('https://rork.com/terms')}
           testID="terms-external-link"
         >
           <Text style={styles.linkText}>Read the full Terms on our website</Text>
