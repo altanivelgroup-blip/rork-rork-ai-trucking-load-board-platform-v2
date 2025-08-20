@@ -11,12 +11,14 @@ import { MaintenanceProvider } from "@/hooks/useMaintenance";
 import { PaymentsProvider } from "@/hooks/usePayments";
 import { PostLoadProvider } from "@/hooks/usePostLoad";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import Logger from "@/utils/logger";
 import { PlatformGuards } from "@/components/PlatformGuards";
 import HeaderBack from "@/components/HeaderBack";
 import { theme } from "@/constants/theme";
 import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import OfflineBanner from "@/components/OfflineBanner";
+import ScreenTracker from "@/components/ScreenTracker";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch((error) => {
@@ -219,15 +221,18 @@ export default function RootLayout() {
     const initializeApp = async () => {
       try {
         console.log('[RootLayout] initializing app');
+        await Logger.logEvent('app_start');
         await new Promise(resolve => setTimeout(resolve, 100));
         setIsReady(true);
         console.log('[RootLayout] app ready');
+        await Logger.logEvent('app_ready');
         
         if (Platform.OS !== "web") {
           await SplashScreen.hideAsync();
         }
       } catch (error) {
         console.error('[RootLayout] initialization error', error);
+        await Logger.logError('app_init_error', error);
         setIsReady(true);
       }
     };
@@ -269,7 +274,9 @@ export default function RootLayout() {
                         <PlatformGuards />
                         <OfflineBanner />
                         <AuthGate>
-                          <RootLayoutNav />
+                          <ScreenTracker>
+                            <RootLayoutNav />
+                          </ScreenTracker>
                         </AuthGate>
                         <ToastHost />
                       </PaymentsProvider>

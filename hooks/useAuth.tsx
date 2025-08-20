@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Logger from '@/utils/logger';
 import { Driver } from '@/types';
 import { getFirebase } from '@/utils/firebase';
 import {
@@ -112,9 +113,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     (async () => {
       try {
         console.log('[auth] initializing firebase services');
+        Logger.logEvent('auth_init_start').catch(() => {});
         const services = getFirebase();
         setFirebaseServices(services);
         console.log('[auth] firebase services initialized');
+        Logger.logEvent('auth_init_ready').catch(() => {});
         
         const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
         if (cached) {
@@ -125,6 +128,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
         unsub = onAuthStateChanged(services.auth, async (fbUser) => {
           console.log('[auth] onAuthStateChanged', fbUser?.uid);
+          Logger.logEvent('auth_state_changed', { uid: fbUser?.uid ?? null }).catch(() => {});
           try {
             if (!fbUser) {
               setUser(null);
@@ -142,6 +146,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         });
       } catch (e) {
         console.error('[auth] initialization error', e);
+        Logger.logError('auth_init_error', e).catch(() => {});
         setIsLoading(false);
       }
     })();
@@ -161,6 +166,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
     } catch (e) {
       console.error('[auth] login error', e);
+      Logger.logError('auth_login_error', e, { email }).catch(() => {});
       throw e as Error;
     } finally {
       setIsLoading(false);
@@ -182,6 +188,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(base));
     } catch (e) {
       console.error('[auth] register error', e);
+      Logger.logError('auth_register_error', e, { email }).catch(() => {});
       throw e as Error;
     } finally {
       setIsLoading(false);
@@ -195,6 +202,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       await signOut(firebaseServices.auth);
     } catch (e) {
       console.error('[auth] logout error', e);
+      Logger.logError('auth_logout_error', e).catch(() => {});
     } finally {
       await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
       setUser(null);
@@ -227,6 +235,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
     } catch (e) {
       console.error('[auth] update profile error', e);
+      Logger.logError('auth_update_profile_error', e).catch(() => {});
       throw e as Error;
     }
   }, [firebaseServices, user]);
@@ -243,6 +252,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         await sendPasswordResetEmail(firebaseServices.auth, email);
       } catch (e) {
         console.error('[auth] reset password error', e);
+        Logger.logError('auth_reset_password_error', e, { email }).catch(() => {});
         throw e as Error;
       }
     },
@@ -270,6 +280,7 @@ async function fetchOrCreateProfile(db: ReturnType<typeof getFirebase>['db'], fb
     return created;
   } catch (e) {
     console.error('[auth] fetchOrCreateProfile error', e);
+    Logger.logError('auth_fetch_or_create_profile_error', e).catch(() => {});
     return buildDefaultDriver(fbUser);
   }
 }

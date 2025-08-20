@@ -1,5 +1,6 @@
 import React from 'react';
 import ErrorFallback from './ErrorFallback';
+import Logger from '@/utils/logger';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -22,11 +23,13 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     console.log('[ErrorBoundary] componentDidCatch', error?.message, info?.componentStack);
+    Logger.logError('ReactErrorBoundary', error, { componentStack: info?.componentStack }).catch(() => {});
   }
 
   handleReset = () => {
     try {
       console.log('[ErrorBoundary] reset requested');
+      Logger.logEvent('error_reset_click').catch(() => {});
       const dest = this.props.safeRoute ?? '/';
       if (this.props.onNavigate && dest) {
         console.log('[ErrorBoundary] navigating to safe route:', dest);

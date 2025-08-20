@@ -27,6 +27,9 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onReset }) => {
         <RefreshCw color="#ffffff" size={18} />
         <Text style={styles.buttonText}>Try again</Text>
       </TouchableOpacity>
+      <Text style={styles.message} accessibilityRole="text" testID="error-id-hint">
+        The issue was logged locally. You can export logs in Settings.
+      </Text>
     </View>
   );
 };
