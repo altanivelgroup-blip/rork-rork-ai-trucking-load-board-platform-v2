@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert } from 'react-native';
 import { Stack, Link } from 'expo-router';
 import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info } from 'lucide-react-native';
 import { lightTheme as theme } from '@/constants/theme';
@@ -185,6 +185,17 @@ export default function SettingsScreen() {
                 <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>Help & Support</Text>
                   <Text style={styles.rowSubtitle}>FAQs, docs, and contact options</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Link>
+          <Link href="/logs" asChild>
+            <TouchableOpacity style={styles.row} testID="settings-logs">
+              <View style={styles.rowLeft}>
+                <View style={styles.iconWrap}><FileText color={theme.colors.primary} size={20} /></View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>Logs</Text>
+                  <Text style={styles.rowSubtitle}>Inspect, export, and clear logs</Text>
                 </View>
               </View>
             </TouchableOpacity>
