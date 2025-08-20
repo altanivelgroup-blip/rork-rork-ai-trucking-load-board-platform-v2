@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert, Platform } from 'react-native';
 import { Stack, Link } from 'expo-router';
-import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen } from 'lucide-react-native';
+import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info } from 'lucide-react-native';
 import { lightTheme as theme } from '@/constants/theme';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -71,6 +71,17 @@ export default function SettingsScreen() {
         <SectionTitle>Privacy & Location</SectionTitle>
         <View style={styles.card}>
           <Row icon={<MapPin color={theme.colors.primary} size={20} />} title="Location Services" subtitle="Allow app to access your location" value={s.locationServices} onValueChange={(v) => s.setToggle('locationServices', v)} testID="settings-location" />
+          <Link href="/data-usage" asChild>
+            <TouchableOpacity style={styles.row} testID="settings-data-usage">
+              <View style={styles.rowLeft}>
+                <View style={styles.iconWrap}><Info color={theme.colors.primary} size={20} /></View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>How We Use Your Data</Text>
+                  <Text style={styles.rowSubtitle}>Plain-language explanations for permissions</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Link>
           <Link href="/privacy-security" asChild>
             <TouchableOpacity style={styles.row} testID="settings-privacy-security">
               <View style={styles.rowLeft}>
