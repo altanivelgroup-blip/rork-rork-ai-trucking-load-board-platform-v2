@@ -1,9 +1,11 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { Load, VehicleType } from '@/types';
 import { getDefaultsFor } from '@/utils/fuel';
 import { getStateAvgPrice, normalizeStateCode } from '@/utils/fuelStateAvg';
+import { useToast } from '@/components/Toast';
+import useOnlineStatus from '@/hooks/useOnlineStatus';
 
 export type FuelSource = 'auto' | 'live' | 'state';
 export type RegionMode = 'auto' | 'zip' | 'state';
@@ -20,6 +22,7 @@ export interface FuelContextState {
   lastUpdated?: string;
   isResolving: boolean;
   resolvePriceFor: (load?: Load) => { price: number | undefined; label: string };
+  refetchRegion: () => void;
 }
 
 export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() => {
@@ -29,12 +32,22 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
   const [stateCode, setStateCode] = useState<string | undefined>(undefined);
   const [lastUpdated, setLastUpdated] = useState<string | undefined>(undefined);
   const [isResolving, setIsResolving] = useState<boolean>(false);
+  const { show } = useToast();
+  const { online } = useOnlineStatus();
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refetchRegion = () => {
+    setRegionMode(m => m);
+  };
 
   useEffect(() => {
     if (regionMode !== 'auto') return;
     (async () => {
       try {
         setIsResolving(true);
+        if (!online) {
+          show('Offline: using defaults for fuel prices', 'warning', 2500);
+        }
         if (Platform.OS === 'web') {
           try {
             const hasNavigator: boolean = typeof navigator !== 'undefined' && !!navigator;
@@ -59,6 +72,7 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
               longitude = pos.coords.longitude;
             } catch (err) {
               console.warn('[Fuel] web geolocation blocked/failed, falling back to IP geolocate', err);
+              show('Location blocked. Falling back to IP region.', 'warning', 2600);
             }
 
             let zipCandidate: string | undefined;
@@ -81,6 +95,7 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
                 if (postcode) zipCandidate = String(postcode);
               } catch (e) {
                 console.warn('[Fuel] reverse geocode fetch failed (web lat/lon)', e);
+                show('Slow network: reverse geocode failed', 'warning', 2400);
               }
             }
 
@@ -95,6 +110,7 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
                 if (!stateCandidate && regionCode) stateCandidate = String(regionCode);
               } catch (e) {
                 console.warn('[Fuel] IP geolocation fallback failed', e);
+                show('IP lookup failed. Using defaults.', 'warning', 2400);
               }
             }
 
@@ -110,7 +126,7 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
         }
         const Location = await import('expo-location');
         const perm = await Location.requestForegroundPermissionsAsync();
-        if (perm.status !== 'granted') { setIsResolving(false); return; }
+        if (perm.status !== 'granted') { setIsResolving(false); show('Location denied. Using defaults.', 'warning', 2400); return; }
         const loc = await Location.getCurrentPositionAsync({});
         const rg = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         const best = rg?.[0];
@@ -123,7 +139,7 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
         setIsResolving(false);
       }
     })();
-  }, [regionMode]);
+  }, [regionMode, online, show]);
 
   const tryFetchLiveZipPrice = useCallback(async (_zip?: string): Promise<number | undefined> => {
     try {
@@ -170,6 +186,19 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
     return { price: defaults.price, label: 'Default' };
   }, [source, zip, stateCode, tryFetchLiveZipPrice]);
 
+  useEffect(() => {
+    if (isResolving) {
+      if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+      slowTimerRef.current = setTimeout(() => {
+        if (isResolving) show('Fuel region resolving… network may be slow', 'info', 2200);
+      }, 1500);
+    } else if (slowTimerRef.current) {
+      clearTimeout(slowTimerRef.current);
+      slowTimerRef.current = null;
+    }
+    return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
+  }, [isResolving, show]);
+
   return useMemo(() => ({
     source,
     setSource,
@@ -182,5 +211,6 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
     lastUpdated,
     isResolving,
     resolvePriceFor,
-  }), [source, regionMode, zip, stateCode, lastUpdated, isResolving, resolvePriceFor]);
+    refetchRegion,
+  }), [source, regionMode, zip, stateCode, lastUpdated, isResolving, resolvePriceFor, refetchRegion]);
 });

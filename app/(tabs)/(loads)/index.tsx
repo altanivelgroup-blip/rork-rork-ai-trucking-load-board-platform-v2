@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   FlatList,
@@ -17,12 +17,21 @@ import { VehicleType } from '@/types';
 import { VoiceCapture } from '@/components/VoiceCapture';
 import SkeletonLoadCard from '@/components/SkeletonLoadCard';
 
+import { useToast } from '@/components/Toast';
+import useOnlineStatus from '@/hooks/useOnlineStatus';
+
 export default function LoadsScreen() {
   const router = useRouter();
   const { filteredLoads, filters, setFilters, refreshLoads, isLoading, currentLoad } = useLoads();
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const { online } = useOnlineStatus();
+  const { show } = useToast();
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleRefresh = async () => {
+    if (!online) {
+      show('You are offline. Showing cached loads.', 'warning', 2500);
+    }
     setRefreshing(true);
     await refreshLoads();
     setRefreshing(false);
@@ -84,6 +93,21 @@ export default function LoadsScreen() {
   };
 
   const showSkeletons = useMemo(() => isLoading && filteredLoads.length === 0, [isLoading, filteredLoads.length]);
+
+  useEffect(() => {
+    if (isLoading) {
+      if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+      slowTimerRef.current = setTimeout(() => {
+        if (isLoading) {
+          show('Network seems slow. Still loading…', 'info', 2000);
+        }
+      }, 1500);
+    } else if (slowTimerRef.current) {
+      clearTimeout(slowTimerRef.current);
+      slowTimerRef.current = null;
+    }
+    return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
+  }, [isLoading, show]);
 
   if (showSkeletons) {
     return (

@@ -2,7 +2,6 @@ import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Alert } from 'react-native';
 import { Mic, Square } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
-import { Audio } from 'expo-av';
 import { PermissionEducation } from '@/components/PermissionEducation';
 
 interface VoiceCaptureProps {
@@ -20,7 +19,7 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
   const chunksRef = useRef<BlobPart[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingRef = useRef<any | null>(null);
 
   const sendToSTT = useCallback(async (blob: Blob) => {
     setIsSending(true);
@@ -85,6 +84,7 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
 
   const startNativeRecording = useCallback(async () => {
     try {
+      const { Audio } = await import('expo-av');
       const perm = await Audio.requestPermissionsAsync();
       if (perm.status !== 'granted') {
         Alert.alert('Permission required', 'Please enable microphone access in settings.');
@@ -104,6 +104,7 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
 
   const stopNativeRecording = useCallback(async () => {
     try {
+      const { Audio } = await import('expo-av');
       const rec = recordingRef.current;
       if (!rec) return;
       await rec.stopAndUnloadAsync();

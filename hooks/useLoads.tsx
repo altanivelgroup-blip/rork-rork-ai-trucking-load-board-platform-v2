@@ -1,8 +1,10 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Load, VehicleType } from '@/types';
 import { mockLoads } from '@/mocks/loads';
+import { useToast } from '@/components/Toast';
+import useOnlineStatus from '@/hooks/useOnlineStatus';
 
 interface GeoPoint { lat: number; lng: number }
 
@@ -47,7 +49,10 @@ function haversineMiles(a: GeoPoint, b: GeoPoint): number {
 export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { show } = useToast();
+  const { online } = useOnlineStatus();
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentLoad = useMemo(() => {
     const inTransit = loads.find(l => l.status === 'in-transit');
@@ -84,6 +89,9 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const acceptLoad = async (loadId: string) => {
     setIsLoading(true);
     try {
+      if (!online) {
+        show('Offline: action will sync later', 'warning', 2500);
+      }
       await new Promise(resolve => setTimeout(resolve, 1000));
       setLoads(prevLoads => 
         prevLoads.map(load => 
@@ -96,8 +104,10 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       const accepted = acceptedLoads ? JSON.parse(acceptedLoads) : [];
       accepted.push(loadId);
       await AsyncStorage.setItem('acceptedLoads', JSON.stringify(accepted));
+      show('Load accepted', 'success', 1800);
     } catch (error) {
       console.error('Failed to accept load:', error);
+      show('Failed to accept load. Tap to retry.', 'error', 2800);
       throw error;
     } finally {
       setIsLoading(false);
@@ -107,10 +117,14 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const refreshLoads = async () => {
     setIsLoading(true);
     try {
+      if (!online) {
+        show('Offline: showing cached loads', 'warning', 2200);
+      }
       await new Promise(resolve => setTimeout(resolve, 1000));
       setLoads([...mockLoads]);
     } catch (error) {
       console.error('Failed to refresh loads:', error);
+      show('Failed to refresh. Pull to retry.', 'error', 2500);
     } finally {
       setIsLoading(false);
     }
@@ -121,8 +135,10 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     try {
       await new Promise(resolve => setTimeout(resolve, 600));
       setLoads(prev => [load, ...prev]);
+      show('Load posted', 'success', 1800);
     } catch (error) {
       console.error('Failed to add load:', error);
+      show('Failed to post load. Try again.', 'error', 2400);
       throw error;
     } finally {
       setIsLoading(false);
@@ -134,13 +150,28 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     try {
       await new Promise(resolve => setTimeout(resolve, 800));
       setLoads(prev => [...incoming, ...prev]);
+      show('Imported loads', 'success', 1600);
     } catch (error) {
       console.error('Failed to add loads bulk:', error);
+      show('Bulk import failed', 'error', 2200);
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isLoading) {
+      if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+      slowTimerRef.current = setTimeout(() => {
+        if (isLoading) show('Network seems slow…', 'info', 2000);
+      }, 1500);
+    } else if (slowTimerRef.current) {
+      clearTimeout(slowTimerRef.current);
+      slowTimerRef.current = null;
+    }
+    return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
+  }, [isLoading, show]);
 
   return {
     loads,

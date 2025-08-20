@@ -1,11 +1,13 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platform, Alert } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { BadgeCheck, FileText, Image as ImageIcon, ShieldCheck, Upload, VenetianMask } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { useToast } from '@/components/Toast';
+import useOnlineStatus from '@/hooks/useOnlineStatus';
 
 interface DocField {
   key: keyof FormState;
@@ -36,6 +38,10 @@ interface Attachment {
 export default function DocumentsScreen() {
   const router = useRouter();
   const { user, updateProfile } = useAuth();
+  const { online } = useOnlineStatus();
+  const { show } = useToast();
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [form, setForm] = useState<FormState>({
     companyName: user?.company ?? '',
@@ -67,6 +73,7 @@ export default function DocumentsScreen() {
       setForm((prev) => ({ ...prev, attachments: [...prev.attachments, ...files] }));
     } catch (e) {
       console.error('Document pick error', e);
+      show('Unable to pick documents. Try again.', 'error', 2600);
       Alert.alert('Error', 'Unable to pick documents.');
     }
   }, []);
@@ -89,6 +96,7 @@ export default function DocumentsScreen() {
       }
     } catch (e) {
       console.error('Image pick error', e);
+      show('Unable to pick image. Try again.', 'error', 2600);
       Alert.alert('Error', 'Unable to pick image.');
     }
   }, []);
@@ -99,8 +107,13 @@ export default function DocumentsScreen() {
     return requiredFilled && hasDocs && form.agreed;
   }, [fields, form]);
 
-  const save = useCallback(() => {
+  const save = useCallback(async () => {
     try {
+      if (!online) {
+        show('Offline: will submit when online', 'warning', 2600);
+      }
+      setIsSaving(true);
+      await new Promise(resolve => setTimeout(resolve, 1200));
       updateProfile({
         company: form.companyName,
         mcNumber: form.mcNumber,
@@ -111,13 +124,17 @@ export default function DocumentsScreen() {
         trailerInfo: form.trailerInfo,
         verificationStatus: 'pending',
       });
+      show('Documents submitted', 'success', 1800);
       Alert.alert('Submitted', 'Your documents were submitted for verification.');
       router.back();
     } catch (e) {
       console.error('Save error', e);
+      show('Submit failed. Tap to retry.', 'error', 2800);
       Alert.alert('Error', 'Could not save documents.');
+    } finally {
+      setIsSaving(false);
     }
-  }, [form, updateProfile, router]);
+  }, [form, updateProfile, router, online, show]);
 
   const removeAttachment = useCallback((id: string) => {
     setForm((prev) => ({ ...prev, attachments: prev.attachments.filter((a) => a.id !== id) }));
@@ -127,6 +144,12 @@ export default function DocumentsScreen() {
     <View style={styles.safe} testID="documents-safe">
       <Stack.Screen options={{ title: 'Documents & Verification' }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {isSaving ? (
+          <View style={styles.skeleton} testID="doc-skeleton">
+            <ActivityIndicator color={theme.colors.primary} />
+            <Text style={styles.skeletonText}>Submitting…</Text>
+          </View>
+        ) : null}
         <View style={styles.headerCard} testID="doc-header">
           <ShieldCheck color={theme.colors.primary} size={24} />
           <Text style={styles.headerTitle}>Provide your company and insurance details</Text>
@@ -144,16 +167,17 @@ export default function DocumentsScreen() {
               placeholderTextColor={theme.colors.gray}
               style={styles.input}
               autoCapitalize={f.key === 'companyName' ? 'words' : 'characters'}
+            editable={!isSaving}
             />
           </View>
         ))}
 
         <View style={styles.attachRow}>
-          <TouchableOpacity onPress={pickDocument} style={styles.attachBtn} activeOpacity={0.8} testID="btn-pick-doc">
+          <TouchableOpacity onPress={pickDocument} style={[styles.attachBtn, isSaving && styles.disabled]} activeOpacity={0.8} disabled={isSaving} testID="btn-pick-doc">
             <Upload color={theme.colors.white} size={18} />
             <Text style={styles.attachText}>Add Documents</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={pickImage} style={[styles.attachBtn, styles.attachOutline]} activeOpacity={0.8} testID="btn-pick-img">
+          <TouchableOpacity onPress={pickImage} style={[styles.attachBtn, styles.attachOutline, isSaving && styles.disabled]} activeOpacity={0.8} disabled={isSaving} testID="btn-pick-img">
             <ImageIcon color={theme.colors.primary} size={18} />
             <Text style={styles.attachTextAlt}>Add Photo</Text>
           </TouchableOpacity>
@@ -165,7 +189,7 @@ export default function DocumentsScreen() {
               <View key={a.id} style={styles.fileItem}>
                 <FileText size={18} color={theme.colors.primary} />
                 <Text style={styles.fileName} numberOfLines={1}>{a.name}</Text>
-                <TouchableOpacity onPress={() => removeAttachment(a.id)} style={styles.removeBtn} testID={`remove-${a.id}`}>
+                <TouchableOpacity onPress={() => removeAttachment(a.id)} style={styles.removeBtn} disabled={isSaving} testID={`remove-${a.id}`}>
                   <VenetianMask size={16} color={theme.colors.danger} />
                 </TouchableOpacity>
               </View>
@@ -185,13 +209,13 @@ export default function DocumentsScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.submit, { opacity: isComplete ? 1 : 0.6 }]}
-          disabled={!isComplete}
+          style={[styles.submit, { opacity: isComplete && !isSaving ? 1 : 0.6 }]}
+          disabled={!isComplete || isSaving}
           onPress={save}
           testID="submit-docs"
         >
           <BadgeCheck color={theme.colors.white} size={18} />
-          <Text style={styles.submitText}>Submit for Verification</Text>
+          <Text style={styles.submitText}>{isSaving ? 'Submitting…' : 'Submit for Verification'}</Text>
         </TouchableOpacity>
 
         <Text style={styles.helper}>
@@ -210,6 +234,22 @@ const styles = StyleSheet.create({
   scroll: {
     padding: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
+  },
+  skeleton: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  skeletonText: {
+    color: theme.colors.dark,
+    fontWeight: '700',
   },
   headerCard: {
     backgroundColor: theme.colors.white,
@@ -331,6 +371,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  disabled: { opacity: 0.6 },
   submitText: {
     color: theme.colors.white,
     fontWeight: '700',

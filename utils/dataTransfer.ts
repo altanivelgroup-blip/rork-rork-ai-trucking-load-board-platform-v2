@@ -48,7 +48,8 @@ export async function exportData(): Promise<{ uri: string; fileName: string } | 
     const fileUri = FileSystem.documentDirectory ? `${FileSystem.documentDirectory}${fileName}` : `${FileSystem.cacheDirectory ?? ''}${fileName}`;
     await FileSystem.writeAsStringAsync(fileUri, json, { encoding: FileSystem.EncodingType.UTF8 });
 
-    if (await Sharing.isAvailableAsync()) {
+    const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
+    if (isNative && (await Sharing.isAvailableAsync())) {
       await Sharing.shareAsync(fileUri, { mimeType: 'application/json', dialogTitle: 'Export Data' });
     }
     return { uri: fileUri, fileName };
