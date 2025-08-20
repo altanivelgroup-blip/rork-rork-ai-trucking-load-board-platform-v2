@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
@@ -15,6 +15,7 @@ import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
 
 import { VoiceCapture } from '@/components/VoiceCapture';
+import SkeletonLoadCard from '@/components/SkeletonLoadCard';
 
 export default function LoadsScreen() {
   const router = useRouter();
@@ -82,10 +83,14 @@ export default function LoadsScreen() {
     router.push({ pathname: '/load-details', params: { loadId } });
   };
 
-  if (isLoading && filteredLoads.length === 0) {
+  const showSkeletons = useMemo(() => isLoading && filteredLoads.length === 0, [isLoading, filteredLoads.length]);
+
+  if (showSkeletons) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        {[...Array(5)].map((_, i) => (
+          <SkeletonLoadCard key={`skeleton-${i}`} />
+        ))}
       </View>
     );
   }

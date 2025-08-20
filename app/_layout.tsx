@@ -14,6 +14,9 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { PlatformGuards } from "@/components/PlatformGuards";
 import HeaderBack from "@/components/HeaderBack";
 import { theme } from "@/constants/theme";
+import { ToastProvider } from "@/components/Toast";
+import ToastHost from "@/components/ToastHost";
+import OfflineBanner from "@/components/OfflineBanner";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch((error) => {
@@ -225,22 +228,26 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ErrorBoundary>
-          <AuthProvider>
-            <LoadsProvider>
-              <PostLoadProvider>
-                <SettingsProvider>
-                  <MaintenanceProvider>
-                    <PaymentsProvider>
-                      <PlatformGuards />
-                      <AuthGate>
-                        <RootLayoutNav />
-                      </AuthGate>
-                    </PaymentsProvider>
-                  </MaintenanceProvider>
-                </SettingsProvider>
-              </PostLoadProvider>
-            </LoadsProvider>
-          </AuthProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <LoadsProvider>
+                <PostLoadProvider>
+                  <SettingsProvider>
+                    <MaintenanceProvider>
+                      <PaymentsProvider>
+                        <PlatformGuards />
+                        <OfflineBanner />
+                        <AuthGate>
+                          <RootLayoutNav />
+                        </AuthGate>
+                        <ToastHost />
+                      </PaymentsProvider>
+                    </MaintenanceProvider>
+                  </SettingsProvider>
+                </PostLoadProvider>
+              </LoadsProvider>
+            </AuthProvider>
+          </ToastProvider>
         </ErrorBoundary>
       </GestureHandlerRootView>
     </QueryClientProvider>
