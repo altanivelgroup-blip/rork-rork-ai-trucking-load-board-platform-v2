@@ -14,7 +14,7 @@ import {
 import { useLocalSearchParams } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Wrench, MapPin, Phone, ExternalLink, Navigation, AlertTriangle, LocateFixed, Bot } from 'lucide-react-native';
-import * as Location from 'expo-location';
+
 
 interface ServiceResult {
   id: string;
@@ -31,6 +31,7 @@ interface ServiceResult {
 interface Coordinates { latitude: number; longitude: number }
 
 import { VoiceCapture } from '@/components/VoiceCapture';
+import { PermissionEducation } from '@/components/PermissionEducation';
 
 export default function ServiceFinderScreen() {
   const params = useLocalSearchParams<{ q?: string }>();
@@ -41,6 +42,7 @@ export default function ServiceFinderScreen() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ServiceResult[]>([]);
   const [coords, setCoords] = useState<Coordinates | null>(null);
+  const [eduVisible, setEduVisible] = useState<boolean>(false);
   const radiusMiles = 100 as const;
 
   const openLink = useCallback(async (url: string) => {
@@ -75,6 +77,7 @@ export default function ServiceFinderScreen() {
         setError('Geolocation not available in this browser.');
         return null;
       } else {
+        const Location = await import('expo-location');
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           setError('Location permission denied.');
@@ -219,13 +222,7 @@ export default function ServiceFinderScreen() {
         <View style={styles.ctaColumn}>
           <TouchableOpacity
             style={[styles.locateBtn]}
-            onPress={async () => {
-              const c = await getGeo();
-              if (c) {
-                console.log('[ServiceFinder] got coords', c);
-                setCoords(c);
-              }
-            }}
+            onPress={() => setEduVisible(true)}
             testID="use-location-btn"
           >
             <LocateFixed size={18} color={theme.colors.primary} />
@@ -274,6 +271,19 @@ export default function ServiceFinderScreen() {
             <Text style={styles.emptySubtitle}>Describe what you need and where. We will fetch nearby options.</Text>
           </View>
         ) : null}
+      />
+      <PermissionEducation
+        type="location"
+        visible={eduVisible}
+        onCancel={() => setEduVisible(false)}
+        onContinue={async () => {
+          setEduVisible(false);
+          const c = await getGeo();
+          if (c) {
+            console.log('[ServiceFinder] got coords', c);
+            setCoords(c);
+          }
+        }}
       />
     </SafeAreaView>
   );

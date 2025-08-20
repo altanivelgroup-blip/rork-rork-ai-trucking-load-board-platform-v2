@@ -106,5 +106,19 @@ export function useLiveLocation() {
     subscriptionRef.current = null;
   }, []);
 
-  return { startWatching, stopWatching, requestPermissionAsync };
+  const requestBackgroundPermissionAsync = useCallback(async (): Promise<boolean> => {
+    try {
+      if (Platform.OS === 'web') {
+        return false;
+      }
+      const Location = await import('expo-location');
+      const { status } = await Location.requestBackgroundPermissionsAsync();
+      return status === 'granted';
+    } catch (e) {
+      console.error('Background location permission error', e);
+      return false;
+    }
+  }, []);
+
+  return { startWatching, stopWatching, requestPermissionAsync, requestBackgroundPermissionAsync };
 }

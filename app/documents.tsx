@@ -7,6 +7,7 @@ import { BadgeCheck, FileText, Image as ImageIcon, ShieldCheck, Upload, Venetian
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import useOnlineStatus from '@/hooks/useOnlineStatus';
 
 interface DocField {
@@ -34,6 +35,19 @@ interface Attachment {
   uri: string;
   type: string;
 }
+
+interface StoredAttachmentMeta {
+  id: string;
+  name: string;
+  uri: string;
+  type: string;
+  sizeBytes?: number;
+  createdAt: string;
+  source: 'document' | 'image';
+}
+
+const ATTACHMENTS_KEY = 'doc_attachments_v1';
+const ATTACHMENTS_META_KEY = 'doc_attachments_meta_v1';
 
 export default function DocumentsScreen() {
   const router = useRouter();
@@ -65,12 +79,40 @@ export default function DocumentsScreen() {
     { key: 'trailerInfo', label: 'Trailer Information', placeholder: 'Year Make Model VIN', required: false },
   ], []);
 
+  const persistAttachments = useCallback(async (attachments: Attachment[], metas: StoredAttachmentMeta[]) => {
+    try {
+      await AsyncStorage.multiSet([
+        [ATTACHMENTS_KEY, JSON.stringify(attachments)],
+        [ATTACHMENTS_META_KEY, JSON.stringify(metas)],
+      ]);
+    } catch (e) {
+      console.log('[Documents] persistAttachments error', e);
+    }
+  }, []);
+
   const pickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({ multiple: true });
       if (result.canceled) return;
+      const now = new Date().toISOString();
       const files = result.assets?.map((a) => ({ id: `${Date.now()}-${a.name}` , name: a.name ?? 'file', uri: a.uri, type: a.mimeType ?? 'application/octet-stream' })) ?? [];
+      const metas: StoredAttachmentMeta[] = result.assets?.map((a) => ({
+        id: `${Date.now()}-${a.name}`,
+        name: a.name ?? 'file',
+        uri: a.uri,
+        type: a.mimeType ?? 'application/octet-stream',
+        sizeBytes: typeof (a as any)?.size === 'number' ? (a as any).size as number : undefined,
+        createdAt: now,
+        source: 'document',
+      })) ?? [];
       setForm((prev) => ({ ...prev, attachments: [...prev.attachments, ...files] }));
+      try {
+        const existingMetaRaw = await AsyncStorage.getItem(ATTACHMENTS_META_KEY);
+        const existingMeta: StoredAttachmentMeta[] = existingMetaRaw ? JSON.parse(existingMetaRaw) as StoredAttachmentMeta[] : [];
+        await persistAttachments([...files], [...existingMeta, ...metas]);
+      } catch (e) {
+        console.log('[Documents] persist after pickDocument error', e);
+      }
     } catch (e) {
       console.error('Document pick error', e);
       show('Unable to pick documents. Try again.', 'error', 2600);
@@ -91,8 +133,25 @@ export default function DocumentsScreen() {
       if (res.canceled) return;
       const asset = res.assets?.[0];
       if (asset) {
-        const file: Attachment = { id: `${Date.now()}-${asset.fileName ?? 'image'}`, name: asset.fileName ?? 'image.jpg', uri: asset.uri, type: asset.mimeType ?? 'image/jpeg' };
+        const id = `${Date.now()}-${asset.fileName ?? 'image'}`;
+        const file: Attachment = { id, name: asset.fileName ?? 'image.jpg', uri: asset.uri, type: asset.mimeType ?? 'image/jpeg' };
         setForm((p) => ({ ...p, attachments: [...p.attachments, file] }));
+        const meta: StoredAttachmentMeta = {
+          id,
+          name: file.name,
+          uri: file.uri,
+          type: file.type,
+          sizeBytes: typeof (asset as any)?.fileSize === 'number' ? (asset as any).fileSize as number : undefined,
+          createdAt: new Date().toISOString(),
+          source: 'image',
+        };
+        try {
+          const existingMetaRaw = await AsyncStorage.getItem(ATTACHMENTS_META_KEY);
+          const existingMeta: StoredAttachmentMeta[] = existingMetaRaw ? JSON.parse(existingMetaRaw) as StoredAttachmentMeta[] : [];
+          await persistAttachments([file], [...existingMeta, meta]);
+        } catch (e) {
+          console.log('[Documents] persist after pickImage error', e);
+        }
       }
     } catch (e) {
       console.error('Image pick error', e);
@@ -136,8 +195,34 @@ export default function DocumentsScreen() {
     }
   }, [form, updateProfile, router, online, show]);
 
-  const removeAttachment = useCallback((id: string) => {
+  const removeAttachment = useCallback(async (id: string) => {
     setForm((prev) => ({ ...prev, attachments: prev.attachments.filter((a) => a.id !== id) }));
+    try {
+      const [attRaw, metaRaw] = await AsyncStorage.multiGet([ATTACHMENTS_KEY, ATTACHMENTS_META_KEY]);
+      const atts: Attachment[] = attRaw[1] ? JSON.parse(attRaw[1] as string) as Attachment[] : [];
+      const metas: StoredAttachmentMeta[] = metaRaw[1] ? JSON.parse(metaRaw[1] as string) as StoredAttachmentMeta[] : [];
+      const nextAtts = atts.filter((a) => a.id !== id);
+      const nextMetas = metas.filter((m) => m.id !== id);
+      await AsyncStorage.multiSet([[ATTACHMENTS_KEY, JSON.stringify(nextAtts)], [ATTACHMENTS_META_KEY, JSON.stringify(nextMetas)]]);
+    } catch (e) {
+      console.log('[Documents] removeAttachment persist error', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [attRaw, metaRaw] = await AsyncStorage.multiGet([ATTACHMENTS_KEY, ATTACHMENTS_META_KEY]);
+        const savedAtts: Attachment[] = attRaw[1] ? JSON.parse(attRaw[1] as string) as Attachment[] : [];
+        if (mounted && savedAtts.length > 0) {
+          setForm((p) => ({ ...p, attachments: savedAtts }));
+        }
+      } catch (e) {
+        console.log('[Documents] load persisted attachments error', e);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
   return (
