@@ -63,12 +63,16 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 20,
+    minWidth: 44,
+    minHeight: 44,
     flexDirection: 'row' as const,
     gap: 8,
     backgroundColor: '#2563eb',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: {
     color: '#ffffff',

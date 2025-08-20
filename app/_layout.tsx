@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { PropsWithChildren, useEffect, useState } from "react";
+import React, { PropsWithChildren, useEffect, useMemo, useState } from "react";
 import { Platform, View, Text, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
@@ -186,13 +186,13 @@ function LoadingScreen() {
       backgroundColor: '#0b1220', 
       alignItems: 'center', 
       justifyContent: 'center' 
-    }}>
-      <ActivityIndicator size="large" color={theme.colors.primary} />
+    }} testID="loading-screen">
+      <ActivityIndicator size="large" color={theme.colors.primary} testID="loading-indicator" />
       <Text style={{ 
         color: '#ffffff', 
         marginTop: 16, 
         fontSize: 16 
-      }}>Loading...</Text>
+      }} testID="loading-text">Loading...</Text>
     </View>
   );
 }
@@ -224,10 +224,26 @@ export default function RootLayout() {
     return <LoadingScreen />;
   }
 
+  const ErrorBoundaryWithRouter: React.FC<React.PropsWithChildren> = ({ children }) => {
+    const router = useRouter();
+    const onNavigate = useMemo(() => (to: string) => {
+      try {
+        router.replace(to as any);
+      } catch (e) {
+        console.log('[RootLayout] safe navigation failed', e);
+      }
+    }, [router]);
+    return (
+      <ErrorBoundary safeRoute="/dashboard" onNavigate={onNavigate}>
+        {children}
+      </ErrorBoundary>
+    );
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ErrorBoundary>
+        <ErrorBoundaryWithRouter>
           <ToastProvider>
             <AuthProvider>
               <LoadsProvider>
@@ -248,7 +264,7 @@ export default function RootLayout() {
               </LoadsProvider>
             </AuthProvider>
           </ToastProvider>
-        </ErrorBoundary>
+        </ErrorBoundaryWithRouter>
       </GestureHandlerRootView>
     </QueryClientProvider>
   );

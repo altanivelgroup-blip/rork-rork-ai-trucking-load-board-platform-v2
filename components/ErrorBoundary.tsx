@@ -8,6 +8,8 @@ interface ErrorBoundaryState {
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
+  safeRoute?: string;
+  onNavigate?: (to: string) => void;
 }
 
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -23,8 +25,18 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   handleReset = () => {
-    console.log('[ErrorBoundary] reset requested');
-    this.setState({ hasError: false, error: null });
+    try {
+      console.log('[ErrorBoundary] reset requested');
+      const dest = this.props.safeRoute ?? '/';
+      if (this.props.onNavigate && dest) {
+        console.log('[ErrorBoundary] navigating to safe route:', dest);
+        this.props.onNavigate(dest);
+      }
+    } catch (e) {
+      console.log('[ErrorBoundary] navigate failed, continuing with local reset', e);
+    } finally {
+      this.setState({ hasError: false, error: null });
+    }
   };
 
   render(): React.ReactNode {

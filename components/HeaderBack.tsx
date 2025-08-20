@@ -38,7 +38,7 @@ export default function HeaderBack({ tintColor, size = 28, testID, fallbackPath,
       accessibilityLabel="Go back"
       onPress={onPress}
       style={styles.button}
-      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      hitSlop={{ top: 0, bottom: 0, left: 0, right: 0 }}
       testID={testID ?? 'header-back-button'}
     >
       <View style={styles.iconWrap}>
@@ -50,14 +50,16 @@ export default function HeaderBack({ tintColor, size = 28, testID, fallbackPath,
 
 const styles = StyleSheet.create({
   button: {
+    minWidth: 44,
+    minHeight: 44,
     paddingHorizontal: 8,
     paddingVertical: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconWrap: {
-    width: 28,
-    height: 28,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
