@@ -141,12 +141,15 @@ const TierCard = memo(function TierCard({ tier, selected, onSelect }: { tier: Ti
         ))}
       </View>
 
-      <View
+      <TouchableOpacity
+        activeOpacity={0.9}
         accessibilityRole="button"
+        onPress={() => onSelect(tier.id)}
         style={[styles.selectBtn, selected && styles.selectBtnActive]}
+        testID={`select-${tier.id}`}
       >
         <Text style={[styles.selectText, selected && styles.selectTextActive]}>{selected ? 'Selected' : 'Choose Plan'}</Text>
-      </View>
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 });
@@ -158,8 +161,7 @@ export default function ShipperMembershipScreen() {
   const handleSelect = useCallback((id: Tier['id']) => {
     onSelect(id);
     try {
-      const path = `/payment-methods?plan=${encodeURIComponent(id)}`;
-      router.push(path);
+      router.push({ pathname: '/payment-methods', params: { plan: id } });
     } catch (e) {
       console.error('membership.select.navigate.error', e);
     }
@@ -220,8 +222,8 @@ export default function ShipperMembershipScreen() {
   const onUpgrade = useCallback(() => {
     try {
       console.log('membership.upgrade', selected, Platform.OS);
-      const path = `/payment-methods?plan=${encodeURIComponent(selected)}`;
-      router.push(path);
+      if (!selected) return;
+      router.push({ pathname: '/payment-methods', params: { plan: selected } });
     } catch (e) {
       console.error('membership.upgrade.error', e);
     }
