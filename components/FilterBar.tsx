@@ -20,7 +20,7 @@ const vehicleTypes: VehicleType[] = [
   'enclosed-trailer',
 ];
 
-export const FilterBar: React.FC<FilterBarProps> = ({
+const FilterBarComponent: React.FC<FilterBarProps> = ({
   selectedVehicle,
   showBackhaul,
   onVehicleSelect,
@@ -30,7 +30,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
-        <TouchableOpacity style={styles.filterButton} onPress={onOpenFilters}>
+        <TouchableOpacity style={styles.filterButton} onPress={onOpenFilters} testID="open-filters">
           <Filter size={16} color={theme.colors.primary} />
           <Text style={styles.filterButtonText}>Filters</Text>
         </TouchableOpacity>
@@ -51,6 +51,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             key={vehicle}
             style={[styles.chip, selectedVehicle === vehicle && styles.chipActive]}
             onPress={() => onVehicleSelect(selectedVehicle === vehicle ? undefined : vehicle)}
+            testID={`vehicle-chip-${vehicle}`}
           >
             <Text style={[styles.chipText, selectedVehicle === vehicle && styles.chipTextActive]}>
               {vehicle.replace('-', ' ')}
@@ -64,6 +65,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     </View>
   );
 };
+
+FilterBarComponent.displayName = 'FilterBar';
+
+export const FilterBar = React.memo<React.FC<FilterBarProps>>(FilterBarComponent);
 
 const styles = StyleSheet.create({
   container: {
