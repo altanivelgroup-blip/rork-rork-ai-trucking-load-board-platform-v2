@@ -36,34 +36,76 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
       try {
         setIsResolving(true);
         if (Platform.OS === 'web') {
-          if (!('geolocation' in navigator)) { setIsResolving(false); return; }
-          navigator.geolocation.getCurrentPosition(async (pos) => {
-            try {
-              const { latitude, longitude } = pos.coords;
-              const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=en`;
-              const res = await fetch(url);
-              const data: any = await res.json();
-              const postcode: string | undefined = data?.postcode ?? data?.localityInfo?.administrative?.find((a: any) => a?.order === 5)?.name;
-              const principalSubdivisionCode: string | undefined = data?.principalSubdivisionCode;
-              let state: string | undefined = undefined;
-              if (typeof principalSubdivisionCode === 'string' && principalSubdivisionCode.includes('-')) {
-                state = principalSubdivisionCode.split('-')[1];
-              } else if (Array.isArray(data?.localityInfo?.administrative)) {
-                const admin = data.localityInfo.administrative.find((a: any) => typeof a?.isoCode === 'string' && a.isoCode.length === 2);
-                state = admin?.isoCode;
+          try {
+            const hasNavigator: boolean = typeof navigator !== 'undefined' && !!navigator;
+            const hasGeo: boolean = hasNavigator && 'geolocation' in navigator;
+            if (!hasGeo) { setIsResolving(false); return; }
+
+            const getPosition = (): Promise<GeolocationPosition> => new Promise((resolve, reject) => {
+              try {
+                const onSuccess = (pos: GeolocationPosition) => resolve(pos);
+                const onError = (err: GeolocationPositionError) => reject(err);
+                navigator.geolocation.getCurrentPosition(onSuccess, onError, { timeout: 8000, maximumAge: 60000, enableHighAccuracy: false });
+              } catch (err) {
+                reject(err);
               }
-              if (postcode) setZip(String(postcode));
-              if (state) setStateCode(normalizeStateCode(state));
-              setLastUpdated(new Date().toISOString());
-            } catch (e) {
-              console.warn('[Fuel] reverse geocode failed (web)', e);
-            } finally {
-              setIsResolving(false);
+            });
+
+            let latitude: number | undefined;
+            let longitude: number | undefined;
+            try {
+              const pos = await getPosition();
+              latitude = pos.coords.latitude;
+              longitude = pos.coords.longitude;
+            } catch (err) {
+              console.warn('[Fuel] web geolocation blocked/failed, falling back to IP geolocate', err);
             }
-          }, (err) => {
-            console.warn('[Fuel] web geolocation error', err);
+
+            let zipCandidate: string | undefined;
+            let stateCandidate: string | undefined;
+
+            if (typeof latitude === 'number' && typeof longitude === 'number') {
+              try {
+                const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=en`;
+                const res = await fetch(url, { method: 'GET' });
+                const data: unknown = await res.json();
+                const anyData: any = data as any;
+                const postcode: string | undefined = anyData?.postcode ?? anyData?.localityInfo?.administrative?.find((a: any) => a?.order === 5)?.name;
+                const principalSubdivisionCode: string | undefined = anyData?.principalSubdivisionCode;
+                if (typeof principalSubdivisionCode === 'string' && principalSubdivisionCode.includes('-')) {
+                  stateCandidate = principalSubdivisionCode.split('-')[1];
+                } else if (Array.isArray(anyData?.localityInfo?.administrative)) {
+                  const admin = anyData.localityInfo.administrative.find((a: any) => typeof a?.isoCode === 'string' && a.isoCode.length === 2);
+                  stateCandidate = admin?.isoCode;
+                }
+                if (postcode) zipCandidate = String(postcode);
+              } catch (e) {
+                console.warn('[Fuel] reverse geocode fetch failed (web lat/lon)', e);
+              }
+            }
+
+            if (!zipCandidate || !stateCandidate) {
+              try {
+                const res = await fetch('https://ipapi.co/json/', { method: 'GET' });
+                const ip: unknown = await res.json();
+                const ipd: any = ip as any;
+                const postal: string | undefined = ipd?.postal;
+                const regionCode: string | undefined = ipd?.region_code;
+                if (!zipCandidate && postal) zipCandidate = String(postal);
+                if (!stateCandidate && regionCode) stateCandidate = String(regionCode);
+              } catch (e) {
+                console.warn('[Fuel] IP geolocation fallback failed', e);
+              }
+            }
+
+            if (zipCandidate) setZip(zipCandidate);
+            if (stateCandidate) setStateCode(normalizeStateCode(stateCandidate));
+            if (zipCandidate || stateCandidate) setLastUpdated(new Date().toISOString());
+          } catch (e) {
+            console.warn('[Fuel] web auto region fatal', e);
+          } finally {
             setIsResolving(false);
-          });
+          }
           return;
         }
         const Location = await import('expo-location');
