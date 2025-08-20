@@ -37,11 +37,11 @@ export default function LoadsScreen() {
     setRefreshing(false);
   };
 
-  const handleVehicleSelect = (vehicle?: VehicleType) => {
+  const handleVehicleSelect = useCallback((vehicle?: VehicleType) => {
     setFilters({ ...filters, vehicleType: vehicle });
-  };
+  }, [filters, setFilters]);
 
-  const handleBackhaulToggle = () => {
+  const handleBackhaulToggle = useCallback(() => {
     const enabling = !filters.showBackhaul;
     if (enabling && currentLoad?.destination) {
       setFilters({
@@ -53,11 +53,11 @@ export default function LoadsScreen() {
     } else {
       setFilters({ ...filters, showBackhaul: !filters.showBackhaul });
     }
-  };
+  }, [filters, setFilters, currentLoad]);
 
-  const handleOpenFilters = () => {
+  const handleOpenFilters = useCallback(() => {
     console.log('Open filters modal');
-  };
+  }, []);
 
   const onVoiceToFilters = useCallback((text: string) => {
     try {
@@ -88,11 +88,17 @@ export default function LoadsScreen() {
     }
   }, [filters, setFilters]);
 
-  const handleLoadPress = (loadId: string) => {
+  const handleLoadPress = useCallback((loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
-  };
+  }, [router]);
 
   const showSkeletons = useMemo(() => isLoading && filteredLoads.length === 0, [isLoading, filteredLoads.length]);
+
+  useEffect(() => {
+    if (!isLoading && filteredLoads.length === 0) {
+      refreshLoads().catch((e) => console.log('[Loads] prefetch error', e));
+    }
+  }, [isLoading, filteredLoads.length, refreshLoads]);
 
   useEffect(() => {
     if (isLoading) {
@@ -119,6 +125,20 @@ export default function LoadsScreen() {
     );
   }
 
+  const renderItem = useCallback(({ item }: { item: typeof filteredLoads[number] }) => (
+    <LoadCard load={item} onPress={() => handleLoadPress(item.id)} />
+  ), [handleLoadPress]);
+
+  const keyExtractor = useCallback((item: typeof filteredLoads[number]) => item.id, []);
+
+  const getItemLayout = useCallback((_: unknown, index: number) => {
+    const ITEM_HEIGHT = 188;
+    const SEPARATOR_HEIGHT = 8;
+    const length = ITEM_HEIGHT;
+    const offset = (ITEM_HEIGHT + SEPARATOR_HEIGHT) * index;
+    return { length, offset, index };
+  }, []);
+
   return (
     <View style={styles.container}>
       <FilterBar
@@ -136,10 +156,8 @@ export default function LoadsScreen() {
       </View>
       <FlatList
         data={filteredLoads}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <LoadCard load={item} onPress={() => handleLoadPress(item.id)} />
-        )}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
@@ -154,6 +172,11 @@ export default function LoadsScreen() {
             <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
           </View>
         }
+        getItemLayout={getItemLayout}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        removeClippedSubviews={true}
         testID="loads-flatlist"
       />
     </View>

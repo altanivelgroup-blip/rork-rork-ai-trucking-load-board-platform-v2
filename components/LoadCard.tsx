@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { MapPin, DollarSign, Package, Calendar, TrendingUp, Fuel } from 'lucide-react-native';
+import { MapPin, DollarSign, Package, TrendingUp, Fuel } from 'lucide-react-native';
 import { Load } from '@/types';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,7 +11,7 @@ interface LoadCardProps {
   onPress: () => void;
 }
 
-export const LoadCard: React.FC<LoadCardProps> = ({ load, onPress }) => {
+const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
   const { user } = useAuth();
   const vehicleColor = theme.colors[load.vehicleType as keyof typeof theme.colors] || theme.colors.primary;
   const fuel = useMemo(() => {
@@ -231,3 +231,29 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+export const LoadCard = memo(
+  LoadCardComponent,
+  (prev, next) => {
+    const a = prev.load;
+    const b = next.load;
+    if (prev.onPress !== next.onPress) return false;
+    if (a.id !== b.id) return false;
+    if (a.status !== b.status) return false;
+    if (a.rate !== b.rate || a.ratePerMile !== b.ratePerMile) return false;
+    if (a.distance !== b.distance) return false;
+    if ((a.aiScore ?? 0) !== (b.aiScore ?? 0)) return false;
+    if ((a.isBackhaul ?? false) !== (b.isBackhaul ?? false)) return false;
+    if (a.vehicleType !== b.vehicleType) return false;
+    if (a.weight !== b.weight) return false;
+    if (a.pickupDate.toString() !== b.pickupDate.toString()) return false;
+    if (a.deliveryDate.toString() !== b.deliveryDate.toString()) return false;
+    if (a.origin.city !== b.origin.city || a.origin.state !== b.origin.state) return false;
+    if (a.destination.city !== b.destination.city || a.destination.state !== b.destination.state) return false;
+    if (a.description !== b.description) return false;
+    if (a.shipperName !== b.shipperName) return false;
+    return true;
+  }
+);
+
+LoadCardComponent.displayName = 'LoadCard';

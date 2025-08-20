@@ -189,6 +189,17 @@ export default function SettingsScreen() {
               </View>
             </TouchableOpacity>
           </Link>
+          <Link href="/onboarding" asChild>
+            <TouchableOpacity style={styles.row} testID="settings-onboarding">
+              <View style={styles.rowLeft}>
+                <View style={styles.iconWrap}><Info color={theme.colors.primary} size={20} /></View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>Show Onboarding</Text>
+                  <Text style={styles.rowSubtitle}>Open the in-app screenshot screen</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Link>
         </View>
 
         <SectionTitle>Advanced</SectionTitle>
