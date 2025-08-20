@@ -3,6 +3,7 @@ import { Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Alert 
 import { Mic, Square } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { Audio } from 'expo-av';
+import { PermissionEducation } from '@/components/PermissionEducation';
 
 interface VoiceCaptureProps {
   onTranscribed: (text: string) => void;
@@ -14,6 +15,8 @@ interface VoiceCaptureProps {
 export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, size = 'md', label, testID }) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isSending, setIsSending] = useState<boolean>(false);
+  const [showEdu, setShowEdu] = useState<boolean>(false);
+  const [eduSeen, setEduSeen] = useState<boolean>(false);
   const chunksRef = useRef<BlobPart[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -133,6 +136,10 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
   }, [onTranscribed]);
 
   const handlePress = useCallback(() => {
+    if (!eduSeen) {
+      setShowEdu(true);
+      return;
+    }
     if (Platform.OS === 'web') {
       if (!isRecording) void startWebRecording();
       else stopWebRecording();
@@ -140,27 +147,44 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
     }
     if (!isRecording) void startNativeRecording();
     else void stopNativeRecording();
-  }, [isRecording, startWebRecording, stopWebRecording, startNativeRecording, stopNativeRecording]);
+  }, [eduSeen, isRecording, startWebRecording, stopWebRecording, startNativeRecording, stopNativeRecording]);
 
   const s = useMemo(() => (size === 'sm' ? styles.sm : styles.md), [size]);
 
   return (
-    <TouchableOpacity
-      onPress={handlePress}
-      style={[styles.btn, s, isRecording && styles.btnActive]}
-      disabled={isSending}
-      accessibilityRole="button"
-      testID={testID ?? 'voice-capture-btn'}
-    >
-      {isSending ? (
-        <ActivityIndicator color={theme.colors.white} />
-      ) : isRecording ? (
-        <Square size={16} color={theme.colors.white} />
-      ) : (
-        <Mic size={16} color={theme.colors.white} />
-      )}
-      {label ? <Text style={styles.text}>{isRecording ? 'Stop' : label}</Text> : null}
-    </TouchableOpacity>
+    <>
+      <TouchableOpacity
+        onPress={handlePress}
+        style={[styles.btn, s, isRecording && styles.btnActive]}
+        disabled={isSending}
+        accessibilityRole="button"
+        testID={testID ?? 'voice-capture-btn'}
+      >
+        {isSending ? (
+          <ActivityIndicator color={theme.colors.white} />
+        ) : isRecording ? (
+          <Square size={16} color={theme.colors.white} />
+        ) : (
+          <Mic size={16} color={theme.colors.white} />
+        )}
+        {label ? <Text style={styles.text}>{isRecording ? 'Stop' : label}</Text> : null}
+      </TouchableOpacity>
+      <PermissionEducation
+        type="microphone"
+        visible={showEdu}
+        onCancel={() => setShowEdu(false)}
+        onContinue={() => {
+          setShowEdu(false);
+          setEduSeen(true);
+          if (Platform.OS === 'web') {
+            void startWebRecording();
+          } else {
+            void startNativeRecording();
+          }
+        }}
+        testID="voice-permission-education"
+      />
+    </>
   );
 });
 

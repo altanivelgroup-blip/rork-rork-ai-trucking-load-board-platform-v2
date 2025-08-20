@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Crown,
@@ -15,6 +15,7 @@ import {
   User as UserIcon,
   Mail,
   Phone,
+  Trash2,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
@@ -97,6 +98,29 @@ export default function ProfileScreen() {
         icon: SettingsIcon,
         onPress: () => router.push('/settings'),
         testID: 'row-settings',
+      },
+      {
+        key: 'contact',
+        title: 'Contact Support',
+        subtitle: 'Email us for account or billing help',
+        icon: Mail,
+        onPress: () => {
+          const email = 'support@haulmate.app';
+          const url = `mailto:${email}?subject=Support%20Request`;
+          Linking.canOpenURL(url).then((can) => {
+            if (can) Linking.openURL(url);
+            else Alert.alert('Email not available', `Reach us at ${email}`);
+          }).catch(() => Alert.alert('Email not available', `Reach us at ${email}`));
+        },
+        testID: 'row-contact-support',
+      },
+      {
+        key: 'delete',
+        title: 'Delete Account',
+        subtitle: 'Request permanent account deletion',
+        icon: Trash2,
+        onPress: () => router.push('/account-deletion'),
+        testID: 'row-delete-account',
       },
     ],
     [user?.membershipTier, router],
