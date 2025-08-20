@@ -109,7 +109,12 @@ const TierCard = memo(function TierCard({ tier, selected, onSelect }: { tier: Ti
   }, [tier.popular]);
 
   return (
-    <View style={[styles.card, borderStyle]} testID={`tier-${tier.id}`}>
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => onSelect(tier.id)}
+      style={[styles.card, borderStyle]}
+      testID={`tier-${tier.id}`}
+    >
       <View style={styles.cardHeader}>
         <View style={[styles.cardIconWrap, { backgroundColor: tier.iconBg }]}> 
           {tier.id === 'business' ? <Crown size={22} color={theme.colors.secondary} /> : tier.id === 'pro' ? <Zap size={22} color={theme.colors.warning} /> : <Crown size={22} color={theme.colors.primary} />}
@@ -136,15 +141,13 @@ const TierCard = memo(function TierCard({ tier, selected, onSelect }: { tier: Ti
         ))}
       </View>
 
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={() => onSelect(tier.id)}
+      <View
+        accessibilityRole="button"
         style={[styles.selectBtn, selected && styles.selectBtnActive]}
-        testID={`select-${tier.id}`}
       >
         <Text style={[styles.selectText, selected && styles.selectTextActive]}>{selected ? 'Selected' : 'Choose Plan'}</Text>
-      </TouchableOpacity>
-    </View>
+      </View>
+    </TouchableOpacity>
   );
 });
 
