@@ -1,5 +1,5 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch } from 'react-native';
+import React, { useMemo, useCallback, useState, useEffect, memo } from 'react';
+import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,6 +7,48 @@ import { useLoads } from '@/hooks/useLoads';
 import { useRouter } from 'expo-router';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 import { Truck, Star, Package, ArrowRight, MapPin } from 'lucide-react-native';
+
+interface RecentLoadProps {
+  id: string;
+  originCity: string;
+  originState: string;
+  destinationCity: string;
+  destinationState: string;
+  pickupDate: string | number | Date;
+  weight: number;
+  rate: number;
+  onPress: (id: string) => void;
+}
+
+const RecentLoadRow = memo<RecentLoadProps>(({
+  id,
+  originCity,
+  originState,
+  destinationCity,
+  destinationState,
+  pickupDate,
+  weight,
+  rate,
+  onPress,
+}) => {
+  return (
+    <TouchableOpacity key={id} onPress={() => onPress(id)} style={styles.loadRow} testID={`recent-load-${id}`}>
+      <View style={styles.loadLeft}>
+        <Text style={styles.loadTitle}>{originCity}, {originState}</Text>
+        <Text style={styles.loadSub}>{destinationCity}, {destinationState}</Text>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaText}>Pickup: {new Date(pickupDate as any).toLocaleDateString?.() ?? String(pickupDate)}</Text>
+          <Text style={styles.metaDot}>•</Text>
+          <Text style={styles.metaText}>{weight} lbs</Text>
+        </View>
+      </View>
+      <View style={styles.loadRight}>
+        <Text style={styles.price}>${rate}</Text>
+        <Text style={styles.favorite}>Favorite</Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -16,6 +58,8 @@ export default function DashboardScreen() {
   const { startWatching, stopWatching, requestPermissionAsync } = useLiveLocation();
 
   const recentLoads = useMemo(() => filteredLoads.slice(0, 3), [filteredLoads]);
+  const heroUrl = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2cwo4h1uv8vh32px1blj8';
+  const heroSource = useMemo(() => ({ uri: heroUrl }), [heroUrl]);
   const lastDelivery = useMemo(() => currentLoad?.destination ?? recentLoads[0]?.destination, [currentLoad, recentLoads]);
 
   const haversineMiles = useCallback((a: GeoCoords, b: GeoCoords): number => {
@@ -80,11 +124,19 @@ export default function DashboardScreen() {
     };
   }, [currentLoad, requestPermissionAsync, startWatching, stopWatching, haversineMiles, backhaulOn, router, setFilters]);
 
+  useEffect(() => {
+    try {
+      void Image.prefetch(heroUrl);
+    } catch (e) {
+      console.log('[Dashboard] hero prefetch error', e);
+    }
+  }, [heroUrl]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ImageBackground
-          source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2cwo4h1uv8vh32px1blj8' }}
+          source={heroSource}
           style={styles.hero}
           imageStyle={styles.heroImage}
         >
@@ -128,21 +180,18 @@ export default function DashboardScreen() {
 
         <View>
           {recentLoads.map((l) => (
-            <TouchableOpacity key={l.id} onPress={() => handleOpenLoad(l.id)} style={styles.loadRow} testID={`recent-load-${l.id}`}>
-              <View style={styles.loadLeft}>
-                <Text style={styles.loadTitle}>{l.origin.city}, {l.origin.state}</Text>
-                <Text style={styles.loadSub}>{l.destination.city}, {l.destination.state}</Text>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaText}>Pickup: {new Date(l.pickupDate as any).toLocaleDateString?.() ?? String(l.pickupDate)}</Text>
-                  <Text style={styles.metaDot}>•</Text>
-                  <Text style={styles.metaText}>{l.weight} lbs</Text>
-                </View>
-              </View>
-              <View style={styles.loadRight}>
-                <Text style={styles.price}>${l.rate}</Text>
-                <Text style={styles.favorite}>Favorite</Text>
-              </View>
-            </TouchableOpacity>
+            <RecentLoadRow
+              key={l.id}
+              id={l.id}
+              originCity={l.origin.city}
+              originState={l.origin.state}
+              destinationCity={l.destination.city}
+              destinationState={l.destination.state}
+              pickupDate={l.pickupDate as any}
+              weight={l.weight}
+              rate={l.rate}
+              onPress={handleOpenLoad}
+            />
           ))}
         </View>
 

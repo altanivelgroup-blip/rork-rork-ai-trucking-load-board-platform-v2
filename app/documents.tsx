@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
@@ -48,6 +48,25 @@ interface StoredAttachmentMeta {
 
 const ATTACHMENTS_KEY = 'doc_attachments_v1';
 const ATTACHMENTS_META_KEY = 'doc_attachments_meta_v1';
+
+interface AttachmentItemProps {
+  attachment: Attachment;
+  disabled: boolean;
+  onRemove: (id: string) => void;
+}
+
+const AttachmentItem = memo<AttachmentItemProps>(({ attachment, disabled, onRemove }) => {
+  const onPressRemove = useCallback(() => onRemove(attachment.id), [onRemove, attachment.id]);
+  return (
+    <View style={styles.fileItem}>
+      <FileText size={18} color={theme.colors.primary} />
+      <Text style={styles.fileName} numberOfLines={1}>{attachment.name}</Text>
+      <TouchableOpacity onPress={onPressRemove} style={styles.removeBtn} disabled={disabled} testID={`remove-${attachment.id}`}>
+        <VenetianMask size={16} color={theme.colors.danger} />
+      </TouchableOpacity>
+    </View>
+  );
+});
 
 export default function DocumentsScreen() {
   const router = useRouter();
@@ -271,13 +290,7 @@ export default function DocumentsScreen() {
         {form.attachments.length > 0 && (
           <View style={styles.attachList}>
             {form.attachments.map((a) => (
-              <View key={a.id} style={styles.fileItem}>
-                <FileText size={18} color={theme.colors.primary} />
-                <Text style={styles.fileName} numberOfLines={1}>{a.name}</Text>
-                <TouchableOpacity onPress={() => removeAttachment(a.id)} style={styles.removeBtn} disabled={isSaving} testID={`remove-${a.id}`}>
-                  <VenetianMask size={16} color={theme.colors.danger} />
-                </TouchableOpacity>
-              </View>
+              <AttachmentItem key={a.id} attachment={a} disabled={isSaving} onRemove={removeAttachment} />
             ))}
           </View>
         )}
