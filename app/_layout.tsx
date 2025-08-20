@@ -117,6 +117,24 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="privacy" 
+        options={{ 
+          title: "Privacy Policy",
+        }} 
+      />
+      <Stack.Screen 
+        name="terms" 
+        options={{ 
+          title: "Terms of Service",
+        }} 
+      />
+      <Stack.Screen 
+        name="account-deletion" 
+        options={{ 
+          title: "Delete Account",
+        }} 
+      />
+      <Stack.Screen 
         name="documents" 
         options={{ 
           title: "Documents & Verification",

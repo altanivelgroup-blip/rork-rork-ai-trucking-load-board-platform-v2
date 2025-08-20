@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert, Platform } from 'react-native';
 import { Stack, Link } from 'expo-router';
-import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle } from 'lucide-react-native';
+import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen } from 'lucide-react-native';
 import { lightTheme as theme } from '@/constants/theme';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -72,12 +72,45 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <Row icon={<MapPin color={theme.colors.primary} size={20} />} title="Location Services" subtitle="Allow app to access your location" value={s.locationServices} onValueChange={(v) => s.setToggle('locationServices', v)} testID="settings-location" />
           <Link href="/privacy-security" asChild>
-            <TouchableOpacity style={styles.row} testID="settings-privacy">
+            <TouchableOpacity style={styles.row} testID="settings-privacy-security">
               <View style={styles.rowLeft}>
                 <View style={styles.iconWrap}><Shield color={theme.colors.primary} size={20} /></View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>Privacy & Security</Text>
                   <Text style={styles.rowSubtitle}>Manage your privacy preferences</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Link>
+          <Link href="/privacy" asChild>
+            <TouchableOpacity style={styles.row} testID="settings-privacy-policy">
+              <View style={styles.rowLeft}>
+                <View style={styles.iconWrap}><FileText color={theme.colors.primary} size={20} /></View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>Privacy Policy</Text>
+                  <Text style={styles.rowSubtitle}>How we collect and use your data</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Link>
+          <Link href="/terms" asChild>
+            <TouchableOpacity style={styles.row} testID="settings-terms">
+              <View style={styles.rowLeft}>
+                <View style={styles.iconWrap}><BookOpen color={theme.colors.primary} size={20} /></View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>Terms of Service</Text>
+                  <Text style={styles.rowSubtitle}>Your rights and obligations</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Link>
+          <Link href="/account-deletion" asChild>
+            <TouchableOpacity style={styles.row} testID="settings-account-deletion">
+              <View style={styles.rowLeft}>
+                <View style={[styles.iconWrap, { backgroundColor: '#FEF2F2' }]}><Trash2 color={theme.colors.danger} size={20} /></View>
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowTitle, { color: theme.colors.danger }]}>Delete Account</Text>
+                  <Text style={styles.rowSubtitle}>Permanently delete your account</Text>
                 </View>
               </View>
             </TouchableOpacity>
