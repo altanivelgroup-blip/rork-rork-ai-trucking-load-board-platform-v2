@@ -1,7 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
-import * as Location from 'expo-location';
 import { Load, VehicleType } from '@/types';
 import { getDefaultsFor } from '@/utils/fuel';
 import { getStateAvgPrice, normalizeStateCode } from '@/utils/fuelStateAvg';
@@ -67,6 +66,7 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
           });
           return;
         }
+        const Location = await import('expo-location');
         const perm = await Location.requestForegroundPermissionsAsync();
         if (perm.status !== 'granted') { setIsResolving(false); return; }
         const loc = await Location.getCurrentPositionAsync({});

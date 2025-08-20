@@ -1,12 +1,14 @@
 import { useRef, useCallback } from 'react';
 import { Platform } from 'react-native';
-import * as Location from 'expo-location';
+import type * as ExpoLocation from 'expo-location';
 
 export type GeoCoords = { latitude: number; longitude: number };
 
+type NativeLocationSubscription = { remove: () => void };
+
 export function useLiveLocation() {
   const watchIdRef = useRef<number | null>(null);
-  const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const subscriptionRef = useRef<NativeLocationSubscription | null>(null);
 
   const requestPermissionAsync = useCallback(async (): Promise<boolean> => {
     try {
@@ -17,6 +19,7 @@ export function useLiveLocation() {
         }
         return true;
       }
+      const Location = await import('expo-location');
       const { status } = await Location.requestForegroundPermissionsAsync();
       return status === 'granted';
     } catch (e) {
@@ -28,7 +31,7 @@ export function useLiveLocation() {
   const startWatching = useCallback(
     async (
       onUpdate: (coords: GeoCoords) => void,
-      options?: { accuracy?: Location.LocationAccuracy; distanceIntervalMeters?: number }
+      options?: { accuracy?: ExpoLocation.LocationAccuracy; distanceIntervalMeters?: number }
     ) => {
       const hasPerm = await requestPermissionAsync();
       if (!hasPerm) return () => {};
@@ -58,6 +61,7 @@ export function useLiveLocation() {
       }
 
       try {
+        const Location = await import('expo-location');
         const sub = await Location.watchPositionAsync(
           {
             accuracy: options?.accuracy ?? Location.Accuracy.Balanced,
@@ -69,7 +73,7 @@ export function useLiveLocation() {
             onUpdate({ latitude: c.latitude, longitude: c.longitude });
           }
         );
-        subscriptionRef.current = sub;
+        subscriptionRef.current = sub as unknown as NativeLocationSubscription;
         return () => {
           try {
             subscriptionRef.current?.remove();
