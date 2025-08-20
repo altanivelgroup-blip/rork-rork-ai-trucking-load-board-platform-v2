@@ -37,21 +37,34 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
       try {
         setIsResolving(true);
         if (Platform.OS === 'web') {
-          if (!('geolocation' in navigator)) return;
+          if (!('geolocation' in navigator)) { setIsResolving(false); return; }
           navigator.geolocation.getCurrentPosition(async (pos) => {
             try {
               const { latitude, longitude } = pos.coords;
-              const rg = await Location.reverseGeocodeAsync({ latitude, longitude });
-              const best = rg?.[0];
-              if (best?.postalCode) setZip(best.postalCode);
-              if (best?.region) setStateCode(normalizeStateCode(best.region));
+              const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=en`;
+              const res = await fetch(url);
+              const data: any = await res.json();
+              const postcode: string | undefined = data?.postcode ?? data?.localityInfo?.administrative?.find((a: any) => a?.order === 5)?.name;
+              const principalSubdivisionCode: string | undefined = data?.principalSubdivisionCode;
+              let state: string | undefined = undefined;
+              if (typeof principalSubdivisionCode === 'string' && principalSubdivisionCode.includes('-')) {
+                state = principalSubdivisionCode.split('-')[1];
+              } else if (Array.isArray(data?.localityInfo?.administrative)) {
+                const admin = data.localityInfo.administrative.find((a: any) => typeof a?.isoCode === 'string' && a.isoCode.length === 2);
+                state = admin?.isoCode;
+              }
+              if (postcode) setZip(String(postcode));
+              if (state) setStateCode(normalizeStateCode(state));
               setLastUpdated(new Date().toISOString());
             } catch (e) {
               console.warn('[Fuel] reverse geocode failed (web)', e);
             } finally {
               setIsResolving(false);
             }
-          }, () => setIsResolving(false));
+          }, (err) => {
+            console.warn('[Fuel] web geolocation error', err);
+            setIsResolving(false);
+          });
           return;
         }
         const perm = await Location.requestForegroundPermissionsAsync();
@@ -91,7 +104,10 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
         void tryFetchLiveZipPrice(regionZip);
         const stateFromZip = stateCode ?? load?.origin?.state ?? load?.destination?.state;
         const stateAvg = stateFromZip ? getStateAvgPrice(stateFromZip) : undefined;
-        if (stateAvg) return { price: stateAvg, label: `Live ZIP ${regionZip} → EIA-${normalizeStateCode(stateFromZip)}` };
+        if (stateAvg) {
+          const code = normalizeStateCode(stateFromZip ?? '');
+          return { price: stateAvg, label: `Live ZIP ${regionZip} → EIA-${code}` };
+        }
       }
       if (stateCode) {
         const p = getStateAvgPrice(stateCode);
