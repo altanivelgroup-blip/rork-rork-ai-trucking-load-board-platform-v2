@@ -41,10 +41,10 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
             const hasGeo: boolean = hasNavigator && 'geolocation' in navigator;
             if (!hasGeo) { setIsResolving(false); return; }
 
-            const getPosition = (): Promise<GeolocationPosition> => new Promise((resolve, reject) => {
+            const getPosition = (): Promise<any> => new Promise((resolve, reject) => {
               try {
-                const onSuccess = (pos: GeolocationPosition) => resolve(pos);
-                const onError = (err: GeolocationPositionError) => reject(err);
+                const onSuccess = (pos: any) => resolve(pos);
+                const onError = (err: any) => reject(err);
                 navigator.geolocation.getCurrentPosition(onSuccess, onError, { timeout: 8000, maximumAge: 60000, enableHighAccuracy: false });
               } catch (err) {
                 reject(err);
