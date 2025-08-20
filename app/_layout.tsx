@@ -73,6 +73,9 @@ function RootLayoutNav() {
         options={{ 
           title: "Load Details",
           presentation: "modal",
+          headerLeft: ({ tintColor }) => (
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/(tabs)/(loads)" />
+          ),
         }} 
       />
       <Stack.Screen 
@@ -80,6 +83,9 @@ function RootLayoutNav() {
         options={{ 
           title: "Pre-Trip Inspection",
           presentation: "modal",
+          headerLeft: ({ tintColor }) => (
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/dashboard" />
+          ),
         }} 
       />
       <Stack.Screen 
@@ -93,6 +99,9 @@ function RootLayoutNav() {
         options={{ 
           title: "Maintenance Program",
           presentation: "modal",
+          headerLeft: ({ tintColor }) => (
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/dashboard" />
+          ),
         }} 
       />
       <Stack.Screen 
@@ -148,6 +157,9 @@ function RootLayoutNav() {
         options={{ 
           title: "Pickup & Delivery Photos",
           presentation: "modal",
+          headerLeft: ({ tintColor }) => (
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/(tabs)/(loads)" />
+          ),
         }} 
       />
       <Stack.Screen 
@@ -161,6 +173,9 @@ function RootLayoutNav() {
         options={{ 
           title: "AI for Loads",
           presentation: "modal",
+          headerLeft: ({ tintColor }) => (
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/dashboard" />
+          ),
         }} 
       />
       <Stack.Screen 
