@@ -35,6 +35,7 @@ export function safeVibrate(): void {
 
 function Guards() {
   const appState = useRef<AppStateStatus | null>(null);
+  const wakeLockRef = useRef<any | null>(null);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -58,15 +59,103 @@ function Guards() {
         interval = undefined;
       }
     };
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') start();
-      else stop();
+
+    const requestWakeLock = async () => {
+      try {
+        const anyNavigator = navigator as unknown as { wakeLock?: { request: (type: 'screen') => Promise<any> } };
+        if (!anyNavigator?.wakeLock) {
+          console.log('[PlatformGuards] Wake Lock API not available');
+          return;
+        }
+        if (wakeLockRef.current) return;
+        console.log('[PlatformGuards] requesting screen wake lock');
+        wakeLockRef.current = await anyNavigator.wakeLock.request('screen');
+        wakeLockRef.current.addEventListener?.('release', () => {
+          console.log('[PlatformGuards] wake lock released');
+          wakeLockRef.current = null;
+        });
+      } catch (e) {
+        console.log('[PlatformGuards] wake lock request error', e);
+      }
     };
+
+    const releaseWakeLock = async () => {
+      try {
+        if (wakeLockRef.current?.release) {
+          await wakeLockRef.current.release();
+        }
+      } catch (e) {
+        console.log('[PlatformGuards] wake lock release error', e);
+      } finally {
+        wakeLockRef.current = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        start();
+        void requestWakeLock();
+      } else {
+        stop();
+        void releaseWakeLock();
+      }
+    };
+
     document.addEventListener('visibilitychange', onVisibility);
     onVisibility();
+
+    window.addEventListener('beforeunload', releaseWakeLock);
+
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', releaseWakeLock);
       stop();
+      void releaseWakeLock();
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const activateNativeKeepAwake = async () => {
+      if (Platform.OS === 'web') return;
+      try {
+        const mod = await import('expo-keep-awake');
+        const api: Partial<{ activateKeepAwakeAsync: () => Promise<void>; deactivateKeepAwake: () => void } & { useKeepAwake: () => void }> = mod as any;
+        if (api.activateKeepAwakeAsync) {
+          console.log('[PlatformGuards] activating native keep awake');
+          await api.activateKeepAwakeAsync();
+        } else if ('useKeepAwake' in api && typeof (api as any).useKeepAwake === 'function') {
+          console.log('[PlatformGuards] using hook-based keep awake');
+          (api as any).useKeepAwake();
+        } else {
+          console.log('[PlatformGuards] expo-keep-awake API not found');
+        }
+      } catch (e) {
+        console.log('[PlatformGuards] native keep-awake unavailable', e);
+      }
+    };
+
+    void activateNativeKeepAwake();
+
+    return () => {
+      if (!isMounted) return;
+      isMounted = false;
+      (async () => {
+        try {
+          if (Platform.OS === 'web') return;
+          const mod = await import('expo-keep-awake');
+          const api: Partial<{ deactivateKeepAwake: () => void; deactivateKeepAwakeAsync?: () => Promise<void> }> = mod as any;
+          if (api.deactivateKeepAwake) {
+            console.log('[PlatformGuards] deactivating native keep awake');
+            api.deactivateKeepAwake();
+          } else if (api.deactivateKeepAwakeAsync) {
+            console.log('[PlatformGuards] deactivating native keep awake (async)');
+            await api.deactivateKeepAwakeAsync?.();
+          }
+        } catch (e) {
+          console.log('[PlatformGuards] native keep-awake deactivate error', e);
+        }
+      })();
     };
   }, []);
 
