@@ -1,8 +1,8 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert } from 'react-native';
 import { Stack, Link } from 'expo-router';
-import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info } from 'lucide-react-native';
-import { lightTheme as theme } from '@/constants/theme';
+import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info, Phone } from 'lucide-react-native';
+import { theme } from '@/constants/theme';
 import { useSettings } from '@/hooks/useSettings';
 
 export default function SettingsScreen() {
@@ -196,6 +196,17 @@ export default function SettingsScreen() {
                 <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>Logs</Text>
                   <Text style={styles.rowSubtitle}>Inspect, export, and clear logs</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Link>
+          <Link href="/contact" asChild>
+            <TouchableOpacity style={styles.row} testID="settings-contact">
+              <View style={styles.rowLeft}>
+                <View style={styles.iconWrap}><Phone color={theme.colors.primary} size={20} /></View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>Contact Support</Text>
+                  <Text style={styles.rowSubtitle}>Get direct help from our team</Text>
                 </View>
               </View>
             </TouchableOpacity>

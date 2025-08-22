@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stack } from 'expo-router';
+import { Stack, Link } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { theme } from '@/constants/theme';
 import { HelpCircle, Mail, MessageSquare, FileText } from 'lucide-react-native';
@@ -15,14 +15,24 @@ export default function HelpSupportScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.sectionTitle}>Get Help</Text>
         <View style={styles.card}>
-          <Item icon={<HelpCircle size={18} color={theme.colors.primary} />} title="FAQ" subtitle="Common questions and answers" onPress={() => openUrl('https://example.com/faq')} testID="help-faq" />
-          <Item icon={<FileText size={18} color={theme.colors.primary} />} title="Documentation" subtitle="Guides and tutorials" onPress={() => openUrl('https://example.com/docs')} testID="help-docs" />
+          <Item icon={<HelpCircle size={18} color={theme.colors.primary} />} title="FAQ" subtitle="Common questions and answers" onPress={() => openUrl('https://loadrush.com/faq')} testID="help-faq" />
+          <Item icon={<FileText size={18} color={theme.colors.primary} />} title="Documentation" subtitle="Guides and tutorials" onPress={() => openUrl('https://loadrush.com/docs')} testID="help-docs" />
         </View>
 
         <Text style={styles.sectionTitle}>Contact Us</Text>
         <View style={styles.card}>
-          <Item icon={<Mail size={18} color={theme.colors.primary} />} title="Email Support" subtitle="support@example.com" onPress={() => openUrl('mailto:support@example.com')} testID="help-email" />
-          <Item icon={<MessageSquare size={18} color={theme.colors.primary} />} title="Chat" subtitle="Live chat (business hours)" onPress={() => openUrl('https://example.com/chat')} testID="help-chat" />
+          <Item icon={<Mail size={18} color={theme.colors.primary} />} title="Email Support" subtitle="support@loadrush.com" onPress={() => openUrl('mailto:support@loadrush.com')} testID="help-email" />
+          <Link href="/contact" asChild>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} testID="help-contact">
+              <View style={styles.rowLeft}>
+                <View style={styles.iconWrap}><MessageSquare size={18} color={theme.colors.primary} /></View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>Contact Support</Text>
+                  <Text style={styles.rowSubtitle}>Get direct help from our team</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Link>
         </View>
       </ScrollView>
     </View>
