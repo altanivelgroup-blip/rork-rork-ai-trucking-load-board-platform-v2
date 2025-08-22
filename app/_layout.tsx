@@ -177,6 +177,115 @@ function RootLayoutNav() {
           title: "About",
         }} 
       />
+      <Stack.Screen 
+        name="post-load-step2" 
+        options={{ 
+          title: "Post Load - Step 2",
+        }} 
+      />
+      <Stack.Screen 
+        name="post-load-step3" 
+        options={{ 
+          title: "Post Load - Step 3",
+        }} 
+      />
+      <Stack.Screen 
+        name="post-load-step4" 
+        options={{ 
+          title: "Post Load - Step 4",
+        }} 
+      />
+      <Stack.Screen 
+        name="post-load-step5" 
+        options={{ 
+          title: "Post Load - Step 5",
+        }} 
+      />
+      <Stack.Screen 
+        name="shipper-membership" 
+        options={{ 
+          title: "Shipper Membership",
+        }} 
+      />
+      <Stack.Screen 
+        name="ai-tools" 
+        options={{ 
+          title: "AI Tools",
+        }} 
+      />
+      <Stack.Screen 
+        name="advance-security" 
+        options={{ 
+          title: "Advanced Security",
+        }} 
+      />
+      <Stack.Screen 
+        name="priority-support" 
+        options={{ 
+          title: "Priority Support",
+        }} 
+      />
+      <Stack.Screen 
+        name="trailer-maintenance" 
+        options={{ 
+          title: "Trailer Maintenance",
+        }} 
+      />
+      <Stack.Screen 
+        name="trailer-maintenance/[category]" 
+        options={{ 
+          title: "Maintenance Category",
+        }} 
+      />
+      <Stack.Screen 
+        name="data-usage" 
+        options={{ 
+          title: "Data Usage",
+        }} 
+      />
+      <Stack.Screen 
+        name="onboarding" 
+        options={{ 
+          title: "Welcome",
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="logs" 
+        options={{ 
+          title: "App Logs",
+        }} 
+      />
+      <Stack.Screen 
+        name="pricing" 
+        options={{ 
+          title: "Pricing",
+        }} 
+      />
+      <Stack.Screen 
+        name="contact" 
+        options={{ 
+          title: "Contact Us",
+        }} 
+      />
+      <Stack.Screen 
+        name="blog" 
+        options={{ 
+          title: "Blog",
+        }} 
+      />
+      <Stack.Screen 
+        name="blog/[slug]" 
+        options={{ 
+          title: "Blog Post",
+        }} 
+      />
+      <Stack.Screen 
+        name="shipper-dashboard" 
+        options={{ 
+          title: "Shipper Dashboard",
+        }} 
+      />
     </Stack>
   );
 }

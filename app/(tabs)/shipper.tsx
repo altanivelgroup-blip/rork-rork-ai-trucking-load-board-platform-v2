@@ -2,7 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Crown, PlusCircle, Zap, Shield, TrendingUp, Bot } from 'lucide-react-native';
+import { Crown, PlusCircle, Zap, Shield, TrendingUp, Bot, BarChart3 } from 'lucide-react-native';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
   return (
@@ -28,7 +28,12 @@ export default function ShipperHome() {
 
   const goPostLoad = useCallback(() => {
     console.log('shipper.goPostLoad');
-    router.push('/post-load');
+    router.push('/(tabs)/post-load');
+  }, [router]);
+
+  const goShipperDashboard = useCallback(() => {
+    console.log('shipper.goShipperDashboard');
+    router.push('/shipper-dashboard');
   }, [router]);
 
   const goAiTools = useCallback(() => {
@@ -53,6 +58,7 @@ export default function ShipperHome() {
         <Text style={styles.heading}>Welcome, Shipper</Text>
         <Text style={styles.subheading}>Quick actions and tools</Text>
 
+        <Tile title="Shipper Dashboard" subtitle="View your loads and analytics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
         <Tile title="Post a Load" subtitle="Create a new shipment" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
         <Tile title="AI Tools" subtitle="Draft posts, quotes and more" onPress={goAiTools} Icon={Bot} testID="tile-ai-tools" />
         <Tile title="Increase Revenue" subtitle="Tips and premium placement" onPress={goIncreaseRevenue} Icon={TrendingUp} testID="tile-increase-revenue" />
