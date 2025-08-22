@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/hooks/useAuth";
 import { PaymentsProvider } from "@/hooks/usePayments";
 import { MaintenanceProvider } from "@/hooks/useMaintenance";
+import { SettingsProvider } from "@/hooks/useSettings";
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
@@ -192,10 +193,12 @@ export default function RootLayout() {
             <AuthProvider>
               <PaymentsProvider>
                 <MaintenanceProvider>
-                  <ToastProvider>
-                    <RootLayoutNav />
-                    <ToastHost />
-                  </ToastProvider>
+                  <SettingsProvider>
+                    <ToastProvider>
+                      <RootLayoutNav />
+                      <ToastHost />
+                    </ToastProvider>
+                  </SettingsProvider>
                 </MaintenanceProvider>
               </PaymentsProvider>
             </AuthProvider>
