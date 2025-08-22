@@ -16,6 +16,12 @@ export interface ToastContext {
   clear: () => void;
 }
 
+const defaultToastContext: ToastContext = {
+  show: () => console.warn('[Toast] show called outside provider'),
+  messages: [],
+  clear: () => console.warn('[Toast] clear called outside provider'),
+};
+
 export const [ToastProvider, useToast] = createContextHook<ToastContext>(() => {
   const [messages, setMessages] = useState<ToastMessage[]>([]);
 
@@ -29,4 +35,4 @@ export const [ToastProvider, useToast] = createContextHook<ToastContext>(() => {
   const clear = useCallback(() => setMessages([]), []);
 
   return useMemo(() => ({ show, messages, clear }), [show, messages, clear]);
-});
+}, defaultToastContext);

@@ -47,6 +47,17 @@ const initialDraft: PostLoadDraft = {
   attachments: [],
 };
 
+const defaultPostLoadState: PostLoadState = {
+  draft: initialDraft,
+  setField: () => console.warn('[PostLoad] setField called outside provider'),
+  reset: () => console.warn('[PostLoad] reset called outside provider'),
+  canSubmit: false,
+  submit: async () => {
+    console.warn('[PostLoad] submit called outside provider');
+    return null;
+  },
+};
+
 export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(() => {
   const { addLoad } = useLoads();
   const [draft, setDraft] = useState<PostLoadDraft>(initialDraft);
@@ -120,5 +131,5 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     }
   }, [addLoad, canSubmit, draft]);
 
-  return { draft, setField, reset, canSubmit, submit };
-});
+  return useMemo(() => ({ draft, setField, reset, canSubmit, submit }), [draft, setField, reset, canSubmit, submit]);
+}, defaultPostLoadState);

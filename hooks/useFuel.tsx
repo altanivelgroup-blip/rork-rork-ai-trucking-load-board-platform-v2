@@ -25,6 +25,21 @@ export interface FuelContextState {
   refetchRegion: () => void;
 }
 
+const defaultFuelState: FuelContextState = {
+  source: 'auto',
+  setSource: () => console.warn('[Fuel] setSource called outside provider'),
+  regionMode: 'auto',
+  setRegionMode: () => console.warn('[Fuel] setRegionMode called outside provider'),
+  zip: undefined,
+  setZip: () => console.warn('[Fuel] setZip called outside provider'),
+  stateCode: undefined,
+  setStateCode: () => console.warn('[Fuel] setStateCode called outside provider'),
+  lastUpdated: undefined,
+  isResolving: false,
+  resolvePriceFor: () => ({ price: undefined, label: 'Default' }),
+  refetchRegion: () => console.warn('[Fuel] refetchRegion called outside provider'),
+};
+
 export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() => {
   const [source, setSource] = useState<FuelSource>('auto');
   const [regionMode, setRegionMode] = useState<RegionMode>('auto');
@@ -36,9 +51,9 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
   const { online } = useOnlineStatus();
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const refetchRegion = () => {
+  const refetchRegion = useCallback(() => {
     setRegionMode(m => m);
-  };
+  }, []);
 
   useEffect(() => {
     if (regionMode !== 'auto') return;
@@ -213,4 +228,4 @@ export const [FuelProvider, useFuel] = createContextHook<FuelContextState>(() =>
     resolvePriceFor,
     refetchRegion,
   }), [source, regionMode, zip, stateCode, lastUpdated, isResolving, resolvePriceFor, refetchRegion]);
-});
+}, defaultFuelState);

@@ -1,5 +1,5 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Load, VehicleType } from '@/types';
 import { mockLoads } from '@/mocks/loads';
@@ -46,6 +46,28 @@ function haversineMiles(a: GeoPoint, b: GeoPoint): number {
   return R * c;
 }
 
+const defaultLoadsState: LoadsState = {
+  loads: [],
+  filters: {},
+  isLoading: false,
+  filteredLoads: [],
+  aiRecommendedLoads: [],
+  currentLoad: undefined,
+  setFilters: () => console.warn('[Loads] setFilters called outside provider'),
+  acceptLoad: async () => {
+    console.warn('[Loads] acceptLoad called outside provider');
+  },
+  refreshLoads: async () => {
+    console.warn('[Loads] refreshLoads called outside provider');
+  },
+  addLoad: async () => {
+    console.warn('[Loads] addLoad called outside provider');
+  },
+  addLoadsBulk: async () => {
+    console.warn('[Loads] addLoadsBulk called outside provider');
+  },
+};
+
 export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
@@ -86,7 +108,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       .slice(0, 5);
   }, [loads]);
 
-  const acceptLoad = async (loadId: string) => {
+  const acceptLoad = useCallback(async (loadId: string) => {
     setIsLoading(true);
     try {
       if (!online) {
@@ -112,9 +134,9 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [online, show]);
 
-  const refreshLoads = async () => {
+  const refreshLoads = useCallback(async () => {
     setIsLoading(true);
     try {
       if (!online) {
@@ -128,9 +150,9 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [online, show]);
 
-  const addLoad = async (load: Load) => {
+  const addLoad = useCallback(async (load: Load) => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 600));
@@ -143,9 +165,9 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [show]);
 
-  const addLoadsBulk = async (incoming: Load[]) => {
+  const addLoadsBulk = useCallback(async (incoming: Load[]) => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -158,7 +180,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [show]);
 
   useEffect(() => {
     if (isLoading) {
@@ -173,7 +195,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
   }, [isLoading, show]);
 
-  return {
+  return useMemo(() => ({
     loads,
     filters,
     isLoading,
@@ -185,5 +207,5 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     refreshLoads,
     addLoad,
     addLoadsBulk,
-  };
-});
+  }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, setFilters, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
+}, defaultLoadsState);
