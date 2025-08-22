@@ -49,13 +49,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />
-      <Tabs.Screen
-        name="post-load"
-        options={{
-          title: 'Post Load',
-          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
-        }}
-      />
+
       <Tabs.Screen
         name="shipper"
         options={{

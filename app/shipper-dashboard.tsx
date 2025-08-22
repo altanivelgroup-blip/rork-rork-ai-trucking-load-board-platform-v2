@@ -81,7 +81,7 @@ export default function ShipperDashboard() {
   }, []);
   
   const handlePostNewLoad = useCallback(() => {
-    router.push('/(tabs)/post-load');
+    router.push('/post-load');
   }, [router]);
   
   return (
