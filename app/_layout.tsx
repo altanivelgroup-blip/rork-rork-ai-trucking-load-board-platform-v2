@@ -286,6 +286,12 @@ function RootLayoutNav() {
           title: "Shipper Dashboard",
         }} 
       />
+      <Stack.Screen 
+        name="post-load" 
+        options={{ 
+          title: "Post Load",
+        }} 
+      />
     </Stack>
   );
 }
