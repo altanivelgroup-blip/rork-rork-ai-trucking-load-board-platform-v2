@@ -96,7 +96,14 @@ export default function ProfileScreen() {
         title: 'Settings',
         subtitle: 'App preferences and account settings',
         icon: SettingsIcon,
-        onPress: () => router.push('/settings'),
+        onPress: () => {
+          console.log('Navigating to settings');
+          try {
+            router.push('/settings');
+          } catch (error) {
+            console.error('Settings navigation error:', error);
+          }
+        },
         testID: 'row-settings',
       },
       {

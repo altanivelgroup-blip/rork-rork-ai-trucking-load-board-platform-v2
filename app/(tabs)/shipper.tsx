@@ -28,7 +28,13 @@ export default function ShipperHome() {
 
   const goPostLoad = useCallback(() => {
     console.log('shipper.goPostLoad');
-    router.push('/post-load');
+    try {
+      router.push('/(tabs)/post-load');
+    } catch (error) {
+      console.error('Post load navigation error:', error);
+      // Fallback to direct route
+      router.push('/post-load');
+    }
   }, [router]);
 
   const goShipperDashboard = useCallback(() => {

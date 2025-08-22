@@ -34,7 +34,11 @@ export default function EquipmentScreen() {
 
   const goMaintenance = (item: EquipmentItem) => {
     console.log('Navigating to maintenance for:', item.name);
-    router.push('/maintenance');
+    try {
+      router.push('/maintenance');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
   };
 
   return (

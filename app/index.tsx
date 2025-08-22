@@ -9,16 +9,20 @@ export default function IndexScreen() {
   const { isLoading, isAuthenticated } = useAuth();
 
   useEffect(() => {
-    if (!isLoading) {
-      console.log('[Index] Auth loaded, isAuthenticated:', isAuthenticated);
-      if (isAuthenticated) {
-        console.log('[Index] User authenticated, navigating to dashboard');
-        router.replace('/(tabs)/dashboard');
-      } else {
-        console.log('[Index] User not authenticated, navigating to login');
-        router.replace('/(auth)/login');
+    const timer = setTimeout(() => {
+      if (!isLoading) {
+        console.log('[Index] Auth loaded, isAuthenticated:', isAuthenticated);
+        if (isAuthenticated) {
+          console.log('[Index] User authenticated, navigating to dashboard');
+          router.replace('/(tabs)/dashboard');
+        } else {
+          console.log('[Index] User not authenticated, navigating to login');
+          router.replace('/(auth)/login');
+        }
       }
-    }
+    }, 500);
+    
+    return () => clearTimeout(timer);
   }, [isLoading, isAuthenticated, router]);
 
   return (

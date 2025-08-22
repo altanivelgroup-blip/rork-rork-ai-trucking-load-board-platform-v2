@@ -46,7 +46,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
     };
     
-    const timer = setTimeout(init, 100);
+    const timer = setTimeout(init, 50);
     
     return () => {
       isMounted = false;

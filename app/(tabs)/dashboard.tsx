@@ -70,6 +70,16 @@ export default function DashboardScreen() {
     );
   }
 
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Please log in to continue</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
 
 
   const handleViewAll = useCallback(() => {
