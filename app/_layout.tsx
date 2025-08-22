@@ -8,6 +8,7 @@ import { PaymentsProvider } from "@/hooks/usePayments";
 import { MaintenanceProvider } from "@/hooks/useMaintenance";
 import { SettingsProvider } from "@/hooks/useSettings";
 import { PostLoadProvider } from "@/hooks/usePostLoad";
+import { LoadsProvider } from "@/hooks/useLoads";
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
@@ -313,18 +314,20 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
             <AuthProvider>
-              <PaymentsProvider>
-                <MaintenanceProvider>
-                  <SettingsProvider>
-                    <PostLoadProvider>
-                      <ToastProvider>
-                        <RootLayoutNav />
-                        <ToastHost />
-                      </ToastProvider>
-                    </PostLoadProvider>
-                  </SettingsProvider>
-                </MaintenanceProvider>
-              </PaymentsProvider>
+              <LoadsProvider>
+                <PaymentsProvider>
+                  <MaintenanceProvider>
+                    <SettingsProvider>
+                      <PostLoadProvider>
+                        <ToastProvider>
+                          <RootLayoutNav />
+                          <ToastHost />
+                        </ToastProvider>
+                      </PostLoadProvider>
+                    </SettingsProvider>
+                  </MaintenanceProvider>
+                </PaymentsProvider>
+              </LoadsProvider>
             </AuthProvider>
           </View>
         </QueryClientProvider>
