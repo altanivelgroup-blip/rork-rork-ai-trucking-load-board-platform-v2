@@ -64,61 +64,57 @@ function AuthGate({ children }: PropsWithChildren) {
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
-  const [hasRedirected, setHasRedirected] = useState(false);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    if (isLoading) {
-      console.log('[AuthGate] still loading, waiting...');
-      return;
-    }
-
-    if (hasRedirected) {
+    if (isLoading || isRedirecting) {
       return;
     }
 
     const first = (segments?.[0] ?? "") as string;
     const inAuthGroup = first === "(auth)";
-    const target = !isAuthenticated && !inAuthGroup ? "/login" : (isAuthenticated && inAuthGroup ? "/dashboard" : null);
+    
+    // Skip redirect if we're already on the right path
+    if (isAuthenticated && !inAuthGroup) {
+      return; // Already in authenticated area
+    }
+    if (!isAuthenticated && inAuthGroup) {
+      return; // Already in auth area
+    }
 
-    if (!target) {
+    // Determine target route
+    let target: string | null = null;
+    if (!isAuthenticated && !inAuthGroup) {
+      target = "/login";
+    } else if (isAuthenticated && inAuthGroup) {
+      target = "/dashboard";
+    }
+
+    if (!target || pathname === target) {
       return;
     }
 
-    if (pathname === target) {
-      return;
-    }
-
-    // Debounce redirects to prevent loops
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-
-    timeoutRef.current = setTimeout(() => {
-      console.log('[AuthGate] redirecting to:', target, 'from:', pathname);
-      setHasRedirected(true);
+    console.log('[AuthGate] redirecting to:', target, 'from:', pathname);
+    setIsRedirecting(true);
+    
+    // Use a timeout to prevent immediate re-renders
+    const timeoutId = setTimeout(() => {
       try {
         router.replace(target as any);
       } catch (e) {
         console.log('[AuthGate] replace failed', e);
-        setHasRedirected(false);
+      } finally {
+        setIsRedirecting(false);
       }
-    }, 100);
+    }, 50);
 
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+      clearTimeout(timeoutId);
+      setIsRedirecting(false);
     };
-  }, [isLoading, isAuthenticated, segments, pathname, router, hasRedirected]);
+  }, [isLoading, isAuthenticated, segments, pathname, router, isRedirecting]);
 
-  // Reset redirect flag when auth state changes
-  useEffect(() => {
-    setHasRedirected(false);
-  }, [isAuthenticated]);
-
-  if (isLoading) {
+  if (isLoading || isRedirecting) {
     return <LoadingScreen />;
   }
 
@@ -364,7 +360,7 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         {Platform.OS === 'web' ? (
           <Head>
-            <title>LoadRush: Trucking Load Board for Car Haulers & Hotshot</title>
+            <title><Text>LoadRush: Trucking Load Board for Car Haulers & Hotshot</Text></title>
             <meta name="description" content="Find car hauling loads, hotshot dispatch, and vehicle shipping jobs. Post loads, match fast, and get paid—on LoadRush." />
             <meta name="robots" content="index,follow" />
             <meta name="theme-color" content="#0b1220" />

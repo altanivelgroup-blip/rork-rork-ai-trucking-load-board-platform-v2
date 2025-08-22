@@ -21,7 +21,7 @@ export default function LoadsLayout() {
       }}
     >
       <Stack.Screen 
-        name="index" 
+        name="loads" 
         options={{ 
           title: "Available Loads",
         }} 

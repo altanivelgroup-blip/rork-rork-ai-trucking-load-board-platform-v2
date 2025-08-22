@@ -32,6 +32,7 @@ export default function TabsLayout() {
         options={{
           title: 'Loads',
           tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
+          href: '/(tabs)/(loads)/loads',
         }}
       />
       <Tabs.Screen
