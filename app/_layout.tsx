@@ -34,21 +34,35 @@ function AuthGate({ children }: PropsWithChildren) {
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
+  const didRedirectRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     if (isLoading) {
       console.log('[AuthGate] still loading, waiting...');
       return;
     }
-    
-    console.log('[AuthGate] auth state:', { isAuthenticated, segments, pathname });
+
     const first = (segments?.[0] ?? "") as string;
     const inAuthGroup = first === "(auth)";
     const target = !isAuthenticated && !inAuthGroup ? "/login" : (isAuthenticated && inAuthGroup ? "/dashboard" : null);
-    
-    if (target && pathname !== target) {
-      console.log('[AuthGate] redirecting to:', target);
+
+    if (!target) return;
+
+    if (pathname === target) {
+      didRedirectRef.current = null;
+      return;
+    }
+
+    if (didRedirectRef.current === target) {
+      return;
+    }
+
+    didRedirectRef.current = target;
+    console.log('[AuthGate] redirecting to:', target, 'from:', pathname);
+    try {
       router.replace(target as any);
+    } catch (e) {
+      console.log('[AuthGate] replace failed', e);
     }
   }, [isLoading, isAuthenticated, segments, pathname, router]);
 
