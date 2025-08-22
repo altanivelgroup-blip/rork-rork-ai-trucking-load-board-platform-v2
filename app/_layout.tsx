@@ -8,6 +8,8 @@ import { PaymentsProvider } from "@/hooks/usePayments";
 import { MaintenanceProvider } from "@/hooks/useMaintenance";
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { ToastProvider } from "@/components/Toast";
+import ToastHost from "@/components/ToastHost";
 import { theme } from "@/constants/theme";
 
 const queryClient = new QueryClient({
@@ -178,7 +180,10 @@ export default function RootLayout() {
             <AuthProvider>
               <PaymentsProvider>
                 <MaintenanceProvider>
-                  <RootLayoutNav />
+                  <ToastProvider>
+                    <RootLayoutNav />
+                    <ToastHost />
+                  </ToastProvider>
                 </MaintenanceProvider>
               </PaymentsProvider>
             </AuthProvider>
