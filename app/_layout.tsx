@@ -1,32 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import React from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "@/hooks/useAuth";
-import { LoadsProvider } from "@/hooks/useLoads";
-import { SettingsProvider } from "@/hooks/useSettings";
-import { MaintenanceProvider } from "@/hooks/useMaintenance";
-import { PaymentsProvider } from "@/hooks/usePayments";
-import { PostLoadProvider } from "@/hooks/usePostLoad";
 import HeaderBack from "@/components/HeaderBack";
 import { theme } from "@/constants/theme";
-import { ToastProvider } from "@/components/Toast";
-import ToastHost from "@/components/ToastHost";
-
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      staleTime: 0,
-      gcTime: 0,
-    },
-    mutations: {
-      retry: false,
-    },
-  },
-});
 
 
 
@@ -178,27 +156,12 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: '#0b1220' }}>
-          <ToastProvider>
-            <AuthProvider>
-              <LoadsProvider>
-                <PostLoadProvider>
-                  <SettingsProvider>
-                    <MaintenanceProvider>
-                      <PaymentsProvider>
-                        <RootLayoutNav />
-                        <ToastHost />
-                      </PaymentsProvider>
-                    </MaintenanceProvider>
-                  </SettingsProvider>
-                </PostLoadProvider>
-              </LoadsProvider>
-            </AuthProvider>
-          </ToastProvider>
-        </View>
-      </GestureHandlerRootView>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+      </View>
+    </GestureHandlerRootView>
   );
 }

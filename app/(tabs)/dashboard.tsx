@@ -1,14 +1,11 @@
-import React, { useMemo, useCallback, useState, useEffect, memo } from 'react';
-
-import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, Image } from 'react-native';
+import React, { useMemo, useCallback, useState, memo } from 'react';
+import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { useLoads } from '@/hooks/useLoads';
 import { useRouter } from 'expo-router';
-import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
-import { Truck, Star, Package, ArrowRight, MapPin } from 'lucide-react-native';
-import { VoiceCapture } from '@/components/VoiceCapture';
+import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-native';
+import { mockLoads } from '@/mocks/loads';
 
 interface RecentLoadProps {
   id: string;
@@ -53,32 +50,29 @@ const RecentLoadRow = memo<RecentLoadProps>(({
 });
 
 export default function DashboardScreen() {
-  const { user } = useAuth();
-  const { filteredLoads, setFilters, currentLoad } = useLoads();
+  const { user, isLoading } = useAuth();
   const router = useRouter();
   const [backhaulOn, setBackhaulOn] = useState<boolean>(false);
-  const { startWatching, stopWatching, requestPermissionAsync } = useLiveLocation();
 
-  const recentLoads = useMemo(() => filteredLoads.slice(0, 3), [filteredLoads]);
+  const recentLoads = useMemo(() => mockLoads.slice(0, 3), []);
   const heroUrl = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2cwo4h1uv8vh32px1blj8';
   const heroSource = useMemo(() => ({ uri: heroUrl }), [heroUrl]);
-  const lastDelivery = useMemo(() => currentLoad?.destination ?? recentLoads[0]?.destination, [currentLoad, recentLoads]);
+  const lastDelivery = useMemo(() => recentLoads[0]?.destination, [recentLoads]);
 
-  const haversineMiles = useCallback((a: GeoCoords, b: GeoCoords): number => {
-    const R = 3958.8;
-    const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
-    const dLng = ((b.longitude - a.longitude) * Math.PI) / 180;
-    const lat1 = (a.latitude * Math.PI) / 180;
-    const lat2 = (b.latitude * Math.PI) / 180;
-    const sinDLat = Math.sin(dLat / 2);
-    const sinDLng = Math.sin(dLng / 2);
-    const aa = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
-    const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
-    return R * c;
-  }, []);
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+
 
   const handleViewAll = useCallback(() => {
-    router.push('/loads' as any);
+    router.push('/(tabs)/(loads)/loads');
   }, [router]);
 
   const handleOpenLoad = useCallback((loadId: string) => {
@@ -88,85 +82,11 @@ export default function DashboardScreen() {
   const toggleBackhaul = useCallback((value: boolean) => {
     setBackhaulOn(value);
     if (value && lastDelivery) {
-      setFilters({ showBackhaul: true, backhaulCenter: { lat: lastDelivery.lat, lng: lastDelivery.lng }, backhaulRadiusMiles: 50 });
-      router.push('/loads' as any);
-    } else {
-      setFilters({ showBackhaul: undefined, backhaulCenter: undefined, backhaulRadiusMiles: undefined });
+      router.push('/(tabs)/(loads)/loads');
     }
-  }, [lastDelivery, router, setFilters]);
+  }, [lastDelivery, router]);
 
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    let mounted = true;
-    
-    const init = async () => {
-      try {
-        if (!currentLoad || !currentLoad.destination) return;
-        if (currentLoad.status !== 'in-transit') return;
-        
-        const ok = await requestPermissionAsync();
-        if (!ok || !mounted) return;
-        
-        const dest = currentLoad.destination;
-        const destPoint: GeoCoords = { latitude: dest.lat, longitude: dest.lng };
-        
-        unsubscribe = await startWatching((coords) => {
-          if (!mounted) return;
-          
-          try {
-            const miles = haversineMiles(coords, destPoint);
-            console.log('[Backhaul] distance to delivery', miles);
-            const arriveRadiusMiles = 2;
-            if (miles <= arriveRadiusMiles && !backhaulOn && mounted) {
-              setBackhaulOn(true);
-              setFilters({ showBackhaul: true, backhaulCenter: { lat: dest.lat, lng: dest.lng }, backhaulRadiusMiles: 50 });
-              router.push('/loads' as any);
-            }
-          } catch (e) {
-            console.error('Error computing backhaul distance', e);
-          }
-        }, { distanceIntervalMeters: 100 });
-      } catch (e) {
-        console.error('[Dashboard] location init error', e);
-      }
-    };
-    
-    init();
-    
-    return () => {
-      mounted = false;
-      try {
-        if (unsubscribe) unsubscribe();
-      } catch (e) {
-        console.warn('[Dashboard] location cleanup failed', e);
-      }
-      try {
-        stopWatching();
-      } catch (e) {
-        console.warn('[Dashboard] stop watching failed', e);
-      }
-    };
-  }, [currentLoad, requestPermissionAsync, startWatching, stopWatching, haversineMiles, backhaulOn, router, setFilters]);
 
-  useEffect(() => {
-    let mounted = true;
-    
-    const prefetchImage = async () => {
-      try {
-        if (mounted) {
-          await Image.prefetch(heroUrl);
-        }
-      } catch (e) {
-        console.log('[Dashboard] hero prefetch error', e);
-      }
-    };
-    
-    prefetchImage();
-    
-    return () => {
-      mounted = false;
-    };
-  }, [heroUrl]);
 
   return (
     <>
@@ -186,26 +106,20 @@ export default function DashboardScreen() {
         <View style={styles.welcomeRow}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.welcomeName}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
-          <View style={styles.voiceContainer}>
-            <VoiceCapture 
-              onTranscribed={(text) => {
-                console.log('Voice transcribed:', text);
-              }}
-              size="sm"
-              testID="dashboard-voice-capture"
-            />
-          </View>
+          <TouchableOpacity style={styles.voiceButton} testID="dashboard-voice-capture">
+            <Mic size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statCard} testID="stat-available-loads">
             <Truck size={20} color={theme.colors.primary} />
-            <Text style={styles.statValue}>{filteredLoads.length}</Text>
+            <Text style={styles.statValue}>{mockLoads.length}</Text>
             <Text style={styles.statLabel}>Available Loads</Text>
           </View>
           <View style={styles.statCard} testID="stat-rating">
             <Star size={20} color={theme.colors.warning} />
-            <Text style={styles.statValue}>{(user?.rating ?? 4.8).toString()}</Text>
+            <Text style={styles.statValue}>{user?.rating?.toString() ?? '4.8'}</Text>
             <Text style={styles.statLabel}>Your Rating</Text>
           </View>
           <View style={styles.statCard} testID="stat-completed">
@@ -314,8 +228,19 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.md,
     justifyContent: 'space-between',
   },
-  voiceContainer: {
-    marginLeft: theme.spacing.md,
+  voiceButton: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.lightGray,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: theme.fontSize.lg,
+    color: theme.colors.gray,
   },
   welcomeText: {
     fontSize: theme.fontSize.md,

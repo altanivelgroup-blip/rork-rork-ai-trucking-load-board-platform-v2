@@ -2,7 +2,6 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Driver } from '@/types';
-import { getFirebase } from '@/utils/firebase';
 
 interface AuthState {
   user: Driver | null;
@@ -19,31 +18,25 @@ const DRIVER_STORAGE_KEY = 'auth:user:driver';
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [user, setUser] = useState<Driver | null>(null);
-  const [firebaseServices, setFirebaseServices] = useState<ReturnType<typeof getFirebase> | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const init = async () => {
       try {
-        const services = getFirebase();
-        setFirebaseServices(services);
-        
         const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
         if (cached) {
           setUser(JSON.parse(cached));
         }
       } catch (e) {
         console.error('[auth] init error', e);
+      } finally {
+        setIsLoading(false);
       }
     };
     init();
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    if (!firebaseServices) {
-      const services = getFirebase();
-      setFirebaseServices(services);
-    }
-    
     const mockUser: Driver = {
       id: '1',
       role: 'driver',
@@ -54,22 +47,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       createdAt: new Date(),
       cdlNumber: '',
       vehicleTypes: [],
-      rating: 0,
-      completedLoads: 0,
+      rating: 4.8,
+      completedLoads: 24,
       documents: [],
       wallet: {
-        balance: 0,
-        pendingEarnings: 0,
-        totalEarnings: 0,
+        balance: 2450,
+        pendingEarnings: 850,
+        totalEarnings: 12500,
         transactions: [],
       },
       isAvailable: true,
-      verificationStatus: 'unverified',
+      verificationStatus: 'verified',
     };
     
     setUser(mockUser);
     await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
-  }, [firebaseServices]);
+  }, []);
 
   const register = useCallback(async (email: string, password: string, profile?: Partial<Driver>) => {
     const mockUser: Driver = {
@@ -113,7 +106,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const value = useMemo(() => ({
     user,
-    isLoading: false,
+    isLoading,
     isAuthenticated: !!user,
     login,
     register,
@@ -122,7 +115,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     },
     logout,
     updateProfile,
-  }), [user, login, register, logout, updateProfile]);
+  }), [user, isLoading, login, register, logout, updateProfile]);
 
   return value;
 });

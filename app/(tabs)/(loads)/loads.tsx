@@ -1,41 +1,28 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
   StyleSheet,
   RefreshControl,
   Text,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
-import { useLoads } from '@/hooks/useLoads';
 import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
-
-import { VoiceCapture } from '@/components/VoiceCapture';
-import SkeletonLoadCard from '@/components/SkeletonLoadCard';
-
-import { useToast } from '@/components/Toast';
-import useOnlineStatus from '@/hooks/useOnlineStatus';
+import { mockLoads } from '@/mocks/loads';
 
 export default function LoadsScreen() {
   const router = useRouter();
-  const { filteredLoads, filters, setFilters, refreshLoads, isLoading, currentLoad } = useLoads();
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const { online } = useOnlineStatus();
-  const { show } = useToast();
-  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [filters, setFilters] = useState<any>({});
+
+  const filteredLoads = useMemo(() => mockLoads, []);
 
   const handleRefresh = async () => {
-    if (!online) {
-      show('You are offline. Showing cached loads.', 'warning', 2500);
-    }
     setRefreshing(true);
-    await refreshLoads();
-    setRefreshing(false);
+    setTimeout(() => setRefreshing(false), 1000);
   };
 
   const handleVehicleSelect = useCallback((vehicle?: VehicleType) => {
@@ -43,107 +30,22 @@ export default function LoadsScreen() {
   }, [filters, setFilters]);
 
   const handleBackhaulToggle = useCallback(() => {
-    const enabling = !filters.showBackhaul;
-    if (enabling && currentLoad?.destination) {
-      setFilters({
-        ...filters,
-        showBackhaul: true,
-        backhaulCenter: { lat: currentLoad.destination.lat, lng: currentLoad.destination.lng },
-        backhaulRadiusMiles: filters.backhaulRadiusMiles ?? 50,
-      });
-    } else {
-      setFilters({ ...filters, showBackhaul: !filters.showBackhaul });
-    }
-  }, [filters, setFilters, currentLoad]);
+    setFilters({ ...filters, showBackhaul: !filters.showBackhaul });
+  }, [filters, setFilters]);
 
   const handleOpenFilters = useCallback(() => {
     console.log('Open filters modal');
   }, []);
 
   const onVoiceToFilters = useCallback((text: string) => {
-    try {
-      console.log('[Loads] Voice text', text);
-      const lower = text.toLowerCase();
-      const veh: Record<string, VehicleType> = {
-        'flatbed': 'flatbed',
-        'reefer': 'reefer',
-        'box truck': 'box-truck',
-        'boxtruck': 'box-truck',
-        'cargo van': 'cargo-van',
-        'car hauler': 'car-hauler',
-        'enclosed': 'enclosed-trailer',
-        'trailer': 'trailer',
-        'truck': 'truck',
-      };
-      let vehicle: VehicleType | undefined = undefined;
-      Object.keys(veh).forEach((k) => { if (lower.includes(k)) vehicle = veh[k]; });
-      const minRateMatch = lower.match(/\$(\d{2,5})|rate\s*(\d{2,5})|over\s*(\d{2,5})/);
-      const minRate = minRateMatch ? Number(minRateMatch[1] || minRateMatch[2] || minRateMatch[3]) : undefined;
-      setFilters({
-        ...filters,
-        vehicleType: vehicle ?? filters.vehicleType,
-        minRate: minRate ?? filters.minRate,
-      });
-    } catch (e) {
-      console.log('[Loads] onVoiceToFilters error', e);
-    }
-  }, [filters, setFilters]);
+    console.log('Voice search:', text);
+  }, []);
 
   const handleLoadPress = useCallback((loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
   }, [router]);
 
-  const showSkeletons = useMemo(() => isLoading && filteredLoads.length === 0, [isLoading, filteredLoads.length]);
 
-  useEffect(() => {
-    let mounted = true;
-    
-    if (!isLoading && filteredLoads.length === 0 && mounted) {
-      refreshLoads().catch((e) => {
-        if (mounted) {
-          console.log('[Loads] prefetch error', e);
-        }
-      });
-    }
-    
-    return () => {
-      mounted = false;
-    };
-  }, [isLoading, filteredLoads.length, refreshLoads]);
-
-  useEffect(() => {
-    let mounted = true;
-    
-    if (isLoading && mounted) {
-      if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
-      slowTimerRef.current = setTimeout(() => {
-        if (isLoading && mounted) {
-          show('Network seems slow. Still loading…', 'info', 2000);
-        }
-      }, 1500);
-    } else if (slowTimerRef.current) {
-      clearTimeout(slowTimerRef.current);
-      slowTimerRef.current = null;
-    }
-    
-    return () => {
-      mounted = false;
-      if (slowTimerRef.current) {
-        clearTimeout(slowTimerRef.current);
-        slowTimerRef.current = null;
-      }
-    };
-  }, [isLoading, show]);
-
-  if (showSkeletons) {
-    return (
-      <View style={styles.container}>
-        {[...Array(5)].map((_, i) => (
-          <SkeletonLoadCard key={`skeleton-${i}`} />
-        ))}
-      </View>
-    );
-  }
 
   const renderItem = useCallback(({ item }: { item: typeof filteredLoads[number] }) => (
     <LoadCard load={item} onPress={() => handleLoadPress(item.id)} />
@@ -172,7 +74,6 @@ export default function LoadsScreen() {
       />
       
       <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', gap: 8 }}>
-        <VoiceCapture onTranscribed={onVoiceToFilters} size="sm" label="Voice Search" testID="loads-voice" />
         <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
         <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
       </View>

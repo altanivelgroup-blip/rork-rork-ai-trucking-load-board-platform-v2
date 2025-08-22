@@ -28,9 +28,9 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace('/dashboard');
+      router.replace('/(tabs)/dashboard');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
 
   const handleLogin = useCallback(async () => {
     if (!email || !password) return;
@@ -38,7 +38,7 @@ export default function LoginScreen() {
     try {
       console.log('[login] attempting login for', email);
       await login(email, password);
-      router.replace('/dashboard');
+      router.replace('/(tabs)/dashboard');
     } catch (error) {
       console.error('[login] failed', error);
     } finally {
