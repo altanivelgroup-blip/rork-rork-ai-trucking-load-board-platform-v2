@@ -64,57 +64,63 @@ function AuthGate({ children }: PropsWithChildren) {
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
-    if (isLoading || isRedirecting) {
+    if (isLoading || hasRedirected) {
       return;
     }
 
     const first = (segments?.[0] ?? "") as string;
     const inAuthGroup = first === "(auth)";
+    const isIndexRoute = pathname === "/";
     
-    // Skip redirect if we're already on the right path
-    if (isAuthenticated && !inAuthGroup) {
-      return; // Already in authenticated area
-    }
-    if (!isAuthenticated && inAuthGroup) {
-      return; // Already in auth area
-    }
-
-    // Determine target route
+    // Determine if we need to redirect
+    let shouldRedirect = false;
     let target: string | null = null;
-    if (!isAuthenticated && !inAuthGroup) {
+    
+    if (isIndexRoute) {
+      // Always redirect from index route
+      target = isAuthenticated ? "/dashboard" : "/login";
+      shouldRedirect = true;
+    } else if (!isAuthenticated && !inAuthGroup) {
+      // Not authenticated and not in auth group
       target = "/login";
+      shouldRedirect = true;
     } else if (isAuthenticated && inAuthGroup) {
+      // Authenticated but still in auth group
       target = "/dashboard";
+      shouldRedirect = true;
     }
 
-    if (!target || pathname === target) {
+    if (!shouldRedirect || !target) {
       return;
     }
 
     console.log('[AuthGate] redirecting to:', target, 'from:', pathname);
-    setIsRedirecting(true);
+    setHasRedirected(true);
     
-    // Use a timeout to prevent immediate re-renders
-    const timeoutId = setTimeout(() => {
+    // Use requestAnimationFrame to ensure smooth redirect
+    const frameId = requestAnimationFrame(() => {
       try {
         router.replace(target as any);
       } catch (e) {
         console.log('[AuthGate] replace failed', e);
-      } finally {
-        setIsRedirecting(false);
+        setHasRedirected(false);
       }
-    }, 50);
+    });
 
     return () => {
-      clearTimeout(timeoutId);
-      setIsRedirecting(false);
+      cancelAnimationFrame(frameId);
     };
-  }, [isLoading, isAuthenticated, segments, pathname, router, isRedirecting]);
+  }, [isLoading, isAuthenticated, segments, pathname, router, hasRedirected]);
 
-  if (isLoading || isRedirecting) {
+  // Reset redirect flag when auth state changes
+  useEffect(() => {
+    setHasRedirected(false);
+  }, [isAuthenticated]);
+
+  if (isLoading) {
     return <LoadingScreen />;
   }
 

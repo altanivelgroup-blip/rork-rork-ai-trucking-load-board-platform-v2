@@ -115,6 +115,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     
     let unsub: (() => void) | undefined;
     let mounted = true;
+    let authStateProcessing = false;
     
     (async () => {
       try {
@@ -161,7 +162,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         if (!mounted) return;
 
         unsub = onAuthStateChanged(services.auth, async (fbUser) => {
-          if (!mounted) return;
+          if (!mounted || authStateProcessing) return;
+          authStateProcessing = true;
           
           console.log('[auth] onAuthStateChanged', fbUser?.uid);
           
@@ -198,6 +200,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             if (mounted) {
               setIsLoading(false);
             }
+            authStateProcessing = false;
           }
         });
       } catch (e) {
