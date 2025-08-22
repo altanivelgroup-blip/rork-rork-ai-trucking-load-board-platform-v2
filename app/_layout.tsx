@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
+import Head from "expo-router/head";
 import * as SplashScreen from "expo-splash-screen";
 import React, { PropsWithChildren, useEffect, useMemo, useState } from "react";
 import { Platform, View, Text, ActivityIndicator } from "react-native";
@@ -222,6 +223,7 @@ function LoadingScreen() {
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -269,6 +271,34 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
+        {Platform.OS === 'web' ? (
+          <Head>
+            <title>LoadRush: Trucking Load Board for Car Haulers & Hotshot</title>
+            <meta name="description" content="Find car hauling loads, hotshot dispatch, and vehicle shipping jobs. Post loads, match fast, and get paid—on LoadRush." />
+            <meta name="robots" content="index,follow" />
+            <meta name="theme-color" content="#0b1220" />
+            {typeof window !== 'undefined' ? <link rel="canonical" href={`${window.location.origin}${pathname ?? ''}`} /> : null}
+            <meta property="og:type" content="website" />
+            <meta property="og:title" content="LoadRush: Trucking Load Board for Car Haulers & Hotshot" />
+            <meta property="og:description" content="Find car hauling loads, hotshot dispatch, and vehicle shipping jobs. Post loads, match fast, and get paid—on LoadRush." />
+            {typeof window !== 'undefined' ? <meta property="og:url" content={`${window.location.origin}${pathname ?? ''}`} /> : null}
+            <meta property="og:image" content="https://images.unsplash.com/photo-1501706362039-c06b2d715385?q=80&w=1400&auto=format&fit=crop" />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content="LoadRush: Trucking Load Board for Car Haulers & Hotshot" />
+            <meta name="twitter:description" content="Find car hauling loads, hotshot dispatch, and vehicle shipping jobs. Post loads, match fast, and get paid—on LoadRush." />
+            <meta name="twitter:image" content="https://images.unsplash.com/photo-1501706362039-c06b2d715385?q=80&w=1400&auto=format&fit=crop" />
+            <script type="application/ld+json" dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                '@context': 'https://schema.org',
+                '@type': 'Organization',
+                name: 'LoadRush',
+                url: typeof window !== 'undefined' ? window.location.origin : 'https://loadrush.app',
+                logo: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/26wbvri4j4j5lt84ceaac',
+                sameAs: ['https://x.com/loadrush','https://www.linkedin.com/company/loadrush'],
+              }),
+            }} />
+          </Head>
+        ) : null}
         <ErrorBoundaryWithRouter>
           <ToastProvider>
             <AuthProvider>
