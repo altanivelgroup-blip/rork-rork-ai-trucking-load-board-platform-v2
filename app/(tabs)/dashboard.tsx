@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback, useState, useEffect, memo } from 'react';
+import Head from 'expo-router/head';
 import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
@@ -133,7 +134,12 @@ export default function DashboardScreen() {
   }, [heroUrl]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <>
+      <Head>
+        <title>LoadRush: Best Load Board for Car Hauling Loads & Hotshot Trucking</title>
+        <meta name="description" content="Find car hauling loads, hotshot trucking loads, and auto transport jobs fast with LoadRush. The ultimate truck load finder app for drivers and brokers—sign up today!" />
+      </Head>
+      <SafeAreaView style={styles.container} edges={['top']}> 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ImageBackground
           source={heroSource}
@@ -223,6 +229,7 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+    </>
   );
 }
 

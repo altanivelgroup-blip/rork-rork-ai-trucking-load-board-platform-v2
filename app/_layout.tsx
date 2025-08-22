@@ -192,6 +192,12 @@ function RootLayoutNav() {
           title: "Edit Profile",
         }} 
       />
+      <Stack.Screen 
+        name="about" 
+        options={{ 
+          title: "About",
+        }} 
+      />
     </Stack>
   );
 }
