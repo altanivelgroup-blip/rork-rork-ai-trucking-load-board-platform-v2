@@ -96,41 +96,75 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let mounted = true;
+    
     const init = async () => {
-      if (!currentLoad || !currentLoad.destination) return;
-      if (currentLoad.status !== 'in-transit') return;
-      const ok = await requestPermissionAsync();
-      if (!ok) return;
-      const dest = currentLoad.destination;
-      const destPoint: GeoCoords = { latitude: dest.lat, longitude: dest.lng };
-      unsubscribe = await startWatching((coords) => {
-        try {
-          const miles = haversineMiles(coords, destPoint);
-          console.log('[Backhaul] distance to delivery', miles);
-          const arriveRadiusMiles = 2;
-          if (miles <= arriveRadiusMiles && !backhaulOn) {
-            setBackhaulOn(true);
-            setFilters({ showBackhaul: true, backhaulCenter: { lat: dest.lat, lng: dest.lng }, backhaulRadiusMiles: 50 });
-            router.push('/(tabs)/(loads)');
+      try {
+        if (!currentLoad || !currentLoad.destination) return;
+        if (currentLoad.status !== 'in-transit') return;
+        
+        const ok = await requestPermissionAsync();
+        if (!ok || !mounted) return;
+        
+        const dest = currentLoad.destination;
+        const destPoint: GeoCoords = { latitude: dest.lat, longitude: dest.lng };
+        
+        unsubscribe = await startWatching((coords) => {
+          if (!mounted) return;
+          
+          try {
+            const miles = haversineMiles(coords, destPoint);
+            console.log('[Backhaul] distance to delivery', miles);
+            const arriveRadiusMiles = 2;
+            if (miles <= arriveRadiusMiles && !backhaulOn && mounted) {
+              setBackhaulOn(true);
+              setFilters({ showBackhaul: true, backhaulCenter: { lat: dest.lat, lng: dest.lng }, backhaulRadiusMiles: 50 });
+              router.push('/(tabs)/(loads)');
+            }
+          } catch (e) {
+            console.error('Error computing backhaul distance', e);
           }
-        } catch (e) {
-          console.error('Error computing backhaul distance', e);
-        }
-      }, { distanceIntervalMeters: 100 });
+        }, { distanceIntervalMeters: 100 });
+      } catch (e) {
+        console.error('[Dashboard] location init error', e);
+      }
     };
+    
     init();
+    
     return () => {
-      try { unsubscribe?.(); } catch {}
-      stopWatching();
+      mounted = false;
+      try {
+        if (unsubscribe) unsubscribe();
+      } catch (e) {
+        console.warn('[Dashboard] location cleanup failed', e);
+      }
+      try {
+        stopWatching();
+      } catch (e) {
+        console.warn('[Dashboard] stop watching failed', e);
+      }
     };
   }, [currentLoad, requestPermissionAsync, startWatching, stopWatching, haversineMiles, backhaulOn, router, setFilters]);
 
   useEffect(() => {
-    try {
-      void Image.prefetch(heroUrl);
-    } catch (e) {
-      console.log('[Dashboard] hero prefetch error', e);
-    }
+    let mounted = true;
+    
+    const prefetchImage = async () => {
+      try {
+        if (mounted) {
+          await Image.prefetch(heroUrl);
+        }
+      } catch (e) {
+        console.log('[Dashboard] hero prefetch error', e);
+      }
+    };
+    
+    prefetchImage();
+    
+    return () => {
+      mounted = false;
+    };
   }, [heroUrl]);
 
   return (

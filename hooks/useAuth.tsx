@@ -1,9 +1,9 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Logger from '@/utils/logger';
 import { Driver } from '@/types';
-import { getFirebase } from '@/utils/firebase';
+import { getFirebase, initializeFirebaseAsync } from '@/utils/firebase';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -107,52 +107,121 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [user, setUser] = useState<Driver | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [firebaseServices, setFirebaseServices] = useState<ReturnType<typeof getFirebase> | null>(null);
+  const initRef = useRef(false);
 
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+    
     let unsub: (() => void) | undefined;
+    let mounted = true;
+    
     (async () => {
       try {
         console.log('[auth] initializing firebase services');
-        Logger.logEvent('auth_init_start').catch(() => {});
-        const services = getFirebase();
+        
+        try {
+          await Logger.logEvent('auth_init_start');
+        } catch (logError) {
+          console.warn('[auth] logging failed', logError);
+        }
+        
+        // Try async initialization first, fallback to sync
+        let services: ReturnType<typeof getFirebase>;
+        try {
+          services = await initializeFirebaseAsync();
+        } catch (asyncError) {
+          console.warn('[auth] async init failed, trying sync', asyncError);
+          services = getFirebase();
+        }
+        
+        if (!mounted) return;
+        
         setFirebaseServices(services);
         console.log('[auth] firebase services initialized');
-        Logger.logEvent('auth_init_ready').catch(() => {});
         
-        const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached) as Driver;
-          setUser(parsed);
-          console.log('[auth] loaded cached user');
+        try {
+          await Logger.logEvent('auth_init_ready');
+        } catch (logError) {
+          console.warn('[auth] logging failed', logError);
+        }
+        
+        // Load cached user
+        try {
+          const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
+          if (cached && mounted) {
+            const parsed = JSON.parse(cached) as Driver;
+            setUser(parsed);
+            console.log('[auth] loaded cached user');
+          }
+        } catch (cacheError) {
+          console.warn('[auth] cache load failed', cacheError);
         }
 
+        if (!mounted) return;
+
         unsub = onAuthStateChanged(services.auth, async (fbUser) => {
+          if (!mounted) return;
+          
           console.log('[auth] onAuthStateChanged', fbUser?.uid);
-          Logger.logEvent('auth_state_changed', { uid: fbUser?.uid ?? null }).catch(() => {});
+          
+          try {
+            await Logger.logEvent('auth_state_changed', { uid: fbUser?.uid ?? null });
+          } catch (logError) {
+            console.warn('[auth] logging failed', logError);
+          }
+          
           try {
             if (!fbUser) {
-              setUser(null);
-              await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
+              if (mounted) {
+                setUser(null);
+              }
+              try {
+                await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
+              } catch (storageError) {
+                console.warn('[auth] storage removal failed', storageError);
+              }
             } else {
               const profile = await fetchOrCreateProfile(services.db, fbUser);
-              setUser(profile);
-              await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
+              if (mounted) {
+                setUser(profile);
+              }
+              try {
+                await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
+              } catch (storageError) {
+                console.warn('[auth] storage save failed', storageError);
+              }
             }
           } catch (profileError) {
             console.error('[auth] profile fetch/create error', profileError);
           } finally {
-            setIsLoading(false);
+            if (mounted) {
+              setIsLoading(false);
+            }
           }
         });
       } catch (e) {
         console.error('[auth] initialization error', e);
-        Logger.logError('auth_init_error', e).catch(() => {});
-        setIsLoading(false);
+        try {
+          await Logger.logError('auth_init_error', e);
+        } catch (logError) {
+          console.warn('[auth] error logging failed', logError);
+        }
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     })();
 
     return () => {
-      if (unsub) unsub();
+      mounted = false;
+      if (unsub) {
+        try {
+          unsub();
+        } catch (e) {
+          console.warn('[auth] cleanup failed', e);
+        }
+      }
     };
   }, []);
 

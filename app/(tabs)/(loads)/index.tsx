@@ -96,16 +96,28 @@ export default function LoadsScreen() {
   const showSkeletons = useMemo(() => isLoading && filteredLoads.length === 0, [isLoading, filteredLoads.length]);
 
   useEffect(() => {
-    if (!isLoading && filteredLoads.length === 0) {
-      refreshLoads().catch((e) => console.log('[Loads] prefetch error', e));
+    let mounted = true;
+    
+    if (!isLoading && filteredLoads.length === 0 && mounted) {
+      refreshLoads().catch((e) => {
+        if (mounted) {
+          console.log('[Loads] prefetch error', e);
+        }
+      });
     }
+    
+    return () => {
+      mounted = false;
+    };
   }, [isLoading, filteredLoads.length, refreshLoads]);
 
   useEffect(() => {
-    if (isLoading) {
+    let mounted = true;
+    
+    if (isLoading && mounted) {
       if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
       slowTimerRef.current = setTimeout(() => {
-        if (isLoading) {
+        if (isLoading && mounted) {
           show('Network seems slow. Still loading…', 'info', 2000);
         }
       }, 1500);
@@ -113,7 +125,14 @@ export default function LoadsScreen() {
       clearTimeout(slowTimerRef.current);
       slowTimerRef.current = null;
     }
-    return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
+    
+    return () => {
+      mounted = false;
+      if (slowTimerRef.current) {
+        clearTimeout(slowTimerRef.current);
+        slowTimerRef.current = null;
+      }
+    };
   }, [isLoading, show]);
 
   if (showSkeletons) {

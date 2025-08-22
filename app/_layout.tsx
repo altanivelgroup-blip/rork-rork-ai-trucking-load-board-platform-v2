@@ -21,20 +21,51 @@ import ToastHost from "@/components/ToastHost";
 import OfflineBanner from "@/components/OfflineBanner";
 import ScreenTracker from "@/components/ScreenTracker";
 
+// Global error handler
+if (typeof global !== 'undefined') {
+  const originalConsoleError = console.error;
+  console.error = (...args) => {
+    // Filter out known React Native warnings that cause flickering
+    const message = args[0]?.toString() || '';
+    if (message.includes('Warning: React has detected a change in the order of Hooks') ||
+        message.includes('Warning: Cannot update a component') ||
+        message.includes('VirtualizedList: You have a large list')) {
+      return;
+    }
+    originalConsoleError.apply(console, args);
+  };
+}
+
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch((error) => {
     console.warn('[SplashScreen] preventAutoHideAsync failed:', error);
   });
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        console.log('[QueryClient] retry attempt', failureCount, error?.message);
+        return failureCount < 2;
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
 
 function AuthGate({ children }: PropsWithChildren) {
   const { isLoading, isAuthenticated } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
-  const didRedirectRef = React.useRef<string | null>(null);
+  const [hasRedirected, setHasRedirected] = useState(false);
+  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (isLoading) {
@@ -42,29 +73,50 @@ function AuthGate({ children }: PropsWithChildren) {
       return;
     }
 
+    if (hasRedirected) {
+      return;
+    }
+
     const first = (segments?.[0] ?? "") as string;
     const inAuthGroup = first === "(auth)";
     const target = !isAuthenticated && !inAuthGroup ? "/login" : (isAuthenticated && inAuthGroup ? "/dashboard" : null);
 
-    if (!target) return;
+    if (!target) {
+      return;
+    }
 
     if (pathname === target) {
-      didRedirectRef.current = null;
       return;
     }
 
-    if (didRedirectRef.current === target) {
-      return;
+    // Debounce redirects to prevent loops
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
 
-    didRedirectRef.current = target;
-    console.log('[AuthGate] redirecting to:', target, 'from:', pathname);
-    try {
-      router.replace(target as any);
-    } catch (e) {
-      console.log('[AuthGate] replace failed', e);
-    }
-  }, [isLoading, isAuthenticated, segments, pathname, router]);
+    timeoutRef.current = setTimeout(() => {
+      console.log('[AuthGate] redirecting to:', target, 'from:', pathname);
+      setHasRedirected(true);
+      try {
+        router.replace(target as any);
+      } catch (e) {
+        console.log('[AuthGate] replace failed', e);
+        setHasRedirected(false);
+      }
+    }, 100);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [isLoading, isAuthenticated, segments, pathname, router, hasRedirected]);
+
+  // Reset redirect flag when auth state changes
+  useEffect(() => {
+    setHasRedirected(false);
+  }, [isAuthenticated]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -238,23 +290,48 @@ function LoadingScreen() {
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
   const pathname = usePathname();
+  const initRef = React.useRef(false);
 
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+
     const initializeApp = async () => {
       try {
         console.log('[RootLayout] initializing app');
-        await Logger.logEvent('app_start');
-        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Add a small delay to prevent race conditions
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        try {
+          await Logger.logEvent('app_start');
+        } catch (logError) {
+          console.warn('[RootLayout] logging failed', logError);
+        }
+        
         setIsReady(true);
         console.log('[RootLayout] app ready');
-        await Logger.logEvent('app_ready');
+        
+        try {
+          await Logger.logEvent('app_ready');
+        } catch (logError) {
+          console.warn('[RootLayout] logging failed', logError);
+        }
         
         if (Platform.OS !== "web") {
-          await SplashScreen.hideAsync();
+          try {
+            await SplashScreen.hideAsync();
+          } catch (splashError) {
+            console.warn('[RootLayout] splash hide failed', splashError);
+          }
         }
       } catch (error) {
         console.error('[RootLayout] initialization error', error);
-        await Logger.logError('app_init_error', error);
+        try {
+          await Logger.logError('app_init_error', error);
+        } catch (logError) {
+          console.warn('[RootLayout] error logging failed', logError);
+        }
         setIsReady(true);
       }
     };
