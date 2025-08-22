@@ -2,9 +2,21 @@ import { Stack } from "expo-router";
 import React from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/hooks/useAuth";
 import HeaderBack from "@/components/HeaderBack";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { theme } from "@/constants/theme";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 
 
@@ -157,12 +169,16 @@ function RootLayoutNav() {
 export default function RootLayout() {
   console.log('[RootLayout] rendering');
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
-        <AuthProvider>
-          <RootLayoutNav />
-        </AuthProvider>
-      </View>
-    </GestureHandlerRootView>
+    <ErrorBoundary safeRoute="/(auth)/login">
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <QueryClientProvider client={queryClient}>
+          <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+            <AuthProvider>
+              <RootLayoutNav />
+            </AuthProvider>
+          </View>
+        </QueryClientProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

@@ -57,16 +57,24 @@ export default function DashboardScreen() {
   
   console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
 
-  const recentLoads = useMemo(() => mockLoads.slice(0, 3), []);
-  const heroUrl = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2cwo4h1uv8vh32px1blj8';
-  const heroSource = useMemo(() => ({ uri: heroUrl }), [heroUrl]);
+  const recentLoads = useMemo(() => mockLoads?.slice(0, 3) ?? [], []);
   const lastDelivery = useMemo(() => recentLoads[0]?.destination, [recentLoads]);
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Authentication required</Text>
         </View>
       </SafeAreaView>
     );
@@ -92,19 +100,13 @@ export default function DashboardScreen() {
 
 
   return (
-    <>
-
-      <SafeAreaView style={styles.container} edges={['top']}> 
+    <SafeAreaView style={styles.container} edges={['top']}> 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ImageBackground
-          source={heroSource}
-          style={styles.hero}
-          imageStyle={styles.heroImage}
-        >
+        <View style={styles.hero}>
           <View style={styles.heroOverlay} />
           <Text style={styles.heroTitle}>LoadRun</Text>
           <Text style={styles.heroSubtitle}>AI Load Board for Car Haulers</Text>
-        </ImageBackground>
+        </View>
 
         <View style={styles.welcomeRow}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
@@ -117,7 +119,7 @@ export default function DashboardScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard} testID="stat-available-loads">
             <Truck size={20} color={theme.colors.primary} />
-            <Text style={styles.statValue}>{mockLoads.length}</Text>
+            <Text style={styles.statValue}>{mockLoads?.length ?? 0}</Text>
             <Text style={styles.statLabel}>Available Loads</Text>
           </View>
           <View style={styles.statCard} testID="stat-rating">
@@ -143,20 +145,20 @@ export default function DashboardScreen() {
         </View>
 
         <View>
-          {recentLoads.map((l) => (
+          {recentLoads?.map((l) => (
             <RecentLoadRow
               key={l.id}
               id={l.id}
-              originCity={l.origin.city}
-              originState={l.origin.state}
-              destinationCity={l.destination.city}
-              destinationState={l.destination.state}
-              pickupDate={l.pickupDate as any}
-              weight={l.weight}
-              rate={l.rate}
+              originCity={l.origin?.city ?? 'Unknown'}
+              originState={l.origin?.state ?? 'Unknown'}
+              destinationCity={l.destination?.city ?? 'Unknown'}
+              destinationState={l.destination?.state ?? 'Unknown'}
+              pickupDate={l.pickupDate ?? new Date()}
+              weight={l.weight ?? 0}
+              rate={l.rate ?? 0}
               onPress={handleOpenLoad}
             />
-          ))}
+          )) ?? []}
         </View>
 
         <View style={styles.backhaulCard} testID="backhaul-toggle-card">
@@ -187,7 +189,6 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
-    </>
   );
 }
 
@@ -203,6 +204,10 @@ const styles = StyleSheet.create({
     height: 160,
     justifyContent: 'flex-end',
     padding: theme.spacing.lg,
+    backgroundColor: theme.colors.primary,
+    marginHorizontal: theme.spacing.lg,
+    marginTop: theme.spacing.sm,
+    borderRadius: theme.borderRadius.lg,
   },
   heroImage: {
     borderRadius: theme.borderRadius.lg,

@@ -21,10 +21,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const init = async () => {
       try {
         console.log('[auth] initializing...');
         const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
+        
+        if (!isMounted) return;
+        
         if (cached) {
           console.log('[auth] found cached user');
           setUser(JSON.parse(cached));
@@ -34,11 +39,18 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       } catch (e) {
         console.error('[auth] init error', e);
       } finally {
-        console.log('[auth] initialization complete');
-        setIsLoading(false);
+        if (isMounted) {
+          console.log('[auth] initialization complete');
+          setIsLoading(false);
+        }
       }
     };
+    
     init();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

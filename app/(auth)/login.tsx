@@ -34,6 +34,8 @@ export default function LoginScreen() {
     try {
       console.log('[login] attempting login for', email);
       await login(email, password);
+      console.log('[login] success, navigating to dashboard');
+      router.replace('/(tabs)/dashboard');
     } catch (error) {
       console.error('[login] failed', error);
     } finally {
