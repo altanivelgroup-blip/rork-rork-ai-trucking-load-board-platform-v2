@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { PaymentsProvider } from "@/hooks/usePayments";
 import { MaintenanceProvider } from "@/hooks/useMaintenance";
 import { SettingsProvider } from "@/hooks/useSettings";
+import { PostLoadProvider } from "@/hooks/usePostLoad";
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
@@ -315,10 +316,12 @@ export default function RootLayout() {
               <PaymentsProvider>
                 <MaintenanceProvider>
                   <SettingsProvider>
-                    <ToastProvider>
-                      <RootLayoutNav />
-                      <ToastHost />
-                    </ToastProvider>
+                    <PostLoadProvider>
+                      <ToastProvider>
+                        <RootLayoutNav />
+                        <ToastHost />
+                      </ToastProvider>
+                    </PostLoadProvider>
                   </SettingsProvider>
                 </MaintenanceProvider>
               </PaymentsProvider>
