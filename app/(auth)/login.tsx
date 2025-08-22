@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
+  const { login } = useAuth();
 
 
 

@@ -1,26 +1,19 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/hooks/useAuth';
 import { theme } from '@/constants/theme';
 
 export default function IndexScreen() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    console.log('[Index] Auth state:', { isAuthenticated, isLoading });
+    console.log('[Index] Starting app, navigating to login');
+    const timer = setTimeout(() => {
+      router.replace('/(auth)/login');
+    }, 1000);
     
-    if (!isLoading) {
-      if (isAuthenticated) {
-        console.log('[Index] Navigating to dashboard');
-        router.replace('/(tabs)/dashboard');
-      } else {
-        console.log('[Index] Navigating to login');
-        router.replace('/(auth)/login');
-      }
-    }
-  }, [isAuthenticated, isLoading, router]);
+    return () => clearTimeout(timer);
+  }, [router]);
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.white }}>

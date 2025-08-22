@@ -117,6 +117,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     setUser(null);
   }, []);
 
+  const resetPassword = useCallback(async (email: string) => {
+    console.log('Password reset requested for:', email);
+  }, []);
+
   const updateProfile = useCallback(async (updates: Partial<Driver>) => {
     if (!user) return;
     const updated = { ...user, ...updates };
@@ -130,12 +134,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     isAuthenticated: !!user,
     login,
     register,
-    resetPassword: async (email: string) => {
-      console.log('Password reset requested for:', email);
-    },
+    resetPassword,
     logout,
     updateProfile,
-  }), [user, isLoading, login, register, logout, updateProfile]);
+  }), [user, isLoading, login, register, resetPassword, logout, updateProfile]);
 
   return value;
 });

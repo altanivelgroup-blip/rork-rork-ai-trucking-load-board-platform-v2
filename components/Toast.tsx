@@ -1,6 +1,5 @@
 import createContextHook from '@nkzw/create-context-hook';
-import React, { useCallback, useMemo, useState } from 'react';
-import Logger from '@/utils/logger';
+import { useCallback, useMemo, useState } from 'react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -25,7 +24,6 @@ export const [ToastProvider, useToast] = createContextHook<ToastContext>(() => {
     const id = `${Date.now()}-${Math.random()}`;
     const msg: ToastMessage = { id, text, type, duration: durationMs };
     setMessages([msg]);
-    Logger.logEvent('toast_show', { type }).catch(() => {});
   }, []);
 
   const clear = useCallback(() => setMessages([]), []);
