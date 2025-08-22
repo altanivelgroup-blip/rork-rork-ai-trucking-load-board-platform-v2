@@ -47,7 +47,6 @@ export default function TabsLayout() {
         options={{
           title: 'Post a Load',
           tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
-          href: '/post-load',
         }}
       />
       <Tabs.Screen

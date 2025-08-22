@@ -190,7 +190,7 @@ export default function PostLoadScreen() {
   }, []);
 
   return (<>
-    <Stack.Screen options={{ title: 'Post Load', headerShown: true }} />
+    <Stack.Screen options={{ title: 'Post Load', headerShown: false }} />
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
