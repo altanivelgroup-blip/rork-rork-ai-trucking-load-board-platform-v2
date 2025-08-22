@@ -292,6 +292,12 @@ function RootLayoutNav() {
           title: "Post Load",
         }} 
       />
+      <Stack.Screen 
+        name="debug-nav" 
+        options={{ 
+          title: "Debug Navigation",
+        }} 
+      />
     </Stack>
   );
 }

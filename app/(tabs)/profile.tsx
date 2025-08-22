@@ -102,6 +102,7 @@ export default function ProfileScreen() {
             router.push('/settings');
           } catch (error) {
             console.error('Settings navigation error:', error);
+            Alert.alert('Navigation Error', 'Could not navigate to settings. Please try again.');
           }
         },
         testID: 'row-settings',
@@ -137,6 +138,14 @@ export default function ProfileScreen() {
         icon: Trash2,
         onPress: () => router.push('/account-deletion'),
         testID: 'row-delete-account',
+      },
+      {
+        key: 'debug',
+        title: 'Debug Navigation',
+        subtitle: 'Test navigation to different screens',
+        icon: SettingsIcon,
+        onPress: () => router.push('/debug-nav'),
+        testID: 'row-debug-nav',
       },
     ],
     [user?.membershipTier, router],

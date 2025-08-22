@@ -6,7 +6,9 @@ import { theme } from '@/constants/theme';
 import { useSettings } from '@/hooks/useSettings';
 
 export default function SettingsScreen() {
+  console.log('[Settings] Screen rendering');
   const s = useSettings();
+  console.log('[Settings] Settings loaded:', !!s);
 
   const Row = useCallback(({ icon, title, subtitle, value, onValueChange, testID }: { icon: React.ReactNode; title: string; subtitle?: string; value?: boolean; onValueChange?: (v: boolean) => void; testID?: string; }) => (
     <View style={styles.row} testID={testID}>
