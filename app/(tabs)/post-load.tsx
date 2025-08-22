@@ -14,6 +14,7 @@ import {
 import { theme } from '@/constants/theme';
 import { Truck, FileUp, Download, AlertCircle, ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import { usePostLoad } from '@/hooks/usePostLoad';
 import { useLoads } from '@/hooks/useLoads';
 import * as DocumentPicker from 'expo-document-picker';
@@ -197,7 +198,11 @@ export default function PostLoadScreen() {
     }
   }, []);
 
-  return (
+  return (<>
+    <Head>
+      <title>Post Loads on LoadRush: Auto Transport Load Board for Brokers</title>
+      <meta name="description" content="Brokers, post hotshot dispatch loads and vehicle shipping loads on LoadRush—the leading trucking load board app. Connect with drivers for fast, reliable matches." />
+    </Head>
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -333,7 +338,7 @@ export default function PostLoadScreen() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
-  );
+  </>);
 }
 
 function Stepper({ current, total }: { current: number; total: number }) {
