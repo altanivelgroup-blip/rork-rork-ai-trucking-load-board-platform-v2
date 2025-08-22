@@ -42,7 +42,6 @@ function Guards() {
     let interval: number | undefined;
     const ping = async () => {
       try {
-        console.log('[PlatformGuards] keep-alive ping');
         await fetch('/', { method: 'HEAD', cache: 'no-store' });
       } catch (e) {
         console.log('[PlatformGuards] keep-alive error', e);
@@ -50,8 +49,8 @@ function Guards() {
     };
     const start = () => {
       if (interval) return;
-      interval = window.setInterval(ping, 30000);
-      ping();
+      interval = window.setInterval(ping, 60000);
+      void ping();
     };
     const stop = () => {
       if (interval) {
@@ -63,15 +62,10 @@ function Guards() {
     const requestWakeLock = async () => {
       try {
         const anyNavigator = navigator as unknown as { wakeLock?: { request: (type: 'screen') => Promise<any> } };
-        if (!anyNavigator?.wakeLock) {
-          console.log('[PlatformGuards] Wake Lock API not available');
-          return;
-        }
+        if (!anyNavigator?.wakeLock) return;
         if (wakeLockRef.current) return;
-        console.log('[PlatformGuards] requesting screen wake lock');
         wakeLockRef.current = await anyNavigator.wakeLock.request('screen');
         wakeLockRef.current.addEventListener?.('release', () => {
-          console.log('[PlatformGuards] wake lock released');
           wakeLockRef.current = null;
         });
       } catch (e) {
@@ -115,48 +109,8 @@ function Guards() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    const activateNativeKeepAwake = async () => {
-      if (Platform.OS === 'web') return;
-      try {
-        const mod = await import('expo-keep-awake');
-        const api: Partial<{ activateKeepAwakeAsync: () => Promise<void>; deactivateKeepAwake: () => void } & { useKeepAwake: () => void }> = mod as any;
-        if (api.activateKeepAwakeAsync) {
-          console.log('[PlatformGuards] activating native keep awake');
-          await api.activateKeepAwakeAsync();
-        } else if ('useKeepAwake' in api && typeof (api as any).useKeepAwake === 'function') {
-          console.log('[PlatformGuards] using hook-based keep awake');
-          (api as any).useKeepAwake();
-        } else {
-          console.log('[PlatformGuards] expo-keep-awake API not found');
-        }
-      } catch (e) {
-        console.log('[PlatformGuards] native keep-awake unavailable', e);
-      }
-    };
-
-    void activateNativeKeepAwake();
-
-    return () => {
-      if (!isMounted) return;
-      isMounted = false;
-      (async () => {
-        try {
-          if (Platform.OS === 'web') return;
-          const mod = await import('expo-keep-awake');
-          const api: Partial<{ deactivateKeepAwake: () => void; deactivateKeepAwakeAsync?: () => Promise<void> }> = mod as any;
-          if (api.deactivateKeepAwake) {
-            console.log('[PlatformGuards] deactivating native keep awake');
-            api.deactivateKeepAwake();
-          } else if (api.deactivateKeepAwakeAsync) {
-            console.log('[PlatformGuards] deactivating native keep awake (async)');
-            await api.deactivateKeepAwakeAsync?.();
-          }
-        } catch (e) {
-          console.log('[PlatformGuards] native keep-awake deactivate error', e);
-        }
-      })();
-    };
+    // Disabled native keep-awake to avoid crashes in Expo Go and iOS Safari
+    return () => {};
   }, []);
 
   useEffect(() => {
