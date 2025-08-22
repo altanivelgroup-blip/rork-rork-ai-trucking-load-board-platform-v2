@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 
 import * as SplashScreen from "expo-splash-screen";
-import React, { PropsWithChildren, useEffect, useMemo, useState } from "react";
+import React, { PropsWithChildren, useEffect, useMemo, useState, useRef } from "react";
 import { Platform, View, Text, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
@@ -29,7 +29,9 @@ if (typeof global !== 'undefined') {
     const message = args[0]?.toString() || '';
     if (message.includes('Warning: React has detected a change in the order of Hooks') ||
         message.includes('Warning: Cannot update a component') ||
-        message.includes('VirtualizedList: You have a large list')) {
+        message.includes('VirtualizedList: You have a large list') ||
+        message.includes('Helmet expects a string as a child') ||
+        message.includes('Invariant Violation: Helmet')) {
       return;
     }
     originalConsoleError.apply(console, args);
@@ -64,10 +66,17 @@ function AuthGate({ children }: PropsWithChildren) {
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
-  const [hasRedirected, setHasRedirected] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (isLoading || hasRedirected) {
+    // Clear any pending navigation timeout
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+      navigationTimeoutRef.current = null;
+    }
+
+    if (isLoading || isNavigating) {
       return;
     }
 
@@ -75,52 +84,53 @@ function AuthGate({ children }: PropsWithChildren) {
     const inAuthGroup = first === "(auth)";
     const isIndexRoute = pathname === "/";
     
-    // Determine if we need to redirect
-    let shouldRedirect = false;
     let target: string | null = null;
     
     if (isIndexRoute) {
-      // Always redirect from index route
       target = isAuthenticated ? "/dashboard" : "/login";
-      shouldRedirect = true;
     } else if (!isAuthenticated && !inAuthGroup) {
-      // Not authenticated and not in auth group
       target = "/login";
-      shouldRedirect = true;
     } else if (isAuthenticated && inAuthGroup) {
-      // Authenticated but still in auth group
       target = "/dashboard";
-      shouldRedirect = true;
     }
 
-    if (!shouldRedirect || !target) {
+    if (!target || target === pathname) {
       return;
     }
 
-    console.log('[AuthGate] redirecting to:', target, 'from:', pathname);
-    setHasRedirected(true);
+    console.log('[AuthGate] scheduling navigation to:', target, 'from:', pathname);
+    setIsNavigating(true);
     
-    // Use requestAnimationFrame to ensure smooth redirect
-    const frameId = requestAnimationFrame(() => {
+    // Debounce navigation to prevent rapid redirects
+    navigationTimeoutRef.current = setTimeout(() => {
       try {
         router.replace(target as any);
       } catch (e) {
-        console.log('[AuthGate] replace failed', e);
-        setHasRedirected(false);
+        console.log('[AuthGate] navigation failed', e);
+      } finally {
+        setIsNavigating(false);
+        navigationTimeoutRef.current = null;
       }
-    });
+    }, 100);
 
     return () => {
-      cancelAnimationFrame(frameId);
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+        navigationTimeoutRef.current = null;
+      }
     };
-  }, [isLoading, isAuthenticated, segments, pathname, router, hasRedirected]);
+  }, [isLoading, isAuthenticated, segments, pathname, router, isNavigating]);
 
-  // Reset redirect flag when auth state changes
+  // Clean up on unmount
   useEffect(() => {
-    setHasRedirected(false);
-  }, [isAuthenticated]);
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  if (isLoading) {
+  if (isLoading || isNavigating) {
     return <LoadingScreen />;
   }
 
@@ -292,6 +302,7 @@ function LoadingScreen() {
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
   const initRef = React.useRef(false);
+  const mountedRef = React.useRef(true);
 
   useEffect(() => {
     if (initRef.current) return;
@@ -301,8 +312,10 @@ export default function RootLayout() {
       try {
         console.log('[RootLayout] initializing app');
         
-        // Add a small delay to prevent race conditions
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Minimal delay for stability
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        if (!mountedRef.current) return;
         
         try {
           await Logger.logEvent('app_start');
@@ -310,21 +323,26 @@ export default function RootLayout() {
           console.warn('[RootLayout] logging failed', logError);
         }
         
+        if (!mountedRef.current) return;
+        
         setIsReady(true);
         console.log('[RootLayout] app ready');
+        
+        // Hide splash screen after state is set
+        if (Platform.OS !== "web") {
+          setTimeout(async () => {
+            try {
+              await SplashScreen.hideAsync();
+            } catch (splashError) {
+              console.warn('[RootLayout] splash hide failed', splashError);
+            }
+          }, 100);
+        }
         
         try {
           await Logger.logEvent('app_ready');
         } catch (logError) {
           console.warn('[RootLayout] logging failed', logError);
-        }
-        
-        if (Platform.OS !== "web") {
-          try {
-            await SplashScreen.hideAsync();
-          } catch (splashError) {
-            console.warn('[RootLayout] splash hide failed', splashError);
-          }
         }
       } catch (error) {
         console.error('[RootLayout] initialization error', error);
@@ -333,11 +351,17 @@ export default function RootLayout() {
         } catch (logError) {
           console.warn('[RootLayout] error logging failed', logError);
         }
-        setIsReady(true);
+        if (mountedRef.current) {
+          setIsReady(true);
+        }
       }
     };
 
     initializeApp();
+    
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   if (!isReady) {

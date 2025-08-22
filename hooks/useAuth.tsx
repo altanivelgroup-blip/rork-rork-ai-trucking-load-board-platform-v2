@@ -108,6 +108,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [firebaseServices, setFirebaseServices] = useState<ReturnType<typeof getFirebase> | null>(null);
   const initRef = useRef(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     if (initRef.current) return;
@@ -176,7 +177,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           try {
             if (!fbUser) {
               if (mounted) {
+                // Batch state updates to prevent flickering
                 setUser(null);
+                setIsLoading(false);
               }
               try {
                 await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
@@ -186,7 +189,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             } else {
               const profile = await fetchOrCreateProfile(services.db, fbUser);
               if (mounted) {
+                // Batch state updates to prevent flickering
                 setUser(profile);
+                setIsLoading(false);
               }
               try {
                 await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(profile));
@@ -196,10 +201,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             }
           } catch (profileError) {
             console.error('[auth] profile fetch/create error', profileError);
-          } finally {
             if (mounted) {
               setIsLoading(false);
             }
+          } finally {
             authStateProcessing = false;
           }
         });
@@ -218,6 +223,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
     return () => {
       mounted = false;
+      mountedRef.current = false;
       if (unsub) {
         try {
           unsub();
