@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/hooks/useAuth";
 import { PaymentsProvider } from "@/hooks/usePayments";
+import { MaintenanceProvider } from "@/hooks/useMaintenance";
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { theme } from "@/constants/theme";
@@ -176,7 +177,9 @@ export default function RootLayout() {
           <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
             <AuthProvider>
               <PaymentsProvider>
-                <RootLayoutNav />
+                <MaintenanceProvider>
+                  <RootLayoutNav />
+                </MaintenanceProvider>
               </PaymentsProvider>
             </AuthProvider>
           </View>
