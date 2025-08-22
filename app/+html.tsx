@@ -15,7 +15,7 @@ export default function RootHTML() {
         <meta name="theme-color" content="#0b1220" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        {/* Intentionally no <title> to avoid Helmet issues on web */}
+        <title>AI Trucking Load Board</title>
       </Head>
       <body>
         <Main />

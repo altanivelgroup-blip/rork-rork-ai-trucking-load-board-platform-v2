@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 
-import * as SplashScreen from "expo-splash-screen";
+
 import React, { PropsWithChildren, useEffect, useMemo, useState, useRef } from "react";
 import { Platform, View, Text, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -38,11 +38,6 @@ if (typeof global !== 'undefined') {
   };
 }
 
-if (Platform.OS !== "web") {
-  SplashScreen.preventAutoHideAsync().catch((error) => {
-    console.warn('[SplashScreen] preventAutoHideAsync failed:', error);
-  });
-}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -328,16 +323,6 @@ export default function RootLayout() {
         setIsReady(true);
         console.log('[RootLayout] app ready');
         
-        // Hide splash screen after state is set
-        if (Platform.OS !== "web") {
-          setTimeout(async () => {
-            try {
-              await SplashScreen.hideAsync();
-            } catch (splashError) {
-              console.warn('[RootLayout] splash hide failed', splashError);
-            }
-          }, 100);
-        }
         
         try {
           await Logger.logEvent('app_ready');
