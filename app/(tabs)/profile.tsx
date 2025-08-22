@@ -105,12 +105,21 @@ export default function ProfileScreen() {
         subtitle: 'Email us for account or billing help',
         icon: Mail,
         onPress: () => {
+          console.log('Contact support pressed');
           const email = 'support@haulmate.app';
           const url = `mailto:${email}?subject=Support%20Request`;
           Linking.canOpenURL(url).then((can) => {
-            if (can) Linking.openURL(url);
-            else Alert.alert('Email not available', `Reach us at ${email}`);
-          }).catch(() => Alert.alert('Email not available', `Reach us at ${email}`));
+            if (can) {
+              console.log('Opening email client');
+              Linking.openURL(url);
+            } else {
+              console.log('Email client not available');
+              Alert.alert('Email not available', `Reach us at ${email}`);
+            }
+          }).catch((error) => {
+            console.error('Email error:', error);
+            Alert.alert('Email not available', `Reach us at ${email}`);
+          });
         },
         testID: 'row-contact-support',
       },

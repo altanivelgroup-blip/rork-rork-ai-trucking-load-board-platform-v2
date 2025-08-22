@@ -33,6 +33,7 @@ export default function EquipmentScreen() {
   const filtered = useMemo(() => MOCK_DATA.filter(i => (tab === 'trucks' ? i.type === 'truck' : i.type === 'trailer')), [tab]);
 
   const goMaintenance = (item: EquipmentItem) => {
+    console.log('Navigating to maintenance for:', item.name);
     router.push('/maintenance');
   };
 

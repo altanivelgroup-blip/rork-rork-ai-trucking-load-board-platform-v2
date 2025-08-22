@@ -63,6 +63,18 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="settings" 
+        options={{ 
+          title: "Settings",
+        }} 
+      />
+      <Stack.Screen 
+        name="wallet" 
+        options={{ 
+          title: "Wallet & Payouts",
+        }} 
+      />
+      <Stack.Screen 
         name="maintenance" 
         options={{ 
           title: "Maintenance Program",

@@ -14,6 +14,7 @@ import { VehicleType } from '@/types';
 import { mockLoads } from '@/mocks/loads';
 
 export default function LoadsScreen() {
+  console.log('[LoadsScreen] Rendering loads screen');
   const router = useRouter();
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [filters, setFilters] = useState<any>({});
