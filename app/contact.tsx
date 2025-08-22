@@ -9,7 +9,7 @@ export default function ContactScreen() {
   return (
     <View style={styles.container} testID="contact-screen">
       <Head>
-        <title>{`Contact LoadRush: Support for Hotshot Trucking Loads & Car Hauler Jobs`}</title>
+        <title>Contact LoadRush: Support for Hotshot Trucking Loads & Car Hauler Jobs</title>
         <meta name="description" content="Need help with our auto transport load board? Contact LoadRush for questions on truck load finder tools, car hauler jobs, or hotshot dispatch loads." />
       </Head>
       <Stack.Screen options={{ title: "Contact" }} />

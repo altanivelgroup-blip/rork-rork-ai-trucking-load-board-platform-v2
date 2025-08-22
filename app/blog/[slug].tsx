@@ -26,7 +26,7 @@ export default function BlogPostScreen() {
     <>
       <Stack.Screen options={{ title: post.title }} />
       <Head>
-        <title dangerouslySetInnerHTML={{ __html: post.title }} />
+        <title>{post.title}</title>
         <meta name="description" content={post.excerpt} />
       </Head>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} testID="blog-post">

@@ -38,7 +38,7 @@ export default function BlogScreen() {
   return (
     <>
       <Head>
-        <title dangerouslySetInnerHTML={{ __html: 'LoadRush Blog: Hotshot, Car Hauling, and Auto Transport Tips' }} />
+        <title>LoadRush Blog: Hotshot, Car Hauling, and Auto Transport Tips</title>
         <meta name="description" content="Guides and tips on car hauling loads, hotshot dispatch, and truck load finder strategies to grow your business." />
       </Head>
       <View style={styles.container}>

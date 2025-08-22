@@ -83,7 +83,7 @@ export default function PricingScreen() {
   return (
     <View style={styles.container} testID="pricing-screen">
       <Head>
-        <title dangerouslySetInnerHTML={{ __html: "LoadRush Pricing: Affordable Trucking Load Board for Car Haulers" }} />
+        <title>LoadRush Pricing: Affordable Trucking Load Board for Car Haulers</title>
         <meta name="description" content="Explore LoadRush pricing plans for drivers and brokers. Get unlimited access to car hauling loads, hotshot trucking loads, and truck load finder features starting at $X/month." />
         <meta property="og:title" content="LoadRush Pricing: Affordable Trucking Load Board for Car Haulers" />
         <meta property="og:description" content="Explore LoadRush pricing plans for drivers and brokers. Get unlimited access to car hauling loads, hotshot trucking loads, and truck load finder features starting at $X/month." />
