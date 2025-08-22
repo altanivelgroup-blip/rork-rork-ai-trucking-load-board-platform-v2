@@ -8,6 +8,7 @@ import { useLoads } from '@/hooks/useLoads';
 import { useRouter } from 'expo-router';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 import { Truck, Star, Package, ArrowRight, MapPin } from 'lucide-react-native';
+import { VoiceCapture } from '@/components/VoiceCapture';
 
 interface RecentLoadProps {
   id: string;
@@ -77,7 +78,7 @@ export default function DashboardScreen() {
   }, []);
 
   const handleViewAll = useCallback(() => {
-    router.push('/(tabs)/(loads)');
+    router.push('/loads' as any);
   }, [router]);
 
   const handleOpenLoad = useCallback((loadId: string) => {
@@ -88,7 +89,7 @@ export default function DashboardScreen() {
     setBackhaulOn(value);
     if (value && lastDelivery) {
       setFilters({ showBackhaul: true, backhaulCenter: { lat: lastDelivery.lat, lng: lastDelivery.lng }, backhaulRadiusMiles: 50 });
-      router.push('/(tabs)/(loads)');
+      router.push('/loads' as any);
     } else {
       setFilters({ showBackhaul: undefined, backhaulCenter: undefined, backhaulRadiusMiles: undefined });
     }
@@ -119,7 +120,7 @@ export default function DashboardScreen() {
             if (miles <= arriveRadiusMiles && !backhaulOn && mounted) {
               setBackhaulOn(true);
               setFilters({ showBackhaul: true, backhaulCenter: { lat: dest.lat, lng: dest.lng }, backhaulRadiusMiles: 50 });
-              router.push('/(tabs)/(loads)');
+              router.push('/loads' as any);
             }
           } catch (e) {
             console.error('Error computing backhaul distance', e);
@@ -185,6 +186,15 @@ export default function DashboardScreen() {
         <View style={styles.welcomeRow}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.welcomeName}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
+          <View style={styles.voiceContainer}>
+            <VoiceCapture 
+              onTranscribed={(text) => {
+                console.log('Voice transcribed:', text);
+              }}
+              size="sm"
+              testID="dashboard-voice-capture"
+            />
+          </View>
         </View>
 
         <View style={styles.statsRow}>
@@ -302,6 +312,10 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
+    justifyContent: 'space-between',
+  },
+  voiceContainer: {
+    marginLeft: theme.spacing.md,
   },
   welcomeText: {
     fontSize: theme.fontSize.md,
@@ -311,6 +325,7 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xl,
     fontWeight: '700',
     color: theme.colors.dark,
+    flex: 1,
   },
   statsRow: {
     flexDirection: 'row',
