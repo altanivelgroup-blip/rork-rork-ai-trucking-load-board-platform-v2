@@ -43,6 +43,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="post-load"
+        options={{
+          title: 'Post a Load',
+          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
