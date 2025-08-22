@@ -28,7 +28,7 @@ export default function ShipperHome() {
 
   const goPostLoad = useCallback(() => {
     console.log('shipper.goPostLoad');
-    router.push('/(tabs)/post-load');
+    router.push('/post-load');
   }, [router]);
 
   const goShipperDashboard = useCallback(() => {
