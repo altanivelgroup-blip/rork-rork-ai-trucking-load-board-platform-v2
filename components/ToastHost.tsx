@@ -3,14 +3,16 @@ import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native
 import { useToast } from '@/components/Toast';
 
 export default function ToastHost() {
-  const { messages, clear } = useToast();
-  const msg = messages[0];
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(30)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const toastContext = useToast();
+  const { messages, clear } = toastContext || { messages: [], clear: () => {} };
+  const msg = messages[0];
 
   useEffect(() => {
-    if (!msg) return;
+    if (!msg || !toastContext) return;
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
 
     Animated.parallel([
@@ -26,7 +28,7 @@ export default function ToastHost() {
     }, msg.duration);
 
     return () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } };
-  }, [msg, opacity, translateY, clear]);
+  }, [msg, opacity, translateY, clear, toastContext]);
 
   const bg = useMemo(() => {
     switch (msg?.type) {
@@ -37,7 +39,7 @@ export default function ToastHost() {
     }
   }, [msg?.type]);
 
-  if (!msg) return null;
+  if (!msg || !toastContext) return null;
 
   return (
     <View style={styles.wrapper} pointerEvents="box-none">
