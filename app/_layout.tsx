@@ -360,7 +360,7 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         {Platform.OS === 'web' ? (
           <Head>
-            <title><Text>LoadRush: Trucking Load Board for Car Haulers & Hotshot</Text></title>
+            <title>LoadRush: Trucking Load Board for Car Haulers & Hotshot</title>
             <meta name="description" content="Find car hauling loads, hotshot dispatch, and vehicle shipping jobs. Post loads, match fast, and get paid—on LoadRush." />
             <meta name="robots" content="index,follow" />
             <meta name="theme-color" content="#0b1220" />
