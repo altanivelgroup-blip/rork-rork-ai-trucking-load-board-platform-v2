@@ -155,6 +155,7 @@ function RootLayoutNav() {
 
 
 export default function RootLayout() {
+  console.log('[RootLayout] rendering');
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>

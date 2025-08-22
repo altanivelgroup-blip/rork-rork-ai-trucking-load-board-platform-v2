@@ -23,13 +23,18 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   useEffect(() => {
     const init = async () => {
       try {
+        console.log('[auth] initializing...');
         const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
         if (cached) {
+          console.log('[auth] found cached user');
           setUser(JSON.parse(cached));
+        } else {
+          console.log('[auth] no cached user found');
         }
       } catch (e) {
         console.error('[auth] init error', e);
       } finally {
+        console.log('[auth] initialization complete');
         setIsLoading(false);
       }
     };
@@ -37,6 +42,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    console.log('[auth] login attempt for', email);
     const mockUser: Driver = {
       id: '1',
       role: 'driver',
@@ -62,6 +68,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     
     setUser(mockUser);
     await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
+    console.log('[auth] login successful');
   }, []);
 
   const register = useCallback(async (email: string, password: string, profile?: Partial<Driver>) => {

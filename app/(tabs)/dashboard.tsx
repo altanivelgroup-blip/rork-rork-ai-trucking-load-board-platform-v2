@@ -50,9 +50,12 @@ const RecentLoadRow = memo<RecentLoadProps>(({
 });
 
 export default function DashboardScreen() {
+  console.log('[Dashboard] rendering');
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const [backhaulOn, setBackhaulOn] = useState<boolean>(false);
+  
+  console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
 
   const recentLoads = useMemo(() => mockLoads.slice(0, 3), []);
   const heroUrl = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2cwo4h1uv8vh32px1blj8';
