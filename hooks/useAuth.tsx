@@ -46,10 +46,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
     };
     
-    init();
+    const timer = setTimeout(init, 100);
     
     return () => {
       isMounted = false;
+      clearTimeout(timer);
     };
   }, []);
 
