@@ -56,8 +56,6 @@ export default function PostLoadScreen() {
     }
   }, [canProceed, draft, router]);
 
-
-
   const toVehicleType = useCallback((v: string | undefined): VehicleType | null => {
     if (!v) return null;
     const s = v.trim().toLowerCase();
@@ -196,7 +194,7 @@ export default function PostLoadScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.select({ ios: 'padding', default: undefined })}
+        behavior={Platform.select({ ios: 'padding', default: undefined }) as ("padding" | undefined)}
       >
         <ScrollView
           style={styles.flex}
