@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { theme } from '@/constants/theme';
 
 export default function IndexScreen() {
   return (
@@ -10,7 +9,7 @@ export default function IndexScreen() {
       alignItems: 'center',
       justifyContent: 'center'
     }}>
-      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <ActivityIndicator size="large" color="#EA580C" />
     </View>
   );
 }

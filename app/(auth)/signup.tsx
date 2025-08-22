@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingVi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserPlus, Mail, Lock, Phone, Building } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import Head from 'expo-router/head';
+
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -39,10 +39,7 @@ export default function SignUpScreen() {
 
   return (
     <>
-      <Head>
-        <title>Sign Up as a Driver on LoadRush: Find Car Hauler Jobs & Truck Loads</title>
-        <meta name="description" content="Join LoadRush as a driver to access hotshot trucking loads, car hauling loads, and real-time truck load finder tools. Quick sign-up for car hauler jobs and freight alerts." />
-      </Head>
+
       <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">

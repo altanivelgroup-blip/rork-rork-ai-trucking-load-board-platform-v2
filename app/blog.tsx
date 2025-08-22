@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity } from 'react-native';
-import Head from 'expo-router/head';
+
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { BLOG_POSTS, type BlogPost } from '@/mocks/blogPosts';
@@ -37,10 +37,7 @@ export default function BlogScreen() {
 
   return (
     <>
-      <Head>
-        <title>LoadRush Blog: Hotshot, Car Hauling, and Auto Transport Tips</title>
-        <meta name="description" content="Guides and tips on car hauling loads, hotshot dispatch, and truck load finder strategies to grow your business." />
-      </Head>
+
       <View style={styles.container}>
         <Text style={styles.h1} testID="blog-heading">Latest from LoadRush</Text>
         <FlatList

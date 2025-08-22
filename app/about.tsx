@@ -1,15 +1,12 @@
 import React from 'react';
-import Head from 'expo-router/head';
+
 import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import { theme } from '@/constants/theme';
 
 export default function AboutScreen() {
   return (
     <>
-      <Head>
-        <title>About LoadRush: Trucking Load Board for Car Haulers & Hotshot Jobs</title>
-        <meta name="description" content="Discover LoadRush, the top auto transport load board connecting truck drivers with hotshot dispatch loads and vehicle shipping opportunities. Learn how we simplify freight finding." />
-      </Head>
+
       <ScrollView contentContainerStyle={styles.container} testID="about-scroll">
         <View style={styles.header}>
           <Image

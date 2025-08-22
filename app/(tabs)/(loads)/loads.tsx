@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Head from 'expo-router/head';
+
 import {
   View,
   FlatList,
@@ -161,10 +161,7 @@ export default function LoadsScreen() {
 
   return (
     <>
-      <Head>
-        <title>LoadRush: Best Load Board for Car Hauling Loads & Hotshot Trucking</title>
-        <meta name="description" content="Find car hauling loads, hotshot trucking loads, and auto transport jobs fast with LoadRush. The ultimate truck load finder app for drivers and brokers—sign up today!" />
-      </Head>
+
       <View style={styles.container}>
       <FilterBar
         selectedVehicle={filters.vehicleType}

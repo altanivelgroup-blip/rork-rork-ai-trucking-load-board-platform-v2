@@ -2,7 +2,7 @@ import { Stack } from "expo-router";
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from "react-native";
 import { theme } from "@/constants/theme";
-import Head from "expo-router/head";
+
 import { CheckCircle2, ShieldCheck, Zap, Wallet } from "lucide-react-native";
 
 type Plan = {
@@ -82,30 +82,7 @@ export default function PricingScreen() {
 
   return (
     <View style={styles.container} testID="pricing-screen">
-      <Head>
-        <title>LoadRush Pricing: Affordable Trucking Load Board for Car Haulers</title>
-        <meta name="description" content="Explore LoadRush pricing plans for drivers and brokers. Get unlimited access to car hauling loads, hotshot trucking loads, and truck load finder features starting at $X/month." />
-        <meta property="og:title" content="LoadRush Pricing: Affordable Trucking Load Board for Car Haulers" />
-        <meta property="og:description" content="Explore LoadRush pricing plans for drivers and brokers. Get unlimited access to car hauling loads, hotshot trucking loads, and truck load finder features starting at $X/month." />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'FAQPage',
-            mainEntity: [
-              {
-                '@type': 'Question',
-                name: 'Can I cancel anytime?',
-                acceptedAnswer: { '@type': 'Answer', text: 'Yes. Manage your plan in settings. Access continues through the current period.' }
-              },
-              {
-                '@type': 'Question',
-                name: 'Do you offer trials?',
-                acceptedAnswer: { '@type': 'Answer', text: 'Trials and promos may be available during launch windows.' }
-              }
-            ]
-          }),
-        }} />
-      </Head>
+
       <Stack.Screen options={{ title: "Pricing" }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.h1}>Simple pricing for drivers and brokers</Text>

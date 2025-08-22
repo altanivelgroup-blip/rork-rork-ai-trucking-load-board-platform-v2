@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView } from 'react-native';
-import Head from 'expo-router/head';
+
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { BLOG_POSTS, type BlogPost } from '@/mocks/blogPosts';
@@ -25,10 +25,7 @@ export default function BlogPostScreen() {
   return (
     <>
       <Stack.Screen options={{ title: post.title }} />
-      <Head>
-        <title>{post.title}</title>
-        <meta name="description" content={post.excerpt} />
-      </Head>
+
       <ScrollView style={styles.container} contentContainerStyle={styles.content} testID="blog-post">
         <Image source={{ uri: post.heroImage }} style={styles.hero} resizeMode="cover" />
         <Text style={styles.title} testID="post-title">{post.title}</Text>

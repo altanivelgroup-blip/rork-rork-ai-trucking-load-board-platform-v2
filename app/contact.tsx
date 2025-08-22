@@ -1,17 +1,14 @@
 import { Stack } from "expo-router";
 import React from "react";
 import { View, Text, StyleSheet, Linking, TouchableOpacity, ScrollView } from "react-native";
-import Head from "expo-router/head";
+
 import { theme } from "@/constants/theme";
 import { Mail, MessageCircle, Phone } from "lucide-react-native";
 
 export default function ContactScreen() {
   return (
     <View style={styles.container} testID="contact-screen">
-      <Head>
-        <title>Contact LoadRush: Support for Hotshot Trucking Loads & Car Hauler Jobs</title>
-        <meta name="description" content="Need help with our auto transport load board? Contact LoadRush for questions on truck load finder tools, car hauler jobs, or hotshot dispatch loads." />
-      </Head>
+
       <Stack.Screen options={{ title: "Contact" }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.h1}>We’re here to help</Text>
