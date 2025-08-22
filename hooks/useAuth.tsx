@@ -117,6 +117,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     let unsub: (() => void) | undefined;
     let mounted = true;
     let authStateProcessing = false;
+    const watchdog = setTimeout(() => {
+      if (mounted) {
+        console.log('[auth] watchdog: forcing ready state to avoid endless buffering');
+        setIsLoading(false);
+      }
+    }, 3000);
     
     (async () => {
       try {
@@ -148,7 +154,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           console.warn('[auth] logging failed', logError);
         }
         
-        // Load cached user
+        // Load cached user fast-path
         try {
           const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
           if (cached && mounted) {
@@ -177,7 +183,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           try {
             if (!fbUser) {
               if (mounted) {
-                // Batch state updates to prevent flickering
                 setUser(null);
                 setIsLoading(false);
               }
@@ -189,7 +194,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             } else {
               const profile = await fetchOrCreateProfile(services.db, fbUser);
               if (mounted) {
-                // Batch state updates to prevent flickering
                 setUser(profile);
                 setIsLoading(false);
               }
@@ -224,6 +228,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     return () => {
       mounted = false;
       mountedRef.current = false;
+      clearTimeout(watchdog);
       if (unsub) {
         try {
           unsub();
