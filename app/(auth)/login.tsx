@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
-const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/26wbvri4j4j5lt84ceaac';
+const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
@@ -55,13 +55,13 @@ export default function LoginScreen() {
               <Image
                 source={{ uri: AUTH_ICON_URL }}
                 style={styles.logoImage}
-                resizeMode="cover"
-                accessibilityLabel="App icon"
+                resizeMode="contain"
+                accessibilityLabel="LoadRun AI Load Board for Car Haulers"
                 testID="login-logo-image"
               />
             </View>
-            <Text style={styles.title} testID="login-title">LoadBoard AI</Text>
-            <Text style={styles.subtitle}>Smart Trucking Platform</Text>
+            <Text style={styles.title} testID="login-title">LoadRun</Text>
+            <Text style={styles.subtitle}>AI Load Board for Car Haulers</Text>
           </View>
 
           <View style={styles.form}>
@@ -142,18 +142,18 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl * 2,
   },
   logoContainer: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     borderRadius: 24,
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
     overflow: 'hidden',
   },
   logoImage: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     borderRadius: 24,
   },
   title: {
