@@ -7,11 +7,11 @@ export default function ToastHost() {
   const translateY = useRef(new Animated.Value(30)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  const { messages, clear } = useToast();
-  const msg = messages[0];
+  const toast = useToast();
+  const msg = toast?.messages?.[0];
 
   useEffect(() => {
-    if (!msg) return;
+    if (!msg || !toast) return;
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
 
     Animated.parallel([
@@ -23,11 +23,11 @@ export default function ToastHost() {
       Animated.parallel([
         Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: Platform.OS !== 'web' }),
         Animated.timing(translateY, { toValue: 30, duration: 200, useNativeDriver: Platform.OS !== 'web' }),
-      ]).start(() => clear());
+      ]).start(() => toast.clear());
     }, msg.duration);
 
     return () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } };
-  }, [msg, opacity, translateY, clear]);
+  }, [msg, opacity, translateY, toast]);
 
   const bg = useMemo(() => {
     switch (msg?.type) {

@@ -16,7 +16,7 @@ export interface ToastContext {
   clear: () => void;
 }
 
-export const [ToastProvider, useToast] = createContextHook<ToastContext>(() => {
+export const [ToastProvider, useToastInternal] = createContextHook<ToastContext>(() => {
   const [messages, setMessages] = useState<ToastMessage[]>([]);
 
   const show = useCallback((text: string, type: ToastType = 'info', durationMs: number = 2500) => {
@@ -30,3 +30,26 @@ export const [ToastProvider, useToast] = createContextHook<ToastContext>(() => {
 
   return useMemo(() => ({ show, messages, clear }), [show, messages, clear]);
 });
+
+// Safe wrapper that handles cases where provider is not available
+export function useToast(): ToastContext {
+  try {
+    const context = useToastInternal();
+    if (!context) {
+      console.warn('[Toast] useToast called outside of ToastProvider, returning fallback');
+      return {
+        show: (text: string) => console.log('[Toast fallback]', text),
+        messages: [],
+        clear: () => {}
+      };
+    }
+    return context;
+  } catch (error) {
+    console.warn('[Toast] useToast error, returning fallback:', error);
+    return {
+      show: (text: string) => console.log('[Toast fallback]', text),
+      messages: [],
+      clear: () => {}
+    };
+  }
+}
