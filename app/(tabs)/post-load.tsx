@@ -16,7 +16,7 @@ import { theme } from '@/constants/theme';
 import { Truck, FileUp, Download, AlertCircle } from 'lucide-react-native';
 
 import { usePostLoad } from '@/hooks/usePostLoad';
-import { useLoads } from '@/hooks/useLoads';
+import { useLoadsWithToast } from '@/hooks/useLoads';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { parseCSV, buildTemplateCSV, validateCSVHeaders } from '@/utils/csv';
@@ -38,7 +38,7 @@ const VEHICLE_OPTIONS: VehicleOption[] = [
 export default function PostLoadScreen() {
   const router = useRouter();
   const { draft, setField } = usePostLoad();
-  const { addLoadsBulk } = useLoads();
+  const { addLoadsBulkWithToast } = useLoadsWithToast();
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
 
@@ -154,7 +154,7 @@ export default function PostLoadScreen() {
         return;
       }
       setCsvErrors(rowErrors);
-      await addLoadsBulk(loads);
+      await addLoadsBulkWithToast(loads);
       Alert.alert('Success', `Imported ${loads.length} loads${rowErrors.length ? `, ${rowErrors.length} rows skipped` : ''}`);
     } catch (e) {
       console.log('[CSV Import] error', e);
@@ -162,7 +162,7 @@ export default function PostLoadScreen() {
     } finally {
       setIsImporting(false);
     }
-  }, [addLoadsBulk, csvRowToLoad]);
+  }, [addLoadsBulkWithToast, csvRowToLoad]);
 
   const onDownloadTemplate = useCallback(async () => {
     try {

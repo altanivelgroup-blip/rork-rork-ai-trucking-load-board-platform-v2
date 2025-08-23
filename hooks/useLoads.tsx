@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Load, VehicleType } from '@/types';
 import { mockLoads } from '@/mocks/loads';
-import { useToast } from '@/components/Toast';
+
 import useOnlineStatus from '@/hooks/useOnlineStatus';
+import { useToast } from '@/components/Toast';
 
 interface GeoPoint { lat: number; lng: number }
 
@@ -31,6 +32,13 @@ interface LoadsState {
   refreshLoads: () => Promise<void>;
   addLoad: (load: Load) => Promise<void>;
   addLoadsBulk: (incoming: Load[]) => Promise<void>;
+}
+
+export interface LoadsWithToast {
+  acceptLoadWithToast: (loadId: string) => Promise<void>;
+  refreshLoadsWithToast: () => Promise<void>;
+  addLoadWithToast: (load: Load) => Promise<void>;
+  addLoadsBulkWithToast: (incoming: Load[]) => Promise<void>;
 }
 
 function haversineMiles(a: GeoPoint, b: GeoPoint): number {
@@ -72,7 +80,6 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const { show } = useToast();
   const { online } = useOnlineStatus();
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -112,7 +119,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     setIsLoading(true);
     try {
       if (!online) {
-        show('Offline: action will sync later', 'warning', 2500);
+        console.log('[Loads] Offline: action will sync later');
       }
       await new Promise(resolve => setTimeout(resolve, 1000));
       setLoads(prevLoads => 
@@ -126,74 +133,70 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       const accepted = acceptedLoads ? JSON.parse(acceptedLoads) : [];
       accepted.push(loadId);
       await AsyncStorage.setItem('acceptedLoads', JSON.stringify(accepted));
-      show('Load accepted', 'success', 1800);
+      console.log('[Loads] Load accepted');
     } catch (error) {
       console.error('Failed to accept load:', error);
-      show('Failed to accept load. Tap to retry.', 'error', 2800);
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [online, show]);
+  }, [online]);
 
   const refreshLoads = useCallback(async () => {
     setIsLoading(true);
     try {
       if (!online) {
-        show('Offline: showing cached loads', 'warning', 2200);
+        console.log('[Loads] Offline: showing cached loads');
       }
       await new Promise(resolve => setTimeout(resolve, 1000));
       setLoads([...mockLoads]);
     } catch (error) {
       console.error('Failed to refresh loads:', error);
-      show('Failed to refresh. Pull to retry.', 'error', 2500);
     } finally {
       setIsLoading(false);
     }
-  }, [online, show]);
+  }, [online]);
 
   const addLoad = useCallback(async (load: Load) => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 600));
       setLoads(prev => [load, ...prev]);
-      show('Load posted', 'success', 1800);
+      console.log('[Loads] Load posted');
     } catch (error) {
       console.error('Failed to add load:', error);
-      show('Failed to post load. Try again.', 'error', 2400);
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [show]);
+  }, []);
 
   const addLoadsBulk = useCallback(async (incoming: Load[]) => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 800));
       setLoads(prev => [...incoming, ...prev]);
-      show('Imported loads', 'success', 1600);
+      console.log('[Loads] Imported loads');
     } catch (error) {
       console.error('Failed to add loads bulk:', error);
-      show('Bulk import failed', 'error', 2200);
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [show]);
+  }, []);
 
   useEffect(() => {
     if (isLoading) {
       if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
       slowTimerRef.current = setTimeout(() => {
-        if (isLoading) show('Network seems slow…', 'info', 2000);
+        if (isLoading) console.log('[Loads] Network seems slow…');
       }, 1500);
     } else if (slowTimerRef.current) {
       clearTimeout(slowTimerRef.current);
       slowTimerRef.current = null;
     }
     return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
-  }, [isLoading, show]);
+  }, [isLoading]);
 
   return useMemo(() => ({
     loads,
@@ -209,3 +212,61 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     addLoadsBulk,
   }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, setFilters, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
 }, defaultLoadsState);
+
+export function useLoadsWithToast(): LoadsWithToast {
+  const { acceptLoad, refreshLoads, addLoad, addLoadsBulk } = useLoads();
+  const { show } = useToast();
+  const { online } = useOnlineStatus();
+
+  const acceptLoadWithToast = useCallback(async (loadId: string) => {
+    try {
+      if (!online) {
+        show('Offline: action will sync later', 'warning', 2500);
+      }
+      await acceptLoad(loadId);
+      show('Load accepted', 'success', 1800);
+    } catch (error) {
+      show('Failed to accept load. Tap to retry.', 'error', 2800);
+      throw error;
+    }
+  }, [acceptLoad, show, online]);
+
+  const refreshLoadsWithToast = useCallback(async () => {
+    try {
+      if (!online) {
+        show('Offline: showing cached loads', 'warning', 2200);
+      }
+      await refreshLoads();
+    } catch (error) {
+      show('Failed to refresh. Pull to retry.', 'error', 2500);
+      throw error;
+    }
+  }, [refreshLoads, show, online]);
+
+  const addLoadWithToast = useCallback(async (load: Load) => {
+    try {
+      await addLoad(load);
+      show('Load posted', 'success', 1800);
+    } catch (error) {
+      show('Failed to post load. Try again.', 'error', 2400);
+      throw error;
+    }
+  }, [addLoad, show]);
+
+  const addLoadsBulkWithToast = useCallback(async (incoming: Load[]) => {
+    try {
+      await addLoadsBulk(incoming);
+      show('Imported loads', 'success', 1600);
+    } catch (error) {
+      show('Bulk import failed', 'error', 2200);
+      throw error;
+    }
+  }, [addLoadsBulk, show]);
+
+  return useMemo(() => ({
+    acceptLoadWithToast,
+    refreshLoadsWithToast,
+    addLoadWithToast,
+    addLoadsBulkWithToast,
+  }), [acceptLoadWithToast, refreshLoadsWithToast, addLoadWithToast, addLoadsBulkWithToast]);
+}
