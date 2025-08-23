@@ -102,11 +102,16 @@ export default function DashboardScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}> 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
+        <ImageBackground
+          source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/uzyvqegm8riqj7x0yy7p9' }}
+          style={styles.hero}
+          imageStyle={styles.heroImage}
+          resizeMode="cover"
+        >
           <View style={styles.heroOverlay} />
-          <Text style={styles.heroTitle}>LoadRun</Text>
-          <Text style={styles.heroSubtitle}>AI Load Board for Car Haulers</Text>
-        </View>
+          <Text style={styles.heroTitle} testID="dashboard-hero-title">LoadRun</Text>
+          <Text style={styles.heroSubtitle} testID="dashboard-hero-subtitle">AI Load Board for Car Haulers</Text>
+        </ImageBackground>
 
         <View style={styles.welcomeRow}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
