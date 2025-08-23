@@ -7,12 +7,11 @@ export default function ToastHost() {
   const translateY = useRef(new Animated.Value(30)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  const toastContext = useToast();
-  const { messages, clear } = toastContext || { messages: [], clear: () => {} };
+  const { messages, clear } = useToast();
   const msg = messages[0];
 
   useEffect(() => {
-    if (!msg || !toastContext) return;
+    if (!msg) return;
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
 
     Animated.parallel([
@@ -28,7 +27,7 @@ export default function ToastHost() {
     }, msg.duration);
 
     return () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } };
-  }, [msg, opacity, translateY, clear, toastContext]);
+  }, [msg, opacity, translateY, clear]);
 
   const bg = useMemo(() => {
     switch (msg?.type) {
@@ -39,7 +38,7 @@ export default function ToastHost() {
     }
   }, [msg?.type]);
 
-  if (!msg || !toastContext) return null;
+  if (!msg) return null;
 
   return (
     <View style={styles.wrapper} pointerEvents="box-none">
