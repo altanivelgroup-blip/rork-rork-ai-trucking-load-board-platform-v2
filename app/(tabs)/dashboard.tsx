@@ -480,4 +480,27 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.white,
   },
+  sortChip: {
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+  },
+  sortChipText: {
+    color: theme.colors.dark,
+    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
+  },
+  input: {
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    minWidth: 120,
+    flexGrow: 1,
+  },
 });
