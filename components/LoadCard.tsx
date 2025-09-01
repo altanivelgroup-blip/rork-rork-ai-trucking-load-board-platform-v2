@@ -45,7 +45,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
           </View>
         )}
         <TouchableOpacity onPress={() => toggleFavorite(load.id)} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }} accessibilityRole="button" accessibilityLabel="Favorite" testID={`favorite-${load.id}`} style={styles.favButton}>
-          <Heart size={20} color={fav ? theme.colors.error : theme.colors.gray} fill={fav ? theme.colors.error : 'transparent'} />
+          <Heart size={20} color={fav ? theme.colors.danger : theme.colors.gray} fill={fav ? theme.colors.danger : 'transparent'} />
         </TouchableOpacity>
       </View>
 
