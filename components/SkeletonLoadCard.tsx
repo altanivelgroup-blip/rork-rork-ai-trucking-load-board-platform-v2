@@ -2,21 +2,23 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { theme } from '@/constants/theme';
 
-export default function SkeletonLoadCard() {
+interface Props { durationMs?: number }
+
+export default function SkeletonLoadCard({ durationMs = 500 }: Props) {
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(shimmer, { toValue: 1, duration: 1200, useNativeDriver: Platform.OS !== 'web' }),
-        Animated.timing(shimmer, { toValue: 0, duration: 1200, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(shimmer, { toValue: 1, duration: durationMs, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(shimmer, { toValue: 0, duration: durationMs, useNativeDriver: Platform.OS !== 'web' }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, [shimmer]);
+  }, [shimmer, durationMs]);
 
-  const bg = shimmer.interpolate ? shimmer.interpolate({ inputRange: [0, 1], outputRange: ['#e5e7eb', '#f3f4f6'] }) : '#e5e7eb';
+  const bg = (shimmer as any).interpolate ? (shimmer as any).interpolate({ inputRange: [0, 1], outputRange: ['#e5e7eb', '#f3f4f6'] }) : '#e5e7eb';
 
   return (
     <View style={styles.card} testID="skeleton-load-card">

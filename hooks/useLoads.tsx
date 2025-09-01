@@ -6,6 +6,7 @@ import { mockLoads } from '@/mocks/loads';
 
 import useOnlineStatus from '@/hooks/useOnlineStatus';
 import { useToast } from '@/components/Toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface GeoPoint { lat: number; lng: number }
 
@@ -27,6 +28,9 @@ interface LoadsState {
   filteredLoads: Load[];
   aiRecommendedLoads: Load[];
   currentLoad?: Load;
+  favorites: Record<string, boolean>;
+  isFavorited: (loadId: string) => boolean;
+  toggleFavorite: (loadId: string) => Promise<void>;
   setFilters: (filters: LoadFilters) => void;
   acceptLoad: (loadId: string) => Promise<void>;
   refreshLoads: () => Promise<void>;
@@ -61,6 +65,11 @@ const defaultLoadsState: LoadsState = {
   filteredLoads: [],
   aiRecommendedLoads: [],
   currentLoad: undefined,
+  favorites: {},
+  isFavorited: () => false,
+  toggleFavorite: async () => {
+    console.warn('[Loads] toggleFavorite called outside provider');
+  },
   setFilters: () => console.warn('[Loads] setFilters called outside provider'),
   acceptLoad: async () => {
     console.warn('[Loads] acceptLoad called outside provider');
@@ -80,7 +89,9 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const { online } = useOnlineStatus();
+  const { user } = useAuth();
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentLoad = useMemo(() => {
@@ -185,6 +196,43 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     }
   }, []);
 
+  const FAVORITES_KEY = useMemo(() => {
+    return user ? `favorites:${user.id}` : 'favorites:guest';
+  }, [user?.id]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadFavs = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(FAVORITES_KEY);
+        const parsed = raw ? JSON.parse(raw) as Record<string, boolean> : {};
+        if (mounted) setFavorites(parsed);
+      } catch (e) {
+        console.warn('[Loads] failed to load favorites', e);
+        if (mounted) setFavorites({});
+      }
+    };
+    loadFavs();
+    return () => { mounted = false; };
+  }, [FAVORITES_KEY]);
+
+  const isFavorited = useCallback((loadId: string) => {
+    return !!favorites[loadId];
+  }, [favorites]);
+
+  const toggleFavorite = useCallback(async (loadId: string) => {
+    try {
+      setFavorites(prev => {
+        const next = { ...prev, [loadId]: !prev[loadId] };
+        AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(next)).catch(err => console.warn('[Loads] favorite persist error', err));
+        return next;
+      });
+    } catch (e) {
+      console.error('[Loads] toggleFavorite error', e);
+      throw e;
+    }
+  }, [FAVORITES_KEY]);
+
   useEffect(() => {
     if (isLoading) {
       if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
@@ -205,12 +253,15 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     filteredLoads,
     aiRecommendedLoads,
     currentLoad,
+    favorites,
+    isFavorited,
+    toggleFavorite,
     setFilters,
     acceptLoad,
     refreshLoads,
     addLoad,
     addLoadsBulk,
-  }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, setFilters, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
+  }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFilters, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
 }, defaultLoadsState);
 
 export function useLoadsWithToast(): LoadsWithToast {

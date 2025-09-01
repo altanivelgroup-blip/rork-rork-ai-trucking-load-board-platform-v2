@@ -1,10 +1,11 @@
 import React, { useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { MapPin, DollarSign, Package, TrendingUp, Fuel } from 'lucide-react-native';
+import { MapPin, DollarSign, Package, TrendingUp, Fuel, Heart } from 'lucide-react-native';
 import { Load } from '@/types';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { estimateFuelForLoad, formatCurrency } from '@/utils/fuel';
+import { useLoads } from '@/hooks/useLoads';
 
 interface LoadCardProps {
   load: Load;
@@ -13,6 +14,8 @@ interface LoadCardProps {
 
 const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
   const { user } = useAuth();
+  const { isFavorited, toggleFavorite } = useLoads();
+  const fav = isFavorited(load.id);
   const vehicleColor = theme.colors[load.vehicleType as keyof typeof theme.colors] || theme.colors.primary;
   const fuel = useMemo(() => {
     try {
@@ -41,6 +44,9 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
             <Text style={styles.backhaulText}>BACKHAUL</Text>
           </View>
         )}
+        <TouchableOpacity onPress={() => toggleFavorite(load.id)} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }} accessibilityRole="button" accessibilityLabel="Favorite" testID={`favorite-${load.id}`} style={styles.favButton}>
+          <Heart size={20} color={fav ? theme.colors.error : theme.colors.gray} fill={fav ? theme.colors.error : 'transparent'} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.route}>
@@ -128,6 +134,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: theme.spacing.sm,
     marginBottom: theme.spacing.md,
   },
@@ -151,6 +158,9 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
+  },
+  favButton: {
+    marginLeft: 'auto',
   },
   route: {
     marginBottom: theme.spacing.md,
