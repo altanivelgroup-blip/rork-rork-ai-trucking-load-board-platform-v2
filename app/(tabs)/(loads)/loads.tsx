@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -6,7 +6,7 @@ import {
   RefreshControl,
   Text,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
 import { theme } from '@/constants/theme';
@@ -16,10 +16,53 @@ import { mockLoads } from '@/mocks/loads';
 export default function LoadsScreen() {
   console.log('[LoadsScreen] Rendering loads screen');
   const router = useRouter();
+  const params = useLocalSearchParams<{ origin?: string; destination?: string; minWeight?: string; minPrice?: string; sort?: string }>();
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [filters, setFilters] = useState<any>({});
 
-  const filteredLoads = useMemo(() => mockLoads, []);
+  useEffect(() => {
+    const initial: any = {};
+    if (params.origin) initial.origin = String(params.origin);
+    if (params.destination) initial.destination = String(params.destination);
+    if (params.minWeight) initial.minWeight = String(params.minWeight);
+    if (params.minPrice) initial.minPrice = String(params.minPrice);
+    if (params.sort) initial.sort = String(params.sort);
+    if (Object.keys(initial).length > 0) {
+      setFilters((prev: any) => ({ ...prev, ...initial }));
+      console.log('[LoadsScreen] Applied initial filters from params', initial);
+    }
+  }, [params.origin, params.destination, params.minWeight, params.minPrice, params.sort]);
+
+  const filteredLoads = useMemo(() => {
+    let list = mockLoads.slice();
+    const origin = (filters.origin ?? '').toLowerCase();
+    const destination = (filters.destination ?? '').toLowerCase();
+    const minW = parseInt(filters.minWeight ?? '', 10);
+    const minP = parseInt(filters.minPrice ?? '', 10);
+
+    if (origin) {
+      list = list.filter(l => `${l.origin?.city ?? ''}, ${l.origin?.state ?? ''}`.toLowerCase().includes(origin));
+    }
+    if (destination) {
+      list = list.filter(l => `${l.destination?.city ?? ''}, ${l.destination?.state ?? ''}`.toLowerCase().includes(destination));
+    }
+    if (!Number.isNaN(minW)) {
+      list = list.filter(l => (l.weight ?? 0) >= minW);
+    }
+    if (!Number.isNaN(minP)) {
+      list = list.filter(l => (l.rate ?? 0) >= minP);
+    }
+
+    const sort = String(filters.sort ?? 'Best');
+    if (sort === 'Newest') {
+      list.sort((a, b) => new Date(b.pickupDate ?? 0).getTime() - new Date(a.pickupDate ?? 0).getTime());
+    } else if (sort === 'Highest $') {
+      list.sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0));
+    } else if (sort === 'Lightest') {
+      list.sort((a, b) => (a.weight ?? 0) - (b.weight ?? 0));
+    }
+    return list;
+  }, [filters]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -46,11 +89,9 @@ export default function LoadsScreen() {
     router.push({ pathname: '/load-details', params: { loadId } });
   }, [router]);
 
-
-
   const renderItem = useCallback(({ item }: { item: typeof filteredLoads[number] }) => (
     <LoadCard load={item} onPress={() => handleLoadPress(item.id)} />
-  ), [handleLoadPress]);
+  ), [handleLoadPress, filteredLoads]);
 
   const keyExtractor = useCallback((item: typeof filteredLoads[number]) => item.id, []);
 
@@ -64,46 +105,44 @@ export default function LoadsScreen() {
 
   return (
     <>
-
       <View style={styles.container}>
-      <FilterBar
-        selectedVehicle={filters.vehicleType}
-        showBackhaul={filters.showBackhaul}
-        onVehicleSelect={handleVehicleSelect}
-        onBackhaulToggle={handleBackhaulToggle}
-        onOpenFilters={handleOpenFilters}
-      />
-      
-      <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', gap: 8 }}>
-        <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
-        <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
+        <FilterBar
+          selectedVehicle={filters.vehicleType}
+          showBackhaul={filters.showBackhaul}
+          onVehicleSelect={handleVehicleSelect}
+          onBackhaulToggle={handleBackhaulToggle}
+          onOpenFilters={handleOpenFilters}
+        />
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', gap: 8 }}>
+          <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
+          <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
+        </View>
+        <FlatList
+          data={filteredLoads}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No loads found</Text>
+              <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
+            </View>
+          }
+          getItemLayout={getItemLayout}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          removeClippedSubviews={true}
+          testID="loads-flatlist"
+        />
       </View>
-      <FlatList
-        data={filteredLoads}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={theme.colors.primary}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No loads found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
-          </View>
-        }
-        getItemLayout={getItemLayout}
-        initialNumToRender={8}
-        maxToRenderPerBatch={8}
-        windowSize={7}
-        removeClippedSubviews={true}
-        testID="loads-flatlist"
-      />
-    </View>
     </>
   );
 }

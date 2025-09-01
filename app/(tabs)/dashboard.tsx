@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useState, memo } from 'react';
-import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,17 +19,18 @@ interface RecentLoadProps {
   onPress: (id: string) => void;
 }
 
-const RecentLoadRow = memo<RecentLoadProps>(({
-  id,
-  originCity,
-  originState,
-  destinationCity,
-  destinationState,
-  pickupDate,
-  weight,
-  rate,
-  onPress,
-}) => {
+function formatUSD(amount: number): string {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount ?? 0);
+  } catch (_e) {
+    const n = Number(amount ?? 0);
+    const parts = Math.round(n).toString().split('');
+    for (let i = parts.length - 3; i > 0; i -= 3) parts.splice(i, 0, ',');
+    return `$${parts.join('')}`;
+  }
+}
+
+const RecentLoadRow = memo<RecentLoadProps>(({ id, originCity, originState, destinationCity, destinationState, pickupDate, weight, rate, onPress }) => {
   return (
     <TouchableOpacity key={id} onPress={() => onPress(id)} style={styles.loadRow} testID={`recent-load-${id}`}>
       <View style={styles.loadLeft}>
@@ -42,7 +43,9 @@ const RecentLoadRow = memo<RecentLoadProps>(({
         </View>
       </View>
       <View style={styles.loadRight}>
-        <Text style={styles.price}>${rate}</Text>
+        <View style={styles.priceChip}>
+          <Text style={styles.priceChipText}>{formatUSD(rate)}</Text>
+        </View>
         <Text style={styles.favorite}>Favorite</Text>
       </View>
     </TouchableOpacity>
@@ -54,7 +57,13 @@ export default function DashboardScreen() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const [backhaulOn, setBackhaulOn] = useState<boolean>(false);
-  
+  const [origin, setOrigin] = useState<string>('');
+  const [destination, setDestination] = useState<string>('');
+  const [minWeight, setMinWeight] = useState<string>('');
+  const [minPrice, setMinPrice] = useState<string>('');
+  const sortOptions = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest'] as const, []);
+  const [sort, setSort] = useState<(typeof sortOptions)[number]>('Best');
+
   console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
 
   const recentLoads = useMemo(() => mockLoads?.slice(0, 3) ?? [], []);
@@ -80,11 +89,15 @@ export default function DashboardScreen() {
     );
   }
 
-
-
   const handleViewAll = useCallback(() => {
-    router.push('/(tabs)/(loads)/loads');
-  }, [router]);
+    const params: Record<string, string> = {};
+    if (origin) params.origin = origin;
+    if (destination) params.destination = destination;
+    if (minWeight) params.minWeight = minWeight;
+    if (minPrice) params.minPrice = minPrice;
+    if (sort) params.sort = sort;
+    router.push({ pathname: '/(tabs)/(loads)/loads', params });
+  }, [router, origin, destination, minWeight, minPrice, sort]);
 
   const handleOpenLoad = useCallback((loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
@@ -97,10 +110,8 @@ export default function DashboardScreen() {
     }
   }, [lastDelivery, router]);
 
-
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}> 
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ImageBackground
           source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/uzyvqegm8riqj7x0yy7p9' }}
@@ -137,6 +148,56 @@ export default function DashboardScreen() {
             <Text style={styles.statValue}>{user?.completedLoads ?? 24}</Text>
             <Text style={styles.statLabel}>Completed</Text>
           </View>
+        </View>
+
+        <View style={styles.filtersRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="Origin"
+            placeholderTextColor={theme.colors.gray}
+            value={origin}
+            onChangeText={setOrigin}
+            testID="filter-origin"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Destination"
+            placeholderTextColor={theme.colors.gray}
+            value={destination}
+            onChangeText={setDestination}
+            testID="filter-destination"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Weight ≥"
+            placeholderTextColor={theme.colors.gray}
+            keyboardType="numeric"
+            value={minWeight}
+            onChangeText={setMinWeight}
+            testID="filter-weight"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Price ≥"
+            placeholderTextColor={theme.colors.gray}
+            keyboardType="numeric"
+            value={minPrice}
+            onChangeText={setMinPrice}
+            testID="filter-price"
+          />
+          <TouchableOpacity
+            style={styles.sortChip}
+            onPress={() => {
+              const opts = sortOptions;
+              const idx = opts.indexOf(sort);
+              const next = opts[(idx + 1) % opts.length];
+              setSort(next);
+            }}
+            testID="filter-sort"
+            accessibilityRole="button"
+          >
+            <Text style={styles.sortChipText}>{sort}</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.sectionHeader}>
@@ -293,6 +354,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  filtersRow: {
+    marginTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   sectionTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
@@ -351,6 +420,19 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
     color: theme.colors.primary,
+  },
+  priceChip: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 9999,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  priceChipText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+    fontSize: theme.fontSize.md,
   },
   favorite: {
     marginTop: 6,
