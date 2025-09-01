@@ -54,7 +54,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
           <MapPin size={16} color={theme.colors.gray} />
           <View style={styles.locationText}>
             <Text style={styles.city}>{load.origin.city}, {load.origin.state}</Text>
-            <Text style={styles.date}>{new Date(load.pickupDate).toLocaleDateString()}</Text>
+            <Text style={styles.date}>{new Date(load.pickupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
           </View>
         </View>
         
@@ -66,7 +66,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
           <MapPin size={16} color={theme.colors.gray} />
           <View style={styles.locationText}>
             <Text style={styles.city}>{load.destination.city}, {load.destination.state}</Text>
-            <Text style={styles.date}>{new Date(load.deliveryDate).toLocaleDateString()}</Text>
+            <Text style={styles.date}>{new Date(load.deliveryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
           </View>
         </View>
       </View>
@@ -74,12 +74,12 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
       <View style={styles.details}>
         <View style={styles.detailItem}>
           <Package size={14} color={theme.colors.gray} />
-          <Text style={styles.detailText}>{(load.weight / 1000).toFixed(1)}k lbs</Text>
+          <Text style={styles.detailText}>{load.weight.toLocaleString()} lbs</Text>
         </View>
         
         <View style={styles.detailItem}>
           <DollarSign size={14} color={theme.colors.success} />
-          <Text style={styles.rate}>${load.rate.toLocaleString()}</Text>
+          <Text style={styles.rate}>{formatCurrency(load.rate)}</Text>
           <Text style={styles.ratePerMile}>(${load.ratePerMile.toFixed(2)}/mi)</Text>
         </View>
       </View>
