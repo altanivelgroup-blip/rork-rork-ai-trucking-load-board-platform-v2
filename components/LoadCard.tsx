@@ -27,7 +27,14 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
   }, [load, user]);
   
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7} testID="load-card">
+    <TouchableOpacity
+      style={styles.container}
+      onPress={onPress}
+      activeOpacity={0.7}
+      testID="load-card"
+      accessibilityRole="button"
+      accessibilityLabel="Open load details"
+    >
       {load.aiScore && load.aiScore > 90 && (
         <View style={styles.aiRecommended}>
           <TrendingUp size={14} color={theme.colors.white} />
@@ -44,8 +51,20 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
             <Text style={styles.backhaulText}>BACKHAUL</Text>
           </View>
         )}
-        <TouchableOpacity onPress={() => toggleFavorite(load.id)} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }} accessibilityRole="button" accessibilityLabel="Favorite" testID={`favorite-${load.id}`} style={styles.favButton}>
-          <Heart size={20} color={fav ? theme.colors.danger : theme.colors.gray} fill={fav ? theme.colors.danger : 'transparent'} />
+        <TouchableOpacity
+          onPress={() => toggleFavorite(load.id)}
+          accessibilityRole="button"
+          accessibilityLabel={fav ? 'Unfavorite load' : 'Favorite load'}
+          accessibilityState={{ selected: fav }}
+          accessibilityHint={fav ? 'Double tap to remove from favorites' : 'Double tap to add to favorites'}
+          testID={`favorite-${load.id}`}
+          style={styles.favButton}
+        >
+          <Heart
+            size={20}
+            color={fav ? theme.colors.danger : theme.colors.gray}
+            fill={fav ? theme.colors.danger : 'transparent'}
+          />
         </TouchableOpacity>
       </View>
 
@@ -161,6 +180,11 @@ const styles = StyleSheet.create({
   },
   favButton: {
     marginLeft: 'auto',
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
   },
   route: {
     marginBottom: theme.spacing.md,
