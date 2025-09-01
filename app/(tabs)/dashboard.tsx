@@ -6,6 +6,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-native';
 import { mockLoads } from '@/mocks/loads';
+import { SORT_DROPDOWN_ENABLED } from '@/constants/flags';
+import { SortDropdown } from '@/components/SortDropdown';
 
 interface RecentLoadProps {
   id: string;
@@ -63,6 +65,10 @@ export default function DashboardScreen() {
   const [minPrice, setMinPrice] = useState<string>('');
   const sortOptions = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest'] as const, []);
   const [sort, setSort] = useState<(typeof sortOptions)[number]>('Best');
+  const handleSortChange = useCallback((next: string) => {
+    const valid = sortOptions.find(o => o === next);
+    if (valid) setSort(valid);
+  }, [sortOptions]);
 
   console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
 
@@ -185,19 +191,23 @@ export default function DashboardScreen() {
             onChangeText={setMinPrice}
             testID="filter-price"
           />
-          <TouchableOpacity
-            style={styles.sortChip}
-            onPress={() => {
-              const opts = sortOptions;
-              const idx = opts.indexOf(sort);
-              const next = opts[(idx + 1) % opts.length];
-              setSort(next);
-            }}
-            testID="filter-sort"
-            accessibilityRole="button"
-          >
-            <Text style={styles.sortChipText}>{sort}</Text>
-          </TouchableOpacity>
+          {SORT_DROPDOWN_ENABLED ? (
+            <SortDropdown value={sort} options={sortOptions as unknown as string[]} onChange={handleSortChange} testID="filter-sort" />
+          ) : (
+            <TouchableOpacity
+              style={styles.sortChip}
+              onPress={() => {
+                const opts = sortOptions;
+                const idx = opts.indexOf(sort);
+                const next = opts[(idx + 1) % opts.length];
+                setSort(next);
+              }}
+              testID="filter-sort"
+              accessibilityRole="button"
+            >
+              <Text style={styles.sortChipText}>{sort}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.sectionHeader}>

@@ -9,6 +9,8 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
+import { SortDropdown } from '@/components/SortDropdown';
+import { SORT_DROPDOWN_ENABLED } from '@/constants/flags';
 import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
 import { mockLoads } from '@/mocks/loads';
@@ -18,7 +20,7 @@ export default function LoadsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ origin?: string; destination?: string; minWeight?: string; minPrice?: string; sort?: string }>();
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [filters, setFilters] = useState<any>({});
+  const [filters, setFilters] = useState<any>({ sort: 'Best' });
 
   useEffect(() => {
     const initial: any = {};
@@ -113,9 +115,32 @@ export default function LoadsScreen() {
           onBackhaulToggle={handleBackhaulToggle}
           onOpenFilters={handleOpenFilters}
         />
-        <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', gap: 8 }}>
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
           <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
+          {SORT_DROPDOWN_ENABLED ? (
+            <SortDropdown
+              value={String(filters.sort ?? 'Best')}
+              options={['Best', 'Newest', 'Highest $', 'Lightest']}
+              onChange={(next) => setFilters({ ...filters, sort: next })}
+              testID="loads-sort"
+            />
+          ) : (
+            <Text
+              onPress={() => {
+                const opts = ['Best', 'Newest', 'Highest $', 'Lightest'];
+                const cur = String(filters.sort ?? 'Best');
+                const idx = opts.indexOf(cur);
+                const next = opts[(idx + 1) % opts.length];
+                setFilters({ ...filters, sort: next });
+              }}
+              style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
+              accessibilityRole="button"
+              testID="loads-sort"
+            >
+              {String(filters.sort ?? 'Best')}
+            </Text>
+          )}
         </View>
         <FlatList
           data={filteredLoads}
