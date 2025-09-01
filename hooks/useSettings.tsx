@@ -12,6 +12,8 @@ export type ToggleKey =
   | 'autoSync'
   | 'offlineMode';
 
+export type SortOrder = 'Best' | 'Newest' | 'Highest $' | 'Lightest';
+
 interface SettingsState {
   pushNotifications: boolean;
   emailNotifications: boolean;
@@ -21,8 +23,10 @@ interface SettingsState {
   locationServices: boolean;
   autoSync: boolean;
   offlineMode: boolean;
+  sortOrder: SortOrder;
   isHydrating: boolean;
   setToggle: (key: ToggleKey, value: boolean) => Promise<void>;
+  setSortOrder: (value: SortOrder) => Promise<void>;
   clearCache: () => Promise<void>;
   resetAll: () => Promise<void>;
 }
@@ -38,6 +42,7 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
   const [locationServices, setLocationServices] = useState<boolean>(true);
   const [autoSync, setAutoSync] = useState<boolean>(true);
   const [offlineMode, setOfflineMode] = useState<boolean>(false);
+  const [sortOrder, setSort] = useState<SortOrder>('Best');
   const [isHydrating, setIsHydrating] = useState<boolean>(true);
 
   useEffect(() => {
@@ -46,7 +51,7 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
         console.log('[Settings] Hydrating from storage');
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
-          const data = JSON.parse(raw) as Partial<SettingsState>;
+          const data = JSON.parse(raw) as Partial<SettingsState> & { sortOrder?: SortOrder };
           setPushNotifications(!!data.pushNotifications);
           setEmailNotifications(!!data.emailNotifications);
           setSmsNotifications(!!data.smsNotifications);
@@ -55,6 +60,9 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
           setLocationServices(!!data.locationServices);
           setAutoSync(!!data.autoSync);
           setOfflineMode(!!data.offlineMode);
+          if (data.sortOrder === 'Best' || data.sortOrder === 'Newest' || data.sortOrder === 'Highest $' || data.sortOrder === 'Lightest') {
+            setSort(data.sortOrder);
+          }
         }
       } catch (e) {
         console.error('[Settings] hydrate error', e);
@@ -75,13 +83,14 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
         locationServices,
         autoSync,
         offlineMode,
+        sortOrder,
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       console.log('[Settings] Saved');
     } catch (e) {
       console.error('[Settings] save error', e);
     }
-  }, [pushNotifications, emailNotifications, smsNotifications, darkMode, soundEffects, locationServices, autoSync, offlineMode]);
+  }, [pushNotifications, emailNotifications, smsNotifications, darkMode, soundEffects, locationServices, autoSync, offlineMode, sortOrder]);
 
   useEffect(() => {
     if (!isHydrating) {
@@ -125,10 +134,18 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
     }
   }, []);
 
+  const setSortOrder = useCallback(async (value: SortOrder) => {
+    try {
+      console.log('[Settings] setSortOrder', value);
+      setSort(value);
+    } catch (e) {
+      console.error('[Settings] setSortOrder error', e);
+    }
+  }, []);
+
   const clearCache = useCallback(async () => {
     try {
       console.log('[Settings] clear cache');
-      // Keep settings, but clear other known keys
       const keys = await AsyncStorage.getAllKeys();
       const toRemove = keys.filter((k) => k !== STORAGE_KEY);
       if (toRemove.length > 0) await AsyncStorage.multiRemove(toRemove);
@@ -149,6 +166,7 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
       setLocationServices(true);
       setAutoSync(true);
       setOfflineMode(false);
+      setSort('Best');
       await AsyncStorage.removeItem(STORAGE_KEY);
     } catch (e) {
       console.error('[Settings] reset error', e);
@@ -165,11 +183,13 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
     locationServices,
     autoSync,
     offlineMode,
+    sortOrder,
     isHydrating,
     setToggle,
+    setSortOrder,
     clearCache,
     resetAll,
-  }), [pushNotifications, emailNotifications, smsNotifications, darkMode, soundEffects, locationServices, autoSync, offlineMode, isHydrating, setToggle, clearCache, resetAll]);
+  }), [pushNotifications, emailNotifications, smsNotifications, darkMode, soundEffects, locationServices, autoSync, offlineMode, sortOrder, isHydrating, setToggle, setSortOrder, clearCache, resetAll]);
 
   return value;
 });

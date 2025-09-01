@@ -8,6 +8,7 @@ import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-nati
 import { mockLoads } from '@/mocks/loads';
 import { SORT_DROPDOWN_ENABLED } from '@/constants/flags';
 import { SortDropdown } from '@/components/SortDropdown';
+import { useSettings } from '@/hooks/useSettings';
 
 interface RecentLoadProps {
   id: string;
@@ -64,11 +65,15 @@ export default function DashboardScreen() {
   const [minWeight, setMinWeight] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
   const sortOptions = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest'] as const, []);
-  const [sort, setSort] = useState<(typeof sortOptions)[number]>('Best');
+  const { sortOrder, setSortOrder, isHydrating } = useSettings();
+  const [sort, setSort] = useState<(typeof sortOptions)[number]>(sortOrder as (typeof sortOptions)[number]);
   const handleSortChange = useCallback((next: string) => {
     const valid = sortOptions.find(o => o === next);
-    if (valid) setSort(valid);
-  }, [sortOptions]);
+    if (valid) {
+      setSort(valid);
+      void setSortOrder(valid as any);
+    }
+  }, [sortOptions, setSortOrder]);
 
   console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
 
@@ -211,6 +216,7 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.sectionHeader}>
+          {isHydrating && <Text style={styles.viewAllText}>Loading preferences…</Text>}
           <Text style={styles.sectionTitle}>Recent Loads</Text>
           <TouchableOpacity onPress={handleViewAll} accessibilityRole="button">
             <View style={styles.viewAllRow}>

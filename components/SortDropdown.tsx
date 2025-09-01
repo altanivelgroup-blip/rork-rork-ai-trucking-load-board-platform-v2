@@ -76,7 +76,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
     setMenuWidth(Math.max(160, layout.width));
   }, []);
 
-  const label = useMemo(() => value, [value]);
+  const label = useMemo(() => `Sort: ${value}`, [value]);
 
   return (
     <>
