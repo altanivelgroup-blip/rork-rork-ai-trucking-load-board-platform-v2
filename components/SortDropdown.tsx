@@ -15,7 +15,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
   const [anchorX, setAnchorX] = useState<number>(0);
   const [menuWidth, setMenuWidth] = useState<number>(180);
   const anim = useRef(new Animated.Value(0)).current;
-  const buttonRef = useRef<TouchableOpacity | null>(null);
+  const buttonRef = useRef<View | null>(null);
 
   const openMenu = useCallback(() => {
     if (Platform.OS === 'ios') {
@@ -81,7 +81,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
   return (
     <>
       <TouchableOpacity
-        ref={(r) => (buttonRef.current = r)}
+        ref={(r) => { buttonRef.current = (r as unknown as View | null); }}
         onPress={openMenu}
         style={styles.sortChip}
         testID={testID ?? 'sort-dropdown-button'}
