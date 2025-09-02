@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { Filter, X, LocateFixed } from 'lucide-react-native';
+import { X, LocateFixed } from 'lucide-react-native';
 import { VehicleType } from '@/types';
 import { theme } from '@/constants/theme';
 
@@ -47,11 +47,6 @@ const FilterBarComponent: React.FC<FilterBarProps> = ({
       {/* Original Filter Bar - Now at Top */}
       <View style={styles.container}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
-          <TouchableOpacity style={styles.filterButton} onPress={onOpenFilters} testID="open-filters">
-            <Filter size={16} color={theme.colors.primary} />
-            <Text style={styles.filterButtonText}>Filters</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={[styles.chip, styles.backhaulChip, showBackhaul && styles.backhaulChipActive]}
             onPress={onBackhaulToggle}
@@ -206,22 +201,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: theme.spacing.md,
   },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    marginRight: theme.spacing.sm,
-  },
-  filterButtonText: {
-    color: theme.colors.primary,
-    fontSize: theme.fontSize.sm,
-    fontWeight: '500',
-  },
+
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
