@@ -250,6 +250,53 @@ export default function LoadsScreen() {
 
   useEffect(() => {
     let aborted = false;
+    const clientPersonalize = () => {
+      const loads = baseFiltered;
+      if (!loads || loads.length === 0) return null as string[] | null;
+      const maxRpm = loads.reduce((m, l) => Math.max(m, Number(l.ratePerMile ?? 0)), 0) || 1;
+      const radius = Number(radiusMiles ?? 50) || 50;
+      const fav: any = (user as any)?.favoriteLanes ?? [];
+      const truckPref: string | null = (user?.vehicleTypes && user.vehicleTypes.length > 0 ? user.vehicleTypes[0] : null) as any;
+      const cur = currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null;
+      const laneKey = (o?: any, d?: any) => {
+        const oc = `${o?.city ?? ''}`.toLowerCase();
+        const os = `${o?.state ?? ''}`.toLowerCase();
+        const dc = `${d?.city ?? ''}`.toLowerCase();
+        const ds = `${d?.state ?? ''}`.toLowerCase();
+        return [
+          `${oc}->${dc}`,
+          `${os}->${ds}`,
+          `${oc},${os}->${dc},${ds}`,
+        ];
+      };
+      const isFavLane = (o?: any, d?: any) => {
+        const keys = laneKey(o, d);
+        try {
+          if (Array.isArray(fav)) {
+            return fav.some((x: any) => {
+              const s = typeof x === 'string' ? x.toLowerCase() : JSON.stringify(x ?? {}).toLowerCase();
+              return keys.some(k => s.includes(k));
+            });
+          }
+        } catch {}
+        return false;
+      };
+      const score = (l: typeof loads[number]): number => {
+        let s = 0;
+        const rpm = Number(l.ratePerMile ?? 0) / maxRpm;
+        s += rpm * 0.5;
+        if (truckPref && String(l.vehicleType ?? '').toLowerCase() === String(truckPref).toLowerCase()) s += 0.15;
+        if (isFavLane(l.origin, l.destination)) s += 0.2;
+        const dist = typeof distances[l.id] === 'number' ? (distances[l.id] as number) : null;
+        if (cur && dist != null && !Number.isNaN(dist)) {
+          const dScore = 1 - Math.min(dist / Math.max(radius, 1), 1);
+          s += dScore * 0.25;
+        }
+        return s;
+      };
+      const ordered = loads.slice().sort((a, b) => score(b) - score(a)).map(l => l.id);
+      return ordered;
+    };
     (async () => {
       if (!AI_RERANK_ENABLED) { setAiOrder(null); return; }
       const t0 = Date.now();
@@ -274,28 +321,28 @@ export default function LoadsScreen() {
         const t1 = Date.now();
         if (!res.ok) {
           console.warn('[LoadsScreen] AI rerank failed', res.status, { ms: t1 - t0 });
-          if (!aborted) setAiOrder(null);
+          if (!aborted) setAiOrder(clientPersonalize());
           return;
         }
         const data: any = await res.json();
         const ids: string[] = Array.isArray(data?.ids) ? data.ids : (Array.isArray(data?.order) ? data.order : []);
         if (!ids || ids.length === 0) {
           console.warn('[LoadsScreen] AI rerank empty/invalid response', { ms: t1 - t0 });
-          if (!aborted) setAiOrder(null);
+          if (!aborted) setAiOrder(clientPersonalize());
           return;
         }
         const allowed = new Set(baseFiltered.map(l => l.id));
         const clean = ids.filter((id) => allowed.has(id));
-        if (!aborted) setAiOrder(clean.length > 0 ? clean : null);
+        if (!aborted) setAiOrder(clean.length > 0 ? clean : clientPersonalize());
         console.log('[LoadsScreen] AI rerank applied', { count: clean.length, ms: t1 - t0 });
       } catch (e) {
         const tErr = Date.now();
         console.warn('[LoadsScreen] AI rerank error', e, { ms: tErr - t0 });
-        if (!aborted) setAiOrder(null);
+        if (!aborted) setAiOrder(clientPersonalize());
       }
     })();
     return () => { aborted = true; };
-  }, [AI_RERANK_ENABLED, JSON.stringify(baseFiltered.map(l => l.id)), currentLoc?.latitude, currentLoc?.longitude, user?.id]);
+  }, [AI_RERANK_ENABLED, JSON.stringify(baseFiltered.map(l => l.id)), currentLoc?.latitude, currentLoc?.longitude, user?.id, radiusMiles, JSON.stringify(distances)])
 
   const onSubmitNlSearch = useCallback(async () => {
     if (!AI_NL_SEARCH_ENABLED) return;
