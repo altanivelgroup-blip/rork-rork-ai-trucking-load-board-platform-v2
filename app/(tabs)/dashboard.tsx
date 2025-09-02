@@ -372,28 +372,26 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.describeLoadRow}>
-          <View style={{ flex: 1 }}>
-            <TextInput
-              testID="describe-load-input"
-              value={nlQuery}
-              onChangeText={handleNlQueryChange}
-              placeholder={'Describe your load'}
-              placeholderTextColor={theme.colors.gray}
-              returnKeyType="search"
-              onSubmitEditing={onSubmitNlSearch}
-              style={[styles.input, { height: 34, paddingVertical: 4 }]}
-              accessibilityLabel="Natural language search"
-            />
-          </View>
-          <Text
+          <TextInput
+            testID="describe-load-input"
+            value={nlQuery}
+            onChangeText={handleNlQueryChange}
+            placeholder={'Describe your load'}
+            placeholderTextColor={theme.colors.gray}
+            returnKeyType="search"
+            onSubmitEditing={onSubmitNlSearch}
+            style={styles.describeInput}
+            accessibilityLabel="Natural language search"
+          />
+          <TouchableOpacity
             onPress={onSubmitNlSearch}
-            accessibilityRole="button"
             testID="describe-load-apply"
-            style={[styles.aiLink, { backgroundColor: theme.colors.primary, paddingVertical: moderateScale(6) }]}
-            allowFontScaling={false}
+            style={styles.applyButton}
           >
-            Apply
-          </Text>
+            <Text style={styles.applyButtonText} allowFontScaling={false}>
+              Apply
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {AI_COPILOT_CHIPS_ENABLED ? (
@@ -610,7 +608,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: moderateScale(theme.spacing.lg),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: moderateScale(6),
+    gap: moderateScale(8),
+  },
+  describeInput: {
+    flex: 1,
+    height: 44,
+    paddingHorizontal: moderateScale(12),
+    backgroundColor: theme.colors.white,
+    borderRadius: moderateScale(10),
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    fontSize: font(16),
+  },
+  applyButton: {
+    minWidth: moderateScale(96),
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    borderRadius: moderateScale(10),
+  },
+  applyButtonText: {
+    fontSize: font(14),
+    fontWeight: '700',
+    color: theme.colors.white,
   },
   aiLink: {
     backgroundColor: theme.colors.secondary,
