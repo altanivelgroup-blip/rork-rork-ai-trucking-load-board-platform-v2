@@ -151,6 +151,7 @@ export default function DashboardScreen() {
     let aborted = false;
     (async () => {
       if (!AI_RERANK_ENABLED) { setAiRecentOrder(null); return; }
+      const t0 = Date.now();
       try {
         const payload = {
           loads: recentLoads,
@@ -169,18 +170,26 @@ export default function DashboardScreen() {
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify(payload),
         });
+        const t1 = Date.now();
         if (!res.ok) {
-          console.warn('[Dashboard] AI rerank failed', res.status);
+          console.warn('[Dashboard] AI rerank failed', res.status, { ms: t1 - t0 });
           if (!aborted) setAiRecentOrder(null);
           return;
         }
         const data: any = await res.json();
         const ids: string[] = Array.isArray(data?.ids) ? data.ids : (Array.isArray(data?.order) ? data.order : []);
+        if (!ids || ids.length === 0) {
+          console.warn('[Dashboard] AI rerank empty/invalid response', { ms: t1 - t0 });
+          if (!aborted) setAiRecentOrder(null);
+          return;
+        }
         const allowed = new Set(recentLoads.map(l => l.id));
         const clean = ids.filter((id) => allowed.has(id));
         if (!aborted) setAiRecentOrder(clean.length > 0 ? clean : null);
+        console.log('[Dashboard] AI rerank applied for recent loads', { count: clean.length, ms: t1 - t0 });
       } catch (e) {
-        console.warn('[Dashboard] AI rerank error', e);
+        const tErr = Date.now();
+        console.warn('[Dashboard] AI rerank error', e, { ms: tErr - t0 });
         if (!aborted) setAiRecentOrder(null);
       }
     })();

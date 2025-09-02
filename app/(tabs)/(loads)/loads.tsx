@@ -252,6 +252,7 @@ export default function LoadsScreen() {
     let aborted = false;
     (async () => {
       if (!AI_RERANK_ENABLED) { setAiOrder(null); return; }
+      const t0 = Date.now();
       try {
         const payload = {
           loads: baseFiltered,
@@ -270,18 +271,26 @@ export default function LoadsScreen() {
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify(payload),
         });
+        const t1 = Date.now();
         if (!res.ok) {
-          console.warn('[LoadsScreen] AI rerank failed', res.status);
+          console.warn('[LoadsScreen] AI rerank failed', res.status, { ms: t1 - t0 });
           if (!aborted) setAiOrder(null);
           return;
         }
         const data: any = await res.json();
         const ids: string[] = Array.isArray(data?.ids) ? data.ids : (Array.isArray(data?.order) ? data.order : []);
+        if (!ids || ids.length === 0) {
+          console.warn('[LoadsScreen] AI rerank empty/invalid response', { ms: t1 - t0 });
+          if (!aborted) setAiOrder(null);
+          return;
+        }
         const allowed = new Set(baseFiltered.map(l => l.id));
         const clean = ids.filter((id) => allowed.has(id));
         if (!aborted) setAiOrder(clean.length > 0 ? clean : null);
+        console.log('[LoadsScreen] AI rerank applied', { count: clean.length, ms: t1 - t0 });
       } catch (e) {
-        console.warn('[LoadsScreen] AI rerank error', e);
+        const tErr = Date.now();
+        console.warn('[LoadsScreen] AI rerank error', e, { ms: tErr - t0 });
         if (!aborted) setAiOrder(null);
       }
     })();
@@ -292,6 +301,7 @@ export default function LoadsScreen() {
     if (!AI_NL_SEARCH_ENABLED) return;
     const q = nlQuery.trim();
     if (!q) return;
+    const t0 = Date.now();
     try {
       console.log('[LoadsScreen] NL parse start');
       const res = await fetch('/ai/parseLoadQuery', {
@@ -299,11 +309,16 @@ export default function LoadsScreen() {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ query: q }),
       });
+      const t1 = Date.now();
       if (!res.ok) {
-        console.warn('NL parse failed', res.status);
+        console.warn('[LoadsScreen] NL parse failed', res.status, { ms: t1 - t0 });
         return;
       }
-      const data: { origin?: string; dest?: string; minPrice?: number; maxWeight?: number; dateRange?: { from?: string; to?: string }; radiusMiles?: number; truckType?: string } = await res.json();
+      const data: { origin?: string; dest?: string; minPrice?: number; maxWeight?: number; dateRange?: { from?: string; to?: string }; radiusMiles?: number; truckType?: string } | null = await res.json();
+      if (!data || typeof data !== 'object') {
+        console.warn('[LoadsScreen] NL parse returned empty/invalid payload', { ms: t1 - t0 });
+        return;
+      }
       const next: Record<string, unknown> = { ...filters };
       if (data.origin) next.origin = data.origin;
       if (data.dest) next.destination = data.dest;
@@ -316,9 +331,10 @@ export default function LoadsScreen() {
       if (typeof data.radiusMiles === 'number' && !Number.isNaN(data.radiusMiles)) {
         await setRadiusMiles(data.radiusMiles);
       }
-      console.log('[LoadsScreen] NL parse applied', data);
+      console.log('[LoadsScreen] NL parse applied', { ms: t1 - t0, data });
     } catch (e) {
-      console.error('NL parse error', e);
+      const tErr = Date.now();
+      console.warn('[LoadsScreen] NL parse error', e, { ms: tErr - t0 });
     }
   }, [AI_NL_SEARCH_ENABLED, nlQuery, filters, setRadiusMiles]);
 
@@ -365,7 +381,7 @@ export default function LoadsScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexGrow: 1 }}>
               <View style={{ flex: 1 }}>
                 <TextInput
-                  testID="nlSearchInput"
+                  testID="aiSearchInput"
                   value={nlQuery}
                   onChangeText={setNlQuery}
                   placeholder={'Describe your load (e.g., “Dallas to ATL, ≥$800, ≤8k lbs”)'}
@@ -389,13 +405,13 @@ export default function LoadsScreen() {
           {AI_COPILOT_CHIPS_ENABLED ? (
             <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
               <Text onPress={() => void applyChip('highest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipHighest">Highest $/mi</Text>
-              <Text onPress={() => void applyChip('near')} style={[styles.aiLink, { backgroundColor: theme.colors.secondary }]} accessibilityRole="button" testID="chipNear">Near me</Text>
+              <Text onPress={() => void applyChip('near')} style={[styles.aiLink, { backgroundColor: theme.colors.secondary }]} accessibilityRole="button" testID="chipNearMe">Near me</Text>
               <Text onPress={() => void applyChip('lightest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipLightest">Lightest</Text>
               <Text onPress={() => void applyChip('new')} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNew">New Today</Text>
             </View>
           ) : null}
           {summaryLine ? (
-            <Text style={styles.summaryText} numberOfLines={1} testID="filtersSummary">{summaryLine}</Text>
+            <Text style={styles.summaryText} numberOfLines={1} testID="labelAIFilterSummary">{summaryLine}</Text>
           ) : null}
           {summaryLine ? (
             <Text onPress={onResetFilters} style={styles.resetLink} accessibilityRole="button" testID="filtersReset">Reset</Text>
