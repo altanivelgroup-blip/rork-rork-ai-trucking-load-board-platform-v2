@@ -6,6 +6,7 @@ import {
   RefreshControl,
   Text,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
@@ -426,19 +427,19 @@ export default function LoadsScreen() {
           onBackhaulToggle={handleBackhaulToggle}
           onOpenFilters={handleOpenFilters}
         />
-        <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xs }}>
           {AI_NL_SEARCH_ENABLED ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexGrow: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <View style={{ flex: 1 }}>
                 <TextInput
                   testID="aiSearchInput"
                   value={nlQuery}
                   onChangeText={setNlQuery}
-                  placeholder={'Describe your load (e.g., “Dallas to ATL, ≥$800, ≤8k lbs”)'}
+                  placeholder={'Describe your load'}
                   placeholderTextColor={theme.colors.gray}
                   returnKeyType="search"
                   onSubmitEditing={onSubmitNlSearch}
-                  style={[styles.input]}
+                  style={[styles.input, { height: 34, paddingVertical: 4 }]}
                   accessibilityLabel="Natural language search"
                 />
               </View>
@@ -446,65 +447,65 @@ export default function LoadsScreen() {
                 onPress={onSubmitNlSearch}
                 accessibilityRole="button"
                 testID="nlSearchSubmit"
-                style={[styles.aiLink, { backgroundColor: theme.colors.primary }]}
+                style={[styles.aiLink, { backgroundColor: theme.colors.primary, paddingVertical: 6 }]}
               >
                 Apply
               </Text>
             </View>
           ) : null}
+
           {AI_COPILOT_CHIPS_ENABLED ? (
-            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-              <Text onPress={() => void applyChip('highest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipHighest">Highest $/mi</Text>
-              <Text onPress={() => void applyChip('near')} style={[styles.aiLink, { backgroundColor: theme.colors.secondary }]} accessibilityRole="button" testID="chipNearMe">Near me</Text>
-              <Text onPress={() => void applyChip('lightest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipLightest">Lightest</Text>
-              <Text onPress={() => void applyChip('new')} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNew">New Today</Text>
+            <View style={{ marginTop: 6 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <Text onPress={() => void applyChip('highest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipHighest">Highest $/mi</Text>
+                <Text onPress={() => void applyChip('near')} style={[styles.aiLink, { backgroundColor: theme.colors.secondary }]} accessibilityRole="button" testID="chipNearMe">Near me</Text>
+                <Text onPress={() => void applyChip('lightest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipLightest">Lightest</Text>
+                <Text onPress={() => void applyChip('new')} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNew">New Today</Text>
+                {SORT_DROPDOWN_ENABLED ? (
+                  <SortDropdown
+                    value={String(filters.sort ?? 'Best')}
+                    options={sortOptions}
+                    onChange={(next) => { setFilters({ ...filters, sort: next }); void setSortOrder(next as any); }}
+                  />
+                ) : (
+                  <Text
+                    onPress={() => {
+                      const opts = sortOptions;
+                      const cur = String(filters.sort ?? 'Best');
+                      const idx = opts.indexOf(cur);
+                      const next = opts[(idx + 1) % opts.length];
+                      setFilters({ ...filters, sort: next });
+                    }}
+                    style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
+                    accessibilityRole="button"
+                    testID="loads-sort"
+                  >
+                    {String(filters.sort ?? 'Best')}
+                  </Text>
+                )}
+                {GEO_SORT_ENABLED && hasLocationPerm && String(filters.sort ?? 'Best') === 'Nearest' && [25,50,100,250].map((r) => (
+                  <Text
+                    key={r}
+                    onPress={() => { void setRadiusMiles(r); }}
+                    style={[styles.aiLink, r === radiusMiles ? { backgroundColor: theme.colors.primary } : { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
+                    accessibilityRole="button"
+                    testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
+                  >
+                    {r} mi
+                  </Text>
+                ))}
+                <Text onPress={() => router.push('/ai-loads')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
+                <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
+              </ScrollView>
             </View>
           ) : null}
+
           {summaryLine ? (
-            <Text style={styles.summaryText} numberOfLines={1} testID="labelAIFilterSummary">{summaryLine}</Text>
-          ) : null}
-          {summaryLine ? (
-            <Text onPress={onResetFilters} style={styles.resetLink} accessibilityRole="button" testID="filtersReset">Reset</Text>
-          ) : null}
-          <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
-          <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
-          {SORT_DROPDOWN_ENABLED ? (
-            <SortDropdown
-              value={String(filters.sort ?? 'Best')}
-              options={sortOptions}
-              onChange={(next) => { setFilters({ ...filters, sort: next }); void setSortOrder(next as any); }}
-            />
-          ) : (
-            <Text
-              onPress={() => {
-                const opts = sortOptions;
-                const cur = String(filters.sort ?? 'Best');
-                const idx = opts.indexOf(cur);
-                const next = opts[(idx + 1) % opts.length];
-                setFilters({ ...filters, sort: next });
-              }}
-              style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
-              accessibilityRole="button"
-              testID="loads-sort"
-            >
-              {String(filters.sort ?? 'Best')}
-            </Text>
-          )}
-          {GEO_SORT_ENABLED && hasLocationPerm && String(filters.sort ?? 'Best') === 'Nearest' && (
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {[25, 50, 100, 250].map((r) => (
-                <Text
-                  key={r}
-                  onPress={() => { void setRadiusMiles(r); }}
-                  style={[styles.aiLink, r === radiusMiles ? { backgroundColor: theme.colors.primary } : { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
-                  accessibilityRole="button"
-                  testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
-                >
-                  {r} mi
-                </Text>
-              ))}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+              <Text style={styles.summaryText} numberOfLines={1} testID="labelAIFilterSummary">{summaryLine}</Text>
+              <Text onPress={onResetFilters} style={styles.resetLink} accessibilityRole="button" testID="filtersReset">Reset</Text>
             </View>
-          )}
+          ) : null}
         </View>
         <FlatList
           data={aiOrder ? (
@@ -521,6 +522,8 @@ export default function LoadsScreen() {
           ) : baseFiltered}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 10) + TABBAR_FALLBACK + 16 }
