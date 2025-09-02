@@ -67,6 +67,7 @@ export default function DashboardScreen() {
   const [destination, setDestination] = useState<string>('');
   const [minWeight, setMinWeight] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
+  const [nlQuery, setNlQuery] = useState<string>('');
 
   const sortOptionsBase = useMemo<SortOrder[]>(() => ['Best', 'Newest', 'Highest $', 'Lightest'], []);
   const { sortOrder, setSortOrder, isHydrating, radiusMiles, setRadiusMiles } = useSettings();
@@ -289,6 +290,18 @@ export default function DashboardScreen() {
     );
   }
 
+  const onSubmitNlSearch = useCallback(async () => {
+    const q = nlQuery.trim();
+    if (!q) return;
+    console.log('[Dashboard] Natural language search:', q);
+    // For now, just navigate to loads page with the query
+    router.push({ pathname: '/(tabs)/(loads)/loads', params: { nlQuery: q } });
+  }, [nlQuery, router]);
+
+  const handleNlQueryChange = useCallback((text: string) => {
+    setNlQuery(text);
+  }, []);
+
   const handleViewAll = useCallback(() => {
     const params: Record<string, string> = {};
     if (origin) params.origin = origin;
@@ -357,63 +370,54 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <View style={styles.filtersRow}>
-          <TextInput
-            style={styles.input}
-            placeholder="Origin"
-            placeholderTextColor={theme.colors.gray}
-            value={origin}
-            onChangeText={setOrigin}
-            testID="filter-origin"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Destination"
-            placeholderTextColor={theme.colors.gray}
-            value={destination}
-            onChangeText={setDestination}
-            testID="filter-destination"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Weight ≥"
-            placeholderTextColor={theme.colors.gray}
-            keyboardType="numeric"
-            value={minWeight}
-            onChangeText={setMinWeight}
-            testID="filter-weight"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Price ≥"
-            placeholderTextColor={theme.colors.gray}
-            keyboardType="numeric"
-            value={minPrice}
-            onChangeText={setMinPrice}
-            testID="filter-price"
-          />
+        <View style={styles.describeLoadRow}>
+          <View style={{ flex: 1 }}>
+            <TextInput
+              testID="describe-load-input"
+              value={nlQuery}
+              onChangeText={handleNlQueryChange}
+              placeholder={'Describe your load'}
+              placeholderTextColor={theme.colors.gray}
+              returnKeyType="search"
+              onSubmitEditing={onSubmitNlSearch}
+              style={[styles.input, { height: 34, paddingVertical: 4 }]}
+              accessibilityLabel="Natural language search"
+            />
+          </View>
+          <Text
+            onPress={onSubmitNlSearch}
+            accessibilityRole="button"
+            testID="describe-load-apply"
+            style={[styles.aiLink, { backgroundColor: theme.colors.primary, paddingVertical: 6 }]}
+          >
+            Apply
+          </Text>
+        </View>
 
-          {AI_COPILOT_CHIPS_ENABLED ? (
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
-                <Text style={styles.sortChipText}>Highest $/mi</Text>
-              </Text>
-              <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
-                <Text style={[styles.sortChipText, { color: theme.colors.white }]}>Near me</Text>
-              </Text>
-              <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
-                <Text style={styles.sortChipText}>Lightest</Text>
-              </Text>
-            </View>
-          ) : null}
+        {AI_COPILOT_CHIPS_ENABLED ? (
+          <View style={styles.filtersRow}>
+            <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
+              <Text style={styles.sortChipText}>Highest $/mi</Text>
+            </Text>
+            <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
+              <Text style={[styles.sortChipText, { color: theme.colors.white }]}>Near me</Text>
+            </Text>
+            <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
+              <Text style={styles.sortChipText}>Lightest</Text>
+            </Text>
+          </View>
+        ) : null}
 
-          {SORT_DROPDOWN_ENABLED ? (
+        {SORT_DROPDOWN_ENABLED ? (
+          <View style={styles.filtersRow}>
             <SortDropdown
               value={sort}
               options={currentSortOptions as readonly string[]}
               onChange={(v: string) => handleSortChange(v)}
             />
-          ) : (
+          </View>
+        ) : (
+          <View style={styles.filtersRow}>
             <TouchableOpacity
               style={styles.sortChip}
               onPress={() => {
@@ -427,23 +431,24 @@ export default function DashboardScreen() {
             >
               <Text style={styles.sortChipText}>{sort}</Text>
             </TouchableOpacity>
-          )}
-          {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {[25, 50, 100, 250].map((r) => (
-                <Text
-                  key={r}
-                  onPress={() => { void setRadiusMiles(r); }}
-                  style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: 8 }]}
-                  accessibilityRole="button"
-                  testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
-                >
-                  <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }}>{r} mi</Text>
-                </Text>
-              ))}
-            </View>
-          )}
-        </View>
+          </View>
+        )}
+        
+        {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
+          <View style={styles.filtersRow}>
+            {[25, 50, 100, 250].map((r) => (
+              <Text
+                key={r}
+                onPress={() => { void setRadiusMiles(r); }}
+                style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: 8 }]}
+                accessibilityRole="button"
+                testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
+              >
+                <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }}>{r} mi</Text>
+              </Text>
+            ))}
+          </View>
+        )}
 
         <View style={styles.sectionHeader}>
           {isHydrating && <Text style={styles.viewAllText}>Loading preferences…</Text>}
@@ -614,6 +619,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  describeLoadRow: {
+    marginTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiLink: {
+    backgroundColor: theme.colors.secondary,
+    color: theme.colors.white,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    textAlignVertical: 'center',
+    textAlign: 'center',
+    fontWeight: '800',
+    fontSize: theme.fontSize.sm,
+    lineHeight: 18,
+    overflow: 'hidden',
   },
   sectionTitle: {
     fontSize: theme.fontSize.lg,
