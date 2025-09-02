@@ -30,7 +30,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="(loads)"
+        name="(loads)/loads"
         options={{
           title: 'Loads',
           tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
