@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-native';
 import { mockLoads } from '@/mocks/loads';
-import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_RERANK_ENABLED } from '@/constants/flags';
+import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
 import { SortDropdown } from '@/components/SortDropdown';
 import { useSettings, type SortOrder } from '@/hooks/useSettings';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
@@ -78,12 +78,12 @@ export default function DashboardScreen() {
   const [distances, setDistances] = useState<Record<string, number>>({});
   const [aiRecentOrder, setAiRecentOrder] = useState<string[] | null>(null);
 
-  const handleSortChange = useCallback((next: SortOrder) => {
-    const opts: SortOrder[] = GEO_SORT_ENABLED && hasLocationPerm ? [...sortOptionsBase, 'Nearest'] : sortOptionsBase;
-    const valid = (opts as readonly SortOrder[]).find(o => o === next);
+  const handleSortChange = useCallback((next: string) => {
+    const opts: string[] = GEO_SORT_ENABLED && hasLocationPerm ? [...sortOptionsBase, 'Nearest'] : [...sortOptionsBase];
+    const valid = opts.find(o => o === next);
     if (valid) {
-      setSort(valid);
-      void setSortOrder(valid);
+      setSort(valid as SortOrder);
+      void setSortOrder(valid as SortOrder);
     }
   }, [hasLocationPerm, sortOptionsBase, setSortOrder]);
 
@@ -241,7 +241,33 @@ export default function DashboardScreen() {
       }
     })();
     return () => { aborted = true; };
-  }, [AI_RERANK_ENABLED, JSON.stringify(recentLoads.map(l => l.id)), currentLoc?.latitude, currentLoc?.longitude, user?.id, radiusMiles, JSON.stringify(distances)])
+  }, [AI_RERANK_ENABLED, JSON.stringify(recentLoads.map(l => l.id)), currentLoc?.latitude, currentLoc?.longitude, user?.id, radiusMiles, JSON.stringify(distances)]);
+
+  const applyChip = useCallback(async (chip: 'highest' | 'near' | 'lightest') => {
+    console.log('[Dashboard] Apply chip', chip);
+    if (chip === 'highest') {
+      const nextSort = 'Highest $';
+      setSort(nextSort as SortOrder);
+      await setSortOrder(nextSort as SortOrder);
+    } else if (chip === 'near') {
+      const nextSort = 'Nearest';
+      setSort(nextSort as any);
+      await setSortOrder(nextSort as any);
+      if ((radiusMiles ?? 0) <= 0) await setRadiusMiles(50);
+      try {
+        const ok = await requestPermissionAsync();
+        setHasLocationPerm(ok);
+        if (!ok) {
+          setSort('Best');
+          await setSortOrder('Best');
+        }
+      } catch {}
+    } else if (chip === 'lightest') {
+      const nextSort = 'Lightest';
+      setSort(nextSort as SortOrder);
+      await setSortOrder(nextSort as SortOrder);
+    }
+  }, [setSortOrder, radiusMiles, setRadiusMiles, requestPermissionAsync]);
 
   if (isLoading) {
     return (
@@ -366,11 +392,26 @@ export default function DashboardScreen() {
             onChangeText={setMinPrice}
             testID="filter-price"
           />
+
+          {AI_COPILOT_CHIPS_ENABLED ? (
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
+                <Text style={styles.sortChipText}>Highest $/mi</Text>
+              </Text>
+              <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
+                <Text style={[styles.sortChipText, { color: theme.colors.white }]}>Near me</Text>
+              </Text>
+              <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
+                <Text style={styles.sortChipText}>Lightest</Text>
+              </Text>
+            </View>
+          ) : null}
+
           {SORT_DROPDOWN_ENABLED ? (
             <SortDropdown
               value={sort}
               options={currentSortOptions as readonly string[]}
-              onChange={(v: string) => handleSortChange(v as SortOrder)}
+              onChange={(v: string) => handleSortChange(v)}
             />
           ) : (
             <TouchableOpacity
