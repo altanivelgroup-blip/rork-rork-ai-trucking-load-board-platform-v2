@@ -408,31 +408,7 @@ export default function DashboardScreen() {
           </View>
         ) : null}
 
-        {SORT_DROPDOWN_ENABLED ? (
-          <View style={styles.filtersRow}>
-            <SortDropdown
-              value={sort}
-              options={currentSortOptions as readonly string[]}
-              onChange={(v: string) => handleSortChange(v)}
-            />
-          </View>
-        ) : (
-          <View style={styles.filtersRow}>
-            <TouchableOpacity
-              style={styles.sortChip}
-              onPress={() => {
-                const opts = currentSortOptions as SortOrder[];
-                const idx = opts.indexOf(sort);
-                const next = opts[(idx + 1) % opts.length] as SortOrder;
-                setSort(next);
-              }}
-              testID="filter-sort"
-              accessibilityRole="button"
-            >
-              <Text style={styles.sortChipText}>{sort}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+
         
         {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
           <View style={styles.filtersRow}>
