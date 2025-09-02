@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback, useState, memo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Screen from '@/src/ui/Screen';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
@@ -272,21 +272,21 @@ export default function DashboardScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading dashboard...</Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Please log in to continue</Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -331,8 +331,8 @@ export default function DashboardScreen() {
   }, [sortOptionsBase, hasLocationPerm]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <Screen>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.container}>
         <ImageBackground
           source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/uzyvqegm8riqj7x0yy7p9' }}
           style={styles.hero}
@@ -488,7 +488,7 @@ export default function DashboardScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 

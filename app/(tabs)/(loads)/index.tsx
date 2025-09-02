@@ -11,7 +11,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
-
+import Screen from '@/src/ui/Screen';
 
 import { GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
 import { useSettings } from '@/hooks/useSettings';
@@ -419,7 +419,7 @@ export default function LoadsScreen() {
   }, [setFilters, setSortOrder, setRadiusMiles]);
 
   return (
-    <>
+    <Screen>
       <View style={styles.container}>
         <FilterBar
           selectedVehicle={filters.truckType as any}
@@ -486,7 +486,7 @@ export default function LoadsScreen() {
           testID="loads-flatlist"
         />
       </View>
-    </>
+    </Screen>
   );
 }
 
