@@ -20,26 +20,30 @@ import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 export default function LoadsScreen() {
   console.log('[LoadsScreen] Rendering loads screen');
   const router = useRouter();
-  const params = useLocalSearchParams<{ origin?: string; destination?: string; minWeight?: string; minPrice?: string; sort?: string }>();
+  const params = useLocalSearchParams<{ origin?: string; destination?: string; minWeight?: string; minPrice?: string; sort?: string; radius?: string }>();
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const { sortOrder, setSortOrder } = useSettings();
-  const [filters, setFilters] = useState<any>({ sort: sortOrder });
+  const { sortOrder, setSortOrder, radiusMiles, setRadiusMiles } = useSettings();
+  const [filters, setFilters] = useState<Record<string, unknown>>({ sort: sortOrder });
   const { startWatching, stopWatching, requestPermissionAsync } = useLiveLocation();
   const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
   const [distances, setDistances] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    const initial: any = {};
+    const initial: Record<string, unknown> = {};
     if (params.origin) initial.origin = String(params.origin);
     if (params.destination) initial.destination = String(params.destination);
     if (params.minWeight) initial.minWeight = String(params.minWeight);
     if (params.minPrice) initial.minPrice = String(params.minPrice);
     if (params.sort) initial.sort = String(params.sort);
+    if (params.radius) {
+      const r = parseInt(String(params.radius), 10);
+      if (!Number.isNaN(r)) void setRadiusMiles(r);
+    }
     if (Object.keys(initial).length > 0) {
-      setFilters((prev: any) => ({ ...prev, ...initial }));
+      setFilters((prev) => ({ ...prev, ...initial }));
       console.log('[LoadsScreen] Applied initial filters from params', initial);
     }
-  }, [params.origin, params.destination, params.minWeight, params.minPrice, params.sort]);
+  }, [params.origin, params.destination, params.minWeight, params.minPrice, params.sort, params.radius, setRadiusMiles]);
 
   const haversineMiles = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
     const R = 3958.8;
@@ -85,29 +89,41 @@ export default function LoadsScreen() {
   }, [currentLoc, haversineMiles]);
 
   const filteredLoads = useMemo(() => {
-    let list = mockLoads.slice();
-    const origin = (filters.origin ?? '').toLowerCase();
-    const destination = (filters.destination ?? '').toLowerCase();
-    const minW = parseInt(filters.minWeight ?? '', 10);
-    const minP = parseInt(filters.minPrice ?? '', 10);
+    let base = mockLoads.slice();
+    const origin = String(filters.origin ?? '').toLowerCase();
+    const destination = String(filters.destination ?? '').toLowerCase();
+    const minW = parseInt(String(filters.minWeight ?? ''), 10);
+    const minP = parseInt(String(filters.minPrice ?? ''), 10);
 
     if (origin) {
-      list = list.filter(l => `${l.origin?.city ?? ''}, ${l.origin?.state ?? ''}`.toLowerCase().includes(origin));
+      base = base.filter(l => `${l.origin?.city ?? ''}, ${l.origin?.state ?? ''}`.toLowerCase().includes(origin));
     }
     if (destination) {
-      list = list.filter(l => `${l.destination?.city ?? ''}, ${l.destination?.state ?? ''}`.toLowerCase().includes(destination));
+      base = base.filter(l => `${l.destination?.city ?? ''}, ${l.destination?.state ?? ''}`.toLowerCase().includes(destination));
     }
     if (!Number.isNaN(minW)) {
-      list = list.filter(l => (l.weight ?? 0) >= minW);
+      base = base.filter(l => (l.weight ?? 0) >= minW);
     }
     if (!Number.isNaN(minP)) {
-      list = list.filter(l => (l.rate ?? 0) >= minP);
+      base = base.filter(l => (l.rate ?? 0) >= minP);
     }
 
     const sort = String(filters.sort ?? 'Best');
+
+    const bestIndex: Record<string, number> = {};
+    base.forEach((l, idx) => { bestIndex[l.id] = idx; });
+
     if (sort === 'Nearest' && GEO_SORT_ENABLED && currentLoc) {
-      list.sort((a, b) => (distances[a.id] ?? Number.POSITIVE_INFINITY) - (distances[b.id] ?? Number.POSITIVE_INFINITY));
-    } else if (sort === 'Newest') {
+      const withDist = base.filter(l => typeof distances[l.id] === 'number' && !Number.isNaN(distances[l.id] as number))
+        .filter(l => (distances[l.id] as number) <= (radiusMiles ?? 50))
+        .sort((a, b) => (distances[a.id] as number) - (distances[b.id] as number));
+      const withoutDist = base.filter(l => typeof distances[l.id] !== 'number')
+        .sort((a, b) => (bestIndex[a.id] ?? 0) - (bestIndex[b.id] ?? 0));
+      return [...withDist, ...withoutDist];
+    }
+
+    const list = base.slice();
+    if (sort === 'Newest') {
       list.sort((a, b) => new Date(b.pickupDate ?? 0).getTime() - new Date(a.pickupDate ?? 0).getTime());
     } else if (sort === 'Highest $') {
       list.sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0));
@@ -115,7 +131,7 @@ export default function LoadsScreen() {
       list.sort((a, b) => (a.weight ?? 0) - (b.weight ?? 0));
     }
     return list;
-  }, [filters, currentLoc, distances]);
+  }, [filters, currentLoc, distances, radiusMiles]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -142,11 +158,11 @@ export default function LoadsScreen() {
     router.push({ pathname: '/load-details', params: { loadId } });
   }, [router]);
 
-  const renderItem = useCallback(({ item }: { item: typeof filteredLoads[number] }) => (
+  const renderItem = useCallback(({ item }: { item: (typeof filteredLoads)[number] }) => (
     <LoadCard load={item} onPress={() => handleLoadPress(item.id)} distanceMiles={distances[item.id]} />
   ), [handleLoadPress, filteredLoads, distances]);
 
-  const keyExtractor = useCallback((item: typeof filteredLoads[number]) => item.id, []);
+  const keyExtractor = useCallback((item: (typeof filteredLoads)[number]) => item.id, []);
 
   const getItemLayout = useCallback((_: unknown, index: number) => {
     const ITEM_HEIGHT = 188;
@@ -160,8 +176,8 @@ export default function LoadsScreen() {
     <>
       <View style={styles.container}>
         <FilterBar
-          selectedVehicle={filters.vehicleType}
-          showBackhaul={filters.showBackhaul}
+          selectedVehicle={filters.vehicleType as VehicleType | undefined}
+          showBackhaul={Boolean(filters.showBackhaul)}
           onVehicleSelect={handleVehicleSelect}
           onBackhaulToggle={handleBackhaulToggle}
           onOpenFilters={handleOpenFilters}
@@ -191,6 +207,19 @@ export default function LoadsScreen() {
               {String(filters.sort ?? 'Best')}
             </Text>
           )}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {[25, 50, 100, 250].map((r) => (
+              <Text
+                key={r}
+                onPress={() => { void setRadiusMiles(r); }}
+                style={[styles.aiLink, r === radiusMiles ? { backgroundColor: theme.colors.primary } : { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
+                accessibilityRole="button"
+                testID={`radius-${r}`}
+              >
+                {r} mi
+              </Text>
+            ))}
+          </View>
         </View>
         <FlatList
           data={filteredLoads}

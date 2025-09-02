@@ -12,7 +12,7 @@ export type ToggleKey =
   | 'autoSync'
   | 'offlineMode';
 
-export type SortOrder = 'Best' | 'Newest' | 'Highest $' | 'Lightest';
+export type SortOrder = 'Best' | 'Newest' | 'Highest $' | 'Lightest' | 'Nearest';
 
 interface SettingsState {
   pushNotifications: boolean;
@@ -24,9 +24,11 @@ interface SettingsState {
   autoSync: boolean;
   offlineMode: boolean;
   sortOrder: SortOrder;
+  radiusMiles: number;
   isHydrating: boolean;
   setToggle: (key: ToggleKey, value: boolean) => Promise<void>;
   setSortOrder: (value: SortOrder) => Promise<void>;
+  setRadiusMiles: (value: number) => Promise<void>;
   clearCache: () => Promise<void>;
   resetAll: () => Promise<void>;
 }
@@ -43,6 +45,7 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
   const [autoSync, setAutoSync] = useState<boolean>(true);
   const [offlineMode, setOfflineMode] = useState<boolean>(false);
   const [sortOrder, setSort] = useState<SortOrder>('Best');
+  const [radiusMiles, setRadius] = useState<number>(50);
   const [isHydrating, setIsHydrating] = useState<boolean>(true);
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
         console.log('[Settings] Hydrating from storage');
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
-          const data = JSON.parse(raw) as Partial<SettingsState> & { sortOrder?: SortOrder };
+          const data = JSON.parse(raw) as Partial<SettingsState> & { sortOrder?: SortOrder; radiusMiles?: number };
           setPushNotifications(!!data.pushNotifications);
           setEmailNotifications(!!data.emailNotifications);
           setSmsNotifications(!!data.smsNotifications);
@@ -60,8 +63,17 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
           setLocationServices(!!data.locationServices);
           setAutoSync(!!data.autoSync);
           setOfflineMode(!!data.offlineMode);
-          if (data.sortOrder === 'Best' || data.sortOrder === 'Newest' || data.sortOrder === 'Highest $' || data.sortOrder === 'Lightest') {
+          if (
+            data.sortOrder === 'Best' ||
+            data.sortOrder === 'Newest' ||
+            data.sortOrder === 'Highest $' ||
+            data.sortOrder === 'Lightest' ||
+            data.sortOrder === 'Nearest'
+          ) {
             setSort(data.sortOrder);
+          }
+          if (typeof data.radiusMiles === 'number' && !Number.isNaN(data.radiusMiles)) {
+            setRadius(data.radiusMiles);
           }
         }
       } catch (e) {
@@ -84,13 +96,14 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
         autoSync,
         offlineMode,
         sortOrder,
+        radiusMiles,
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       console.log('[Settings] Saved');
     } catch (e) {
       console.error('[Settings] save error', e);
     }
-  }, [pushNotifications, emailNotifications, smsNotifications, darkMode, soundEffects, locationServices, autoSync, offlineMode, sortOrder]);
+  }, [pushNotifications, emailNotifications, smsNotifications, darkMode, soundEffects, locationServices, autoSync, offlineMode, sortOrder, radiusMiles]);
 
   useEffect(() => {
     if (!isHydrating) {
@@ -143,6 +156,16 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
     }
   }, []);
 
+  const setRadiusMiles = useCallback(async (value: number) => {
+    try {
+      const safe = Math.max(1, Math.min(1000, Math.round(value)));
+      console.log('[Settings] setRadiusMiles', safe);
+      setRadius(safe);
+    } catch (e) {
+      console.error('[Settings] setRadiusMiles error', e);
+    }
+  }, []);
+
   const clearCache = useCallback(async () => {
     try {
       console.log('[Settings] clear cache');
@@ -167,6 +190,7 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
       setAutoSync(true);
       setOfflineMode(false);
       setSort('Best');
+      setRadius(50);
       await AsyncStorage.removeItem(STORAGE_KEY);
     } catch (e) {
       console.error('[Settings] reset error', e);
@@ -184,12 +208,14 @@ export const [SettingsProvider, useSettings] = createContextHook<SettingsState>(
     autoSync,
     offlineMode,
     sortOrder,
+    radiusMiles,
     isHydrating,
     setToggle,
     setSortOrder,
+    setRadiusMiles,
     clearCache,
     resetAll,
-  }), [pushNotifications, emailNotifications, smsNotifications, darkMode, soundEffects, locationServices, autoSync, offlineMode, sortOrder, isHydrating, setToggle, setSortOrder, clearCache, resetAll]);
+  }), [pushNotifications, emailNotifications, smsNotifications, darkMode, soundEffects, locationServices, autoSync, offlineMode, sortOrder, radiusMiles, isHydrating, setToggle, setSortOrder, setRadiusMiles, clearCache, resetAll]);
 
   return value;
 });

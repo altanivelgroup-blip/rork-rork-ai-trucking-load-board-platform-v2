@@ -68,7 +68,7 @@ export default function DashboardScreen() {
   const [minWeight, setMinWeight] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
   const sortOptions = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest', 'Nearest'] as const, []);
-  const { sortOrder, setSortOrder, isHydrating } = useSettings();
+  const { sortOrder, setSortOrder, isHydrating, radiusMiles, setRadiusMiles } = useSettings();
   const [sort, setSort] = useState<(typeof sortOptions)[number]>(sortOrder as (typeof sortOptions)[number]);
 
   const handleSortChange = useCallback((next: string) => {
@@ -156,8 +156,9 @@ export default function DashboardScreen() {
     if (minWeight) params.minWeight = minWeight;
     if (minPrice) params.minPrice = minPrice;
     if (sort) params.sort = sort;
+    if (radiusMiles) params.radius = String(radiusMiles);
     router.push({ pathname: '/(tabs)/(loads)/loads', params });
-  }, [router, origin, destination, minWeight, minPrice, sort]);
+  }, [router, origin, destination, minWeight, minPrice, sort, radiusMiles]);
 
   const handleOpenLoad = useCallback((loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
@@ -262,6 +263,19 @@ export default function DashboardScreen() {
               <Text style={styles.sortChipText}>{sort}</Text>
             </TouchableOpacity>
           )}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {[25, 50, 100, 250].map((r) => (
+              <Text
+                key={r}
+                onPress={() => { void setRadiusMiles(r); }}
+                style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: 8 }]}
+                accessibilityRole="button"
+                testID={`radius-${r}`}
+              >
+                <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }}>{r} mi</Text>
+              </Text>
+            ))}
+          </View>
         </View>
 
         <View style={styles.sectionHeader}>
