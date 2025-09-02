@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '@/components/Toast';
 
 export default function ToastHost() {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(30)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const insets = useSafeAreaInsets();
   
   const toast = useToast();
   const msg = toast?.messages?.[0];
@@ -41,8 +43,8 @@ export default function ToastHost() {
   if (!msg) return null;
 
   return (
-    <View style={styles.wrapper} pointerEvents="box-none">
-      <Animated.View style={[styles.toast, { backgroundColor: bg, opacity, transform: [{ translateY }] }]} testID="toast">
+    <View style={[styles.wrapper, { bottom: 24 + Math.max(insets.bottom, 0) + 84 }]} pointerEvents="none" testID="toastWrapper">
+      <Animated.View style={[styles.toast, { backgroundColor: bg, opacity, transform: [{ translateY }] }]} pointerEvents="none" testID="toast">
         <Text style={styles.text} numberOfLines={3}>{msg.text}</Text>
       </Animated.View>
     </View>
@@ -56,6 +58,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     alignItems: 'center',
+    zIndex: 1,
   },
   toast: {
     paddingHorizontal: 16,
