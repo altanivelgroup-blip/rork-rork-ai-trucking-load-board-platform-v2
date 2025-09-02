@@ -9,11 +9,13 @@ import { MaintenanceProvider } from "@/hooks/useMaintenance";
 import { SettingsProvider } from "@/hooks/useSettings";
 import { PostLoadProvider } from "@/hooks/usePostLoad";
 import { LoadsProvider } from "@/hooks/useLoads";
+import { AutoArriveProvider } from "@/hooks/useAutoArrive";
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import { theme } from "@/constants/theme";
+import AutoArriveSheet from "@/components/AutoArriveSheet";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -320,7 +322,10 @@ export default function RootLayout() {
                     <SettingsProvider>
                       <PostLoadProvider>
                         <ToastProvider>
-                          <RootLayoutNav />
+                          <AutoArriveProvider>
+                            <RootLayoutNav />
+                            <AutoArriveSheet />
+                          </AutoArriveProvider>
                           <ToastHost />
                         </ToastProvider>
                       </PostLoadProvider>
