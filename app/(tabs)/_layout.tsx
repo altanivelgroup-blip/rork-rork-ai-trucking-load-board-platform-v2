@@ -7,7 +7,7 @@ import { theme } from '@/constants/theme';
 export default function TabsLayout() {
   return (
     <Tabs
-      initialRouteName="dashboard"
+      initialRouteName="(loads)"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -23,17 +23,17 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
+        name="(loads)"
+        options={{
+          title: 'Loads',
+          tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="dashboard"
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="(loads)/loads"
-        options={{
-          title: 'Loads',
-          tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
         }}
       />
       <Tabs.Screen
