@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { theme } from '@/constants/theme';
 import { Mic, MapPin, Camera } from 'lucide-react-native';
 
@@ -28,6 +28,28 @@ export const PermissionEducation: React.FC<PermissionEducationProps> = memo(({ t
       ? 'We use your location to show nearby services and calculate route details. Location is only used while you use the app.'
       : 'We use the camera to scan documents or capture photos you choose to upload.';
 
+  if (Platform.OS === 'web') {
+    return visible ? (
+      <View style={styles.webBackdrop} testID={testID ?? 'permission-edu-backdrop'}>
+        <View style={styles.card}>
+          <View style={styles.iconWrap}>
+            <Icon size={24} color={theme.colors.primary} />
+          </View>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{desc}</Text>
+          <View style={styles.actions}>
+            <TouchableOpacity onPress={onCancel} style={[styles.btn, styles.btnGhost]} testID="permission-edu-cancel">
+              <Text style={[styles.btnText, styles.btnTextGhost]}>Not now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onContinue} style={[styles.btn, styles.btnPrimary]} testID="permission-edu-continue">
+              <Text style={[styles.btnText, styles.btnTextPrimary]}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    ) : null;
+  }
+
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
       <View style={styles.backdrop} testID={testID ?? 'permission-edu-backdrop'}>
@@ -55,6 +77,7 @@ PermissionEducation.displayName = 'PermissionEducation';
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  webBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 9999 },
   card: { width: '100%', maxWidth: 420, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.lg },
   iconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   title: { marginTop: theme.spacing.md, fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark },
