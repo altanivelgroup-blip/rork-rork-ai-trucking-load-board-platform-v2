@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 3,
-    maxWidth: 680,
+    maxWidth: '90%',
   },
   text: {
     color: '#ffffff',

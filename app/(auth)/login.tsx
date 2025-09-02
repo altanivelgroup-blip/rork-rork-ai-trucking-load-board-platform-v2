@@ -16,6 +16,7 @@ import { Mail, Lock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { moderateScale } from '@/src/ui/scale';
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
@@ -142,9 +143,9 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl * 2,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 24,
+    width: moderateScale(120),
+    height: moderateScale(120),
+    borderRadius: moderateScale(24),
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
@@ -152,9 +153,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 24,
+    width: moderateScale(120),
+    height: moderateScale(120),
+    borderRadius: moderateScale(24),
   },
   title: {
     fontSize: theme.fontSize.xxl,

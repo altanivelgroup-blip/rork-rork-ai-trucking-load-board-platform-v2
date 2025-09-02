@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Dimensions
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { ShieldCheck, Truck, Sparkles } from 'lucide-react-native';
+import { moderateScale } from '@/src/ui/scale';
 
 const HERO = 'https://images.unsplash.com/photo-1501706362039-c06b2d715385?q=80&w=1600&auto=format&fit=crop';
 const CARD1 = 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1600&auto=format&fit=crop';
@@ -65,7 +66,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
   scroll: { paddingBottom: theme.spacing.xl },
-  heroWrap: { position: 'relative', width: '100%', height: Math.min(520, Math.max(360, Dimensions.get('window').height * 0.6)) },
+  heroWrap: { position: 'relative', width: '100%', height: Math.min(moderateScale(520), Math.max(moderateScale(360), Dimensions.get('window').height * 0.6)) },
   hero: { position: 'absolute', width: '100%', height: '100%', top: 0, left: 0 },
   heroOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
   heroContent: { position: 'absolute', bottom: 24, left: 20, right: 20, gap: 10 },
@@ -78,9 +79,9 @@ const styles = StyleSheet.create({
 
   cardsRow: { paddingHorizontal: 16, marginTop: 16 },
   card: { backgroundColor: theme.colors.white, borderRadius: 16, overflow: 'hidden', marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 1 },
-  cardImage: { width: '100%', height: 140 },
+  cardImage: { width: '100%', height: moderateScale(140) },
   cardBody: { padding: 12 },
-  cardIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  cardIcon: { width: moderateScale(28), height: moderateScale(28), borderRadius: moderateScale(14), backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', marginBottom: moderateScale(8) },
   cardTitle: { fontSize: theme.fontSize.md, fontWeight: '700' as const, color: theme.colors.dark, marginBottom: 4 },
   cardText: { color: theme.colors.gray, fontSize: theme.fontSize.sm },
 

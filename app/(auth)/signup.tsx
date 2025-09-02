@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { moderateScale } from '@/src/ui/scale';
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/26wbvri4j4j5lt84ceaac';
 
@@ -98,9 +99,9 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: theme.spacing.lg },
   header: { alignItems: 'center', marginBottom: theme.spacing.xl },
   logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 24,
+    width: moderateScale(100),
+    height: moderateScale(100),
+    borderRadius: moderateScale(24),
     backgroundColor: theme.colors.lightGray,
     justifyContent: 'center',
     alignItems: 'center',
@@ -108,9 +109,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 24,
+    width: moderateScale(100),
+    height: moderateScale(100),
+    borderRadius: moderateScale(24),
   },
   title: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.dark, marginTop: theme.spacing.sm },
   subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 2 },
