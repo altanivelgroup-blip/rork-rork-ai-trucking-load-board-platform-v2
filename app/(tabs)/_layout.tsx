@@ -27,17 +27,17 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
         name="(loads)"
         options={{
           title: 'Loads',
           tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
       <Tabs.Screen
