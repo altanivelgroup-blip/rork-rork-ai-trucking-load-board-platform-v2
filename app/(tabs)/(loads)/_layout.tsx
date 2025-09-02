@@ -25,7 +25,7 @@ export default function LoadsLayout() {
   }), []);
 
   return (
-    <Stack screenOptions={screenOptions}>
+    <Stack initialRouteName="loads" screenOptions={screenOptions}>
       <Stack.Screen name="loads" options={loadsOptions} />
     </Stack>
   );
