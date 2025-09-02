@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-native';
 import { mockLoads } from '@/mocks/loads';
-import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED } from '@/constants/flags';
+import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_RERANK_ENABLED } from '@/constants/flags';
 import { SortDropdown } from '@/components/SortDropdown';
 import { useSettings, type SortOrder } from '@/hooks/useSettings';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
@@ -76,6 +76,7 @@ export default function DashboardScreen() {
   const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
   const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
   const [distances, setDistances] = useState<Record<string, number>>({});
+  const [aiRecentOrder, setAiRecentOrder] = useState<string[] | null>(null);
 
   const handleSortChange = useCallback((next: SortOrder) => {
     const opts: SortOrder[] = GEO_SORT_ENABLED && hasLocationPerm ? [...sortOptionsBase, 'Nearest'] : sortOptionsBase;
@@ -145,6 +146,46 @@ export default function DashboardScreen() {
     }
     setDistances(map);
   }, [currentLoc, recentLoads, haversineMiles]);
+
+  useEffect(() => {
+    let aborted = false;
+    (async () => {
+      if (!AI_RERANK_ENABLED) { setAiRecentOrder(null); return; }
+      try {
+        const payload = {
+          loads: recentLoads,
+          prefs: {
+            homeBase: (user as any)?.homeBase ?? null,
+            favoriteLanes: (user as any)?.favoriteLanes ?? [],
+            truckType: (user?.vehicleTypes && user.vehicleTypes.length > 0 ? user.vehicleTypes[0] : null),
+          },
+          context: {
+            currentLocation: currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null,
+          },
+        };
+        console.log('[Dashboard] AI rerank request for recent loads', { size: recentLoads.length });
+        const res = await fetch('/ai/rerankLoads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          console.warn('[Dashboard] AI rerank failed', res.status);
+          if (!aborted) setAiRecentOrder(null);
+          return;
+        }
+        const data: any = await res.json();
+        const ids: string[] = Array.isArray(data?.ids) ? data.ids : (Array.isArray(data?.order) ? data.order : []);
+        const allowed = new Set(recentLoads.map(l => l.id));
+        const clean = ids.filter((id) => allowed.has(id));
+        if (!aborted) setAiRecentOrder(clean.length > 0 ? clean : null);
+      } catch (e) {
+        console.warn('[Dashboard] AI rerank error', e);
+        if (!aborted) setAiRecentOrder(null);
+      }
+    })();
+    return () => { aborted = true; };
+  }, [AI_RERANK_ENABLED, JSON.stringify(recentLoads.map(l => l.id)), currentLoc?.latitude, currentLoc?.longitude, user?.id]);
 
   if (isLoading) {
     return (
@@ -319,7 +360,13 @@ export default function DashboardScreen() {
         </View>
 
         <View>
-          {recentLoads?.map((l) => (
+          {(aiRecentOrder ? (() => {
+            const map = new Map(recentLoads.map(l => [l.id, l] as const));
+            const ordered = [] as typeof recentLoads;
+            aiRecentOrder.forEach(id => { const it = map.get(id); if (it) ordered.push(it); });
+            recentLoads.forEach(l => { if (aiRecentOrder.indexOf(l.id) === -1) ordered.push(l); });
+            return ordered;
+          })() : recentLoads)?.map((l) => (
             <RecentLoadRow
               key={l.id}
               id={l.id}
