@@ -11,7 +11,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
 import { SortDropdown } from '@/components/SortDropdown';
-import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED, AI_RERANK_ENABLED } from '@/constants/flags';
+import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
 import { useSettings } from '@/hooks/useSettings';
 import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
@@ -196,6 +196,34 @@ export default function LoadsScreen() {
     console.log('Voice search:', text);
   }, []);
 
+  const applyChip = useCallback(async (chip: 'highest' | 'near' | 'lightest' | 'new') => {
+    console.log('[LoadsScreen] Apply chip', chip);
+    if (chip === 'highest') {
+      const nextSort = 'Highest $';
+      setFilters(prev => ({ ...prev, sort: nextSort }));
+      await setSortOrder(nextSort as any);
+    } else if (chip === 'near') {
+      const nextSort = 'Nearest';
+      setFilters(prev => ({ ...prev, sort: nextSort }));
+      await setSortOrder(nextSort as any);
+      if ((radiusMiles ?? 0) <= 0) await setRadiusMiles(50);
+    } else if (chip === 'lightest') {
+      const nextSort = 'Lightest';
+      setFilters(prev => ({ ...prev, sort: nextSort }));
+      await setSortOrder(nextSort as any);
+    } else if (chip === 'new') {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const iso = `${yyyy}-${mm}-${dd}`;
+      setFilters(prev => ({ ...prev, sort: 'Newest', dateFrom: iso, dateTo: iso } as Record<string, unknown>));
+      await setSortOrder('Newest' as any);
+    }
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 350);
+  }, [setFilters, setSortOrder, radiusMiles, setRadiusMiles]);
+
   const handleLoadPress = useCallback((loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
   }, [router]);
@@ -294,6 +322,34 @@ export default function LoadsScreen() {
     }
   }, [AI_NL_SEARCH_ENABLED, nlQuery, filters, setRadiusMiles]);
 
+  const summaryLine = useMemo(() => {
+    const parts: string[] = [];
+    const origin = String(filters.origin ?? '').trim();
+    const destination = String(filters.destination ?? '').trim();
+    if (origin || destination) {
+      parts.push(`${origin || 'Anywhere'} → ${destination || 'Anywhere'}`);
+    }
+    const maxW = String(filters.maxWeight ?? '').trim();
+    if (maxW) parts.push(`≤${maxW} lbs`);
+    const minP = String(filters.minPrice ?? '').trim();
+    if (minP) parts.push(`≥$${minP}`);
+    const dateFrom = String((filters as any).dateFrom ?? '').trim();
+    const dateTo = String((filters as any).dateTo ?? '').trim();
+    if (dateFrom && dateTo && dateFrom === dateTo) parts.push('Today');
+    else if (dateFrom || dateTo) parts.push(`${dateFrom || 'Any'}—${dateTo || 'Any'}`);
+    const isNearest = String(filters.sort ?? 'Best') === 'Nearest';
+    if (isNearest && hasLocationPerm) parts.push(`${radiusMiles ?? 50}mi`);
+    return parts.join(' • ');
+  }, [filters, hasLocationPerm, radiusMiles]);
+
+  const onResetFilters = useCallback(async () => {
+    const next: Record<string, unknown> = { sort: 'Best' };
+    setFilters(next);
+    await setSortOrder('Best' as any);
+    await setRadiusMiles(50);
+    setNlQuery('');
+  }, [setFilters, setSortOrder, setRadiusMiles]);
+
   return (
     <>
       <View style={styles.container}>
@@ -324,10 +380,25 @@ export default function LoadsScreen() {
                 onPress={onSubmitNlSearch}
                 accessibilityRole="button"
                 testID="nlSearchSubmit"
-                style={[styles.aiLink, { backgroundColor: theme.colors.primary }]}>
+                style={[styles.aiLink, { backgroundColor: theme.colors.primary }]}
+              >
                 Apply
               </Text>
             </View>
+          ) : null}
+          {AI_COPILOT_CHIPS_ENABLED ? (
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+              <Text onPress={() => void applyChip('highest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipHighest">Highest $/mi</Text>
+              <Text onPress={() => void applyChip('near')} style={[styles.aiLink, { backgroundColor: theme.colors.secondary }]} accessibilityRole="button" testID="chipNear">Near me</Text>
+              <Text onPress={() => void applyChip('lightest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipLightest">Lightest</Text>
+              <Text onPress={() => void applyChip('new')} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNew">New Today</Text>
+            </View>
+          ) : null}
+          {summaryLine ? (
+            <Text style={styles.summaryText} numberOfLines={1} testID="filtersSummary">{summaryLine}</Text>
+          ) : null}
+          {summaryLine ? (
+            <Text onPress={onResetFilters} style={styles.resetLink} accessibilityRole="button" testID="filtersReset">Reset</Text>
           ) : null}
           <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
           <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
@@ -447,6 +518,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '800',
     overflow: 'hidden',
+  },
+  summaryText: {
+    color: theme.colors.gray,
+    fontSize: theme.fontSize.sm,
+    paddingHorizontal: 6,
+  },
+  resetLink: {
+    color: theme.colors.primary,
+    fontSize: theme.fontSize.sm,
+    textDecorationLine: 'underline',
   },
   input: {
     backgroundColor: theme.colors.white,
