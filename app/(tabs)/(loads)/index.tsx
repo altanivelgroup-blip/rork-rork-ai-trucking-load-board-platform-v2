@@ -436,42 +436,14 @@ export default function LoadsScreen() {
           onSetRadius={setRadiusMiles}
         />
 
-        <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xs }}>
-          {AI_NL_SEARCH_ENABLED ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View style={{ flex: 1 }}>
-                <TextInput
-                  testID="aiSearchInput"
-                  value={nlQuery}
-                  onChangeText={setNlQuery}
-                  placeholder={'Describe your load'}
-                  placeholderTextColor={theme.colors.gray}
-                  returnKeyType="search"
-                  onSubmitEditing={onSubmitNlSearch}
-                  style={[styles.input, { height: 34, paddingVertical: 4 }]}
-                  accessibilityLabel="Natural language search"
-                />
-              </View>
-              <Text
-                onPress={onSubmitNlSearch}
-                accessibilityRole="button"
-                testID="nlSearchSubmit"
-                style={[styles.aiLink, { backgroundColor: theme.colors.primary, paddingVertical: 6 }]}
-              >
-                Apply
-              </Text>
-            </View>
-          ) : null}
-
-
-
-          {summaryLine ? (
+        {summaryLine ? (
+          <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xs }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
               <Text style={styles.summaryText} numberOfLines={1} testID="labelAIFilterSummary">{summaryLine}</Text>
               <Text onPress={onResetFilters} style={styles.resetLink} accessibilityRole="button" testID="filtersReset">Reset</Text>
             </View>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
         <FlatList
           data={aiOrder ? (
             (() => {
