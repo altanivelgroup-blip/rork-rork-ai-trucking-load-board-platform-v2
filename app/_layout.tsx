@@ -51,7 +51,7 @@ function RootLayoutNav() {
           title: "Load Details",
           presentation: "modal",
           headerLeft: ({ tintColor }) => (
-            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/(tabs)/(loads)" />
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/(tabs)" />
           ),
         }} 
       />
@@ -147,7 +147,7 @@ function RootLayoutNav() {
           title: "Pickup & Delivery Photos",
           presentation: "modal",
           headerLeft: ({ tintColor }) => (
-            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/(tabs)/(loads)" />
+            <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} fallbackPath="/(tabs)" />
           ),
         }} 
       />

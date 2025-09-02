@@ -39,43 +39,42 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
   }, [toggleFavorite, load.id]);
 
   return (
-    <Pressable
-      style={styles.container}
-      onPress={handleCardPress}
-      accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
-      accessibilityLabel={Platform.OS === 'web' ? undefined : 'Open load details'}
-      testID="load-card"
-    >
-      {load.aiScore && load.aiScore > 90 && (
-        <View style={styles.aiRecommended}>
-          <TrendingUp size={14} color={theme.colors.white} />
-          <Text style={styles.aiText}>AI Match {load.aiScore}%</Text>
-        </View>
-      )}
-      
-      <View style={styles.header}>
-        <View style={[styles.vehicleTag, { backgroundColor: vehicleColor }]}>
-          <Text style={styles.vehicleText}>{load.vehicleType.replace('-', ' ').toUpperCase()}</Text>
-        </View>
-        {load.isBackhaul && (
-          <View style={styles.backhaulTag}>
-            <Text style={styles.backhaulText}>BACKHAUL</Text>
-          </View>
-        )}
-        <Pressable
-          onPress={handleFavPress}
-          accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
-          accessibilityLabel={Platform.OS === 'web' ? undefined : (fav ? 'Unfavorite load' : 'Favorite load')}
-          testID={`favorite-${load.id}`}
-          style={styles.favButton}
+    <>
+      {Platform.OS === 'web' ? (
+        <View
+          style={styles.container}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={handleCardPress}
+          testID="load-card"
         >
-          <Heart
-            size={20}
-            color={fav ? theme.colors.danger : theme.colors.gray}
-            fill={fav ? theme.colors.danger : 'transparent'}
-          />
-        </Pressable>
-      </View>
+          {load.aiScore && load.aiScore > 90 && (
+            <View style={styles.aiRecommended}>
+              <TrendingUp size={14} color={theme.colors.white} />
+              <Text style={styles.aiText}>AI Match {load.aiScore}%</Text>
+            </View>
+          )}
+
+          <View style={styles.header}>
+            <View style={[styles.vehicleTag, { backgroundColor: vehicleColor }]}>
+              <Text style={styles.vehicleText}>{load.vehicleType.replace('-', ' ').toUpperCase()}</Text>
+            </View>
+            {load.isBackhaul && (
+              <View style={styles.backhaulTag}>
+                <Text style={styles.backhaulText}>BACKHAUL</Text>
+              </View>
+            )}
+            <Pressable
+              onPress={handleFavPress}
+              testID={`favorite-${load.id}`}
+              style={styles.favButton}
+            >
+              <Heart
+                size={20}
+                color={fav ? theme.colors.danger : theme.colors.gray}
+                fill={fav ? theme.colors.danger : 'transparent'}
+              />
+            </Pressable>
+          </View>
 
       <View style={styles.route}>
         <View style={styles.location}>
@@ -125,7 +124,97 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
       <Text style={styles.description} numberOfLines={2}>{load.description}</Text>
       
       <Text style={styles.shipper}>{load.shipperName}</Text>
-    </Pressable>
+        </View>
+      ) : (
+        <Pressable
+          style={styles.container}
+          onPress={handleCardPress}
+          accessibilityRole={'button'}
+          accessibilityLabel={'Open load details'}
+          testID="load-card"
+        >
+          {load.aiScore && load.aiScore > 90 && (
+            <View style={styles.aiRecommended}>
+              <TrendingUp size={14} color={theme.colors.white} />
+              <Text style={styles.aiText}>AI Match {load.aiScore}%</Text>
+            </View>
+          )}
+
+          <View style={styles.header}>
+            <View style={[styles.vehicleTag, { backgroundColor: vehicleColor }]}>
+              <Text style={styles.vehicleText}>{load.vehicleType.replace('-', ' ').toUpperCase()}</Text>
+            </View>
+            {load.isBackhaul && (
+              <View style={styles.backhaulTag}>
+                <Text style={styles.backhaulText}>BACKHAUL</Text>
+              </View>
+            )}
+            <Pressable
+              onPress={handleFavPress}
+              accessibilityRole={'button'}
+              accessibilityLabel={(fav ? 'Unfavorite load' : 'Favorite load')}
+              testID={`favorite-${load.id}`}
+              style={styles.favButton}
+            >
+              <Heart
+                size={20}
+                color={fav ? theme.colors.danger : theme.colors.gray}
+                fill={fav ? theme.colors.danger : 'transparent'}
+              />
+            </Pressable>
+          </View>
+
+          <View style={styles.route}>
+            <View style={styles.location}>
+              <MapPin size={16} color={theme.colors.gray} />
+              <View style={styles.locationText}>
+                <Text style={styles.city}>{load.origin.city}, {load.origin.state}</Text>
+                <Text style={styles.date}>{new Date(load.pickupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.divider}>
+              <Text style={styles.distance} testID="labelDistance">{typeof distanceMiles === 'number' ? `${distanceMiles.toFixed(1)} mi` : `${load.distance} mi`}</Text>
+            </View>
+            
+            <View style={styles.location}>
+              <MapPin size={16} color={theme.colors.gray} />
+              <View style={styles.locationText}>
+                <Text style={styles.city}>{load.destination.city}, {load.destination.state}</Text>
+                <Text style={styles.date}>{new Date(load.deliveryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.details}>
+            <View style={styles.detailItem}>
+              <Package size={14} color={theme.colors.gray} />
+              <Text style={styles.detailText}>{load.weight.toLocaleString()} lbs</Text>
+            </View>
+            
+            <View style={styles.detailItem}>
+              <DollarSign size={14} color={theme.colors.success} />
+              <Text style={styles.rate}>{formatCurrency(load.rate)}</Text>
+              <Text style={styles.ratePerMile}>(${load.ratePerMile.toFixed(2)}/mi)</Text>
+            </View>
+          </View>
+
+          {fuel ? (
+            <View style={styles.fuelRow} testID="fuel-estimate-row">
+              <Fuel size={14} color={theme.colors.gray} />
+              <Text style={styles.fuelText}>
+                Est fuel {fuel.gallons.toFixed(1)} gal • {formatCurrency(fuel.cost)}
+              </Text>
+              <Text style={styles.fuelMeta}>@ {fuel.mpg.toFixed(1)} mpg • {formatCurrency(fuel.pricePerGallon)}/gal</Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.description} numberOfLines={2}>{load.description}</Text>
+          
+          <Text style={styles.shipper}>{load.shipperName}</Text>
+        </Pressable>
+      )}
+    </>
   );
 };
 
