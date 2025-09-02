@@ -1,5 +1,18 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Animated, Easing, ActionSheetIOS, LayoutChangeEvent, findNodeHandle, UIManager } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  Modal,
+  Animated,
+  Easing,
+  ActionSheetIOS,
+  LayoutChangeEvent,
+  findNodeHandle,
+  UIManager,
+} from 'react-native';
 import { theme } from '@/constants/theme';
 
 interface SortDropdownProps {
@@ -54,7 +67,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
 
     setIsOpen(true);
     Animated.timing(anim, { toValue: 1, duration: 160, useNativeDriver: false, easing: Easing.out(Easing.quad) }).start();
-  }, [ActionSheetIOS, Platform.OS, options, onChange, anim]);
+  }, [options, onChange, anim]);
 
   const closeMenu = useCallback(() => {
     Animated.timing(anim, { toValue: 0, duration: 140, useNativeDriver: false, easing: Easing.in(Easing.quad) }).start(({ finished }) => {
@@ -62,10 +75,13 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
     });
   }, [anim]);
 
-  const handleSelect = useCallback((opt: string) => {
-    onChange(opt);
-    closeMenu();
-  }, [onChange, closeMenu]);
+  const handleSelect = useCallback(
+    (opt: string) => {
+      onChange(opt);
+      closeMenu();
+    },
+    [onChange, closeMenu]
+  );
 
   const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
@@ -78,14 +94,32 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
 
   const label = useMemo(() => `Sort: ${value}`, [value]);
 
+  const getOptionTestId = (opt: string) => {
+    switch (opt) {
+      case 'Best':
+        return 'optSortBest';
+      case 'Newest':
+        return 'optSortNewest';
+      case 'Highest $':
+        return 'optSortHighest';
+      case 'Lightest':
+        return 'optSortLightest';
+      default:
+        return `optSort-${opt}`;
+    }
+  };
+
   return (
     <>
       <TouchableOpacity
-        ref={(r) => { buttonRef.current = (r as unknown as View | null); }}
+        ref={(r) => {
+          buttonRef.current = (r as unknown as View | null);
+        }}
         onPress={openMenu}
         style={styles.sortChip}
-        testID={testID ?? 'sort-dropdown-button'}
+        testID={testID ?? 'btnSort'}
         accessibilityRole="button"
+        accessibilityLabel="Open sort menu"
         onLayout={onButtonLayout}
       >
         <Text style={styles.sortChipText}>{label}</Text>
@@ -95,12 +129,29 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
       {Platform.OS === 'web' && isOpen && (
         <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
           <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={closeMenu} />
-          <Animated.View style={[styles.webMenu, { top: anchorY, left: anchorX, width: menuWidth, opacity, transform: [{ translateY }] }]}>
-            {options.map((opt) => (
-              <TouchableOpacity key={opt} style={styles.menuItem} onPress={() => handleSelect(opt)} accessibilityRole="button" testID={`sort-option-${opt}`}>
-                <Text style={[styles.menuItemText, opt === value && styles.menuItemTextActive]}>{opt}</Text>
-              </TouchableOpacity>
-            ))}
+          <Animated.View
+            style={[styles.webMenu, { top: anchorY, left: anchorX, width: menuWidth, opacity, transform: [{ translateY }] }]}
+            testID="menuSort"
+          >
+            {options.map((opt) => {
+              const isActive = opt === value;
+              const optId = getOptionTestId(opt);
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  style={styles.menuItem}
+                  onPress={() => handleSelect(opt)}
+                  accessibilityRole={Platform.OS === 'web' ? ('menuitemradio' as any) : 'button'}
+                  accessibilityState={{ selected: isActive }}
+                  testID={optId}
+                >
+                  <Text style={[styles.menuItemText, isActive && styles.menuItemTextActive]}>
+                    {isActive ? '✓ ' : ''}
+                    {opt}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </Animated.View>
         </View>
       )}
@@ -108,14 +159,27 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
       {Platform.OS === 'android' && (
         <Modal transparent visible={isOpen} animationType="none" onRequestClose={closeMenu}>
           <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={closeMenu} />
-          <Animated.View style={[styles.sheet, { opacity, transform: [{ translateY }] }]}
-            testID="sort-bottom-sheet">
+          <Animated.View style={[styles.sheet, { opacity, transform: [{ translateY }] }]} testID="menuSort">
             <View style={styles.sheetHandle} />
-            {options.map((opt) => (
-              <TouchableOpacity key={opt} style={styles.sheetItem} onPress={() => handleSelect(opt)} accessibilityRole="button" testID={`sort-option-${opt}`}>
-                <Text style={[styles.sheetItemText, opt === value && styles.sheetItemTextActive]}>{opt}</Text>
-              </TouchableOpacity>
-            ))}
+            {options.map((opt) => {
+              const isActive = opt === value;
+              const optId = getOptionTestId(opt);
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  style={styles.sheetItem}
+                  onPress={() => handleSelect(opt)}
+                  accessibilityRole={Platform.OS === 'web' ? ('menuitemradio' as any) : 'button'}
+                  accessibilityState={{ selected: isActive }}
+                  testID={optId}
+                >
+                  <Text style={[styles.sheetItemText, isActive && styles.sheetItemTextActive]}>
+                    {isActive ? '✓ ' : ''}
+                    {opt}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </Animated.View>
         </Modal>
       )}

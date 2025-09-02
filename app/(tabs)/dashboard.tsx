@@ -197,7 +197,7 @@ export default function DashboardScreen() {
             testID="filter-price"
           />
           {SORT_DROPDOWN_ENABLED ? (
-            <SortDropdown value={sort} options={sortOptions as unknown as string[]} onChange={handleSortChange} testID="filter-sort" />
+            <SortDropdown value={sort} options={sortOptions as unknown as string[]} onChange={handleSortChange} />
           ) : (
             <TouchableOpacity
               style={styles.sortChip}

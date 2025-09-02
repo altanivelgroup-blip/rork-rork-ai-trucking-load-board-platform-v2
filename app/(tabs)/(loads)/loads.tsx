@@ -125,7 +125,6 @@ export default function LoadsScreen() {
               value={String(filters.sort ?? 'Best')}
               options={['Best', 'Newest', 'Highest $', 'Lightest']}
               onChange={(next) => { setFilters({ ...filters, sort: next }); void setSortOrder(next as any); }}
-              testID="loads-sort"
             />
           ) : (
             <Text
