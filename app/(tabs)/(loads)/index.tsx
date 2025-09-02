@@ -12,6 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
 import Screen from '@/src/ui/Screen';
+import { font, moderateScale } from '@/src/ui/scale';
 
 import { GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
 import { useSettings } from '@/hooks/useSettings';
@@ -437,8 +438,8 @@ export default function LoadsScreen() {
         />
 
         {summaryLine ? (
-          <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xs }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+          <View style={{ paddingHorizontal: moderateScale(16), paddingBottom: moderateScale(8) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: moderateScale(4) }}>
               <Text style={styles.summaryText} numberOfLines={1} testID="labelAIFilterSummary">{summaryLine}</Text>
               <Text onPress={onResetFilters} style={styles.resetLink} accessibilityRole="button" testID="filtersReset">Reset</Text>
             </View>
@@ -463,7 +464,7 @@ export default function LoadsScreen() {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: Math.max(insets.bottom, 10) + TABBAR_FALLBACK + 16 }
+            { paddingBottom: Math.max(insets.bottom, moderateScale(10)) + TABBAR_FALLBACK + moderateScale(16) }
           ]}
           refreshControl={
             <RefreshControl
@@ -501,56 +502,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listContent: {
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: moderateScale(12),
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 100,
+    paddingTop: moderateScale(100),
   },
   emptyText: {
-    fontSize: theme.fontSize.lg,
+    fontSize: font(18),
     color: theme.colors.gray,
-    marginBottom: theme.spacing.xs,
+    marginBottom: moderateScale(8),
   },
   emptySubtext: {
-    fontSize: theme.fontSize.sm,
+    fontSize: font(14),
     color: theme.colors.gray,
   },
   aiLink: {
     backgroundColor: theme.colors.secondary,
     color: theme.colors.white,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(6),
+    borderRadius: moderateScale(10),
     textAlignVertical: 'center',
     textAlign: 'center',
     fontWeight: '800',
-    fontSize: theme.fontSize.sm,
-    lineHeight: 18,
+    fontSize: font(14),
+    lineHeight: font(18),
     overflow: 'hidden',
   },
   summaryText: {
     color: theme.colors.gray,
-    fontSize: theme.fontSize.sm,
-    paddingHorizontal: 6,
+    fontSize: font(14),
+    paddingHorizontal: moderateScale(6),
   },
   resetLink: {
     color: theme.colors.primary,
-    fontSize: theme.fontSize.sm,
+    fontSize: font(14),
     textDecorationLine: 'underline',
   },
   input: {
     backgroundColor: theme.colors.white,
     color: theme.colors.dark,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    height: 36,
-    borderRadius: 8,
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(6),
+    height: moderateScale(36),
+    borderRadius: moderateScale(8),
     borderWidth: 1,
     borderColor: theme.colors.lightGray,
-    minWidth: 160,
+    minWidth: moderateScale(160),
     flexGrow: 1,
   },
 });
