@@ -580,11 +580,14 @@ const styles = StyleSheet.create({
   aiLink: {
     backgroundColor: theme.colors.secondary,
     color: theme.colors.white,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 10,
     textAlignVertical: 'center',
     textAlign: 'center',
     fontWeight: '800',
+    fontSize: theme.fontSize.sm,
+    lineHeight: 18,
     overflow: 'hidden',
   },
   summaryText: {
@@ -600,8 +603,9 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: theme.colors.white,
     color: theme.colors.dark,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    height: 36,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.lightGray,
