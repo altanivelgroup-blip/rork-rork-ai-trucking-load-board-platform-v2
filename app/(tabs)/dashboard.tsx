@@ -8,7 +8,7 @@ import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-nati
 import { mockLoads } from '@/mocks/loads';
 import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED } from '@/constants/flags';
 import { SortDropdown } from '@/components/SortDropdown';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings, type SortOrder } from '@/hooks/useSettings';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 
 interface RecentLoadProps {
@@ -68,21 +68,21 @@ export default function DashboardScreen() {
   const [minWeight, setMinWeight] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
 
-  const sortOptionsBase = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest'] as const, []);
+  const sortOptionsBase = useMemo<SortOrder[]>(() => ['Best', 'Newest', 'Highest $', 'Lightest'], []);
   const { sortOrder, setSortOrder, isHydrating, radiusMiles, setRadiusMiles } = useSettings();
-  const [sort, setSort] = useState<string>(sortOrder as string);
+  const [sort, setSort] = useState<SortOrder>(sortOrder);
 
   const { startWatching, stopWatching, requestPermissionAsync, getForegroundPermissionStatusAsync } = useLiveLocation();
   const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
   const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
   const [distances, setDistances] = useState<Record<string, number>>({});
 
-  const handleSortChange = useCallback((next: string) => {
-    const opts = GEO_SORT_ENABLED && hasLocationPerm ? ([...sortOptionsBase, 'Nearest'] as readonly string[]) : sortOptionsBase;
-    const valid = (opts as readonly string[]).find(o => o === next);
+  const handleSortChange = useCallback((next: SortOrder) => {
+    const opts: SortOrder[] = GEO_SORT_ENABLED && hasLocationPerm ? [...sortOptionsBase, 'Nearest'] : sortOptionsBase;
+    const valid = (opts as readonly SortOrder[]).find(o => o === next);
     if (valid) {
       setSort(valid);
-      void setSortOrder(valid as any);
+      void setSortOrder(valid);
     }
   }, [hasLocationPerm, sortOptionsBase, setSortOrder]);
 
@@ -188,10 +188,10 @@ export default function DashboardScreen() {
     }
   }, [lastDelivery, router]);
 
-  const currentSortOptions = useMemo(() => {
-    const base = [...sortOptionsBase];
+  const currentSortOptions = useMemo<SortOrder[]>(() => {
+    const base: SortOrder[] = [...sortOptionsBase];
     if (GEO_SORT_ENABLED && hasLocationPerm) base.push('Nearest');
-    return base as readonly string[];
+    return base;
   }, [sortOptionsBase, hasLocationPerm]);
 
   return (
@@ -270,14 +270,18 @@ export default function DashboardScreen() {
             testID="filter-price"
           />
           {SORT_DROPDOWN_ENABLED ? (
-            <SortDropdown value={sort} options={currentSortOptions as unknown as string[]} onChange={handleSortChange} />
+            <SortDropdown
+              value={sort}
+              options={currentSortOptions as readonly string[]}
+              onChange={(v: string) => handleSortChange(v as SortOrder)}
+            />
           ) : (
             <TouchableOpacity
               style={styles.sortChip}
               onPress={() => {
-                const opts = currentSortOptions as string[];
+                const opts = currentSortOptions as SortOrder[];
                 const idx = opts.indexOf(sort);
-                const next = opts[(idx + 1) % opts.length];
+                const next = opts[(idx + 1) % opts.length] as SortOrder;
                 setSort(next);
               }}
               testID="filter-sort"
