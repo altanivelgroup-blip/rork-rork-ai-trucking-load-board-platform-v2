@@ -1,5 +1,5 @@
-import React, { useMemo, memo } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useMemo, memo, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, Platform, GestureResponderEvent } from 'react-native';
 import { MapPin, DollarSign, Package, TrendingUp, Fuel, Heart } from 'lucide-react-native';
 import { Load } from '@/types';
 import { theme } from '@/constants/theme';
@@ -26,17 +26,32 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
       return undefined;
     }
   }, [load, user]);
-  
-  const isWeb = Platform.OS === 'web';
-  const Outer: React.ComponentType<any> = isWeb ? View : Pressable;
-  const FavBtn: React.ComponentType<any> = isWeb ? View : Pressable;
+
+  const isPressingCard = useRef(false);
+  const isPressingFav = useRef(false);
+
+  const handleCardResponderRelease = useCallback((e: GestureResponderEvent) => {
+    if (isPressingFav.current) {
+      isPressingFav.current = false;
+      return;
+    }
+    try { onPress(); } catch (err) { console.log('[LoadCard] onPress error', err); }
+  }, [onPress]);
+
+  const handleFavResponderRelease = useCallback(() => {
+    isPressingFav.current = true;
+    try { toggleFavorite(load.id); } catch (err) { console.log('[LoadCard] toggleFavorite error', err); }
+  }, [toggleFavorite, load.id]);
 
   return (
-    <Outer
+    <View
       style={styles.container}
-      {...(isWeb ? { onClick: onPress, accessibilityRole: 'none' } : { onPress })}
+      onStartShouldSetResponder={() => true}
+      onResponderRelease={handleCardResponderRelease}
+      accessible
+      accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
+      accessibilityLabel={Platform.OS === 'web' ? undefined : 'Open load details'}
       testID="load-card"
-      {...(!isWeb ? { accessibilityLabel: 'Open load details' } : {})}
     >
       {load.aiScore && load.aiScore > 90 && (
         <View style={styles.aiRecommended}>
@@ -54,9 +69,11 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
             <Text style={styles.backhaulText}>BACKHAUL</Text>
           </View>
         )}
-        <FavBtn
-          {...(isWeb ? { onClick: () => toggleFavorite(load.id), accessibilityRole: 'none' } : { onPress: () => toggleFavorite(load.id) })}
-          {...(!isWeb ? { accessibilityRole: 'button', accessibilityLabel: (fav ? 'Unfavorite load' : 'Favorite load'), accessibilityState: { selected: fav }, accessibilityHint: (fav ? 'Double tap to remove from favorites' : 'Double tap to add to favorites' ) } : {})}
+        <View
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={handleFavResponderRelease}
+          accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
+          accessibilityLabel={Platform.OS === 'web' ? undefined : (fav ? 'Unfavorite load' : 'Favorite load')}
           testID={`favorite-${load.id}`}
           style={styles.favButton}
         >
@@ -65,7 +82,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
             color={fav ? theme.colors.danger : theme.colors.gray}
             fill={fav ? theme.colors.danger : 'transparent'}
           />
-        </FavBtn>
+        </View>
       </View>
 
       <View style={styles.route}>
@@ -116,7 +133,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
       <Text style={styles.description} numberOfLines={2}>{load.description}</Text>
       
       <Text style={styles.shipper}>{load.shipperName}</Text>
-    </Outer>
+    </View>
   );
 };
 
