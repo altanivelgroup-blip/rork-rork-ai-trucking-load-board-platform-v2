@@ -44,7 +44,44 @@ const FilterBarComponent: React.FC<FilterBarProps> = ({
 }) => {
   return (
     <View>
-      {/* Top Tab Bar */}
+      {/* Original Filter Bar - Now at Top */}
+      <View style={styles.container}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
+          <TouchableOpacity style={styles.filterButton} onPress={onOpenFilters} testID="open-filters">
+            <Filter size={16} color={theme.colors.primary} />
+            <Text style={styles.filterButtonText}>Filters</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.chip, styles.backhaulChip, showBackhaul && styles.backhaulChipActive]}
+            onPress={onBackhaulToggle}
+            testID="backhaul-toggle"
+          >
+            <LocateFixed size={16} color={theme.colors.secondary} />
+            <Text style={[styles.chipText, styles.backhaulChipText]}>
+              Backhaul
+            </Text>
+          </TouchableOpacity>
+
+          {vehicleTypes.map((vehicle) => (
+            <TouchableOpacity
+              key={vehicle}
+              style={[styles.chip, selectedVehicle === vehicle && styles.chipActive]}
+              onPress={() => onVehicleSelect(selectedVehicle === vehicle ? undefined : vehicle)}
+              testID={`vehicle-chip-${vehicle}`}
+            >
+              <Text style={[styles.chipText, selectedVehicle === vehicle && styles.chipTextActive]}>
+                {vehicle.replace('-', ' ')}
+              </Text>
+              {selectedVehicle === vehicle && (
+                <X size={14} color={theme.colors.white} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+      
+      {/* Top Tab Bar - Now at Bottom */}
       <View style={styles.topTabContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topTabScroll}>
           <TouchableOpacity 
@@ -95,43 +132,6 @@ const FilterBarComponent: React.FC<FilterBarProps> = ({
               testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
             >
               <Text style={[styles.topTabText, r === radiusMiles && styles.topTabTextActive]}>{r} mi</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-      
-      {/* Original Filter Bar */}
-      <View style={styles.container}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
-          <TouchableOpacity style={styles.filterButton} onPress={onOpenFilters} testID="open-filters">
-            <Filter size={16} color={theme.colors.primary} />
-            <Text style={styles.filterButtonText}>Filters</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.chip, styles.backhaulChip, showBackhaul && styles.backhaulChipActive]}
-            onPress={onBackhaulToggle}
-            testID="backhaul-toggle"
-          >
-            <LocateFixed size={16} color={theme.colors.secondary} />
-            <Text style={[styles.chipText, styles.backhaulChipText]}>
-              Backhaul
-            </Text>
-          </TouchableOpacity>
-
-          {vehicleTypes.map((vehicle) => (
-            <TouchableOpacity
-              key={vehicle}
-              style={[styles.chip, selectedVehicle === vehicle && styles.chipActive]}
-              onPress={() => onVehicleSelect(selectedVehicle === vehicle ? undefined : vehicle)}
-              testID={`vehicle-chip-${vehicle}`}
-            >
-              <Text style={[styles.chipText, selectedVehicle === vehicle && styles.chipTextActive]}>
-                {vehicle.replace('-', ' ')}
-              </Text>
-              {selectedVehicle === vehicle && (
-                <X size={14} color={theme.colors.white} />
-              )}
             </TouchableOpacity>
           ))}
         </ScrollView>
