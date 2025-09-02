@@ -102,7 +102,7 @@ export default function LoadsScreen() {
       }, { distanceIntervalMeters: 50 });
     })();
     return () => { try { unsub?.(); } catch {} };
-  }, [filters.sort, requestPermissionAsync, startWatching, stopWatching, currentLoc]);
+  }, [filters.sort, requestPermissionAsync, startWatching, stopWatching]);
 
   useEffect(() => {
     if (!currentLoc) return;
