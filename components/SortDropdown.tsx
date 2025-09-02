@@ -104,6 +104,8 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
         return 'optSortHighest';
       case 'Lightest':
         return 'optSortLightest';
+      case 'Nearest':
+        return 'optSortNearest';
       default:
         return `optSort-${opt}`;
     }

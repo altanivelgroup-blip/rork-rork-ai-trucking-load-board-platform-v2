@@ -10,11 +10,12 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
 import { SortDropdown } from '@/components/SortDropdown';
-import { SORT_DROPDOWN_ENABLED } from '@/constants/flags';
+import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED } from '@/constants/flags';
 import { useSettings } from '@/hooks/useSettings';
 import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
 import { mockLoads } from '@/mocks/loads';
+import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 
 export default function LoadsScreen() {
   console.log('[LoadsScreen] Rendering loads screen');
@@ -23,6 +24,9 @@ export default function LoadsScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const { sortOrder, setSortOrder } = useSettings();
   const [filters, setFilters] = useState<any>({ sort: sortOrder });
+  const { startWatching, stopWatching, requestPermissionAsync } = useLiveLocation();
+  const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
+  const [distances, setDistances] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const initial: any = {};
@@ -36,6 +40,49 @@ export default function LoadsScreen() {
       console.log('[LoadsScreen] Applied initial filters from params', initial);
     }
   }, [params.origin, params.destination, params.minWeight, params.minPrice, params.sort]);
+
+  const haversineMiles = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 3958.8;
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const lat1 = (a.lat * Math.PI) / 180;
+    const lat2 = (b.lat * Math.PI) / 180;
+    const sinDLat = Math.sin(dLat / 2);
+    const sinDLng = Math.sin(dLng / 2);
+    const aa = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+    const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+    return R * c;
+  }, []);
+
+  useEffect(() => {
+    if (!GEO_SORT_ENABLED) return;
+    if (String(filters.sort ?? 'Best') !== 'Nearest') {
+      if (currentLoc) setCurrentLoc(null);
+      setDistances({});
+      stopWatching();
+      return;
+    }
+    let unsub: (() => void) | null = null;
+    (async () => {
+      const ok = await requestPermissionAsync();
+      if (!ok) return;
+      unsub = await startWatching((coords) => {
+        setCurrentLoc(coords);
+      }, { distanceIntervalMeters: 50 });
+    })();
+    return () => { try { unsub?.(); } catch {} };
+  }, [filters.sort, requestPermissionAsync, startWatching, stopWatching, currentLoc]);
+
+  useEffect(() => {
+    if (!currentLoc) return;
+    const map: Record<string, number> = {};
+    for (const l of mockLoads) {
+      if (l.origin?.lat != null && l.origin?.lng != null) {
+        map[l.id] = haversineMiles({ lat: currentLoc.latitude, lng: currentLoc.longitude }, { lat: l.origin.lat, lng: l.origin.lng });
+      }
+    }
+    setDistances(map);
+  }, [currentLoc, haversineMiles]);
 
   const filteredLoads = useMemo(() => {
     let list = mockLoads.slice();
@@ -58,7 +105,9 @@ export default function LoadsScreen() {
     }
 
     const sort = String(filters.sort ?? 'Best');
-    if (sort === 'Newest') {
+    if (sort === 'Nearest' && GEO_SORT_ENABLED && currentLoc) {
+      list.sort((a, b) => (distances[a.id] ?? Number.POSITIVE_INFINITY) - (distances[b.id] ?? Number.POSITIVE_INFINITY));
+    } else if (sort === 'Newest') {
       list.sort((a, b) => new Date(b.pickupDate ?? 0).getTime() - new Date(a.pickupDate ?? 0).getTime());
     } else if (sort === 'Highest $') {
       list.sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0));
@@ -66,7 +115,7 @@ export default function LoadsScreen() {
       list.sort((a, b) => (a.weight ?? 0) - (b.weight ?? 0));
     }
     return list;
-  }, [filters]);
+  }, [filters, currentLoc, distances]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -94,8 +143,8 @@ export default function LoadsScreen() {
   }, [router]);
 
   const renderItem = useCallback(({ item }: { item: typeof filteredLoads[number] }) => (
-    <LoadCard load={item} onPress={() => handleLoadPress(item.id)} />
-  ), [handleLoadPress, filteredLoads]);
+    <LoadCard load={item} onPress={() => handleLoadPress(item.id)} distanceMiles={distances[item.id]} />
+  ), [handleLoadPress, filteredLoads, distances]);
 
   const keyExtractor = useCallback((item: typeof filteredLoads[number]) => item.id, []);
 
@@ -123,13 +172,13 @@ export default function LoadsScreen() {
           {SORT_DROPDOWN_ENABLED ? (
             <SortDropdown
               value={String(filters.sort ?? 'Best')}
-              options={['Best', 'Newest', 'Highest $', 'Lightest']}
+              options={['Best', 'Newest', 'Highest $', 'Lightest', 'Nearest']}
               onChange={(next) => { setFilters({ ...filters, sort: next }); void setSortOrder(next as any); }}
             />
           ) : (
             <Text
               onPress={() => {
-                const opts = ['Best', 'Newest', 'Highest $', 'Lightest'];
+                const opts = ['Best', 'Newest', 'Highest $', 'Lightest', 'Nearest'];
                 const cur = String(filters.sort ?? 'Best');
                 const idx = opts.indexOf(cur);
                 const next = opts[(idx + 1) % opts.length];

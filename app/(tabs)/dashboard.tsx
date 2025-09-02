@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, memo } from 'react';
+import React, { useMemo, useCallback, useState, memo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
@@ -6,9 +6,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-native';
 import { mockLoads } from '@/mocks/loads';
-import { SORT_DROPDOWN_ENABLED } from '@/constants/flags';
+import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED } from '@/constants/flags';
 import { SortDropdown } from '@/components/SortDropdown';
 import { useSettings } from '@/hooks/useSettings';
+import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 
 interface RecentLoadProps {
   id: string;
@@ -33,7 +34,7 @@ function formatUSD(amount: number): string {
   }
 }
 
-const RecentLoadRow = memo<RecentLoadProps>(({ id, originCity, originState, destinationCity, destinationState, pickupDate, weight, rate, onPress }) => {
+const RecentLoadRow = memo<RecentLoadProps & { distanceMiles?: number }>(({ id, originCity, originState, destinationCity, destinationState, pickupDate, weight, rate, onPress, distanceMiles }) => {
   return (
     <TouchableOpacity key={id} onPress={() => onPress(id)} style={styles.loadRow} testID={`recent-load-${id}`}>
       <View style={styles.loadLeft}>
@@ -49,7 +50,9 @@ const RecentLoadRow = memo<RecentLoadProps>(({ id, originCity, originState, dest
         <View style={styles.priceChip}>
           <Text style={styles.priceChipText}>{formatUSD(rate)}</Text>
         </View>
-        <Text style={styles.favorite}>Favorite</Text>
+        {typeof distanceMiles === 'number' ? (
+          <Text style={styles.distanceSmall}>{distanceMiles.toFixed(1)} mi</Text>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -64,13 +67,14 @@ export default function DashboardScreen() {
   const [destination, setDestination] = useState<string>('');
   const [minWeight, setMinWeight] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
-  const sortOptions = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest'] as const, []);
+  const sortOptions = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest', 'Nearest'] as const, []);
   const { sortOrder, setSortOrder, isHydrating } = useSettings();
   const [sort, setSort] = useState<(typeof sortOptions)[number]>(sortOrder as (typeof sortOptions)[number]);
+
   const handleSortChange = useCallback((next: string) => {
-    const valid = sortOptions.find(o => o === next);
+    const valid = (sortOptions as readonly string[]).find(o => o === next);
     if (valid) {
-      setSort(valid);
+      setSort(valid as (typeof sortOptions)[number]);
       void setSortOrder(valid as any);
     }
   }, [sortOptions, setSortOrder]);
@@ -79,6 +83,51 @@ export default function DashboardScreen() {
 
   const recentLoads = useMemo(() => mockLoads?.slice(0, 3) ?? [], []);
   const lastDelivery = useMemo(() => recentLoads[0]?.destination, [recentLoads]);
+
+  const { startWatching, stopWatching, requestPermissionAsync } = useLiveLocation();
+  const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
+  const [distances, setDistances] = useState<Record<string, number>>({});
+
+  const haversineMiles = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 3958.8;
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const lat1 = (a.lat * Math.PI) / 180;
+    const lat2 = (b.lat * Math.PI) / 180;
+    const sinDLat = Math.sin(dLat / 2);
+    const sinDLng = Math.sin(dLng / 2);
+    const aa = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+    const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+    return R * c;
+  }, []);
+
+  useEffect(() => {
+    if (!GEO_SORT_ENABLED) return;
+    if (sort !== 'Nearest') {
+      setDistances({});
+      if (currentLoc) setCurrentLoc(null);
+      stopWatching();
+      return;
+    }
+    let unsub: (() => void) | null = null;
+    (async () => {
+      const ok = await requestPermissionAsync();
+      if (!ok) return;
+      unsub = await startWatching((coords) => setCurrentLoc(coords), { distanceIntervalMeters: 50 });
+    })();
+    return () => { try { unsub?.(); } catch {} };
+  }, [sort, requestPermissionAsync, startWatching, stopWatching, currentLoc]);
+
+  useEffect(() => {
+    if (!currentLoc) return;
+    const map: Record<string, number> = {};
+    for (const l of recentLoads) {
+      if (l.origin?.lat != null && l.origin?.lng != null) {
+        map[l.id] = haversineMiles({ lat: currentLoc.latitude, lng: currentLoc.longitude }, { lat: l.origin.lat, lng: l.origin.lng });
+      }
+    }
+    setDistances(map);
+  }, [currentLoc, recentLoads, haversineMiles]);
 
   if (isLoading) {
     return (
@@ -239,6 +288,7 @@ export default function DashboardScreen() {
               weight={l.weight ?? 0}
               rate={l.rate ?? 0}
               onPress={handleOpenLoad}
+              distanceMiles={distances[l.id]}
             />
           )) ?? []}
         </View>
@@ -454,6 +504,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: theme.fontSize.xs,
     color: theme.colors.gray,
+  },
+  distanceSmall: {
+    marginTop: 6,
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    fontWeight: '600',
   },
   backhaulCard: {
     backgroundColor: '#EA580C',

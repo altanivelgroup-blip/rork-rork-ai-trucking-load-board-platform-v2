@@ -10,9 +10,10 @@ import { useLoads } from '@/hooks/useLoads';
 interface LoadCardProps {
   load: Load;
   onPress: () => void;
+  distanceMiles?: number;
 }
 
-const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
+const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMiles }) => {
   const { user } = useAuth();
   const { isFavorited, toggleFavorite } = useLoads();
   const fav = isFavorited(load.id);
@@ -78,7 +79,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress }) => {
         </View>
         
         <View style={styles.divider}>
-          <Text style={styles.distance}>{load.distance} mi</Text>
+          <Text style={styles.distance}>{typeof distanceMiles === 'number' ? `${distanceMiles.toFixed(1)} mi` : `${load.distance} mi`}</Text>
         </View>
         
         <View style={styles.location}>
@@ -272,6 +273,7 @@ export const LoadCard = memo(
     const a = prev.load;
     const b = next.load;
     if (prev.onPress !== next.onPress) return false;
+    if (prev.distanceMiles !== next.distanceMiles) return false;
     if (a.id !== b.id) return false;
     if (a.status !== b.status) return false;
     if (a.rate !== b.rate || a.ratePerMile !== b.ratePerMile) return false;
