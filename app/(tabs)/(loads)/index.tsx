@@ -426,6 +426,13 @@ export default function LoadsScreen() {
           onVehicleSelect={handleVehicleSelect}
           onBackhaulToggle={handleBackhaulToggle}
           onOpenFilters={handleOpenFilters}
+          onApplyChip={applyChip}
+          onOpenAiLoads={() => router.push('/ai-loads')}
+          onOpenAiBackhaul={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })}
+          currentSort={String(filters.sort ?? sortOrder ?? 'Best')}
+          hasLocationPerm={hasLocationPerm}
+          radiusMiles={radiusMiles}
+          onSetRadius={setRadiusMiles}
         />
         <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xs }}>
           {AI_NL_SEARCH_ENABLED ? (
@@ -454,30 +461,7 @@ export default function LoadsScreen() {
             </View>
           ) : null}
 
-          {AI_COPILOT_CHIPS_ENABLED ? (
-            <View style={{ marginTop: 6 }}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                <Text onPress={() => void applyChip('highest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipHighest">Highest $/mi</Text>
-                <Text onPress={() => void applyChip('near')} style={[styles.aiLink, { backgroundColor: theme.colors.secondary }]} accessibilityRole="button" testID="chipNearMe">Near me</Text>
-                <Text onPress={() => void applyChip('lightest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipLightest">Lightest</Text>
-                <Text onPress={() => void applyChip('new')} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNew">New Today</Text>
-                {/* sort control removed per request */}
-                {GEO_SORT_ENABLED && hasLocationPerm && String(filters.sort ?? 'Best') === 'Nearest' && [25,50,100,250].map((r) => (
-                  <Text
-                    key={r}
-                    onPress={() => { void setRadiusMiles(r); }}
-                    style={[styles.aiLink, r === radiusMiles ? { backgroundColor: theme.colors.primary } : { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
-                    accessibilityRole="button"
-                    testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
-                  >
-                    {r} mi
-                  </Text>
-                ))}
-                <Text onPress={() => router.push('/ai-loads')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
-                <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
-              </ScrollView>
-            </View>
-          ) : null}
+
 
           {summaryLine ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
