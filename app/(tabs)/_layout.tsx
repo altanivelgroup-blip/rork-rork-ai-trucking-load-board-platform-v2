@@ -27,7 +27,6 @@ export default function TabsLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-          href: '/dashboard',
         }}
       />
       <Tabs.Screen
@@ -35,7 +34,6 @@ export default function TabsLayout() {
         options={{
           title: 'Loads',
           tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
-          href: '/loads',
         }}
       />
       <Tabs.Screen
@@ -43,7 +41,6 @@ export default function TabsLayout() {
         options={{
           title: 'Service Finder',
           tabBarIcon: ({ color, size }) => <Search color={color} size={size} />,
-          href: '/service-finder',
         }}
       />
       <Tabs.Screen
@@ -51,7 +48,6 @@ export default function TabsLayout() {
         options={{
           title: 'Post a Load',
           tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
-          href: '/post-load',
         }}
       />
       <Tabs.Screen
@@ -59,7 +55,6 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
-          href: '/profile',
         }}
       />
 
@@ -68,7 +63,6 @@ export default function TabsLayout() {
         options={{
           title: 'Shipper',
           tabBarIcon: ({ color, size }) => <Crown color={color} size={size} />,
-          href: '/shipper',
         }}
       />
       <Tabs.Screen
