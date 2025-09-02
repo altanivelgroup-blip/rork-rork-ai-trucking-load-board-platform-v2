@@ -523,7 +523,7 @@ export default function LoadsScreen() {
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 10) + 88 }
-          ]
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
