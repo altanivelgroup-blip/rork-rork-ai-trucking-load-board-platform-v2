@@ -10,6 +10,7 @@ import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_
 import { SortDropdown } from '@/components/SortDropdown';
 import { useSettings, type SortOrder } from '@/hooks/useSettings';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
+import { font, moderateScale } from '@/src/ui/scale';
 
 interface RecentLoadProps {
   id: string;
@@ -340,33 +341,33 @@ export default function DashboardScreen() {
           resizeMode="cover"
         >
           <View style={styles.heroOverlay} />
-          <Text style={styles.heroTitle} testID="dashboard-hero-title">LoadRun</Text>
+          <Text style={styles.heroTitle} testID="dashboard-hero-title" allowFontScaling={false}>LoadRun</Text>
           <Text style={styles.heroSubtitle} testID="dashboard-hero-subtitle">AI Load Board for Car Haulers</Text>
         </ImageBackground>
 
         <View style={styles.welcomeRow}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.welcomeName}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
+          <Text style={styles.welcomeName} allowFontScaling={false}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
           <TouchableOpacity style={styles.voiceButton} testID="dashboard-voice-capture">
-            <Mic size={20} color={theme.colors.primary} />
+            <Mic size={moderateScale(20)} color={theme.colors.primary} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statCard} testID="stat-available-loads">
-            <Truck size={20} color={theme.colors.primary} />
-            <Text style={styles.statValue}>{mockLoads?.length ?? 0}</Text>
-            <Text style={styles.statLabel}>Available Loads</Text>
+            <Truck size={moderateScale(20)} color={theme.colors.primary} />
+            <Text style={styles.statValue} allowFontScaling={false}>{mockLoads?.length ?? 0}</Text>
+            <Text style={styles.statLabel} allowFontScaling={false}>Available Loads</Text>
           </View>
           <View style={styles.statCard} testID="stat-rating">
-            <Star size={20} color={theme.colors.warning} />
-            <Text style={styles.statValue}>{user?.rating?.toString() ?? '4.8'}</Text>
-            <Text style={styles.statLabel}>Your Rating</Text>
+            <Star size={moderateScale(20)} color={theme.colors.warning} />
+            <Text style={styles.statValue} allowFontScaling={false}>{user?.rating?.toString() ?? '4.8'}</Text>
+            <Text style={styles.statLabel} allowFontScaling={false}>Your Rating</Text>
           </View>
           <View style={styles.statCard} testID="stat-completed">
-            <Package size={20} color={theme.colors.gray} />
-            <Text style={styles.statValue}>{user?.completedLoads ?? 24}</Text>
-            <Text style={styles.statLabel}>Completed</Text>
+            <Package size={moderateScale(20)} color={theme.colors.gray} />
+            <Text style={styles.statValue} allowFontScaling={false}>{user?.completedLoads ?? 24}</Text>
+            <Text style={styles.statLabel} allowFontScaling={false}>Completed</Text>
           </View>
         </View>
 
@@ -388,7 +389,8 @@ export default function DashboardScreen() {
             onPress={onSubmitNlSearch}
             accessibilityRole="button"
             testID="describe-load-apply"
-            style={[styles.aiLink, { backgroundColor: theme.colors.primary, paddingVertical: 6 }]}
+            style={[styles.aiLink, { backgroundColor: theme.colors.primary, paddingVertical: moderateScale(6) }]}
+            allowFontScaling={false}
           >
             Apply
           </Text>
@@ -397,13 +399,13 @@ export default function DashboardScreen() {
         {AI_COPILOT_CHIPS_ENABLED ? (
           <View style={styles.filtersRow}>
             <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
-              <Text style={styles.sortChipText}>Highest $/mi</Text>
+              <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
             </Text>
             <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
-              <Text style={[styles.sortChipText, { color: theme.colors.white }]}>Near me</Text>
+              <Text style={[styles.sortChipText, { color: theme.colors.white }]} allowFontScaling={false}>Near me</Text>
             </Text>
             <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
-              <Text style={styles.sortChipText}>Lightest</Text>
+              <Text style={styles.sortChipText} allowFontScaling={false}>Lightest</Text>
             </Text>
           </View>
         ) : null}
@@ -416,11 +418,11 @@ export default function DashboardScreen() {
               <Text
                 key={r}
                 onPress={() => { void setRadiusMiles(r); }}
-                style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: 8 }]}
+                style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: moderateScale(8) }]}
                 accessibilityRole="button"
                 testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
               >
-                <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }}>{r} mi</Text>
+                <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }} allowFontScaling={false}>{r} mi</Text>
               </Text>
             ))}
           </View>
@@ -431,8 +433,8 @@ export default function DashboardScreen() {
           <Text style={styles.sectionTitle}>Recent Loads</Text>
           <TouchableOpacity onPress={handleViewAll} accessibilityRole="button">
             <View style={styles.viewAllRow}>
-              <Text style={styles.viewAllText}>View All</Text>
-              <ArrowRight size={16} color={theme.colors.primary} />
+              <Text style={styles.viewAllText} allowFontScaling={false}>View All</Text>
+              <ArrowRight size={moderateScale(16)} color={theme.colors.primary} />
             </View>
           </TouchableOpacity>
         </View>
@@ -463,14 +465,14 @@ export default function DashboardScreen() {
 
         <View style={styles.backhaulCard} testID="backhaul-toggle-card">
           <View style={styles.backhaulRow}>
-            <MapPin size={22} color="#1D4ED8" />
-            <Text style={styles.backhaulTitle}>Backhaul near delivery (50mi)</Text>
+            <MapPin size={moderateScale(22)} color="#1D4ED8" />
+            <Text style={styles.backhaulTitle} allowFontScaling={false}>Backhaul near delivery (50mi)</Text>
           </View>
           <Text style={styles.backhaulSub} numberOfLines={2}>
             {lastDelivery ? `${lastDelivery.city}, ${lastDelivery.state}` : 'No recent delivery found'}
           </Text>
           <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Show backhaul loads</Text>
+            <Text style={styles.toggleLabel} allowFontScaling={false}>Show backhaul loads</Text>
             <Switch
               value={backhaulOn}
               onValueChange={(val) => {
@@ -498,48 +500,52 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.lightGray,
   },
   content: {
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: moderateScale(theme.spacing.xl),
   },
   hero: {
-    height: 160,
+    height: moderateScale(160),
     justifyContent: 'flex-end',
-    padding: theme.spacing.lg,
+    padding: moderateScale(theme.spacing.lg),
     backgroundColor: theme.colors.primary,
-    marginHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.sm,
-    borderRadius: theme.borderRadius.lg,
+    marginHorizontal: moderateScale(theme.spacing.lg),
+    marginTop: moderateScale(theme.spacing.sm),
+    borderRadius: moderateScale(theme.borderRadius.lg),
   },
   heroImage: {
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: moderateScale(theme.borderRadius.lg),
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.25)',
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: moderateScale(theme.borderRadius.lg),
   },
   heroTitle: {
-    fontSize: 28,
+    fontSize: font(28),
     fontWeight: '800',
     color: theme.colors.white,
   },
   heroSubtitle: {
-    fontSize: theme.fontSize.sm,
+    fontSize: font(14),
     color: theme.colors.white,
     opacity: 0.9,
-    marginTop: 2,
-    marginBottom: 2,
+    marginTop: moderateScale(2),
+    marginBottom: moderateScale(2),
   },
   welcomeRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
+    paddingHorizontal: moderateScale(theme.spacing.lg),
+    paddingTop: moderateScale(theme.spacing.md),
     justifyContent: 'space-between',
   },
   voiceButton: {
-    padding: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
+    padding: moderateScale(theme.spacing.xs),
+    borderRadius: moderateScale(theme.borderRadius.sm),
     backgroundColor: theme.colors.lightGray,
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -547,77 +553,81 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: theme.fontSize.lg,
+    fontSize: font(16),
     color: theme.colors.gray,
   },
   welcomeText: {
-    fontSize: theme.fontSize.md,
+    fontSize: font(14),
     color: theme.colors.gray,
   },
   welcomeName: {
-    fontSize: theme.fontSize.xl,
+    fontSize: font(20),
     fontWeight: '700',
     color: theme.colors.dark,
     flex: 1,
   },
   statsRow: {
     flexDirection: 'row',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    paddingHorizontal: moderateScale(theme.spacing.lg),
+    paddingVertical: moderateScale(theme.spacing.md),
+    gap: moderateScale(8),
   },
   statCard: {
     flex: 1,
     backgroundColor: theme.colors.white,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+    padding: moderateScale(theme.spacing.md),
+    borderRadius: moderateScale(theme.borderRadius.md),
     alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
   },
   statValue: {
-    fontSize: theme.fontSize.xl,
+    fontSize: font(20),
     fontWeight: '700',
     color: theme.colors.dark,
   },
   statLabel: {
-    fontSize: theme.fontSize.xs,
+    fontSize: font(12),
     color: theme.colors.gray,
   },
   sectionHeader: {
-    marginTop: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
+    marginTop: moderateScale(theme.spacing.sm),
+    paddingHorizontal: moderateScale(theme.spacing.lg),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   filtersRow: {
-    marginTop: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
+    marginTop: moderateScale(theme.spacing.md),
+    paddingHorizontal: moderateScale(theme.spacing.lg),
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: moderateScale(8),
   },
   describeLoadRow: {
-    marginTop: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
+    marginTop: moderateScale(theme.spacing.md),
+    paddingHorizontal: moderateScale(theme.spacing.lg),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: moderateScale(6),
   },
   aiLink: {
     backgroundColor: theme.colors.secondary,
     color: theme.colors.white,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(6),
+    borderRadius: moderateScale(10),
     textAlignVertical: 'center',
     textAlign: 'center',
     fontWeight: '800',
-    fontSize: theme.fontSize.sm,
-    lineHeight: 18,
+    fontSize: font(14),
+    lineHeight: moderateScale(18),
     overflow: 'hidden',
+    minHeight: 44,
   },
   sectionTitle: {
-    fontSize: theme.fontSize.lg,
+    fontSize: font(18),
     fontWeight: '700',
     color: theme.colors.dark,
   },
@@ -628,139 +638,149 @@ const styles = StyleSheet.create({
   viewAllText: {
     color: theme.colors.primary,
     fontWeight: '600',
-    marginRight: 6,
+    marginRight: moderateScale(6),
+    fontSize: font(14),
   },
   loadRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: theme.colors.white,
-    marginHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.sm,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+    marginHorizontal: moderateScale(theme.spacing.lg),
+    marginTop: moderateScale(theme.spacing.sm),
+    padding: moderateScale(theme.spacing.md),
+    borderRadius: moderateScale(theme.borderRadius.md),
+    minHeight: 44,
   },
   loadLeft: {
     flex: 1,
-    paddingRight: theme.spacing.md,
+    paddingRight: moderateScale(theme.spacing.md),
   },
   loadRight: {
     alignItems: 'flex-end',
   },
   loadTitle: {
-    fontSize: theme.fontSize.md,
+    fontSize: font(16),
     fontWeight: '600',
     color: theme.colors.dark,
   },
   loadSub: {
-    fontSize: theme.fontSize.sm,
+    fontSize: font(14),
     color: theme.colors.gray,
-    marginTop: 2,
+    marginTop: moderateScale(2),
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: moderateScale(6),
   },
   metaText: {
-    fontSize: theme.fontSize.xs,
+    fontSize: font(12),
     color: theme.colors.gray,
   },
   metaDot: {
-    fontSize: theme.fontSize.xs,
+    fontSize: font(12),
     color: theme.colors.gray,
   },
   price: {
-    fontSize: theme.fontSize.lg,
+    fontSize: font(18),
     fontWeight: '700',
     color: theme.colors.primary,
   },
   priceChip: {
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 9999,
-    minWidth: 80,
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(6),
+    borderRadius: moderateScale(9999),
+    minWidth: moderateScale(80),
     alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
   },
   priceChipText: {
     color: theme.colors.white,
     fontWeight: '600',
-    fontSize: theme.fontSize.md,
+    fontSize: font(16),
   },
   favorite: {
-    marginTop: 6,
-    fontSize: theme.fontSize.xs,
+    marginTop: moderateScale(6),
+    fontSize: font(12),
     color: theme.colors.gray,
   },
   distanceSmall: {
-    marginTop: 6,
-    fontSize: theme.fontSize.xs,
+    marginTop: moderateScale(6),
+    fontSize: font(12),
     color: theme.colors.gray,
     fontWeight: '600',
   },
   backhaulCard: {
     backgroundColor: '#EA580C',
-    marginHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.xl,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.lg,
+    marginHorizontal: moderateScale(theme.spacing.lg),
+    marginTop: moderateScale(theme.spacing.xl),
+    padding: moderateScale(theme.spacing.lg),
+    borderRadius: moderateScale(theme.borderRadius.lg),
     borderWidth: 1,
     borderColor: '#C2410C',
     shadowColor: '#9A3412',
     shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: moderateScale(10),
+    shadowOffset: { width: 0, height: moderateScale(6) },
     elevation: 3,
   },
   backhaulRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: moderateScale(8),
   },
   backhaulTitle: {
-    marginLeft: 6,
-    fontSize: theme.fontSize.md,
+    marginLeft: moderateScale(6),
+    fontSize: font(16),
     fontWeight: '700',
     color: theme.colors.white,
   },
   backhaulSub: {
-    marginTop: 4,
-    fontSize: theme.fontSize.sm,
+    marginTop: moderateScale(4),
+    fontSize: font(14),
     color: theme.colors.white,
     opacity: 0.9,
   },
   toggleRow: {
-    marginTop: theme.spacing.md,
+    marginTop: moderateScale(theme.spacing.md),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 44,
   },
   toggleLabel: {
-    fontSize: theme.fontSize.sm,
+    fontSize: font(14),
     color: theme.colors.white,
   },
   sortChip: {
     backgroundColor: theme.colors.white,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 9999,
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(6),
+    borderRadius: moderateScale(12),
     borderWidth: 1,
     borderColor: theme.colors.lightGray,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sortChipText: {
     color: theme.colors.dark,
     fontWeight: '600',
-    fontSize: theme.fontSize.sm,
+    fontSize: font(14),
   },
   input: {
     backgroundColor: theme.colors.white,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(8),
+    borderRadius: moderateScale(8),
     borderWidth: 1,
     borderColor: theme.colors.lightGray,
-    minWidth: 120,
+    minWidth: moderateScale(120),
     flexGrow: 1,
+    fontSize: font(16),
+    minHeight: 44,
   },
 });
