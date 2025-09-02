@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
+import { FilterBar } from '@/components/FilterBar';
 
 
 import { GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
@@ -420,6 +421,20 @@ export default function LoadsScreen() {
   return (
     <>
       <View style={styles.container}>
+        <FilterBar
+          selectedVehicle={filters.truckType as any}
+          showBackhaul={!!filters.showBackhaul}
+          onVehicleSelect={handleVehicleSelect}
+          onBackhaulToggle={handleBackhaulToggle}
+          onOpenFilters={handleOpenFilters}
+          onApplyChip={applyChip}
+          onOpenAiLoads={() => router.push('/ai-loads')}
+          onOpenAiBackhaul={() => router.push('/ai-loads')}
+          currentSort={String(filters.sort ?? 'Best')}
+          hasLocationPerm={hasLocationPerm}
+          radiusMiles={radiusMiles}
+          onSetRadius={setRadiusMiles}
+        />
 
         <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xs }}>
           {AI_NL_SEARCH_ENABLED ? (
