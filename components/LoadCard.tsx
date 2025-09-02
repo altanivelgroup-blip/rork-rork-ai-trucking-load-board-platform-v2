@@ -1,5 +1,5 @@
 import React, { useMemo, memo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { MapPin, DollarSign, Package, TrendingUp, Fuel, Heart } from 'lucide-react-native';
 import { Load } from '@/types';
 import { theme } from '@/constants/theme';
@@ -27,10 +27,14 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
     }
   }, [load, user]);
   
+  const isWeb = Platform.OS === 'web';
+  const Outer: React.ComponentType<any> = isWeb ? View : Pressable;
+  const FavBtn: React.ComponentType<any> = isWeb ? View : Pressable;
+
   return (
-    <Pressable
-      style={({ pressed }) => [styles.container, pressed ? styles.pressed : null]}
-      onPress={onPress}
+    <Outer
+      style={styles.container}
+      {...(isWeb ? { onClick: onPress, role: 'button' } : { onPress })}
       testID="load-card"
       accessibilityLabel="Open load details"
     >
@@ -50,21 +54,21 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
             <Text style={styles.backhaulText}>BACKHAUL</Text>
           </View>
         )}
-        <Pressable
-          onPress={() => toggleFavorite(load.id)}
+        <FavBtn
+          {...(isWeb ? { onClick: () => toggleFavorite(load.id), role: 'button' } : { onPress: () => toggleFavorite(load.id) })}
           accessibilityRole="button"
           accessibilityLabel={fav ? 'Unfavorite load' : 'Favorite load'}
           accessibilityState={{ selected: fav }}
           accessibilityHint={fav ? 'Double tap to remove from favorites' : 'Double tap to add to favorites'}
           testID={`favorite-${load.id}`}
-          style={({ pressed }) => [styles.favButton, pressed ? styles.favPressed : null]}
+          style={styles.favButton}
         >
           <Heart
             size={20}
             color={fav ? theme.colors.danger : theme.colors.gray}
             fill={fav ? theme.colors.danger : 'transparent'}
           />
-        </Pressable>
+        </FavBtn>
       </View>
 
       <View style={styles.route}>
@@ -115,7 +119,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
       <Text style={styles.description} numberOfLines={2}>{load.description}</Text>
       
       <Text style={styles.shipper}>{load.shipperName}</Text>
-    </Pressable>
+    </Outer>
   );
 };
 
@@ -184,6 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 22,
+    cursor: 'pointer',
   },
   route: {
     marginBottom: theme.spacing.md,
