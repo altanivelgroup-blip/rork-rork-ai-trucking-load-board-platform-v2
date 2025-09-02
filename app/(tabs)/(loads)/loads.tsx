@@ -5,12 +5,13 @@ import {
   StyleSheet,
   RefreshControl,
   Text,
+  TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
 import { SortDropdown } from '@/components/SortDropdown';
-import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED } from '@/constants/flags';
+import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED } from '@/constants/flags';
 import { useSettings } from '@/hooks/useSettings';
 import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
@@ -20,8 +21,9 @@ import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 export default function LoadsScreen() {
   console.log('[LoadsScreen] Rendering loads screen');
   const router = useRouter();
-  const params = useLocalSearchParams<{ origin?: string; destination?: string; minWeight?: string; minPrice?: string; sort?: string; radius?: string }>();
+  const params = useLocalSearchParams<{ origin?: string; destination?: string; minWeight?: string; maxWeight?: string; minPrice?: string; sort?: string; radius?: string; truckType?: string }>();
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [nlQuery, setNlQuery] = useState<string>('');
   const { sortOrder, setSortOrder, radiusMiles, setRadiusMiles } = useSettings();
   const [filters, setFilters] = useState<Record<string, unknown>>({ sort: sortOrder });
   const { startWatching, stopWatching, requestPermissionAsync, getForegroundPermissionStatusAsync } = useLiveLocation();
@@ -34,6 +36,8 @@ export default function LoadsScreen() {
     if (params.origin) initial.origin = String(params.origin);
     if (params.destination) initial.destination = String(params.destination);
     if (params.minWeight) initial.minWeight = String(params.minWeight);
+    if (params.maxWeight) initial.maxWeight = String(params.maxWeight);
+    if (params.truckType) initial.truckType = String(params.truckType);
     if (params.minPrice) initial.minPrice = String(params.minPrice);
     if (params.sort) initial.sort = String(params.sort);
     if (params.radius) {
@@ -110,6 +114,10 @@ export default function LoadsScreen() {
     const destination = String(filters.destination ?? '').toLowerCase();
     const minW = parseInt(String(filters.minWeight ?? ''), 10);
     const minP = parseInt(String(filters.minPrice ?? ''), 10);
+    const maxW = parseInt(String(filters.maxWeight ?? ''), 10);
+    const truckType = String(filters.truckType ?? '').toLowerCase();
+    const dateFrom = String((filters as any).dateFrom ?? '');
+    const dateTo = String((filters as any).dateTo ?? '');
 
     if (origin) {
       base = base.filter(l => `${l.origin?.city ?? ''}, ${l.origin?.state ?? ''}`.toLowerCase().includes(origin));
@@ -122,6 +130,21 @@ export default function LoadsScreen() {
     }
     if (!Number.isNaN(minP)) {
       base = base.filter(l => (l.rate ?? 0) >= minP);
+    }
+
+    if (!Number.isNaN(maxW)) {
+      base = base.filter(l => (l.weight ?? 0) <= maxW);
+    }
+    if (truckType) {
+      base = base.filter(l => (l.vehicleType ?? '').toLowerCase() === truckType);
+    }
+    if (dateFrom) {
+      const fromTs = new Date(dateFrom).getTime();
+      if (!Number.isNaN(fromTs)) base = base.filter(l => new Date(l.pickupDate ?? 0).getTime() >= fromTs);
+    }
+    if (dateTo) {
+      const toTs = new Date(dateTo).getTime();
+      if (!Number.isNaN(toTs)) base = base.filter(l => new Date(l.pickupDate ?? 0).getTime() <= toTs);
     }
 
     const sort = String(filters.sort ?? 'Best');
@@ -194,6 +217,40 @@ export default function LoadsScreen() {
     return base;
   }, [hasLocationPerm]);
 
+  const onSubmitNlSearch = useCallback(async () => {
+    if (!AI_NL_SEARCH_ENABLED) return;
+    const q = nlQuery.trim();
+    if (!q) return;
+    try {
+      console.log('[LoadsScreen] NL parse start');
+      const res = await fetch('/ai/parseLoadQuery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query: q }),
+      });
+      if (!res.ok) {
+        console.warn('NL parse failed', res.status);
+        return;
+      }
+      const data: { origin?: string; dest?: string; minPrice?: number; maxWeight?: number; dateRange?: { from?: string; to?: string }; radiusMiles?: number; truckType?: string } = await res.json();
+      const next: Record<string, unknown> = { ...filters };
+      if (data.origin) next.origin = data.origin;
+      if (data.dest) next.destination = data.dest;
+      if (typeof data.minPrice === 'number') next.minPrice = String(data.minPrice);
+      if (typeof data.maxWeight === 'number') next.maxWeight = String(data.maxWeight);
+      if (data.truckType) next.truckType = data.truckType;
+      if (data.dateRange?.from) (next as any).dateFrom = data.dateRange.from;
+      if (data.dateRange?.to) (next as any).dateTo = data.dateRange.to;
+      setFilters(next);
+      if (typeof data.radiusMiles === 'number' && !Number.isNaN(data.radiusMiles)) {
+        await setRadiusMiles(data.radiusMiles);
+      }
+      console.log('[LoadsScreen] NL parse applied', data);
+    } catch (e) {
+      console.error('NL parse error', e);
+    }
+  }, [AI_NL_SEARCH_ENABLED, nlQuery, filters, setRadiusMiles]);
+
   return (
     <>
       <View style={styles.container}>
@@ -205,6 +262,30 @@ export default function LoadsScreen() {
           onOpenFilters={handleOpenFilters}
         />
         <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {AI_NL_SEARCH_ENABLED ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexGrow: 1 }}>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  testID="nlSearchInput"
+                  value={nlQuery}
+                  onChangeText={setNlQuery}
+                  placeholder={'Describe your load (e.g., “Dallas to ATL, ≥$800, ≤8k lbs”)'}
+                  placeholderTextColor={theme.colors.gray}
+                  returnKeyType="search"
+                  onSubmitEditing={onSubmitNlSearch}
+                  style={[styles.input]}
+                  accessibilityLabel="Natural language search"
+                />
+              </View>
+              <Text
+                onPress={onSubmitNlSearch}
+                accessibilityRole="button"
+                testID="nlSearchSubmit"
+                style={[styles.aiLink, { backgroundColor: theme.colors.primary }]}>
+                Apply
+              </Text>
+            </View>
+          ) : null}
           <Text onPress={() => router.push('/ai-loads')} style={styles.aiLink} accessibilityRole="button" testID="open-ai-loads">AI for Loads</Text>
           <Text onPress={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="open-ai-backhaul">AI Backhaul</Text>
           {SORT_DROPDOWN_ENABLED ? (
@@ -312,5 +393,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '800',
     overflow: 'hidden',
+  },
+  input: {
+    backgroundColor: theme.colors.white,
+    color: theme.colors.dark,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    minWidth: 160,
+    flexGrow: 1,
   },
 });
