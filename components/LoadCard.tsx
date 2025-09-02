@@ -1,5 +1,5 @@
 import React, { useMemo, memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MapPin, DollarSign, Package, TrendingUp, Fuel, Heart } from 'lucide-react-native';
 import { Load } from '@/types';
 import { theme } from '@/constants/theme';
@@ -28,12 +28,10 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
   }, [load, user]);
   
   return (
-    <TouchableOpacity
-      style={styles.container}
+    <Pressable
+      style={({ pressed }) => [styles.container, pressed ? styles.pressed : null]}
       onPress={onPress}
-      activeOpacity={0.7}
       testID="load-card"
-      accessibilityRole="button"
       accessibilityLabel="Open load details"
     >
       {load.aiScore && load.aiScore > 90 && (
@@ -52,21 +50,21 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
             <Text style={styles.backhaulText}>BACKHAUL</Text>
           </View>
         )}
-        <TouchableOpacity
+        <Pressable
           onPress={() => toggleFavorite(load.id)}
           accessibilityRole="button"
           accessibilityLabel={fav ? 'Unfavorite load' : 'Favorite load'}
           accessibilityState={{ selected: fav }}
           accessibilityHint={fav ? 'Double tap to remove from favorites' : 'Double tap to add to favorites'}
           testID={`favorite-${load.id}`}
-          style={styles.favButton}
+          style={({ pressed }) => [styles.favButton, pressed ? styles.favPressed : null]}
         >
           <Heart
             size={20}
             color={fav ? theme.colors.danger : theme.colors.gray}
             fill={fav ? theme.colors.danger : 'transparent'}
           />
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <View style={styles.route}>
@@ -117,7 +115,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
       <Text style={styles.description} numberOfLines={2}>{load.description}</Text>
       
       <Text style={styles.shipper}>{load.shipperName}</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -264,6 +262,12 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.primary,
     fontWeight: '500',
+  },
+  pressed: {
+    opacity: 0.95,
+  },
+  favPressed: {
+    opacity: 0.7,
   },
 });
 
