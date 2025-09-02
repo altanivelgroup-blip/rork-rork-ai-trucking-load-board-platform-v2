@@ -34,7 +34,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
   return (
     <Outer
       style={styles.container}
-      {...(isWeb ? { onClick: onPress } : { onPress })}
+      {...(isWeb ? { onClick: onPress, accessibilityRole: 'none' } : { onPress })}
       testID="load-card"
       {...(!isWeb ? { accessibilityLabel: 'Open load details' } : {})}
     >
@@ -55,8 +55,8 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
           </View>
         )}
         <FavBtn
-          {...(isWeb ? { onClick: () => toggleFavorite(load.id) } : { onPress: () => toggleFavorite(load.id) })}
-          {...(!isWeb ? { accessibilityRole: 'button', accessibilityLabel: (fav ? 'Unfavorite load' : 'Favorite load'), accessibilityState: { selected: fav }, accessibilityHint: (fav ? 'Double tap to remove from favorites' : 'Double tap to add to favorites') } : {})}
+          {...(isWeb ? { onClick: () => toggleFavorite(load.id), accessibilityRole: 'none' } : { onPress: () => toggleFavorite(load.id) })}
+          {...(!isWeb ? { accessibilityRole: 'button', accessibilityLabel: (fav ? 'Unfavorite load' : 'Favorite load'), accessibilityState: { selected: fav }, accessibilityHint: (fav ? 'Double tap to remove from favorites' : 'Double tap to add to favorites' ) } : {})}
           testID={`favorite-${load.id}`}
           style={styles.favButton}
         >
