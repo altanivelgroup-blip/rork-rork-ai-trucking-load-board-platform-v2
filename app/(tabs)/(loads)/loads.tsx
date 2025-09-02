@@ -18,6 +18,7 @@ import { VehicleType } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { mockLoads } from '@/mocks/loads';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LoadsScreen() {
   console.log('[LoadsScreen] Rendering loads screen');
@@ -33,6 +34,7 @@ export default function LoadsScreen() {
   const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
   const [distances, setDistances] = useState<Record<string, number>>({});
   const [aiOrder, setAiOrder] = useState<string[] | null>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const initial: Record<string, unknown> = {};
@@ -518,7 +520,10 @@ export default function LoadsScreen() {
           ) : baseFiltered}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom, 10) + 88 }
+          ]
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
