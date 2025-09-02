@@ -7,7 +7,7 @@ import { theme } from '@/constants/theme';
 export default function TabsLayout() {
   return (
     <Tabs
-      initialRouteName="(loads)"
+      initialRouteName="(loads)/loads"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -30,7 +30,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="(loads)"
+        name="(loads)/loads"
         options={{
           title: 'Loads',
           tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
