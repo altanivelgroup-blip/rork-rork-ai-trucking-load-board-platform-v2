@@ -420,20 +420,7 @@ export default function LoadsScreen() {
   return (
     <>
       <View style={styles.container}>
-        <FilterBar
-          selectedVehicle={filters.vehicleType as VehicleType | undefined}
-          showBackhaul={Boolean(filters.showBackhaul)}
-          onVehicleSelect={handleVehicleSelect}
-          onBackhaulToggle={handleBackhaulToggle}
-          onOpenFilters={handleOpenFilters}
-          onApplyChip={applyChip}
-          onOpenAiLoads={() => router.push('/ai-loads')}
-          onOpenAiBackhaul={() => router.push({ pathname: '/ai-loads', params: { backhaul: '1' } })}
-          currentSort={String(filters.sort ?? sortOrder ?? 'Best')}
-          hasLocationPerm={hasLocationPerm}
-          radiusMiles={radiusMiles}
-          onSetRadius={setRadiusMiles}
-        />
+
         <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xs }}>
           {AI_NL_SEARCH_ENABLED ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
