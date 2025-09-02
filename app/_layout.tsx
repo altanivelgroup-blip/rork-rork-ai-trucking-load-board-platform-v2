@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import React from "react";
+import React, { useMemo, useCallback } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -30,14 +30,18 @@ const queryClient = new QueryClient({
 
 
 function RootLayoutNav() {
+  const headerLeft = useCallback(({ tintColor }: { tintColor?: string }) => (
+    <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} />
+  ), []);
+
+  const rootScreenOptions = useMemo(() => ({
+    headerTitleAlign: "center" as const,
+    headerLeft,
+  }), [headerLeft]);
+
   return (
     <Stack
-      screenOptions={{
-        headerTitleAlign: "center",
-        headerLeft: ({ tintColor }) => (
-          <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} />
-        ),
-      }}
+      screenOptions={rootScreenOptions}
     >
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
