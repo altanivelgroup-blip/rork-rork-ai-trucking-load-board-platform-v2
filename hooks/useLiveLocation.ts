@@ -28,6 +28,20 @@ export function useLiveLocation() {
     }
   }, []);
 
+  const getForegroundPermissionStatusAsync = useCallback(async (): Promise<boolean> => {
+    try {
+      if (Platform.OS === 'web') {
+        return 'geolocation' in navigator;
+      }
+      const Location = await import('expo-location');
+      const { status } = await Location.getForegroundPermissionsAsync();
+      return status === 'granted';
+    } catch (e) {
+      console.error('Get foreground permission status error', e);
+      return false;
+    }
+  }, []);
+
   const startWatching = useCallback(
     async (
       onUpdate: (coords: GeoCoords) => void,
@@ -120,5 +134,5 @@ export function useLiveLocation() {
     }
   }, []);
 
-  return { startWatching, stopWatching, requestPermissionAsync, requestBackgroundPermissionAsync };
+  return { startWatching, stopWatching, requestPermissionAsync, requestBackgroundPermissionAsync, getForegroundPermissionStatusAsync };
 }

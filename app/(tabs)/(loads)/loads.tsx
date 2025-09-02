@@ -24,8 +24,9 @@ export default function LoadsScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const { sortOrder, setSortOrder, radiusMiles, setRadiusMiles } = useSettings();
   const [filters, setFilters] = useState<Record<string, unknown>>({ sort: sortOrder });
-  const { startWatching, stopWatching, requestPermissionAsync } = useLiveLocation();
+  const { startWatching, stopWatching, requestPermissionAsync, getForegroundPermissionStatusAsync } = useLiveLocation();
   const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
+  const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
   const [distances, setDistances] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -44,6 +45,17 @@ export default function LoadsScreen() {
       console.log('[LoadsScreen] Applied initial filters from params', initial);
     }
   }, [params.origin, params.destination, params.minWeight, params.minPrice, params.sort, params.radius, setRadiusMiles]);
+
+  useEffect(() => {
+    (async () => {
+      const fg = await getForegroundPermissionStatusAsync();
+      setHasLocationPerm(fg);
+      const curSort = String(filters.sort ?? sortOrder ?? 'Best');
+      if (!fg && curSort === 'Nearest') {
+        setFilters((prev) => ({ ...prev, sort: 'Best' }));
+      }
+    })();
+  }, [getForegroundPermissionStatusAsync]);
 
   const haversineMiles = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
     const R = 3958.8;
@@ -69,7 +81,11 @@ export default function LoadsScreen() {
     let unsub: (() => void) | null = null;
     (async () => {
       const ok = await requestPermissionAsync();
-      if (!ok) return;
+      setHasLocationPerm(ok);
+      if (!ok) {
+        setFilters((prev) => ({ ...prev, sort: 'Best' }));
+        return;
+      }
       unsub = await startWatching((coords) => {
         setCurrentLoc(coords);
       }, { distanceIntervalMeters: 50 });
@@ -172,6 +188,12 @@ export default function LoadsScreen() {
     return { length, offset, index };
   }, []);
 
+  const sortOptions: string[] = useMemo(() => {
+    const base = ['Best', 'Newest', 'Highest $', 'Lightest'];
+    if (GEO_SORT_ENABLED && hasLocationPerm) base.push('Nearest');
+    return base;
+  }, [hasLocationPerm]);
+
   return (
     <>
       <View style={styles.container}>
@@ -188,13 +210,13 @@ export default function LoadsScreen() {
           {SORT_DROPDOWN_ENABLED ? (
             <SortDropdown
               value={String(filters.sort ?? 'Best')}
-              options={['Best', 'Newest', 'Highest $', 'Lightest', 'Nearest']}
+              options={sortOptions}
               onChange={(next) => { setFilters({ ...filters, sort: next }); void setSortOrder(next as any); }}
             />
           ) : (
             <Text
               onPress={() => {
-                const opts = ['Best', 'Newest', 'Highest $', 'Lightest', 'Nearest'];
+                const opts = sortOptions;
                 const cur = String(filters.sort ?? 'Best');
                 const idx = opts.indexOf(cur);
                 const next = opts[(idx + 1) % opts.length];
@@ -207,19 +229,21 @@ export default function LoadsScreen() {
               {String(filters.sort ?? 'Best')}
             </Text>
           )}
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {[25, 50, 100, 250].map((r) => (
-              <Text
-                key={r}
-                onPress={() => { void setRadiusMiles(r); }}
-                style={[styles.aiLink, r === radiusMiles ? { backgroundColor: theme.colors.primary } : { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
-                accessibilityRole="button"
-                testID={`radius-${r}`}
-              >
-                {r} mi
-              </Text>
-            ))}
-          </View>
+          {GEO_SORT_ENABLED && hasLocationPerm && String(filters.sort ?? 'Best') === 'Nearest' && (
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {[25, 50, 100, 250].map((r) => (
+                <Text
+                  key={r}
+                  onPress={() => { void setRadiusMiles(r); }}
+                  style={[styles.aiLink, r === radiusMiles ? { backgroundColor: theme.colors.primary } : { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
+                  accessibilityRole="button"
+                  testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
+                >
+                  {r} mi
+                </Text>
+              ))}
+            </View>
+          )}
         </View>
         <FlatList
           data={filteredLoads}

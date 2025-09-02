@@ -105,7 +105,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
       case 'Lightest':
         return 'optSortLightest';
       case 'Nearest':
-        return 'optSortNearest';
+        return 'menuSortNearest';
       default:
         return `optSort-${opt}`;
     }
@@ -123,6 +123,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
         accessibilityRole="button"
         accessibilityLabel="Open sort menu"
         onLayout={onButtonLayout}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Text style={styles.sortChipText}>{label}</Text>
         <Text style={styles.sortChevron}>▾</Text>
@@ -193,7 +194,9 @@ const styles = StyleSheet.create({
   sortChip: {
     backgroundColor: theme.colors.white,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    minHeight: 44,
+    minWidth: 44,
     borderRadius: 9999,
     borderWidth: 1,
     borderColor: theme.colors.lightGray,

@@ -41,9 +41,9 @@ const RecentLoadRow = memo<RecentLoadProps & { distanceMiles?: number }>(({ id, 
         <Text style={styles.loadTitle}>{originCity}, {originState}</Text>
         <Text style={styles.loadSub}>{destinationCity}, {destinationState}</Text>
         <View style={styles.metaRow}>
-          <Text style={styles.metaText}>Pickup: {new Date(pickupDate as any).toLocaleDateString?.() ?? String(pickupDate)}</Text>
+          <Text style={styles.metaText}>Pickup: {new Date(pickupDate as any).toLocaleDateString?.('en-US', { month: 'short', day: 'numeric' } as any) ?? String(pickupDate)}</Text>
           <Text style={styles.metaDot}>•</Text>
-          <Text style={styles.metaText}>{weight} lbs</Text>
+          <Text style={styles.metaText}>{weight.toLocaleString()} lbs</Text>
         </View>
       </View>
       <View style={styles.loadRight}>
@@ -67,26 +67,29 @@ export default function DashboardScreen() {
   const [destination, setDestination] = useState<string>('');
   const [minWeight, setMinWeight] = useState<string>('');
   const [minPrice, setMinPrice] = useState<string>('');
-  const sortOptions = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest', 'Nearest'] as const, []);
+
+  const sortOptionsBase = useMemo(() => ['Best', 'Newest', 'Highest $', 'Lightest'] as const, []);
   const { sortOrder, setSortOrder, isHydrating, radiusMiles, setRadiusMiles } = useSettings();
-  const [sort, setSort] = useState<(typeof sortOptions)[number]>(sortOrder as (typeof sortOptions)[number]);
+  const [sort, setSort] = useState<string>(sortOrder as string);
+
+  const { startWatching, stopWatching, requestPermissionAsync, getForegroundPermissionStatusAsync } = useLiveLocation();
+  const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
+  const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
+  const [distances, setDistances] = useState<Record<string, number>>({});
 
   const handleSortChange = useCallback((next: string) => {
-    const valid = (sortOptions as readonly string[]).find(o => o === next);
+    const opts = GEO_SORT_ENABLED && hasLocationPerm ? ([...sortOptionsBase, 'Nearest'] as readonly string[]) : sortOptionsBase;
+    const valid = (opts as readonly string[]).find(o => o === next);
     if (valid) {
-      setSort(valid as (typeof sortOptions)[number]);
+      setSort(valid);
       void setSortOrder(valid as any);
     }
-  }, [sortOptions, setSortOrder]);
+  }, [hasLocationPerm, sortOptionsBase, setSortOrder]);
 
   console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
 
   const recentLoads = useMemo(() => mockLoads?.slice(0, 3) ?? [], []);
   const lastDelivery = useMemo(() => recentLoads[0]?.destination, [recentLoads]);
-
-  const { startWatching, stopWatching, requestPermissionAsync } = useLiveLocation();
-  const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
-  const [distances, setDistances] = useState<Record<string, number>>({});
 
   const haversineMiles = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
     const R = 3958.8;
@@ -102,6 +105,16 @@ export default function DashboardScreen() {
   }, []);
 
   useEffect(() => {
+    (async () => {
+      const fg = await getForegroundPermissionStatusAsync();
+      setHasLocationPerm(fg);
+      if (!fg && sort === 'Nearest') {
+        setSort('Best');
+      }
+    })();
+  }, [getForegroundPermissionStatusAsync]);
+
+  useEffect(() => {
     if (!GEO_SORT_ENABLED) return;
     if (sort !== 'Nearest') {
       setDistances({});
@@ -112,7 +125,11 @@ export default function DashboardScreen() {
     let unsub: (() => void) | null = null;
     (async () => {
       const ok = await requestPermissionAsync();
-      if (!ok) return;
+      setHasLocationPerm(ok);
+      if (!ok) {
+        setSort('Best');
+        return;
+      }
       unsub = await startWatching((coords) => setCurrentLoc(coords), { distanceIntervalMeters: 50 });
     })();
     return () => { try { unsub?.(); } catch {} };
@@ -170,6 +187,12 @@ export default function DashboardScreen() {
       router.push('/(tabs)/(loads)/loads');
     }
   }, [lastDelivery, router]);
+
+  const currentSortOptions = useMemo(() => {
+    const base = [...sortOptionsBase];
+    if (GEO_SORT_ENABLED && hasLocationPerm) base.push('Nearest');
+    return base as readonly string[];
+  }, [sortOptionsBase, hasLocationPerm]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -247,12 +270,12 @@ export default function DashboardScreen() {
             testID="filter-price"
           />
           {SORT_DROPDOWN_ENABLED ? (
-            <SortDropdown value={sort} options={sortOptions as unknown as string[]} onChange={handleSortChange} />
+            <SortDropdown value={sort} options={currentSortOptions as unknown as string[]} onChange={handleSortChange} />
           ) : (
             <TouchableOpacity
               style={styles.sortChip}
               onPress={() => {
-                const opts = sortOptions;
+                const opts = currentSortOptions as string[];
                 const idx = opts.indexOf(sort);
                 const next = opts[(idx + 1) % opts.length];
                 setSort(next);
@@ -263,19 +286,21 @@ export default function DashboardScreen() {
               <Text style={styles.sortChipText}>{sort}</Text>
             </TouchableOpacity>
           )}
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {[25, 50, 100, 250].map((r) => (
-              <Text
-                key={r}
-                onPress={() => { void setRadiusMiles(r); }}
-                style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: 8 }]}
-                accessibilityRole="button"
-                testID={`radius-${r}`}
-              >
-                <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }}>{r} mi</Text>
-              </Text>
-            ))}
-          </View>
+          {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {[25, 50, 100, 250].map((r) => (
+                <Text
+                  key={r}
+                  onPress={() => { void setRadiusMiles(r); }}
+                  style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: 8 }]}
+                  accessibilityRole="button"
+                  testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
+                >
+                  <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }}>{r} mi</Text>
+                </Text>
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={styles.sectionHeader}>

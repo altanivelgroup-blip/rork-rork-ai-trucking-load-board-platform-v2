@@ -79,7 +79,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
         </View>
         
         <View style={styles.divider}>
-          <Text style={styles.distance}>{typeof distanceMiles === 'number' ? `${distanceMiles.toFixed(1)} mi` : `${load.distance} mi`}</Text>
+          <Text style={styles.distance} testID="labelDistance">{typeof distanceMiles === 'number' ? `${distanceMiles.toFixed(1)} mi` : `${load.distance} mi`}</Text>
         </View>
         
         <View style={styles.location}>
