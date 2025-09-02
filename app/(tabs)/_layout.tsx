@@ -13,16 +13,12 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.gray,
         tabBarStyle: {
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          height: Platform.OS === 'ios' ? 64 : 64,
+          paddingBottom: Platform.OS === 'ios' ? 8 : 8,
           paddingTop: 6,
-          backgroundColor: theme.colors.white,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border,
         },
         tabBarLabelStyle: {
           fontSize: theme.fontSize.xs,
-          fontWeight: '500',
         },
       }}
     >
