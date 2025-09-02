@@ -11,10 +11,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
 import { SortDropdown } from '@/components/SortDropdown';
-import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED } from '@/constants/flags';
+import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED, AI_RERANK_ENABLED } from '@/constants/flags';
 import { useSettings } from '@/hooks/useSettings';
 import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
 import { mockLoads } from '@/mocks/loads';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 
@@ -23,6 +24,7 @@ export default function LoadsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ origin?: string; destination?: string; minWeight?: string; maxWeight?: string; minPrice?: string; sort?: string; radius?: string; truckType?: string }>();
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const { user } = useAuth();
   const [nlQuery, setNlQuery] = useState<string>('');
   const { sortOrder, setSortOrder, radiusMiles, setRadiusMiles } = useSettings();
   const [filters, setFilters] = useState<Record<string, unknown>>({ sort: sortOrder });
@@ -30,6 +32,7 @@ export default function LoadsScreen() {
   const [currentLoc, setCurrentLoc] = useState<GeoCoords | null>(null);
   const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
   const [distances, setDistances] = useState<Record<string, number>>({});
+  const [aiOrder, setAiOrder] = useState<string[] | null>(null);
 
   useEffect(() => {
     const initial: Record<string, unknown> = {};
@@ -108,7 +111,7 @@ export default function LoadsScreen() {
     setDistances(map);
   }, [currentLoc, haversineMiles]);
 
-  const filteredLoads = useMemo(() => {
+  const baseFiltered = useMemo(() => {
     let base = mockLoads.slice();
     const origin = String(filters.origin ?? '').toLowerCase();
     const destination = String(filters.destination ?? '').toLowerCase();
@@ -197,11 +200,11 @@ export default function LoadsScreen() {
     router.push({ pathname: '/load-details', params: { loadId } });
   }, [router]);
 
-  const renderItem = useCallback(({ item }: { item: (typeof filteredLoads)[number] }) => (
+  const renderItem = useCallback(({ item }: { item: (typeof baseFiltered)[number] }) => (
     <LoadCard load={item} onPress={() => handleLoadPress(item.id)} distanceMiles={distances[item.id]} />
-  ), [handleLoadPress, filteredLoads, distances]);
+  ), [handleLoadPress, distances]);
 
-  const keyExtractor = useCallback((item: (typeof filteredLoads)[number]) => item.id, []);
+  const keyExtractor = useCallback((item: (typeof baseFiltered)[number]) => item.id, []);
 
   const getItemLayout = useCallback((_: unknown, index: number) => {
     const ITEM_HEIGHT = 188;
@@ -216,6 +219,46 @@ export default function LoadsScreen() {
     if (GEO_SORT_ENABLED && hasLocationPerm) base.push('Nearest');
     return base;
   }, [hasLocationPerm]);
+
+  useEffect(() => {
+    let aborted = false;
+    (async () => {
+      if (!AI_RERANK_ENABLED) { setAiOrder(null); return; }
+      try {
+        const payload = {
+          loads: baseFiltered,
+          prefs: {
+            homeBase: (user as any)?.homeBase ?? null,
+            favoriteLanes: (user as any)?.favoriteLanes ?? [],
+            truckType: (user?.vehicleTypes && user.vehicleTypes.length > 0 ? user.vehicleTypes[0] : null),
+          },
+          context: {
+            currentLocation: currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null,
+          },
+        };
+        console.log('[LoadsScreen] AI rerank request', { size: baseFiltered.length });
+        const res = await fetch('/ai/rerankLoads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          console.warn('[LoadsScreen] AI rerank failed', res.status);
+          if (!aborted) setAiOrder(null);
+          return;
+        }
+        const data: any = await res.json();
+        const ids: string[] = Array.isArray(data?.ids) ? data.ids : (Array.isArray(data?.order) ? data.order : []);
+        const allowed = new Set(baseFiltered.map(l => l.id));
+        const clean = ids.filter((id) => allowed.has(id));
+        if (!aborted) setAiOrder(clean.length > 0 ? clean : null);
+      } catch (e) {
+        console.warn('[LoadsScreen] AI rerank error', e);
+        if (!aborted) setAiOrder(null);
+      }
+    })();
+    return () => { aborted = true; };
+  }, [AI_RERANK_ENABLED, JSON.stringify(baseFiltered.map(l => l.id)), currentLoc?.latitude, currentLoc?.longitude, user?.id]);
 
   const onSubmitNlSearch = useCallback(async () => {
     if (!AI_NL_SEARCH_ENABLED) return;
@@ -327,7 +370,18 @@ export default function LoadsScreen() {
           )}
         </View>
         <FlatList
-          data={filteredLoads}
+          data={aiOrder ? (
+            (() => {
+              const map = new Map(baseFiltered.map(l => [l.id, l] as const));
+              const ordered: typeof baseFiltered = [];
+              aiOrder.forEach(id => {
+                const item = map.get(id);
+                if (item) ordered.push(item);
+              });
+              baseFiltered.forEach(l => { if (!map.has(l.id) || (aiOrder.indexOf(l.id) === -1)) ordered.push(l); });
+              return ordered;
+            })()
+          ) : baseFiltered}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
