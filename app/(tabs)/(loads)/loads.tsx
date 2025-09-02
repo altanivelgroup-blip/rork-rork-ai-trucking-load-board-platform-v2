@@ -11,8 +11,8 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
-import { SortDropdown } from '@/components/SortDropdown';
-import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
+
+import { GEO_SORT_ENABLED, AI_NL_SEARCH_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
 import { useSettings } from '@/hooks/useSettings';
 import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
@@ -461,28 +461,7 @@ export default function LoadsScreen() {
                 <Text onPress={() => void applyChip('near')} style={[styles.aiLink, { backgroundColor: theme.colors.secondary }]} accessibilityRole="button" testID="chipNearMe">Near me</Text>
                 <Text onPress={() => void applyChip('lightest')} style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]} accessibilityRole="button" testID="chipLightest">Lightest</Text>
                 <Text onPress={() => void applyChip('new')} style={[styles.aiLink, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNew">New Today</Text>
-                {SORT_DROPDOWN_ENABLED ? (
-                  <SortDropdown
-                    value={String(filters.sort ?? 'Best')}
-                    options={sortOptions}
-                    onChange={(next) => { setFilters({ ...filters, sort: next }); void setSortOrder(next as any); }}
-                  />
-                ) : (
-                  <Text
-                    onPress={() => {
-                      const opts = sortOptions;
-                      const cur = String(filters.sort ?? 'Best');
-                      const idx = opts.indexOf(cur);
-                      const next = opts[(idx + 1) % opts.length];
-                      setFilters({ ...filters, sort: next });
-                    }}
-                    style={[styles.aiLink, { backgroundColor: theme.colors.white, color: theme.colors.dark }]}
-                    accessibilityRole="button"
-                    testID="loads-sort"
-                  >
-                    {String(filters.sort ?? 'Best')}
-                  </Text>
-                )}
+                {/* sort control removed per request */}
                 {GEO_SORT_ENABLED && hasLocationPerm && String(filters.sort ?? 'Best') === 'Nearest' && [25,50,100,250].map((r) => (
                   <Text
                     key={r}
