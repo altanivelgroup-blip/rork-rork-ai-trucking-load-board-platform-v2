@@ -1,5 +1,5 @@
-import React, { useMemo, memo, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, Platform, GestureResponderEvent } from 'react-native';
+import React, { useMemo, memo, useCallback } from 'react';
+import { View, Text, StyleSheet, Platform, Pressable } from 'react-native';
 import { MapPin, DollarSign, Package, TrendingUp, Fuel, Heart } from 'lucide-react-native';
 import { Load } from '@/types';
 import { theme } from '@/constants/theme';
@@ -27,28 +27,21 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
     }
   }, [load, user]);
 
-  const isPressingCard = useRef(false);
-  const isPressingFav = useRef(false);
-
-  const handleCardResponderRelease = useCallback((e: GestureResponderEvent) => {
-    if (isPressingFav.current) {
-      isPressingFav.current = false;
-      return;
-    }
+  const handleCardPress = useCallback(() => {
     try { onPress(); } catch (err) { console.log('[LoadCard] onPress error', err); }
   }, [onPress]);
 
-  const handleFavResponderRelease = useCallback(() => {
-    isPressingFav.current = true;
-    try { toggleFavorite(load.id); } catch (err) { console.log('[LoadCard] toggleFavorite error', err); }
+  const handleFavPress = useCallback((e?: any) => {
+    try {
+      if (Platform.OS === 'web') { try { e?.stopPropagation?.(); } catch {} }
+      toggleFavorite(load.id);
+    } catch (err) { console.log('[LoadCard] toggleFavorite error', err); }
   }, [toggleFavorite, load.id]);
 
   return (
-    <View
+    <Pressable
       style={styles.container}
-      onStartShouldSetResponder={() => true}
-      onResponderRelease={handleCardResponderRelease}
-      accessible
+      onPress={handleCardPress}
       accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
       accessibilityLabel={Platform.OS === 'web' ? undefined : 'Open load details'}
       testID="load-card"
@@ -69,9 +62,8 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
             <Text style={styles.backhaulText}>BACKHAUL</Text>
           </View>
         )}
-        <View
-          onStartShouldSetResponder={() => true}
-          onResponderRelease={handleFavResponderRelease}
+        <Pressable
+          onPress={handleFavPress}
           accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
           accessibilityLabel={Platform.OS === 'web' ? undefined : (fav ? 'Unfavorite load' : 'Favorite load')}
           testID={`favorite-${load.id}`}
@@ -82,7 +74,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
             color={fav ? theme.colors.danger : theme.colors.gray}
             fill={fav ? theme.colors.danger : 'transparent'}
           />
-        </View>
+        </Pressable>
       </View>
 
       <View style={styles.route}>
@@ -133,7 +125,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
       <Text style={styles.description} numberOfLines={2}>{load.description}</Text>
       
       <Text style={styles.shipper}>{load.shipperName}</Text>
-    </View>
+    </Pressable>
   );
 };
 
