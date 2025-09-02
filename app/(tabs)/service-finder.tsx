@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 44,
     backgroundColor: theme.colors.white,
     borderRadius: 12,
     paddingHorizontal: 12,
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   },
   ctaColumn: { gap: 8, justifyContent: 'flex-end' },
   searchBtn: {
-    height: 48,
+    height: 44,
     paddingHorizontal: 16,
     borderRadius: 10,
     backgroundColor: theme.colors.primary,
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   searchBtnText: { color: theme.colors.white, fontWeight: '700' },
 
   locateBtn: {
-    height: 36,
+    height: 32,
     paddingHorizontal: 12,
     borderRadius: 10,
     backgroundColor: theme.colors.white,

@@ -537,8 +537,8 @@ const styles = StyleSheet.create({
   refreshBtn: { padding: 10, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, borderWidth: 1, borderColor: theme.colors.border },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 as unknown as number },
-  card: { width: '48%', backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border },
-  cardIconWrap: { width: 34, height: 34, borderRadius: 17, backgroundColor: hexToRgba(theme.colors.secondary, 0.1), alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  card: { flex: 1, minWidth: 140, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border },
+  cardIconWrap: { width: 30, height: 30, borderRadius: 15, backgroundColor: hexToRgba(theme.colors.secondary, 0.1), alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   statValue: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.dark },
   statLabel: { color: theme.colors.gray, marginTop: 4 },
 
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
   placeholder: { padding: theme.spacing.lg, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, borderWidth: 1, borderColor: theme.colors.border },
   placeholderText: { color: theme.colors.gray },
 
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.colors.secondary, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.secondary, alignItems: 'center', justifyContent: 'center' },
 
   jobListCard: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border },
   jobListHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
   mPageSubtitle: { marginTop: 4, fontSize: theme.fontSize.md, color: theme.colors.gray },
   mCard: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.xl, padding: theme.spacing.lg, marginBottom: theme.spacing.lg, borderWidth: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   mCardHeader: { flexDirection: 'row', alignItems: 'center' },
-  mCardIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.md },
+  mCardIconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.md },
   mCardHeadings: { flex: 1 },
   mCardTitle: { fontSize: theme.fontSize.lg, color: theme.colors.dark, fontWeight: fontWeight700 },
   mCardSubtitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 2 },
@@ -603,7 +603,7 @@ const styles = StyleSheet.create({
   mPopularText: { color: theme.colors.white, fontWeight: fontWeight700, fontSize: theme.fontSize.sm },
   mFeaturesWrap: { marginTop: theme.spacing.md },
   mFeatureRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  mCheckWrap: { width: 22, alignItems: 'center', marginRight: theme.spacing.sm },
+  mCheckWrap: { width: 20, alignItems: 'center', marginRight: theme.spacing.sm },
   mFeatureText: { flex: 1, fontSize: theme.fontSize.md, color: theme.colors.dark },
   mSelectBtn: { marginTop: theme.spacing.lg, backgroundColor: theme.colors.primary, paddingVertical: 14, alignItems: 'center', borderRadius: theme.borderRadius.lg },
   mSelectBtnActive: { backgroundColor: '#E5E7EB' },
@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
   mWhyCard: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.xl, padding: theme.spacing.lg, marginTop: theme.spacing.md },
   mWhyTitle: { fontSize: theme.fontSize.lg, color: theme.colors.dark, fontWeight: fontWeight700, marginBottom: theme.spacing.md },
   mWhyRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8 },
-  mWhyIcon: { width: 28, alignItems: 'center', marginRight: theme.spacing.md },
+  mWhyIcon: { width: 24, alignItems: 'center', marginRight: theme.spacing.md },
   mWhyTextWrap: { flex: 1 },
   mWhyHeading: { fontWeight: fontWeight700, color: theme.colors.dark, fontSize: theme.fontSize.md },
   mWhyDesc: { color: theme.colors.gray, marginTop: 2, fontSize: theme.fontSize.sm },

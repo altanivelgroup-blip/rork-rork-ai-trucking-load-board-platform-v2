@@ -278,11 +278,13 @@ const styles = StyleSheet.create({
   },
   favButton: {
     marginLeft: 'auto',
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
+    minWidth: 40,
+    minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 22,
+    borderRadius: 20,
     cursor: 'pointer',
   },
   route: {
