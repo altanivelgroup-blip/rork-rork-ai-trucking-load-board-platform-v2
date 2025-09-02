@@ -8,7 +8,6 @@ import {
   TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { LoadCard } from '@/components/LoadCard';
 import { FilterBar } from '@/components/FilterBar';
 import { SortDropdown } from '@/components/SortDropdown';
@@ -36,7 +35,7 @@ export default function LoadsScreen() {
   const [distances, setDistances] = useState<Record<string, number>>({});
   const [aiOrder, setAiOrder] = useState<string[] | null>(null);
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
+  const TABBAR_FALLBACK = 88;
 
   useEffect(() => {
     const initial: Record<string, unknown> = {};
@@ -524,7 +523,7 @@ export default function LoadsScreen() {
           renderItem={renderItem}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: Math.max(insets.bottom, 10) + Math.max(tabBarHeight, 84) + 12 }
+            { paddingBottom: Math.max(insets.bottom, 10) + TABBAR_FALLBACK + 16 }
           ]}
           refreshControl={
             <RefreshControl
