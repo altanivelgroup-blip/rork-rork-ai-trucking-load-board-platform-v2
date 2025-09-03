@@ -204,16 +204,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       // Ensure Firebase authentication before posting
       await ensureFirebaseAuth();
       
-      setDraft(prev => ({ ...prev, isPosting: true }));
-      
-      // Get the current draft state to ensure we have the latest values
-      // Use a callback to get the most up-to-date state
-      let currentDraft: PostLoadDraft;
-      setDraft(prev => {
-        currentDraft = prev;
-        return prev;
-      });
-      currentDraft = currentDraft! || draft;
+      // Get the current draft state - use the draft from closure
+      const currentDraft = draft;
       
       // Debug the draft state
       console.log('[PostLoad] postLoadWizard draft state:', {
@@ -233,7 +225,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         rateKind: currentDraft.rateKind,
         miles: currentDraft.miles,
         photoUrls: currentDraft.photoUrls?.length,
-        contact: currentDraft.contact
+        contact: currentDraft.contact,
+        isPosting: currentDraft.isPosting
       });
       
       // Additional validation for dates before proceeding
@@ -252,21 +245,12 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       const deliveryDate = toDate(currentDraft.deliveryDate);
       
       if (!pickupDate || isNaN(pickupDate.getTime())) {
-        setDraft(prev => ({ ...prev, isPosting: false }));
         throw new Error('Valid pickup date is required');
       }
       
       if (!deliveryDate || isNaN(deliveryDate.getTime())) {
-        setDraft(prev => ({ ...prev, isPosting: false }));
         throw new Error('Valid delivery date is required');
       }
-      
-      // Update the current draft with properly converted dates
-      currentDraft = {
-        ...currentDraft,
-        pickupDate,
-        deliveryDate
-      };
       
       // Validate the load
       const validationData: LoadValidationData = {
@@ -290,7 +274,6 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.log('[PostLoad] validation result:', validation);
       
       if (!validation.ok) {
-        setDraft(prev => ({ ...prev, isPosting: false }));
         throw new Error(validation.errors[0]);
       }
       
@@ -336,7 +319,6 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       
     } catch (error) {
       console.error('[PostLoad] postLoadWizard error:', error);
-      setDraft(prev => ({ ...prev, isPosting: false }));
       throw error;
     }
   }, [draft, user?.id, reset, showToast]);

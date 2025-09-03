@@ -33,22 +33,27 @@ export default function PostLoadStep5() {
 
   const isReady = useMemo(() => {
     const hasContact = contact.trim().length > 0;
-    const hasMinPhotos = (draft.photoUrls?.length ?? 0) >= 5;
+    // Check for minimum attachments (photos selected) instead of uploaded photos
+    const hasMinPhotos = (draft.attachments?.length ?? 0) >= 5;
     const hasRequiredFields = draft.title?.trim() && draft.pickup?.trim() && draft.delivery?.trim() && draft.vehicleType && draft.rateAmount?.trim();
+    const hasDates = draft.pickupDate && draft.deliveryDate;
     const notPosting = !draft.isPosting;
     
     console.log('isReady check:', {
       hasContact,
       hasMinPhotos,
       hasRequiredFields,
+      hasDates,
       notPosting,
       canPost,
       photoCount: draft.photoUrls?.length ?? 0,
-      attachmentCount: draft.attachments?.length ?? 0
+      attachmentCount: draft.attachments?.length ?? 0,
+      pickupDate: draft.pickupDate,
+      deliveryDate: draft.deliveryDate
     });
     
-    return hasContact && hasMinPhotos && hasRequiredFields && notPosting;
-  }, [contact, canPost, draft.isPosting, draft.photoUrls, draft.attachments, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount]);
+    return hasContact && hasMinPhotos && hasRequiredFields && hasDates && notPosting;
+  }, [contact, canPost, draft.isPosting, draft.photoUrls, draft.attachments, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate]);
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
@@ -118,103 +123,66 @@ export default function PostLoadStep5() {
   const onSubmit = useCallback(async () => {
     console.log('POST BTN FIRED - onSubmit called');
     
-    // Helper function to convert various date formats to Date
-    const toDate = (v: any): Date | null => {
-      if (v instanceof Date) return v;
-      if (v?.toDate && typeof v.toDate === 'function') return v.toDate();
-      if (v && typeof v === 'string') {
-        const parsed = new Date(v);
-        return isNaN(parsed.getTime()) ? null : parsed;
-      }
-      return null;
-    };
-    
-    const convertedPickupDate = toDate(draft.pickupDate);
-    const convertedDeliveryDate = toDate(draft.deliveryDate);
-    
-    console.log('Debug info:', {
-      contact: contact.trim(),
-      contactLength: contact.trim().length,
-      canPost,
-      isPosting: draft.isPosting,
-      isReady,
-      photoCount: draft.photoUrls?.length ?? 0,
-      attachmentCount: draft.attachments?.length ?? 0,
-      title: draft.title,
-      pickup: draft.pickup,
-      delivery: draft.delivery,
-      vehicleType: draft.vehicleType,
-      rateAmount: draft.rateAmount,
-      pickupDate: draft.pickupDate,
-      deliveryDate: draft.deliveryDate,
-      pickupDateType: typeof draft.pickupDate,
-      deliveryDateType: typeof draft.deliveryDate,
-      pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
-      deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime()),
-      convertedPickupDate,
-      convertedDeliveryDate,
-      convertedPickupDateValid: convertedPickupDate instanceof Date && !isNaN(convertedPickupDate.getTime()),
-      convertedDeliveryDateValid: convertedDeliveryDate instanceof Date && !isNaN(convertedDeliveryDate.getTime())
-    });
-    
     if (!isReady) {
       console.log('Button not ready, aborting submit');
+      Alert.alert('Error', 'Please complete all required fields before posting.');
       return;
     }
     
-    // Validate dates before proceeding - use converted dates
-    if (!convertedPickupDate || isNaN(convertedPickupDate.getTime())) {
-      Alert.alert('Error', 'Please select a valid pickup date. Go back to step 4 to set dates.');
+    if (draft.isPosting) {
+      console.log('Already posting, aborting duplicate submit');
       return;
-    }
-    
-    if (!convertedDeliveryDate || isNaN(convertedDeliveryDate.getTime())) {
-      Alert.alert('Error', 'Please select a valid delivery date. Go back to step 4 to set dates.');
-      return;
-    }
-    
-    // Update draft with converted dates if needed
-    if (convertedPickupDate !== draft.pickupDate) {
-      console.log('[PostLoadStep5] updating draft pickupDate with converted date');
-      setField('pickupDate', convertedPickupDate);
-    }
-    if (convertedDeliveryDate !== draft.deliveryDate) {
-      console.log('[PostLoadStep5] updating draft deliveryDate with converted date');
-      setField('deliveryDate', convertedDeliveryDate);
     }
     
     try {
-      // Save contact to draft first and wait for state update
-      setField('contact', contact);
+      console.log('Starting post load process...');
       
-      // Small delay to ensure state is updated
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Update contact in draft
+      setField('contact', contact.trim());
       
-      // Upload photos first if needed
-      if ((draft.photoUrls?.length ?? 0) < (draft.attachments?.length ?? 0)) {
+      // Set posting state immediately to prevent double-clicks
+      setField('isPosting', true);
+      
+      // Upload photos first if we have attachments but no uploaded URLs
+      if ((draft.attachments?.length ?? 0) > 0 && (draft.photoUrls?.length ?? 0) === 0) {
         console.log('Uploading photos before posting...');
         await uploadPhotos();
+        
+        // Small delay to ensure photo URLs are updated in state
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
       
-      // Ensure we have minimum photos after upload
-      if ((draft.photoUrls?.length ?? 0) < 5) {
-        Alert.alert('Error', 'At least 5 photos are required to post a load.');
-        return;
-      }
+      // Final validation before posting
+      console.log('Final validation before posting:', {
+        title: draft.title?.trim(),
+        pickup: draft.pickup?.trim(),
+        delivery: draft.delivery?.trim(),
+        vehicleType: draft.vehicleType,
+        rateAmount: draft.rateAmount?.trim(),
+        pickupDate: draft.pickupDate,
+        deliveryDate: draft.deliveryDate,
+        contact: contact.trim(),
+        attachments: draft.attachments?.length ?? 0,
+        photoUrls: draft.photoUrls?.length ?? 0
+      });
       
-      // Use the new postLoadWizard function
+      // Use the postLoadWizard function which handles all validation and posting
       console.log('Calling postLoadWizard...');
       await postLoadWizard();
       
       console.log('Load posted successfully, navigating...');
       // Navigate to loads list on success
       router.replace('/(tabs)/(loads)');
+      
     } catch (e) {
-      console.log('[PostLoadStep5] submit error', e);
+      console.error('[PostLoadStep5] submit error:', e);
       const errorMessage = e instanceof Error ? e.message : 'Failed to post load. Please try again.';
       Alert.alert('Error', errorMessage);
+      
+      // Reset posting state on error
+      setField('isPosting', false);
     }
-  }, [contact, postLoadWizard, router, setField, canPost, draft.isPosting, draft.photoUrls, draft.attachments, isReady, uploadPhotos, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate]);
+  }, [contact, postLoadWizard, router, setField, draft, isReady, uploadPhotos]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -250,7 +218,7 @@ export default function PostLoadStep5() {
             <Text style={styles.helperText} testID="attachmentsHelper">
               Photos uploaded: {(draft.photoUrls?.length ?? 0)} / {(draft.attachments?.length ?? 0)} selected
             </Text>
-            {(draft.photoUrls?.length ?? 0) < 5 && (
+            {(draft.attachments?.length ?? 0) < 5 && (
               <Text style={styles.errorText} testID="attachmentsError">Minimum 5 photos required to post.</Text>
             )}
             <View style={styles.attachActions}>
