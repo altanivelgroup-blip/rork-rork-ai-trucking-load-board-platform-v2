@@ -28,7 +28,7 @@ function Stepper({ current, total }: { current: number; total: number }) {
 }
 export default function PostLoadStep5() {
   const router = useRouter();
-  const { draft, setField, canPost, postLoadWizard } = usePostLoad();
+  const { draft, setField, canPost, postLoadWizard, uploadPhotos } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
 
   const isReady = useMemo(() => (contact.trim().length > 0) && canPost && !draft.isPosting, [contact, canPost, draft.isPosting]);
@@ -99,13 +99,32 @@ export default function PostLoadStep5() {
   }, [draft.attachments, setField]);
 
   const onSubmit = useCallback(async () => {
+    console.log('POST BTN FIRED - onSubmit called');
+    console.log('Debug info:', {
+      contact: contact.trim(),
+      contactLength: contact.trim().length,
+      canPost,
+      isPosting: draft.isPosting,
+      isReady,
+      photoCount: draft.photoUrls?.length ?? 0,
+      attachmentCount: draft.attachments?.length ?? 0
+    });
+    
     try {
       // Save contact to draft first
       setField('contact', contact);
       
+      // Upload photos first if needed
+      if ((draft.photoUrls?.length ?? 0) < (draft.attachments?.length ?? 0)) {
+        console.log('Uploading photos before posting...');
+        await uploadPhotos();
+      }
+      
       // Use the new postLoadWizard function
+      console.log('Calling postLoadWizard...');
       await postLoadWizard();
       
+      console.log('Load posted successfully, navigating...');
       // Navigate to loads list on success
       router.replace('/(tabs)/(loads)');
     } catch (e) {
@@ -113,7 +132,7 @@ export default function PostLoadStep5() {
       const errorMessage = e instanceof Error ? e.message : 'Failed to post load. Please try again.';
       Alert.alert('Error', errorMessage);
     }
-  }, [contact, postLoadWizard, router, setField]);
+  }, [contact, postLoadWizard, router, setField, canPost, draft.isPosting, draft.photoUrls, draft.attachments, isReady, uploadPhotos]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top','bottom']}>
