@@ -117,6 +117,21 @@ export default function PostLoadStep5() {
 
   const onSubmit = useCallback(async () => {
     console.log('POST BTN FIRED - onSubmit called');
+    
+    // Helper function to convert various date formats to Date
+    const toDate = (v: any): Date | null => {
+      if (v instanceof Date) return v;
+      if (v?.toDate && typeof v.toDate === 'function') return v.toDate();
+      if (v && typeof v === 'string') {
+        const parsed = new Date(v);
+        return isNaN(parsed.getTime()) ? null : parsed;
+      }
+      return null;
+    };
+    
+    const convertedPickupDate = toDate(draft.pickupDate);
+    const convertedDeliveryDate = toDate(draft.deliveryDate);
+    
     console.log('Debug info:', {
       contact: contact.trim(),
       contactLength: contact.trim().length,
@@ -135,7 +150,11 @@ export default function PostLoadStep5() {
       pickupDateType: typeof draft.pickupDate,
       deliveryDateType: typeof draft.deliveryDate,
       pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
-      deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime())
+      deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime()),
+      convertedPickupDate,
+      convertedDeliveryDate,
+      convertedPickupDateValid: convertedPickupDate instanceof Date && !isNaN(convertedPickupDate.getTime()),
+      convertedDeliveryDateValid: convertedDeliveryDate instanceof Date && !isNaN(convertedDeliveryDate.getTime())
     });
     
     if (!isReady) {
@@ -143,15 +162,25 @@ export default function PostLoadStep5() {
       return;
     }
     
-    // Validate dates before proceeding
-    if (!draft.pickupDate || !(draft.pickupDate instanceof Date) || isNaN(draft.pickupDate.getTime())) {
-      Alert.alert('Error', 'Please select a valid pickup date.');
+    // Validate dates before proceeding - use converted dates
+    if (!convertedPickupDate || isNaN(convertedPickupDate.getTime())) {
+      Alert.alert('Error', 'Please select a valid pickup date. Go back to step 4 to set dates.');
       return;
     }
     
-    if (!draft.deliveryDate || !(draft.deliveryDate instanceof Date) || isNaN(draft.deliveryDate.getTime())) {
-      Alert.alert('Error', 'Please select a valid delivery date.');
+    if (!convertedDeliveryDate || isNaN(convertedDeliveryDate.getTime())) {
+      Alert.alert('Error', 'Please select a valid delivery date. Go back to step 4 to set dates.');
       return;
+    }
+    
+    // Update draft with converted dates if needed
+    if (convertedPickupDate !== draft.pickupDate) {
+      console.log('[PostLoadStep5] updating draft pickupDate with converted date');
+      setField('pickupDate', convertedPickupDate);
+    }
+    if (convertedDeliveryDate !== draft.deliveryDate) {
+      console.log('[PostLoadStep5] updating draft deliveryDate with converted date');
+      setField('deliveryDate', convertedDeliveryDate);
     }
     
     try {

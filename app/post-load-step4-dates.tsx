@@ -162,12 +162,43 @@ function CalendarModal({
   );
 }
 
+// Helper functions for default dates
+const startOfTodayAt = (h: number) => { 
+  const d = new Date(); 
+  d.setHours(h, 0, 0, 0); 
+  return d; 
+};
+
+const getDefaultSchedule = () => {
+  const now = new Date();
+  const pickup = now.getHours() >= 8 ? now : startOfTodayAt(8);
+  const pickupDate = new Date(pickup);
+  const deliveryDate = new Date(pickupDate.getTime() + 24 * 3600 * 1000); 
+  deliveryDate.setHours(17, 0, 0, 0);
+  return { pickup: pickupDate, delivery: deliveryDate };
+};
+
 export default function PostLoadStep4Dates() {
   const router = useRouter();
   const { draft, setField } = usePostLoad();
-  const [pickupDate, setPickupDate] = useState<Date | null>(draft.pickupDate ?? null);
-  const [deliveryDate, setDeliveryDate] = useState<Date | null>(draft.deliveryDate ?? null);
+  
+  // Initialize with default dates if none exist
+  const defaultDates = useMemo(() => getDefaultSchedule(), []);
+  const [pickupDate, setPickupDate] = useState<Date | null>(draft.pickupDate ?? defaultDates.pickup);
+  const [deliveryDate, setDeliveryDate] = useState<Date | null>(draft.deliveryDate ?? defaultDates.delivery);
   const [picker, setPicker] = useState<PickerKind | null>(null);
+  
+  // Set default dates in draft if they don't exist
+  useEffect(() => {
+    if (!draft.pickupDate && pickupDate) {
+      console.log('[PostLoadStep4Dates] setting default pickupDate:', pickupDate);
+      setField('pickupDate', pickupDate);
+    }
+    if (!draft.deliveryDate && deliveryDate) {
+      console.log('[PostLoadStep4Dates] setting default deliveryDate:', deliveryDate);
+      setField('deliveryDate', deliveryDate);
+    }
+  }, [draft.pickupDate, draft.deliveryDate, pickupDate, deliveryDate, setField]);
 
   const canProceed = useMemo(() => !!pickupDate && !!deliveryDate, [pickupDate, deliveryDate]);
 
@@ -180,14 +211,34 @@ export default function PostLoadStep4Dates() {
   }, [picker]);
 
   useEffect(() => {
+    console.log('[PostLoadStep4Dates] setting pickupDate in draft:', pickupDate);
     setField('pickupDate', pickupDate);
   }, [pickupDate, setField]);
   useEffect(() => {
+    console.log('[PostLoadStep4Dates] setting deliveryDate in draft:', deliveryDate);
     setField('deliveryDate', deliveryDate);
   }, [deliveryDate, setField]);
 
   const onPrevious = useCallback(() => { router.back(); }, [router]);
-  const onNext = useCallback(() => { console.log('[PostLoadStep4Dates] next', { pickupDate, deliveryDate }); if (pickupDate && deliveryDate) { router.push('/post-load-step5'); } }, [pickupDate, deliveryDate, router]);
+  const onNext = useCallback(() => { 
+    console.log('[PostLoadStep4Dates] next', { 
+      pickupDate, 
+      deliveryDate, 
+      draftPickupDate: draft.pickupDate, 
+      draftDeliveryDate: draft.deliveryDate,
+      pickupDateValid: pickupDate instanceof Date && !isNaN(pickupDate.getTime()),
+      deliveryDateValid: deliveryDate instanceof Date && !isNaN(deliveryDate.getTime())
+    }); 
+    if (pickupDate && deliveryDate) { 
+      // Ensure dates are saved to draft before navigation
+      setField('pickupDate', pickupDate);
+      setField('deliveryDate', deliveryDate);
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        router.push('/post-load-step5'); 
+      }, 100);
+    } 
+  }, [pickupDate, deliveryDate, draft.pickupDate, draft.deliveryDate, setField, router]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>

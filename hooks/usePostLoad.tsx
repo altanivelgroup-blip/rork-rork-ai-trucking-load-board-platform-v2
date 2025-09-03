@@ -211,7 +211,13 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       setDraft(prev => ({ ...prev, isPosting: true }));
       
       // Get the current draft state to ensure we have the latest values
-      const currentDraft = draft;
+      // Use a callback to get the most up-to-date state
+      let currentDraft: PostLoadDraft;
+      setDraft(prev => {
+        currentDraft = prev;
+        return prev;
+      });
+      currentDraft = currentDraft! || draft;
       
       // Debug the draft state
       console.log('[PostLoad] postLoadWizard draft state:', {
@@ -235,15 +241,36 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       });
       
       // Additional validation for dates before proceeding
-      if (!currentDraft.pickupDate || !(currentDraft.pickupDate instanceof Date) || isNaN(currentDraft.pickupDate.getTime())) {
+      // Handle both Date objects and potential Firestore Timestamp objects
+      const toDate = (v: any): Date | null => {
+        if (v instanceof Date) return v;
+        if (v?.toDate && typeof v.toDate === 'function') return v.toDate();
+        if (v && typeof v === 'string') {
+          const parsed = new Date(v);
+          return isNaN(parsed.getTime()) ? null : parsed;
+        }
+        return null;
+      };
+      
+      const pickupDate = toDate(currentDraft.pickupDate);
+      const deliveryDate = toDate(currentDraft.deliveryDate);
+      
+      if (!pickupDate || isNaN(pickupDate.getTime())) {
         setDraft(prev => ({ ...prev, isPosting: false }));
         throw new Error('Valid pickup date is required');
       }
       
-      if (!currentDraft.deliveryDate || !(currentDraft.deliveryDate instanceof Date) || isNaN(currentDraft.deliveryDate.getTime())) {
+      if (!deliveryDate || isNaN(deliveryDate.getTime())) {
         setDraft(prev => ({ ...prev, isPosting: false }));
         throw new Error('Valid delivery date is required');
       }
+      
+      // Update the current draft with properly converted dates
+      currentDraft = {
+        ...currentDraft,
+        pickupDate,
+        deliveryDate
+      };
       
       // Validate the load
       const validationData: LoadValidationData = {
@@ -252,8 +279,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         vehicleType: currentDraft.vehicleType,
         originCity: currentDraft.pickup,
         destinationCity: currentDraft.delivery,
-        pickupDate: currentDraft.pickupDate,
-        deliveryDate: currentDraft.deliveryDate,
+        pickupDate: pickupDate,
+        deliveryDate: deliveryDate,
         weight: currentDraft.weight,
         rate: currentDraft.rateAmount,
         rateType: currentDraft.rateKind,
@@ -287,8 +314,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         vehicleType: currentDraft.vehicleType,
         originCity: currentDraft.pickup.trim(),
         destinationCity: currentDraft.delivery.trim(),
-        pickupDate: toTimestamp(currentDraft.pickupDate),
-        deliveryDate: toTimestamp(currentDraft.deliveryDate),
+        pickupDate: toTimestamp(pickupDate),
+        deliveryDate: toTimestamp(deliveryDate),
         weight: toNumber(currentDraft.weight),
         rate: rateNum,
         rateType: currentDraft.rateKind || 'flat',
