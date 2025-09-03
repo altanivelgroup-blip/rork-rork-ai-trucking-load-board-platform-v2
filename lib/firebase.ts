@@ -1,6 +1,5 @@
 import { doc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { getFirebase } from "@/utils/firebase";
-import { LOADS_COLLECTION, LOAD_STATUS } from "@/lib/loadSchema";
 
 async function postLoad({
   id,
@@ -12,25 +11,26 @@ async function postLoad({
   pickupDate: Date; deliveryDate: Date;
   finalPhotos: { url: string; path?: string | null }[];
 }) {
-  const { auth, db } = getFirebase();
-  const uid = auth.currentUser!.uid;
+  const { auth, db, app } = getFirebase();
+  
+  console.log("[POST] projectId:", app.options.projectId);
+  console.log("[POST] writing path:", `loads/${id}`);
+  console.log("[POST] createdBy:", auth.currentUser?.uid);
 
-  await setDoc(doc(db, LOADS_COLLECTION, id), {
+  await setDoc(doc(db, "loads", id), {
     title: title.trim(),
-    origin,
-    destination,
-    vehicleType,
+    origin, destination, vehicleType,
     rate: Number(rate),
-    status: LOAD_STATUS.OPEN,                 // <- EXACT value list screen expects
-    createdBy: uid,                           // <- tie to real user, not "demo"
-    pickupDate: Timestamp.fromDate(pickupDate),
-    deliveryDate: Timestamp.fromDate(deliveryDate),
-    createdAt: serverTimestamp(),
-    clientCreatedAt: Date.now(),              // <- instant sort in UI
+    status: "OPEN",                              // <-- exact casing
+    createdBy: auth.currentUser!.uid,            // <-- real UID, not "demo"
+    pickupDate: Timestamp.fromDate(new Date(pickupDate as any)),
+    deliveryDate: Timestamp.fromDate(new Date(deliveryDate as any)),
     attachments: finalPhotos.map(p => ({ url: p.url, path: p.path ?? null })),
+    createdAt: serverTimestamp(),
+    clientCreatedAt: Date.now(),                 // <-- for instant UI sort
   }, { merge: true });
 
-  console.log("[POST] wrote", `${LOADS_COLLECTION}/${id}`);
+  console.log("[POST] wrote", `loads/${id}`);
 }
 
 export { postLoad };
