@@ -79,18 +79,39 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
   }, []);
 
   const canSubmit = useMemo(() => {
-    return (
+    const hasBasicFields = (
       draft.title.trim().length > 0 &&
       draft.description.trim().length > 0 &&
       !!draft.vehicleType &&
       draft.pickup.trim().length > 0 &&
       draft.delivery.trim().length > 0 &&
+      draft.rateAmount.trim().length > 0 &&
+      draft.contact.trim().length > 0
+    );
+    
+    const hasValidDates = (
       !!draft.pickupDate &&
       !!draft.deliveryDate &&
-      draft.rateAmount.trim().length > 0 &&
-      draft.contact.trim().length > 0 &&
-      (draft.attachments?.length ?? 0) >= 5
+      draft.pickupDate instanceof Date &&
+      draft.deliveryDate instanceof Date &&
+      !isNaN(draft.pickupDate.getTime()) &&
+      !isNaN(draft.deliveryDate.getTime())
     );
+    
+    const hasMinPhotos = (draft.attachments?.length ?? 0) >= 5;
+    
+    console.log('[PostLoad] canSubmit check:', {
+      hasBasicFields,
+      hasValidDates,
+      hasMinPhotos,
+      pickupDate: draft.pickupDate,
+      deliveryDate: draft.deliveryDate,
+      pickupDateType: typeof draft.pickupDate,
+      deliveryDateType: typeof draft.deliveryDate,
+      attachmentsCount: draft.attachments?.length ?? 0
+    });
+    
+    return hasBasicFields && hasValidDates && hasMinPhotos;
   }, [draft]);
 
   const canPost = useMemo(() => {
@@ -131,32 +152,64 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         pickup: draft.pickup?.trim(),
         delivery: draft.delivery?.trim(),
         rateAmount: draft.rateAmount?.trim(),
-        contact: draft.contact?.trim()
+        contact: draft.contact?.trim(),
+        attachmentsCount: draft.attachments?.length ?? 0
       });
       
-      if (!canSubmit) {
-        console.error('[PostLoad] submit failed: canSubmit is false');
-        return null;
+      // Validate required fields
+      if (!draft.title?.trim()) {
+        console.error('[PostLoad] submit failed: title is missing');
+        throw new Error('Load title is required');
+      }
+      
+      if (!draft.description?.trim()) {
+        console.error('[PostLoad] submit failed: description is missing');
+        throw new Error('Load description is required');
       }
       
       if (!draft.vehicleType) {
         console.error('[PostLoad] submit failed: vehicleType is missing');
-        return null;
+        throw new Error('Vehicle type is required');
       }
       
-      if (!draft.pickupDate) {
-        console.error('[PostLoad] submit failed: pickupDate is missing');
-        return null;
+      if (!draft.pickup?.trim()) {
+        console.error('[PostLoad] submit failed: pickup is missing');
+        throw new Error('Pickup location is required');
       }
       
-      if (!draft.deliveryDate) {
-        console.error('[PostLoad] submit failed: deliveryDate is missing');
-        return null;
+      if (!draft.delivery?.trim()) {
+        console.error('[PostLoad] submit failed: delivery is missing');
+        throw new Error('Delivery location is required');
+      }
+      
+      if (!draft.pickupDate || !(draft.pickupDate instanceof Date) || isNaN(draft.pickupDate.getTime())) {
+        console.error('[PostLoad] submit failed: pickupDate is invalid', draft.pickupDate);
+        throw new Error('Valid pickup date is required');
+      }
+      
+      if (!draft.deliveryDate || !(draft.deliveryDate instanceof Date) || isNaN(draft.deliveryDate.getTime())) {
+        console.error('[PostLoad] submit failed: deliveryDate is invalid', draft.deliveryDate);
+        throw new Error('Valid delivery date is required');
+      }
+      
+      if (!draft.rateAmount?.trim()) {
+        console.error('[PostLoad] submit failed: rateAmount is missing');
+        throw new Error('Rate amount is required');
+      }
+      
+      if (!draft.contact?.trim()) {
+        console.error('[PostLoad] submit failed: contact is missing');
+        throw new Error('Contact information is required');
+      }
+      
+      if ((draft.attachments?.length ?? 0) < 5) {
+        console.error('[PostLoad] submit failed: insufficient photos', draft.attachments?.length ?? 0);
+        throw new Error('At least 5 photos are required');
       }
       
       const now = Date.now();
       const rateNum = Number(draft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
-      const weightNum = Number(draft.weight.replace(/[^0-9.]/g, '')) || 0;
+      const weightNum = draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
 
       const load: Load = {
         id: String(now),

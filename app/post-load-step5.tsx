@@ -33,27 +33,44 @@ export default function PostLoadStep5() {
 
   const isReady = useMemo(() => {
     const hasContact = contact.trim().length > 0;
-    // Check for minimum attachments (photos selected) instead of uploaded photos
     const hasMinPhotos = (draft.attachments?.length ?? 0) >= 5;
-    const hasRequiredFields = draft.title?.trim() && draft.pickup?.trim() && draft.delivery?.trim() && draft.vehicleType && draft.rateAmount?.trim();
-    const hasDates = draft.pickupDate && draft.deliveryDate;
+    const hasRequiredFields = (
+      draft.title?.trim() && 
+      draft.description?.trim() && 
+      draft.pickup?.trim() && 
+      draft.delivery?.trim() && 
+      draft.vehicleType && 
+      draft.rateAmount?.trim()
+    );
+    const hasValidDates = (
+      draft.pickupDate && 
+      draft.deliveryDate &&
+      draft.pickupDate instanceof Date &&
+      draft.deliveryDate instanceof Date &&
+      !isNaN(draft.pickupDate.getTime()) &&
+      !isNaN(draft.deliveryDate.getTime())
+    );
     const notPosting = !draft.isPosting;
     
-    console.log('isReady check:', {
+    console.log('[PostLoadStep5] isReady check:', {
       hasContact,
       hasMinPhotos,
       hasRequiredFields,
-      hasDates,
+      hasValidDates,
       notPosting,
       canPost,
       photoCount: draft.photoUrls?.length ?? 0,
       attachmentCount: draft.attachments?.length ?? 0,
       pickupDate: draft.pickupDate,
-      deliveryDate: draft.deliveryDate
+      deliveryDate: draft.deliveryDate,
+      pickupDateType: typeof draft.pickupDate,
+      deliveryDateType: typeof draft.deliveryDate,
+      pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
+      deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime())
     });
     
-    return hasContact && hasMinPhotos && hasRequiredFields && hasDates && notPosting;
-  }, [contact, canPost, draft.isPosting, draft.photoUrls, draft.attachments, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate]);
+    return hasContact && hasMinPhotos && hasRequiredFields && hasValidDates && notPosting;
+  }, [contact, canPost, draft.isPosting, draft.photoUrls, draft.attachments, draft.title, draft.description, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate]);
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
@@ -156,14 +173,19 @@ export default function PostLoadStep5() {
       }
       
       // Final validation before posting
-      console.log('Final validation before posting:', {
+      console.log('[PostLoadStep5] Final validation before posting:', {
         title: draft.title?.trim(),
+        description: draft.description?.trim(),
         pickup: draft.pickup?.trim(),
         delivery: draft.delivery?.trim(),
         vehicleType: draft.vehicleType,
         rateAmount: draft.rateAmount?.trim(),
         pickupDate: draft.pickupDate,
         deliveryDate: draft.deliveryDate,
+        pickupDateType: typeof draft.pickupDate,
+        deliveryDateType: typeof draft.deliveryDate,
+        pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
+        deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime()),
         contact: contact.trim(),
         attachments: draft.attachments?.length ?? 0,
         photoUrls: draft.photoUrls?.length ?? 0

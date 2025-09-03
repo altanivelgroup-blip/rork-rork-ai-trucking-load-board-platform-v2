@@ -79,10 +79,12 @@ export function validateLoad(load: LoadValidationData): ValidationResult {
     errors.push('Delivery date must be after pickup date');
   }
 
-  // Weight validation
-  const weightNum = typeof load.weight === 'number' ? load.weight : Number(String(load.weight).replace(/[^0-9.]/g, ''));
-  if (isNaN(weightNum) || weightNum <= 0) {
-    errors.push('Weight must be a positive number');
+  // Weight validation (optional field)
+  if (load.weight) {
+    const weightNum = typeof load.weight === 'number' ? load.weight : Number(String(load.weight).replace(/[^0-9.]/g, ''));
+    if (isNaN(weightNum) || weightNum < 0) {
+      errors.push('Weight must be a valid positive number');
+    }
   }
 
   // Rate validation
