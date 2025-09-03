@@ -7,6 +7,9 @@ import { mockLoads } from '@/mocks/loads';
 import useOnlineStatus from '@/hooks/useOnlineStatus';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
+import { collection, query, where, orderBy, limit, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
 
 interface GeoPoint { lat: number; lng: number }
 
@@ -93,6 +96,9 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const { online } = useOnlineStatus();
   const { user } = useAuth();
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unsubscribeRef = useRef<Unsubscribe | null>(null);
+  const [, setFirebaseLoads] = useState<any[]>([]);
+  const [useFirebase, setUseFirebase] = useState<boolean>(false);
 
   const currentLoad = useMemo(() => {
     const inTransit = loads.find(l => l.status === 'in-transit');
@@ -158,15 +164,29 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     try {
       if (!online) {
         console.log('[Loads] Offline: showing cached loads');
+        setLoads([...mockLoads]);
+        return;
       }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setLoads([...mockLoads]);
+      
+      // Try to set up Firebase listener if available
+      const firebaseAvailable = await ensureFirebaseAuth();
+      if (firebaseAvailable && user?.id) {
+        console.log('[Loads] Setting up Firebase listener');
+        setUseFirebase(true);
+        // Firebase listener will update loads automatically
+      } else {
+        console.log('[Loads] Firebase unavailable, using mock data');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setLoads([...mockLoads]);
+      }
     } catch (error) {
       console.error('Failed to refresh loads:', error);
+      // Fallback to mock data
+      setLoads([...mockLoads]);
     } finally {
       setIsLoading(false);
     }
-  }, [online]);
+  }, [online, user?.id]);
 
   const addLoad = useCallback(async (load: Load) => {
     setIsLoading(true);
@@ -212,7 +232,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
 
   const FAVORITES_KEY = useMemo(() => {
     return user ? `favorites:${user.id}` : 'favorites:guest';
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
     let mounted = true;
@@ -246,6 +266,104 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       throw e;
     }
   }, [FAVORITES_KEY]);
+
+  // Set up Firebase real-time listener
+  useEffect(() => {
+    if (!useFirebase || !user?.id || !online) {
+      return;
+    }
+
+    const setupFirebaseListener = async () => {
+      try {
+        const firebaseAvailable = await ensureFirebaseAuth();
+        if (!firebaseAvailable) {
+          console.log('[Loads] Firebase auth failed, staying with mock data');
+          return;
+        }
+
+        const { db, auth } = getFirebase();
+        if (!auth.currentUser) {
+          console.log('[Loads] No authenticated user, staying with mock data');
+          return;
+        }
+
+        console.log('[Loads] Setting up Firebase listener for user:', auth.currentUser.uid);
+        
+        const q = query(
+          collection(db, LOADS_COLLECTION),
+          where("status", "==", LOAD_STATUS.OPEN),
+          where("createdBy", "==", auth.currentUser.uid),
+          orderBy("clientCreatedAt", "desc"),
+          limit(25)
+        );
+
+        const unsubscribe = onSnapshot(q, (snap) => {
+          console.log('[Loads] Firebase snapshot received, docs:', snap.docs.length);
+          const firebaseRows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setFirebaseLoads(firebaseRows);
+          
+          // Convert Firebase docs to Load format
+          const convertedLoads: Load[] = firebaseRows.map((doc: any) => ({
+            id: doc.id,
+            shipperId: doc.createdBy || 'unknown',
+            shipperName: 'Firebase User',
+            origin: {
+              address: '',
+              city: doc.origin || 'Unknown',
+              state: '',
+              zipCode: '',
+              lat: 0,
+              lng: 0,
+            },
+            destination: {
+              address: '',
+              city: doc.destination || 'Unknown', 
+              state: '',
+              zipCode: '',
+              lat: 0,
+              lng: 0,
+            },
+            distance: 0,
+            weight: 0,
+            vehicleType: doc.vehicleType || 'truck',
+            rate: doc.rate || 0,
+            ratePerMile: 0,
+            pickupDate: doc.pickupDate?.toDate?.() || new Date(),
+            deliveryDate: doc.deliveryDate?.toDate?.() || new Date(),
+            status: 'available' as const,
+            description: doc.title || 'Firebase Load',
+            isBackhaul: false,
+          }));
+          
+          // Combine Firebase loads with mock loads
+          setLoads([...convertedLoads, ...mockLoads]);
+          console.log('[Loads] Updated loads with Firebase data:', convertedLoads.length, 'Firebase +', mockLoads.length, 'mock');
+        }, (error) => {
+          console.error('[Loads] Firebase listener error:', error);
+          // Fallback to mock data on error
+          setLoads([...mockLoads]);
+        });
+
+        unsubscribeRef.current = unsubscribe;
+        console.log('[Loads] Firebase listener set up successfully');
+        
+      } catch (error) {
+        console.error('[Loads] Failed to set up Firebase listener:', error);
+        // Fallback to mock data
+        setLoads([...mockLoads]);
+      }
+    };
+
+    setupFirebaseListener();
+
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log('[Loads] Cleaning up Firebase listener');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, [useFirebase, user?.id, online]);
 
   useEffect(() => {
     if (isLoading) {
