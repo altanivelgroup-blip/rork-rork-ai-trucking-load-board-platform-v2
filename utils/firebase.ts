@@ -78,30 +78,29 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     const { auth } = getFirebase();
     
     if (!auth.currentUser) {
-      console.log('[firebase] no current user, signing in anonymously...');
+      console.log('[firebase] no current user, attempting anonymous sign-in...');
       try {
         await signInAnonymously(auth);
         console.log('[firebase] anonymous sign-in successful');
         return true;
       } catch (authError: any) {
-        console.error('[firebase] anonymous sign-in failed:', authError);
+        console.warn('[firebase] anonymous sign-in failed:', authError?.code || authError?.message);
         // If anonymous auth fails, we'll continue without Firebase auth
         // This allows the app to work in development/demo mode
         if (authError?.code === 'auth/admin-restricted-operation') {
-          console.warn('[firebase] anonymous auth disabled, Firebase unavailable');
-          return false; // Firebase is not available
+          console.warn('[firebase] anonymous auth disabled by admin, continuing without Firebase');
+        } else {
+          console.warn('[firebase] auth error, continuing without Firebase:', authError?.message);
         }
-        console.warn('[firebase] auth error, Firebase unavailable:', authError.message);
-        return false;
+        return false; // Firebase is not available, but app can continue
       }
     } else {
       console.log('[firebase] user already authenticated:', auth.currentUser.uid);
       return true;
     }
   } catch (error) {
-    console.error('[firebase] authentication error:', error);
-    console.warn('[firebase] Firebase unavailable due to auth error');
-    return false;
+    console.warn('[firebase] authentication setup error, continuing without Firebase:', error);
+    return false; // Firebase is not available, but app can continue
   }
 }
 

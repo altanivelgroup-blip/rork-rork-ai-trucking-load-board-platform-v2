@@ -137,11 +137,14 @@ export default function PostLoadStep5() {
     try {
       console.log('Starting post load process...');
       
-      // Update contact in draft
+      // Update contact in draft first
       setField('contact', contact.trim());
       
       // Set posting state immediately to prevent double-clicks
       setField('isPosting', true);
+      
+      // Small delay to ensure contact is updated in state
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Upload photos first if we have attachments but no uploaded URLs
       if ((draft.attachments?.length ?? 0) > 0 && (draft.photoUrls?.length ?? 0) === 0) {
@@ -216,7 +219,7 @@ export default function PostLoadStep5() {
           <View style={styles.attachCard}>
             <Text style={styles.summaryTitle}>Attachments (min 5 photos)</Text>
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos uploaded: {(draft.photoUrls?.length ?? 0)} / {(draft.attachments?.length ?? 0)} selected
+              Photos selected: {(draft.attachments?.length ?? 0)} (min 5 required)
             </Text>
             {(draft.attachments?.length ?? 0) < 5 && (
               <Text style={styles.errorText} testID="attachmentsError">Minimum 5 photos required to post.</Text>

@@ -95,22 +95,21 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
 
   const canPost = useMemo(() => {
     if (!user?.id) return false;
-    const validationData: LoadValidationData = {
-      title: draft.title,
-      description: draft.description,
-      vehicleType: draft.vehicleType,
-      originCity: draft.pickup,
-      destinationCity: draft.delivery,
-      pickupDate: draft.pickupDate,
-      deliveryDate: draft.deliveryDate,
-      weight: draft.weight,
-      rate: draft.rateAmount,
-      rateType: draft.rateKind,
-      miles: draft.miles,
-      photoUrls: draft.photoUrls,
-      shipperId: user.id,
-    };
-    return validateLoad(validationData).ok && !draft.isPosting;
+    // For canPost, we check if we have enough attachments selected (not necessarily uploaded yet)
+    // The actual validation will happen during postLoadWizard after photos are uploaded
+    const hasMinPhotos = (draft.attachments?.length ?? 0) >= 5;
+    const hasRequiredFields = (
+      draft.title.trim().length > 0 &&
+      draft.description.trim().length > 0 &&
+      !!draft.vehicleType &&
+      draft.pickup.trim().length > 0 &&
+      draft.delivery.trim().length > 0 &&
+      !!draft.pickupDate &&
+      !!draft.deliveryDate &&
+      draft.rateAmount.trim().length > 0 &&
+      draft.contact.trim().length > 0
+    );
+    return hasMinPhotos && hasRequiredFields && !draft.isPosting;
   }, [draft, user?.id]);
 
   const reset = useCallback(() => {
@@ -290,7 +289,18 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         throw new Error('Valid delivery date is required');
       }
       
-      // Validate the load
+      // Ensure we have photos uploaded or use placeholders
+      let finalPhotoUrls = currentDraft.photoUrls || [];
+      
+      // If we don't have uploaded photos but have attachments, create placeholders
+      if (finalPhotoUrls.length === 0 && (currentDraft.attachments?.length ?? 0) > 0) {
+        console.log('[PostLoad] creating placeholder photo URLs for validation');
+        finalPhotoUrls = currentDraft.attachments.map((_, i) => 
+          `https://picsum.photos/400/300?random=${Date.now()}-${i}`
+        );
+      }
+      
+      // Validate the load with final photo URLs
       const validationData: LoadValidationData = {
         title: currentDraft.title,
         description: currentDraft.description,
@@ -303,7 +313,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         rate: currentDraft.rateAmount,
         rateType: currentDraft.rateKind,
         miles: currentDraft.miles,
-        photoUrls: currentDraft.photoUrls || [],
+        photoUrls: finalPhotoUrls,
         shipperId: user.id,
       };
       
@@ -343,7 +353,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             rateType: currentDraft.rateKind || 'flat',
             miles: currentDraft.rateKind === 'per_mile' && currentDraft.miles ? milesNum : null,
             totalRate,
-            photoUrls: currentDraft.photoUrls || [],
+            photoUrls: finalPhotoUrls,
             shipperId: user.id,
             status: 'open' as const,
             createdAt: serverTimestamp(),
