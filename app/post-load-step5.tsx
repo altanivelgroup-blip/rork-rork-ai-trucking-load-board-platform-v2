@@ -28,7 +28,7 @@ function Stepper({ current, total }: { current: number; total: number }) {
 }
 export default function PostLoadStep5() {
   const router = useRouter();
-  const { draft, setField, canPost, postLoadWizard, uploadPhotos } = usePostLoad();
+  const { draft, setField, postLoadWizard, uploadPhotos } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
 
   const isReady = useMemo(() => {
@@ -52,13 +52,16 @@ export default function PostLoadStep5() {
     );
     const notPosting = !draft.isPosting;
     
+    const ready = hasContact && hasMinPhotos && hasRequiredFields && hasValidDates && notPosting;
+    
     console.log('[PostLoadStep5] isReady check:', {
       hasContact,
       hasMinPhotos,
       hasRequiredFields,
       hasValidDates,
       notPosting,
-      canPost,
+      ready,
+      contactValue: contact,
       photoCount: draft.photoUrls?.length ?? 0,
       attachmentCount: draft.attachments?.length ?? 0,
       pickupDate: draft.pickupDate,
@@ -69,8 +72,8 @@ export default function PostLoadStep5() {
       deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime())
     });
     
-    return hasContact && hasMinPhotos && hasRequiredFields && hasValidDates && notPosting;
-  }, [contact, canPost, draft.isPosting, draft.photoUrls, draft.attachments, draft.title, draft.description, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate]);
+    return ready;
+  }, [contact, draft.isPosting, draft.photoUrls, draft.attachments, draft.title, draft.description, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate]);
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
@@ -192,8 +195,8 @@ export default function PostLoadStep5() {
       });
       
       // Use the postLoadWizard function which handles all validation and posting
-      console.log('Calling postLoadWizard...');
-      await postLoadWizard();
+      console.log('Calling postLoadWizard with contact info:', contact.trim());
+      await postLoadWizard(contact.trim());
       
       console.log('Load posted successfully, navigating...');
       // Navigate to loads list on success
