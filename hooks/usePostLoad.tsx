@@ -120,89 +120,117 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     });
   }, []);
 
+  const submit = useCallback(async (): Promise<Load | null> => {
+    try {
+      if (!canSubmit || !draft.vehicleType || !draft.pickupDate || !draft.deliveryDate) return null;
+      const now = Date.now();
+      const rateNum = Number(draft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
+      const weightNum = Number(draft.weight.replace(/[^0-9.]/g, '')) || 0;
+
+      const load: Load = {
+        id: String(now),
+        shipperId: user?.id || 'current-shipper',
+        shipperName: user?.name || 'You',
+        origin: {
+          address: '',
+          city: draft.pickup,
+          state: '',
+          zipCode: '',
+          lat: 0,
+          lng: 0,
+        },
+        destination: {
+          address: '',
+          city: draft.delivery,
+          state: '',
+          zipCode: '',
+          lat: 0,
+          lng: 0,
+        },
+        distance: 0,
+        weight: weightNum,
+        vehicleType: draft.vehicleType,
+        rate: rateNum,
+        ratePerMile: 0,
+        pickupDate: draft.pickupDate,
+        deliveryDate: draft.deliveryDate,
+        status: 'available',
+        description: draft.description,
+        special_requirements: draft.requirements ? [draft.requirements] : undefined,
+        isBackhaul: false,
+      };
+
+      console.log('[PostLoad] submit creating load', load);
+      await addLoad(load);
+      return load;
+    } catch (e) {
+      console.log('[PostLoad] submit error', e);
+      throw e;
+    }
+  }, [addLoad, canSubmit, draft, user]);
+
   const uploadPhotos = useCallback(async (): Promise<void> => {
     try {
       if (!user?.id || draft.attachments.length === 0) return;
       
-      // Ensure Firebase authentication first
-      await ensureFirebaseAuth();
-      
-      const { storage } = getFirebase();
-      
-      const uploadedUrls: string[] = [];
-      
-      for (let i = 0; i < draft.attachments.length; i++) {
-        const attachment = draft.attachments[i];
-        try {
-          const response = await fetch(attachment.uri);
-          const blob = await response.blob();
-          
-          // Use a simple path structure that works with default Firebase rules
-          const fileName = `${draft.reference}-photo-${i}-${Date.now()}.jpg`;
-          const storageRef = ref(storage, `images/${fileName}`);
-          
-          console.log(`[PostLoad] uploading photo ${i + 1}/${draft.attachments.length} to:`, storageRef.fullPath);
-          
-          const snapshot = await uploadBytes(storageRef, blob);
-          const downloadURL = await getDownloadURL(snapshot.ref);
-          
-          uploadedUrls.push(downloadURL);
-          console.log(`[PostLoad] uploaded photo ${i + 1}/${draft.attachments.length} successfully`);
-        } catch (uploadError) {
-          console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
-          
-          // Track upload failures
-          const now = Date.now();
-          const newFailures = draft.uploadFailures + 1;
-          const timeSinceLastFailure = now - draft.lastUploadFailure;
-          
-          setDraft(prev => ({
-            ...prev,
-            uploadFailures: newFailures,
-            lastUploadFailure: now,
-          }));
-          
-          // If 3 failures in 60 seconds, use placeholder
-          if (newFailures >= 3 && timeSinceLastFailure < 60000) {
-            console.warn('[PostLoad] using placeholder image due to upload failures');
+      // Try Firebase authentication, but continue with placeholders if it fails
+      try {
+        await ensureFirebaseAuth();
+        const { storage } = getFirebase();
+        
+        const uploadedUrls: string[] = [];
+        
+        for (let i = 0; i < draft.attachments.length; i++) {
+          const attachment = draft.attachments[i];
+          try {
+            const response = await fetch(attachment.uri);
+            const blob = await response.blob();
+            
+            // Use a simple path structure that works with default Firebase rules
+            const fileName = `${draft.reference}-photo-${i}-${Date.now()}.jpg`;
+            const storageRef = ref(storage, `images/${fileName}`);
+            
+            console.log(`[PostLoad] uploading photo ${i + 1}/${draft.attachments.length} to:`, storageRef.fullPath);
+            
+            const snapshot = await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            
+            uploadedUrls.push(downloadURL);
+            console.log(`[PostLoad] uploaded photo ${i + 1}/${draft.attachments.length} successfully`);
+          } catch (uploadError) {
+            console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
+            // Use placeholder for failed uploads
             uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
-          } else {
-            // For any storage errors, immediately fall back to placeholder
-            if (uploadError instanceof Error && 
-                (uploadError.message.includes('unauthorized') || 
-                 uploadError.message.includes('permission') ||
-                 uploadError.message.includes('Firebase Storage'))) {
-              console.warn('[PostLoad] storage error, using placeholder image:', uploadError.message);
-              uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
-            } else {
-              // For other errors, still use placeholder to prevent app crash
-              console.warn('[PostLoad] unknown upload error, using placeholder image:', uploadError);
-              uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
-            }
           }
         }
+        
+        setDraft(prev => ({ ...prev, photoUrls: uploadedUrls }));
+        
+      } catch (firebaseError) {
+        console.warn('[PostLoad] Firebase unavailable, using placeholder images:', firebaseError);
+        // If Firebase is completely unavailable, use all placeholders
+        const placeholderUrls = draft.attachments.map((_, i) => 
+          `https://picsum.photos/400/300?random=${Date.now()}-${i}`
+        );
+        setDraft(prev => ({ ...prev, photoUrls: placeholderUrls }));
       }
       
-      setDraft(prev => ({ ...prev, photoUrls: uploadedUrls }));
     } catch (error) {
       console.error('[PostLoad] uploadPhotos error:', error);
-      // Fallback to placeholder images if upload completely fails
+      // Final fallback to placeholder images
       const placeholderUrls = draft.attachments.map((_, i) => 
         `https://picsum.photos/400/300?random=${Date.now()}-${i}`
       );
       setDraft(prev => ({ ...prev, photoUrls: placeholderUrls }));
       console.warn('[PostLoad] using all placeholder images due to upload failure');
     }
-  }, [draft.attachments, draft.reference, draft.uploadFailures, draft.lastUploadFailure, user?.id]);
+  }, [draft.attachments, draft.reference, user?.id]);
 
   const postLoadWizard = useCallback(async (): Promise<void> => {
     try {
       if (!user?.id) {
         throw new Error('User not authenticated');
       }
-      
-      // Ensure Firebase authentication before posting
-      await ensureFirebaseAuth();
       
       // Get the current draft state - use the draft from closure
       const currentDraft = draft;
@@ -277,42 +305,59 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         throw new Error(validation.errors[0]);
       }
       
-      // Build payload with Firestore Timestamps
-      const rateNum = toNumber(currentDraft.rateAmount);
-      const milesNum = toNumber(currentDraft.miles);
-      const totalRate = currentDraft.rateKind === 'flat' ? rateNum : round(rateNum * milesNum, 2);
-      
-      // Convert dates to Firestore Timestamps
-      const toTimestamp = (date: Date | null): Timestamp | null => {
-        return date ? Timestamp.fromDate(date) : null;
-      };
-      
-      const payload = {
-        title: currentDraft.title.trim(),
-        description: currentDraft.description.trim(),
-        vehicleType: currentDraft.vehicleType,
-        originCity: currentDraft.pickup.trim(),
-        destinationCity: currentDraft.delivery.trim(),
-        pickupDate: toTimestamp(pickupDate),
-        deliveryDate: toTimestamp(deliveryDate),
-        weight: toNumber(currentDraft.weight),
-        rate: rateNum,
-        rateType: currentDraft.rateKind || 'flat',
-        miles: currentDraft.rateKind === 'per_mile' && currentDraft.miles ? milesNum : null,
-        totalRate,
-        photoUrls: currentDraft.photoUrls || [],
-        shipperId: user.id,
-        status: 'open' as const,
-        createdAt: serverTimestamp(),
-      };
-      
-      // Create record in Firestore
-      const { db } = getFirebase();
-      const loadsCollection = collection(db, 'loads');
-      const docRef = await addDoc(loadsCollection, payload);
-      
-      console.log('[PostLoad] load posted successfully:', docRef.id);
-      showToast('Load posted successfully!');
+      // Try Firebase first, but fall back to local storage if it fails
+      try {
+        await ensureFirebaseAuth();
+        
+        // Build payload with Firestore Timestamps
+        const rateNum = toNumber(currentDraft.rateAmount);
+        const milesNum = toNumber(currentDraft.miles);
+        const totalRate = currentDraft.rateKind === 'flat' ? rateNum : round(rateNum * milesNum, 2);
+        
+        // Convert dates to Firestore Timestamps
+        const toTimestamp = (date: Date | null): Timestamp | null => {
+          return date ? Timestamp.fromDate(date) : null;
+        };
+        
+        const payload = {
+          title: currentDraft.title.trim(),
+          description: currentDraft.description.trim(),
+          vehicleType: currentDraft.vehicleType,
+          originCity: currentDraft.pickup.trim(),
+          destinationCity: currentDraft.delivery.trim(),
+          pickupDate: toTimestamp(pickupDate),
+          deliveryDate: toTimestamp(deliveryDate),
+          weight: toNumber(currentDraft.weight),
+          rate: rateNum,
+          rateType: currentDraft.rateKind || 'flat',
+          miles: currentDraft.rateKind === 'per_mile' && currentDraft.miles ? milesNum : null,
+          totalRate,
+          photoUrls: currentDraft.photoUrls || [],
+          shipperId: user.id,
+          status: 'open' as const,
+          createdAt: serverTimestamp(),
+        };
+        
+        // Create record in Firestore
+        const { db } = getFirebase();
+        const loadsCollection = collection(db, 'loads');
+        const docRef = await addDoc(loadsCollection, payload);
+        
+        console.log('[PostLoad] load posted successfully to Firebase:', docRef.id);
+        showToast('Load posted successfully!');
+        
+      } catch (firebaseError) {
+        console.warn('[PostLoad] Firebase unavailable, using local storage fallback:', firebaseError);
+        
+        // Fallback to local storage using the existing submit function
+        const load = await submit();
+        if (load) {
+          console.log('[PostLoad] load posted successfully to local storage:', load.id);
+          showToast('Load posted successfully!');
+        } else {
+          throw new Error('Failed to post load to local storage');
+        }
+      }
       
       // Reset state
       reset();
@@ -321,56 +366,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.error('[PostLoad] postLoadWizard error:', error);
       throw error;
     }
-  }, [draft, user?.id, reset, showToast]);
+  }, [draft, user?.id, reset, showToast, submit]);
 
-  const submit = useCallback(async (): Promise<Load | null> => {
-    try {
-      if (!canSubmit || !draft.vehicleType || !draft.pickupDate || !draft.deliveryDate) return null;
-      const now = Date.now();
-      const rateNum = Number(draft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
-      const weightNum = Number(draft.weight.replace(/[^0-9.]/g, '')) || 0;
 
-      const load: Load = {
-        id: String(now),
-        shipperId: user?.id || 'current-shipper',
-        shipperName: user?.name || 'You',
-        origin: {
-          address: '',
-          city: draft.pickup,
-          state: '',
-          zipCode: '',
-          lat: 0,
-          lng: 0,
-        },
-        destination: {
-          address: '',
-          city: draft.delivery,
-          state: '',
-          zipCode: '',
-          lat: 0,
-          lng: 0,
-        },
-        distance: 0,
-        weight: weightNum,
-        vehicleType: draft.vehicleType,
-        rate: rateNum,
-        ratePerMile: 0,
-        pickupDate: draft.pickupDate,
-        deliveryDate: draft.deliveryDate,
-        status: 'available',
-        description: draft.description,
-        special_requirements: draft.requirements ? [draft.requirements] : undefined,
-        isBackhaul: false,
-      };
-
-      console.log('[PostLoad] submit creating load', load);
-      await addLoad(load);
-      return load;
-    } catch (e) {
-      console.log('[PostLoad] submit error', e);
-      throw e;
-    }
-  }, [addLoad, canSubmit, draft, user]);
 
   return useMemo(() => ({ 
     draft, 
