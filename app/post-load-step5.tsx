@@ -106,7 +106,7 @@ export default function PostLoadStep5() {
       // Use the new postLoadWizard function
       await postLoadWizard();
       
-      Alert.alert('Load Posted', 'Your load has been posted to the board.');
+      // Navigate to loads list on success
       router.replace('/(tabs)/(loads)');
     } catch (e) {
       console.log('[PostLoadStep5] submit error', e);
