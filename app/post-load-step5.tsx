@@ -31,7 +31,24 @@ export default function PostLoadStep5() {
   const { draft, setField, canPost, postLoadWizard, uploadPhotos } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
 
-  const isReady = useMemo(() => (contact.trim().length > 0) && canPost && !draft.isPosting, [contact, canPost, draft.isPosting]);
+  const isReady = useMemo(() => {
+    const hasContact = contact.trim().length > 0;
+    const hasMinPhotos = (draft.photoUrls?.length ?? 0) >= 5;
+    const hasRequiredFields = draft.title?.trim() && draft.pickup?.trim() && draft.delivery?.trim() && draft.vehicleType && draft.rateAmount?.trim();
+    const notPosting = !draft.isPosting;
+    
+    console.log('isReady check:', {
+      hasContact,
+      hasMinPhotos,
+      hasRequiredFields,
+      notPosting,
+      canPost,
+      photoCount: draft.photoUrls?.length ?? 0,
+      attachmentCount: draft.attachments?.length ?? 0
+    });
+    
+    return hasContact && hasMinPhotos && hasRequiredFields && notPosting;
+  }, [contact, canPost, draft.isPosting, draft.photoUrls, draft.attachments, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount]);
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
@@ -107,8 +124,18 @@ export default function PostLoadStep5() {
       isPosting: draft.isPosting,
       isReady,
       photoCount: draft.photoUrls?.length ?? 0,
-      attachmentCount: draft.attachments?.length ?? 0
+      attachmentCount: draft.attachments?.length ?? 0,
+      title: draft.title,
+      pickup: draft.pickup,
+      delivery: draft.delivery,
+      vehicleType: draft.vehicleType,
+      rateAmount: draft.rateAmount
     });
+    
+    if (!isReady) {
+      console.log('Button not ready, aborting submit');
+      return;
+    }
     
     try {
       // Save contact to draft first
@@ -118,6 +145,12 @@ export default function PostLoadStep5() {
       if ((draft.photoUrls?.length ?? 0) < (draft.attachments?.length ?? 0)) {
         console.log('Uploading photos before posting...');
         await uploadPhotos();
+      }
+      
+      // Ensure we have minimum photos after upload
+      if ((draft.photoUrls?.length ?? 0) < 5) {
+        Alert.alert('Error', 'At least 5 photos are required to post a load.');
+        return;
       }
       
       // Use the new postLoadWizard function
@@ -132,7 +165,7 @@ export default function PostLoadStep5() {
       const errorMessage = e instanceof Error ? e.message : 'Failed to post load. Please try again.';
       Alert.alert('Error', errorMessage);
     }
-  }, [contact, postLoadWizard, router, setField, canPost, draft.isPosting, draft.photoUrls, draft.attachments, isReady, uploadPhotos]);
+  }, [contact, postLoadWizard, router, setField, canPost, draft.isPosting, draft.photoUrls, draft.attachments, isReady, uploadPhotos, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -229,7 +262,7 @@ export default function PostLoadStep5() {
             <Pressable onPress={onPrevious} style={styles.secondaryBtn} accessibilityRole="button" testID="prevButton">
               <Text style={styles.secondaryBtnText}>Previous</Text>
             </Pressable>
-            <Pressable onPress={onSubmit} style={[styles.postBtn, !isReady && styles.postBtnDisabled]} disabled={!isReady} accessibilityRole="button" accessibilityState={{ disabled: !isReady }} testID="postLoadBtn">
+            <Pressable onPress={onSubmit} style={[styles.postBtn, (!isReady || draft.isPosting) && styles.postBtnDisabled]} disabled={!isReady || draft.isPosting} accessibilityRole="button" accessibilityState={{ disabled: !isReady || draft.isPosting }} testID="postLoadBtn">
               <Send color={theme.colors.white} size={18} />
               <Text style={styles.postBtnText}>{draft.isPosting ? 'Posting...' : 'Post Load'}</Text>
             </Pressable>
