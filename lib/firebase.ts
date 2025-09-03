@@ -1,6 +1,18 @@
-import { doc, setDoc, serverTimestamp, Timestamp, collection, query, where, orderBy, limit, getDocs, getDocsFromServer } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  serverTimestamp,
+  Timestamp,
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocsFromServer,
+} from "firebase/firestore";
 import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
 
+// ---- Canonical collection + status ----
 export const LOADS_COLLECTION = "loads";
 
 export const LOAD_STATUS = {
@@ -15,35 +27,33 @@ export type LoadDoc = {
   rate: number;
   status: keyof typeof LOAD_STATUS | "OPEN";
   createdBy: string;
-  pickupDate: any;
-  deliveryDate: any;
-  createdAt: any;
+  pickupDate: any;       // Firestore Timestamp
+  deliveryDate: any;     // Firestore Timestamp
+  createdAt: any;        // serverTimestamp
   clientCreatedAt: number;
   attachments: { url: string; path?: string | null }[];
 };
 
-// Test Firebase connection
+// ---- Quick connection test you can call from anywhere ----
 export async function testFirebaseConnection() {
   try {
-    console.log('[Firebase Test] Starting connection test...');
-    
+    console.log("[Firebase Test] Starting connection test...");
+
     const { auth, db, app } = getFirebase();
-    console.log('[Firebase Test] Firebase services initialized');
-    console.log('[Firebase Test] Project ID:', app.options.projectId);
-    console.log('[Firebase Test] Auth domain:', app.options.authDomain);
-    
-    // Test authentication
+    console.log("[Firebase Test] Firebase services initialized");
+    console.log("[Firebase Test] Project ID:", app.options.projectId);
+    console.log("[Firebase Test] Auth domain:", app.options.authDomain);
+
+    // Ensure we have a user (whatever ensureFirebaseAuth does in your project)
     const authAvailable = await ensureFirebaseAuth();
-    console.log('[Firebase Test] Auth available:', authAvailable);
-    console.log('[Firebase Test] Current user:', auth.currentUser?.uid || 'none');
-    
+    console.log("[Firebase Test] Auth available:", authAvailable);
+    console.log("[Firebase Test] Current user:", auth.currentUser?.uid || "none");
+
     if (!authAvailable || !auth.currentUser) {
-      console.log('[Firebase Test] No authenticated user, cannot test Firestore');
-      return { success: false, error: 'No authenticated user' };
+      return { success: false, error: "No authenticated user" };
     }
-    
-    // Test Firestore read
-    console.log('[Firebase Test] Testing Firestore read...');
+
+    // Simple read from /loads
     const q = query(
       collection(db, LOADS_COLLECTION),
       where("status", "==", LOAD_STATUS.OPEN),
@@ -51,61 +61,70 @@ export async function testFirebaseConnection() {
       orderBy("clientCreatedAt", "desc"),
       limit(5)
     );
-    
+
     const snap = await getDocsFromServer(q);
-    console.log('[Firebase Test] Query successful, docs found:', snap.docs.length);
-    
-    snap.docs.forEach((doc, index) => {
-      console.log(`[Firebase Test] Doc ${index + 1}:`, doc.id, doc.data());
-    });
-    
-    return { 
-      success: true, 
+    console.log("[Firebase Test] Query OK, docs:", snap.docs.length);
+
+    return {
+      success: true,
       projectId: app.options.projectId,
       userId: auth.currentUser.uid,
-      docsFound: snap.docs.length 
+      docsFound: snap.docs.length,
     };
-    
   } catch (error: any) {
-    console.error('[Firebase Test] Connection test failed:', error);
-    return { 
-      success: false, 
-      error: error.message || 'Unknown error',
-      code: error.code || 'unknown'
+    console.error("[Firebase Test] failed:", error);
+    return {
+      success: false,
+      error: error?.message || "Unknown error",
+      code: error?.code || "unknown",
     };
   }
 }
 
-async function postLoad({
-  id,
-  title, origin, destination, vehicleType, rate,
-  pickupDate, deliveryDate, finalPhotos,
-}: {
+// ---- MAIN: post a load into /loads/{id} ----
+export async function postLoad(args: {
   id: string;
-  title: string; origin: string; destination: string; vehicleType: string; rate: number;
-  pickupDate: Date; deliveryDate: Date;
+  title: string;
+  origin: string;
+  destination: string;
+  vehicleType: string;
+  rate: number | string;
+  pickupDate: Date;
+  deliveryDate: Date;
   finalPhotos: { url: string; path?: string | null }[];
 }) {
+  // Make sure auth is ready (your helper can sign in or refresh token)
+  await ensureFirebaseAuth();
+
   const { auth, db, app } = getFirebase();
-  
+  const uid = auth.currentUser?.uid ?? "anonymous";
+  const rateNum = Number(args.rate);
+
   console.log("[POST] projectId:", app.options.projectId);
-  console.log("[POST] writing path:", `loads/${id}`);
-  console.log("[POST] createdBy:", auth.currentUser?.uid);
+  console.log("[POST] writing path:", `${LOADS_COLLECTION}/${args.id}`);
+  console.log("[POST] createdBy:", uid);
 
-  await setDoc(doc(db, LOADS_COLLECTION, id), {
-    title: title.trim(),
-    origin, destination, vehicleType,
-    rate: Number(rate),
-    status: LOAD_STATUS.OPEN,
-    createdBy: auth.currentUser!.uid,
-    pickupDate: Timestamp.fromDate(new Date(pickupDate as any)),
-    deliveryDate: Timestamp.fromDate(new Date(deliveryDate as any)),
-    attachments: finalPhotos.map(p => ({ url: p.url, path: p.path ?? null })),
-    createdAt: serverTimestamp(),
-    clientCreatedAt: Date.now(),
-  }, { merge: true });
+  await setDoc(
+    doc(db, LOADS_COLLECTION, args.id),
+    {
+      title: String(args.title).trim(),
+      origin: String(args.origin).trim(),
+      destination: String(args.destination).trim(),
+      vehicleType: String(args.vehicleType),
+      rate: rateNum,
+      status: LOAD_STATUS.OPEN, // EXACT value your list should filter on
+      createdBy: uid,
+      pickupDate: Timestamp.fromDate(new Date(args.pickupDate)),
+      deliveryDate: Timestamp.fromDate(new Date(args.deliveryDate)),
+      attachments: (args.finalPhotos ?? []).map((p) => ({
+        url: p.url,
+        path: p.path ?? null,
+      })),
+      createdAt: serverTimestamp(),
+      clientCreatedAt: Date.now(), // lets UI sort immediately
+    },
+    { merge: true }
+  );
 
-  console.log("[POST] wrote", `${LOADS_COLLECTION}/${id}`);
+  console.log("[POST] wrote", `${LOADS_COLLECTION}/${args.id}`);
 }
-
-export { postLoad };
