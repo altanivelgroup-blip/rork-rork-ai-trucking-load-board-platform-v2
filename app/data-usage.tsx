@@ -16,7 +16,7 @@ export default function DataUsageScreen() {
     }
   };
 
-  const emailPrivacy = () => Linking.openURL('mailto:privacy@rork.com?subject=Data%20Request');
+  const emailPrivacy = () => Linking.openURL('mailto:privacy@rork.com?subject=Privacy%20Question');
 
   return (
     <SafeAreaView style={styles.container} testID="data-usage-screen" accessibilityLabel="How we use your data">
