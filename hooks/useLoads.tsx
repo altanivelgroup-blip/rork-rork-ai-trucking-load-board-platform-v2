@@ -172,8 +172,22 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 600));
+      
+      // Update in-memory state
       setLoads(prev => [load, ...prev]);
-      console.log('[Loads] Load posted');
+      
+      // Persist to AsyncStorage
+      try {
+        const existingLoads = await AsyncStorage.getItem('userPostedLoads');
+        const parsed = existingLoads ? JSON.parse(existingLoads) : [];
+        const updated = [load, ...parsed];
+        await AsyncStorage.setItem('userPostedLoads', JSON.stringify(updated));
+        console.log('[Loads] Load posted and saved to AsyncStorage');
+      } catch (storageError) {
+        console.warn('[Loads] Failed to save to AsyncStorage, but load added to memory:', storageError);
+        // Don't throw here - the load is still added to memory state
+      }
+      
     } catch (error) {
       console.error('Failed to add load:', error);
       throw error;

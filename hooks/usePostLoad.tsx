@@ -121,7 +121,39 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
 
   const submit = useCallback(async (): Promise<Load | null> => {
     try {
-      if (!canSubmit || !draft.vehicleType || !draft.pickupDate || !draft.deliveryDate) return null;
+      console.log('[PostLoad] submit called with:', {
+        canSubmit,
+        vehicleType: draft.vehicleType,
+        pickupDate: draft.pickupDate,
+        deliveryDate: draft.deliveryDate,
+        title: draft.title?.trim(),
+        description: draft.description?.trim(),
+        pickup: draft.pickup?.trim(),
+        delivery: draft.delivery?.trim(),
+        rateAmount: draft.rateAmount?.trim(),
+        contact: draft.contact?.trim()
+      });
+      
+      if (!canSubmit) {
+        console.error('[PostLoad] submit failed: canSubmit is false');
+        return null;
+      }
+      
+      if (!draft.vehicleType) {
+        console.error('[PostLoad] submit failed: vehicleType is missing');
+        return null;
+      }
+      
+      if (!draft.pickupDate) {
+        console.error('[PostLoad] submit failed: pickupDate is missing');
+        return null;
+      }
+      
+      if (!draft.deliveryDate) {
+        console.error('[PostLoad] submit failed: deliveryDate is missing');
+        return null;
+      }
+      
       const now = Date.now();
       const rateNum = Number(draft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
       const weightNum = Number(draft.weight.replace(/[^0-9.]/g, '')) || 0;
@@ -163,7 +195,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       await addLoad(load);
       return load;
     } catch (e) {
-      console.log('[PostLoad] submit error', e);
+      console.error('[PostLoad] submit error', e);
       throw e;
     }
   }, [addLoad, canSubmit, draft, user]);
@@ -371,24 +403,54 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           console.warn('[PostLoad] Firebase storage/database error, using local storage fallback:', firebaseError);
           
           // Fallback to local storage using the existing submit function
+          console.log('[PostLoad] attempting local storage fallback with current draft:', {
+            canSubmit,
+            vehicleType: currentDraft.vehicleType,
+            pickupDate: currentDraft.pickupDate,
+            deliveryDate: currentDraft.deliveryDate,
+            title: currentDraft.title?.trim(),
+            description: currentDraft.description?.trim(),
+            pickup: currentDraft.pickup?.trim(),
+            delivery: currentDraft.delivery?.trim(),
+            rateAmount: currentDraft.rateAmount?.trim(),
+            contact: currentDraft.contact?.trim(),
+            attachments: currentDraft.attachments?.length ?? 0
+          });
+          
           const load = await submit();
           if (load) {
             console.log('[PostLoad] load posted successfully to local storage:', load.id);
             showToast('Load posted successfully!');
           } else {
-            throw new Error('Failed to post load to local storage');
+            console.error('[PostLoad] submit returned null - validation failed');
+            throw new Error('Failed to validate load data for local storage');
           }
         }
       } else {
         console.warn('[PostLoad] Firebase unavailable, using local storage fallback');
         
         // Fallback to local storage using the existing submit function
+        console.log('[PostLoad] attempting local storage fallback with current draft:', {
+          canSubmit,
+          vehicleType: currentDraft.vehicleType,
+          pickupDate: currentDraft.pickupDate,
+          deliveryDate: currentDraft.deliveryDate,
+          title: currentDraft.title?.trim(),
+          description: currentDraft.description?.trim(),
+          pickup: currentDraft.pickup?.trim(),
+          delivery: currentDraft.delivery?.trim(),
+          rateAmount: currentDraft.rateAmount?.trim(),
+          contact: currentDraft.contact?.trim(),
+          attachments: currentDraft.attachments?.length ?? 0
+        });
+        
         const load = await submit();
         if (load) {
           console.log('[PostLoad] load posted successfully to local storage:', load.id);
           showToast('Load posted successfully!');
         } else {
-          throw new Error('Failed to post load to local storage');
+          console.error('[PostLoad] submit returned null - validation failed');
+          throw new Error('Failed to validate load data for local storage');
         }
       }
       
@@ -399,7 +461,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.error('[PostLoad] postLoadWizard error:', error);
       throw error;
     }
-  }, [draft, user?.id, reset, showToast, submit]);
+  }, [draft, user?.id, reset, showToast, submit, canSubmit]);
 
 
 
