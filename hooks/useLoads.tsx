@@ -61,33 +61,6 @@ function haversineMiles(a: GeoPoint, b: GeoPoint): number {
   return R * c;
 }
 
-const defaultLoadsState: LoadsState = {
-  loads: [],
-  filters: {},
-  isLoading: false,
-  filteredLoads: [],
-  aiRecommendedLoads: [],
-  currentLoad: undefined,
-  favorites: {},
-  isFavorited: () => false,
-  toggleFavorite: async () => {
-    console.warn('[Loads] toggleFavorite called outside provider');
-  },
-  setFilters: () => console.warn('[Loads] setFilters called outside provider'),
-  acceptLoad: async () => {
-    console.warn('[Loads] acceptLoad called outside provider');
-  },
-  refreshLoads: async () => {
-    console.warn('[Loads] refreshLoads called outside provider');
-  },
-  addLoad: async () => {
-    console.warn('[Loads] addLoad called outside provider');
-  },
-  addLoadsBulk: async () => {
-    console.warn('[Loads] addLoadsBulk called outside provider');
-  },
-};
-
 export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
@@ -394,7 +367,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     addLoad,
     addLoadsBulk,
   }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFilters, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
-}, defaultLoadsState);
+});
 
 export function useLoadsWithToast(): LoadsWithToast {
   const { acceptLoad, refreshLoads, addLoad, addLoadsBulk } = useLoads();
