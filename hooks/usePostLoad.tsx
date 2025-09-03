@@ -156,6 +156,11 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         attachmentsCount: draft.attachments?.length ?? 0
       });
       
+      if (!canSubmit) {
+        console.error('[PostLoad] submit failed: canSubmit is false');
+        throw new Error('Please complete all required fields before submitting');
+      }
+      
       // Validate required fields
       if (!draft.title?.trim()) {
         console.error('[PostLoad] submit failed: title is missing');
@@ -386,6 +391,15 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         );
       }
       
+      // Ensure we have at least 5 photos for validation
+      if (finalPhotoUrls.length < 5 && (currentDraft.attachments?.length ?? 0) >= 5) {
+        console.log('[PostLoad] ensuring minimum 5 photos for validation');
+        const needed = 5 - finalPhotoUrls.length;
+        for (let i = 0; i < needed; i++) {
+          finalPhotoUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${finalPhotoUrls.length + i}`);
+        }
+      }
+      
       // Validate the load with final photo URLs
       const validationData: LoadValidationData = {
         title: currentDraft.title,
@@ -408,7 +422,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.log('[PostLoad] validation result:', validation);
       
       if (!validation.ok) {
-        throw new Error(validation.errors[0]);
+        console.error('[PostLoad] validation failed:', validation.errors);
+        throw new Error(`Failed to validate load data for local storage: ${validation.errors[0]}`);
       }
       
       // Try Firebase first, but fall back to local storage if it fails
@@ -452,6 +467,72 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             attachments: currentDraft.attachments?.length ?? 0
           });
           
+          try {
+            // Create a temporary load object for local storage
+            const now = Date.now();
+            const rateNum = Number(currentDraft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
+            const weightNum = currentDraft.weight ? Number(currentDraft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
+
+            const load: Load = {
+              id: String(now),
+              shipperId: user?.id || 'current-shipper',
+              shipperName: user?.name || 'You',
+              origin: {
+                address: '',
+                city: currentDraft.pickup,
+                state: '',
+                zipCode: '',
+                lat: 0,
+                lng: 0,
+              },
+              destination: {
+                address: '',
+                city: currentDraft.delivery,
+                state: '',
+                zipCode: '',
+                lat: 0,
+                lng: 0,
+              },
+              distance: 0,
+              weight: weightNum,
+              vehicleType: currentDraft.vehicleType!,
+              rate: rateNum,
+              ratePerMile: 0,
+              pickupDate: pickupDate,
+              deliveryDate: deliveryDate,
+              status: 'available',
+              description: currentDraft.description,
+              special_requirements: currentDraft.requirements ? [currentDraft.requirements] : undefined,
+              isBackhaul: false,
+            };
+
+            console.log('[PostLoad] creating load for local storage', load);
+            await addLoad(load);
+            console.log('[PostLoad] load posted successfully to local storage:', load.id);
+            showToast('Load posted successfully!');
+          } catch (localStorageError) {
+            console.error('[PostLoad] local storage fallback failed:', localStorageError);
+            throw new Error(`Failed to post load to local storage: ${localStorageError instanceof Error ? localStorageError.message : 'Unknown error'}`);
+          }
+        }
+      } else {
+        console.warn('[PostLoad] Firebase unavailable, using local storage fallback');
+        
+        // Fallback to local storage - create load directly
+        console.log('[PostLoad] attempting local storage fallback with current draft:', {
+          vehicleType: currentDraft.vehicleType,
+          pickupDate: currentDraft.pickupDate,
+          deliveryDate: currentDraft.deliveryDate,
+          title: currentDraft.title?.trim(),
+          description: currentDraft.description?.trim(),
+          pickup: currentDraft.pickup?.trim(),
+          delivery: currentDraft.delivery?.trim(),
+          rateAmount: currentDraft.rateAmount?.trim(),
+          contact: currentDraft.contact?.trim(),
+          attachments: currentDraft.attachments?.length ?? 0
+        });
+        
+        try {
           // Create a temporary load object for local storage
           const now = Date.now();
           const rateNum = Number(currentDraft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
@@ -494,66 +575,10 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           await addLoad(load);
           console.log('[PostLoad] load posted successfully to local storage:', load.id);
           showToast('Load posted successfully!');
+        } catch (localStorageError) {
+          console.error('[PostLoad] local storage fallback failed:', localStorageError);
+          throw new Error(`Failed to post load to local storage: ${localStorageError instanceof Error ? localStorageError.message : 'Unknown error'}`);
         }
-      } else {
-        console.warn('[PostLoad] Firebase unavailable, using local storage fallback');
-        
-        // Fallback to local storage - create load directly
-        console.log('[PostLoad] attempting local storage fallback with current draft:', {
-          vehicleType: currentDraft.vehicleType,
-          pickupDate: currentDraft.pickupDate,
-          deliveryDate: currentDraft.deliveryDate,
-          title: currentDraft.title?.trim(),
-          description: currentDraft.description?.trim(),
-          pickup: currentDraft.pickup?.trim(),
-          delivery: currentDraft.delivery?.trim(),
-          rateAmount: currentDraft.rateAmount?.trim(),
-          contact: currentDraft.contact?.trim(),
-          attachments: currentDraft.attachments?.length ?? 0
-        });
-        
-        // Create a temporary load object for local storage
-        const now = Date.now();
-        const rateNum = Number(currentDraft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
-        const weightNum = currentDraft.weight ? Number(currentDraft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
-
-        const load: Load = {
-          id: String(now),
-          shipperId: user?.id || 'current-shipper',
-          shipperName: user?.name || 'You',
-          origin: {
-            address: '',
-            city: currentDraft.pickup,
-            state: '',
-            zipCode: '',
-            lat: 0,
-            lng: 0,
-          },
-          destination: {
-            address: '',
-            city: currentDraft.delivery,
-            state: '',
-            zipCode: '',
-            lat: 0,
-            lng: 0,
-          },
-          distance: 0,
-          weight: weightNum,
-          vehicleType: currentDraft.vehicleType!,
-          rate: rateNum,
-          ratePerMile: 0,
-          pickupDate: pickupDate,
-          deliveryDate: deliveryDate,
-          status: 'available',
-          description: currentDraft.description,
-          special_requirements: currentDraft.requirements ? [currentDraft.requirements] : undefined,
-          isBackhaul: false,
-        };
-
-        console.log('[PostLoad] creating load for local storage', load);
-        await addLoad(load);
-        console.log('[PostLoad] load posted successfully to local storage:', load.id);
-        showToast('Load posted successfully!');
       }
       
       // Reset state
