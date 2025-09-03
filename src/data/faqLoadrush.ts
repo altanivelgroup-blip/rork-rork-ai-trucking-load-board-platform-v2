@@ -24,6 +24,6 @@ export const FAQ_ITEMS: FAQItem[] = [
   {
     id: '5',
     question: 'How do I contact support?',
-    answer: 'Help & Support → Contact Us in the app or email support@loadrush.app.',
+    answer: 'Help & Support → Contact Us in the app or email support@loadrush.com.',
   },
 ];

@@ -8,12 +8,30 @@ import { FAQ_ITEMS } from '@/src/data/faqLoadrush';
 import { DOCS_URL } from '@/src/config/links';
 
 export default function HelpSupportScreen() {
-  const openUrl = (url: string) => {
-    Linking.openURL(url).catch((e) => console.log('open url error', e));
+  const openUrl = async (url: string) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        console.log('Cannot open URL:', url);
+      }
+    } catch (e) {
+      console.log('open url error', e);
+    }
   };
 
-  const openDocs = () => {
-    Linking.openURL(DOCS_URL).catch((e) => console.log('open docs error', e));
+  const openDocs = async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(DOCS_URL);
+      if (canOpen) {
+        await Linking.openURL(DOCS_URL);
+      } else {
+        console.log('Cannot open docs URL:', DOCS_URL);
+      }
+    } catch (e) {
+      console.log('open docs error', e);
+    }
   };
 
   const shouldShowDocs = DOCS_URL && DOCS_URL.startsWith('http');
