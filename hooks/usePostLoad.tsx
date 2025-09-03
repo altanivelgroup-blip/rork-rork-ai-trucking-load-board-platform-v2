@@ -144,9 +144,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           const response = await fetch(attachment.uri);
           const blob = await response.blob();
           
-          // Use a public path structure that works with default Firebase rules
+          // Use a simple path structure that works with default Firebase rules
           const fileName = `${draft.reference}-photo-${i}-${Date.now()}.jpg`;
-          const storageRef = ref(storage, `public/${fileName}`);
+          const storageRef = ref(storage, `images/${fileName}`);
           
           console.log(`[PostLoad] uploading photo ${i + 1}/${draft.attachments.length} to:`, storageRef.fullPath);
           
