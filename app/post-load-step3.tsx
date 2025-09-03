@@ -145,7 +145,8 @@ export default function PostLoadStep3() {
             {!!(draft.attachments?.length ?? 0) && (
               <View style={styles.grid}>
                 {(draft.attachments ?? []).map((att, index) => {
-                  const uniqueKey = att.uri ? `${att.uri}-${index}` : `attachment-${index}-${Date.now()}`;
+                  // Create a truly unique key using index and uri (or fallback)
+                  const uniqueKey = att.uri ? `${att.uri}-${index}` : `attachment-${index}-${Math.random()}`;
                   return (
                     <View key={uniqueKey} style={styles.thumbWrap} testID={`thumb-${index}`}>
                       <Image source={{ uri: att.uri }} style={styles.thumb} contentFit="cover" />
