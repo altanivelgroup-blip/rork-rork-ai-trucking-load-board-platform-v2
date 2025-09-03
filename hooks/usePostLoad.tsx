@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Load, VehicleType } from '@/types';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
-import { validateLoad, toNumber, LoadValidationData } from '@/utils/loadValidation';
+import { toNumber } from '@/utils/loadValidation';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { postLoad } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -258,6 +258,55 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     }
   }, [addLoad, canSubmit, draft, user]);
 
+  const createLocalLoad = useCallback(async (currentDraft: PostLoadDraft, pickupDate: Date, deliveryDate: Date, finalPhotoUrls: string[]) => {
+    try {
+      const now = Date.now();
+      const rateNum = Number(currentDraft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
+      const weightNum = currentDraft.weight ? Number(currentDraft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
+
+      const load: Load = {
+        id: String(now),
+        shipperId: user?.id || 'current-shipper',
+        shipperName: user?.name || 'You',
+        origin: {
+          address: '',
+          city: currentDraft.pickup,
+          state: '',
+          zipCode: '',
+          lat: 0,
+          lng: 0,
+        },
+        destination: {
+          address: '',
+          city: currentDraft.delivery,
+          state: '',
+          zipCode: '',
+          lat: 0,
+          lng: 0,
+        },
+        distance: 0,
+        weight: weightNum,
+        vehicleType: currentDraft.vehicleType!,
+        rate: rateNum,
+        ratePerMile: 0,
+        pickupDate: pickupDate,
+        deliveryDate: deliveryDate,
+        status: 'available',
+        description: currentDraft.description,
+        special_requirements: currentDraft.requirements ? [currentDraft.requirements] : undefined,
+        isBackhaul: false,
+      };
+
+      console.log('[PostLoad] creating load for local storage', load);
+      await addLoad(load);
+      console.log('[PostLoad] load posted successfully to local storage:', load.id);
+      showToast('Load posted successfully!');
+    } catch (localStorageError) {
+      console.error('[PostLoad] local storage fallback failed:', localStorageError);
+      throw new Error(`Failed to post load: ${localStorageError instanceof Error ? localStorageError.message : 'Unknown error'}`);
+    }
+  }, [user?.id, user?.name, addLoad, showToast]);
+
   const uploadPhotos = useCallback(async (): Promise<void> => {
     try {
       if (!user?.id || draft.attachments.length === 0) return;
@@ -353,9 +402,33 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         rateKind: currentDraft.rateKind,
         miles: currentDraft.miles,
         photoUrls: currentDraft.photoUrls?.length,
+        attachments: currentDraft.attachments?.length,
         contact: currentDraft.contact,
         isPosting: currentDraft.isPosting
       });
+      
+      // Basic validation before proceeding
+      if (!currentDraft.title?.trim()) {
+        throw new Error('Load title is required');
+      }
+      if (!currentDraft.description?.trim()) {
+        throw new Error('Load description is required');
+      }
+      if (!currentDraft.vehicleType) {
+        throw new Error('Vehicle type is required');
+      }
+      if (!currentDraft.pickup?.trim()) {
+        throw new Error('Pickup location is required');
+      }
+      if (!currentDraft.delivery?.trim()) {
+        throw new Error('Delivery location is required');
+      }
+      if (!currentDraft.rateAmount?.trim()) {
+        throw new Error('Rate amount is required');
+      }
+      if ((currentDraft.attachments?.length ?? 0) < 5) {
+        throw new Error('At least 5 photos are required');
+      }
       
       // Additional validation for dates before proceeding
       // Handle both Date objects and potential Firestore Timestamp objects
@@ -385,46 +458,22 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       
       // If we don't have uploaded photos but have attachments, create placeholders
       if (finalPhotoUrls.length === 0 && (currentDraft.attachments?.length ?? 0) > 0) {
-        console.log('[PostLoad] creating placeholder photo URLs for validation');
+        console.log('[PostLoad] creating placeholder photo URLs');
         finalPhotoUrls = currentDraft.attachments.map((_, i) => 
           `https://picsum.photos/400/300?random=${Date.now()}-${i}`
         );
       }
       
-      // Ensure we have at least 5 photos for validation
-      if (finalPhotoUrls.length < 5 && (currentDraft.attachments?.length ?? 0) >= 5) {
-        console.log('[PostLoad] ensuring minimum 5 photos for validation');
+      // Ensure we have at least 5 photos
+      if (finalPhotoUrls.length < 5) {
+        console.log('[PostLoad] ensuring minimum 5 photos');
         const needed = 5 - finalPhotoUrls.length;
         for (let i = 0; i < needed; i++) {
           finalPhotoUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${finalPhotoUrls.length + i}`);
         }
       }
       
-      // Validate the load with final photo URLs
-      const validationData: LoadValidationData = {
-        title: currentDraft.title,
-        description: currentDraft.description,
-        vehicleType: currentDraft.vehicleType,
-        originCity: currentDraft.pickup,
-        destinationCity: currentDraft.delivery,
-        pickupDate: pickupDate,
-        deliveryDate: deliveryDate,
-        weight: currentDraft.weight,
-        rate: currentDraft.rateAmount,
-        rateType: currentDraft.rateKind,
-        miles: currentDraft.miles,
-        photoUrls: finalPhotoUrls,
-        shipperId: user.id,
-      };
-      
-      console.log('[PostLoad] validation data:', validationData);
-      const validation = validateLoad(validationData);
-      console.log('[PostLoad] validation result:', validation);
-      
-      if (!validation.ok) {
-        console.error('[PostLoad] validation failed:', validation.errors);
-        throw new Error(`Failed to validate load data for local storage: ${validation.errors[0]}`);
-      }
+      console.log('[PostLoad] final photo URLs count:', finalPhotoUrls.length);
       
       // Try Firebase first, but fall back to local storage if it fails
       const firebaseAvailable = await ensureFirebaseAuth();
@@ -451,134 +500,12 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           showToast('Load posted successfully!');
           
         } catch (firebaseError) {
-          console.warn('[PostLoad] Firebase storage/database error, using local storage fallback:', firebaseError);
-          
-          // Fallback to local storage - create load directly
-          console.log('[PostLoad] attempting local storage fallback with current draft:', {
-            vehicleType: currentDraft.vehicleType,
-            pickupDate: currentDraft.pickupDate,
-            deliveryDate: currentDraft.deliveryDate,
-            title: currentDraft.title?.trim(),
-            description: currentDraft.description?.trim(),
-            pickup: currentDraft.pickup?.trim(),
-            delivery: currentDraft.delivery?.trim(),
-            rateAmount: currentDraft.rateAmount?.trim(),
-            contact: currentDraft.contact?.trim(),
-            attachments: currentDraft.attachments?.length ?? 0
-          });
-          
-          try {
-            // Create a temporary load object for local storage
-            const now = Date.now();
-            const rateNum = Number(currentDraft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
-            const weightNum = currentDraft.weight ? Number(currentDraft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
-
-            const load: Load = {
-              id: String(now),
-              shipperId: user?.id || 'current-shipper',
-              shipperName: user?.name || 'You',
-              origin: {
-                address: '',
-                city: currentDraft.pickup,
-                state: '',
-                zipCode: '',
-                lat: 0,
-                lng: 0,
-              },
-              destination: {
-                address: '',
-                city: currentDraft.delivery,
-                state: '',
-                zipCode: '',
-                lat: 0,
-                lng: 0,
-              },
-              distance: 0,
-              weight: weightNum,
-              vehicleType: currentDraft.vehicleType!,
-              rate: rateNum,
-              ratePerMile: 0,
-              pickupDate: pickupDate,
-              deliveryDate: deliveryDate,
-              status: 'available',
-              description: currentDraft.description,
-              special_requirements: currentDraft.requirements ? [currentDraft.requirements] : undefined,
-              isBackhaul: false,
-            };
-
-            console.log('[PostLoad] creating load for local storage', load);
-            await addLoad(load);
-            console.log('[PostLoad] load posted successfully to local storage:', load.id);
-            showToast('Load posted successfully!');
-          } catch (localStorageError) {
-            console.error('[PostLoad] local storage fallback failed:', localStorageError);
-            throw new Error(`Failed to post load to local storage: ${localStorageError instanceof Error ? localStorageError.message : 'Unknown error'}`);
-          }
+          console.warn('[PostLoad] Firebase error, using local storage fallback:', firebaseError);
+          await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls);
         }
       } else {
         console.warn('[PostLoad] Firebase unavailable, using local storage fallback');
-        
-        // Fallback to local storage - create load directly
-        console.log('[PostLoad] attempting local storage fallback with current draft:', {
-          vehicleType: currentDraft.vehicleType,
-          pickupDate: currentDraft.pickupDate,
-          deliveryDate: currentDraft.deliveryDate,
-          title: currentDraft.title?.trim(),
-          description: currentDraft.description?.trim(),
-          pickup: currentDraft.pickup?.trim(),
-          delivery: currentDraft.delivery?.trim(),
-          rateAmount: currentDraft.rateAmount?.trim(),
-          contact: currentDraft.contact?.trim(),
-          attachments: currentDraft.attachments?.length ?? 0
-        });
-        
-        try {
-          // Create a temporary load object for local storage
-          const now = Date.now();
-          const rateNum = Number(currentDraft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
-          const weightNum = currentDraft.weight ? Number(currentDraft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
-
-          const load: Load = {
-            id: String(now),
-            shipperId: user?.id || 'current-shipper',
-            shipperName: user?.name || 'You',
-            origin: {
-              address: '',
-              city: currentDraft.pickup,
-              state: '',
-              zipCode: '',
-              lat: 0,
-              lng: 0,
-            },
-            destination: {
-              address: '',
-              city: currentDraft.delivery,
-              state: '',
-              zipCode: '',
-              lat: 0,
-              lng: 0,
-            },
-            distance: 0,
-            weight: weightNum,
-            vehicleType: currentDraft.vehicleType!,
-            rate: rateNum,
-            ratePerMile: 0,
-            pickupDate: pickupDate,
-            deliveryDate: deliveryDate,
-            status: 'available',
-            description: currentDraft.description,
-            special_requirements: currentDraft.requirements ? [currentDraft.requirements] : undefined,
-            isBackhaul: false,
-          };
-
-          console.log('[PostLoad] creating load for local storage', load);
-          await addLoad(load);
-          console.log('[PostLoad] load posted successfully to local storage:', load.id);
-          showToast('Load posted successfully!');
-        } catch (localStorageError) {
-          console.error('[PostLoad] local storage fallback failed:', localStorageError);
-          throw new Error(`Failed to post load to local storage: ${localStorageError instanceof Error ? localStorageError.message : 'Unknown error'}`);
-        }
+        await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls);
       }
       
       // Reset state
@@ -588,7 +515,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.error('[PostLoad] postLoadWizard error:', error);
       throw error;
     }
-  }, [draft, user?.id, user?.name, reset, showToast, addLoad]);
+  }, [draft, user?.id, reset, showToast, createLocalLoad]);
 
 
 
