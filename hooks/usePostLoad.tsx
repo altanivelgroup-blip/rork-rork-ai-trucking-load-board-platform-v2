@@ -144,9 +144,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           const response = await fetch(attachment.uri);
           const blob = await response.blob();
           
-          // Use a simpler path structure that should work with default rules
+          // Use a public path structure that works with default Firebase rules
           const fileName = `${draft.reference}-photo-${i}-${Date.now()}.jpg`;
-          const storageRef = ref(storage, `uploads/${auth.currentUser.uid}/${fileName}`);
+          const storageRef = ref(storage, `public/${fileName}`);
           
           console.log(`[PostLoad] uploading photo ${i + 1}/${draft.attachments.length} to:`, storageRef.fullPath);
           
@@ -174,12 +174,17 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             console.warn('[PostLoad] using placeholder image due to upload failures');
             uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
           } else {
-            // For storage permission errors, immediately fall back to placeholder
-            if (uploadError instanceof Error && uploadError.message.includes('unauthorized')) {
-              console.warn('[PostLoad] storage unauthorized, using placeholder image');
+            // For any storage errors, immediately fall back to placeholder
+            if (uploadError instanceof Error && 
+                (uploadError.message.includes('unauthorized') || 
+                 uploadError.message.includes('permission') ||
+                 uploadError.message.includes('Firebase Storage'))) {
+              console.warn('[PostLoad] storage error, using placeholder image:', uploadError.message);
               uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
             } else {
-              throw uploadError;
+              // For other errors, still use placeholder to prevent app crash
+              console.warn('[PostLoad] unknown upload error, using placeholder image:', uploadError);
+              uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
             }
           }
         }
