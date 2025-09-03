@@ -129,7 +129,13 @@ export default function PostLoadStep5() {
       pickup: draft.pickup,
       delivery: draft.delivery,
       vehicleType: draft.vehicleType,
-      rateAmount: draft.rateAmount
+      rateAmount: draft.rateAmount,
+      pickupDate: draft.pickupDate,
+      deliveryDate: draft.deliveryDate,
+      pickupDateType: typeof draft.pickupDate,
+      deliveryDateType: typeof draft.deliveryDate,
+      pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
+      deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime())
     });
     
     if (!isReady) {
@@ -165,7 +171,7 @@ export default function PostLoadStep5() {
       const errorMessage = e instanceof Error ? e.message : 'Failed to post load. Please try again.';
       Alert.alert('Error', errorMessage);
     }
-  }, [contact, postLoadWizard, router, setField, canPost, draft.isPosting, draft.photoUrls, draft.attachments, isReady, uploadPhotos, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount]);
+  }, [contact, postLoadWizard, router, setField, canPost, draft.isPosting, draft.photoUrls, draft.attachments, isReady, uploadPhotos, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

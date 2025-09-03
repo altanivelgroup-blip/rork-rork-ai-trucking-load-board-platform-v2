@@ -180,10 +180,10 @@ export default function PostLoadStep4Dates() {
   }, [picker]);
 
   useEffect(() => {
-    if (pickupDate) setField('pickupDate', pickupDate);
+    setField('pickupDate', pickupDate);
   }, [pickupDate, setField]);
   useEffect(() => {
-    if (deliveryDate) setField('deliveryDate', deliveryDate);
+    setField('deliveryDate', deliveryDate);
   }, [deliveryDate, setField]);
 
   const onPrevious = useCallback(() => { router.back(); }, [router]);

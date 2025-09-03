@@ -210,6 +210,27 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       
       setDraft(prev => ({ ...prev, isPosting: true }));
       
+      // Debug the draft state
+      console.log('[PostLoad] postLoadWizard draft state:', {
+        title: draft.title,
+        description: draft.description,
+        vehicleType: draft.vehicleType,
+        pickup: draft.pickup,
+        delivery: draft.delivery,
+        pickupDate: draft.pickupDate,
+        deliveryDate: draft.deliveryDate,
+        pickupDateType: typeof draft.pickupDate,
+        deliveryDateType: typeof draft.deliveryDate,
+        pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
+        deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime()),
+        weight: draft.weight,
+        rateAmount: draft.rateAmount,
+        rateKind: draft.rateKind,
+        miles: draft.miles,
+        photoUrls: draft.photoUrls?.length,
+        contact: draft.contact
+      });
+      
       // Validate the load
       const validationData: LoadValidationData = {
         title: draft.title,
@@ -227,7 +248,10 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         shipperId: user.id,
       };
       
+      console.log('[PostLoad] validation data:', validationData);
       const validation = validateLoad(validationData);
+      console.log('[PostLoad] validation result:', validation);
+      
       if (!validation.ok) {
         setDraft(prev => ({ ...prev, isPosting: false }));
         throw new Error(validation.errors[0]);
