@@ -135,9 +135,13 @@ export default function PostLoadStep5() {
   }, [contact, postLoadWizard, router, setField, canPost, draft.isPosting, draft.photoUrls, draft.attachments, isReady, uploadPhotos]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top','bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: 'padding', default: undefined })}>
-        <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardAvoidingView behavior="padding" style={styles.flex}>
+        <ScrollView 
+          keyboardShouldPersistTaps="handled" 
+          contentContainerStyle={styles.scrollContent}
+          style={styles.flex}
+        >
           <View style={styles.header}>
             <Text style={styles.headerTitle} testID="postLoadHeaderTitle">Post Load</Text>
             <Stepper current={5} total={5} />
@@ -220,15 +224,17 @@ export default function PostLoadStep5() {
           </View>
         </ScrollView>
 
-        <View style={styles.footerRow}>
-          <Pressable onPress={onPrevious} style={styles.secondaryBtn} accessibilityRole="button" testID="prevButton">
-            <Text style={styles.secondaryBtnText}>Previous</Text>
-          </Pressable>
-          <Pressable onPress={onSubmit} style={[styles.postBtn, !isReady && styles.postBtnDisabled]} disabled={!isReady} accessibilityRole="button" accessibilityState={{ disabled: !isReady }} testID="postLoadBtn">
-            <Send color={theme.colors.white} size={18} />
-            <Text style={styles.postBtnText}>{draft.isPosting ? 'Posting...' : 'Post Load'}</Text>
-          </Pressable>
-        </View>
+        <SafeAreaView style={styles.stickyFooter}>
+          <View style={styles.footerContent}>
+            <Pressable onPress={onPrevious} style={styles.secondaryBtn} accessibilityRole="button" testID="prevButton">
+              <Text style={styles.secondaryBtnText}>Previous</Text>
+            </Pressable>
+            <Pressable onPress={onSubmit} style={[styles.postBtn, !isReady && styles.postBtnDisabled]} disabled={!isReady} accessibilityRole="button" accessibilityState={{ disabled: !isReady }} testID="postLoadBtn">
+              <Send color={theme.colors.white} size={18} />
+              <Text style={styles.postBtnText}>{draft.isPosting ? 'Posting...' : 'Post Load'}</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -237,7 +243,7 @@ export default function PostLoadStep5() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
-  scrollContent: { padding: 16, paddingBottom: 24 },
+  scrollContent: { padding: 16, paddingBottom: 120 },
   header: { alignItems: 'center', marginBottom: 12 },
   headerTitle: { fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.dark, marginBottom: 12 },
   stepper: { flexDirection: 'row', alignItems: 'center' },
@@ -283,7 +289,22 @@ const styles = StyleSheet.create({
   thumb: { width: '100%', height: '100%' },
   removeBtn: { position: 'absolute', right: 6, top: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
 
-  footerRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingBottom: Platform.select({ ios: 20, android: 16, default: 16 }) as number, paddingTop: 8, backgroundColor: theme.colors.lightGray },
+  stickyFooter: { 
+    position: 'absolute', 
+    left: 0, 
+    right: 0, 
+    bottom: 0, 
+    zIndex: 999, 
+    elevation: 999 
+  },
+  footerContent: { 
+    padding: 12, 
+    backgroundColor: theme.colors.white, 
+    borderTopWidth: 1, 
+    borderColor: '#eee',
+    flexDirection: 'row',
+    gap: 12
+  },
   secondaryBtn: { flex: 1, backgroundColor: '#cbd5e1', paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   secondaryBtnText: { color: theme.colors.dark, fontSize: theme.fontSize.lg, fontWeight: '800' },
   postBtn: { flex: 1, backgroundColor: '#22c55e', paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
