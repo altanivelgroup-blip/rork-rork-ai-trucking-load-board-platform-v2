@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, initializeAuth, setPersistence, Auth, browserLocalPersistence } from 'firebase/auth';
+import { getAuth, initializeAuth, setPersistence, Auth, browserLocalPersistence, signInAnonymously } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -69,6 +69,24 @@ export function getFirebase(): FirebaseServices {
   } catch (err) {
     console.error('[firebase] init error', err);
     throw new Error(`Firebase initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+  }
+}
+
+// Helper function to ensure user is authenticated
+export async function ensureFirebaseAuth(): Promise<void> {
+  try {
+    const { auth } = getFirebase();
+    
+    if (!auth.currentUser) {
+      console.log('[firebase] no current user, signing in anonymously...');
+      await signInAnonymously(auth);
+      console.log('[firebase] anonymous sign-in successful');
+    } else {
+      console.log('[firebase] user already authenticated:', auth.currentUser.uid);
+    }
+  } catch (error) {
+    console.error('[firebase] authentication error:', error);
+    throw new Error('Failed to authenticate with Firebase');
   }
 }
 

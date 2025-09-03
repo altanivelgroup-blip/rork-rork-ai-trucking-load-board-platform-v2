@@ -4,7 +4,7 @@ import { Load, VehicleType } from '@/types';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { validateLoad, toNumber, round, LoadValidationData } from '@/utils/loadValidation';
-import { getFirebase } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/components/Toast';
@@ -124,17 +124,10 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     try {
       if (!user?.id || draft.attachments.length === 0) return;
       
-      const { storage, auth } = getFirebase();
+      // Ensure Firebase authentication first
+      await ensureFirebaseAuth();
       
-      // Ensure user is authenticated
-      if (!auth.currentUser) {
-        console.warn('[PostLoad] user not authenticated, using placeholder images');
-        const placeholderUrls = draft.attachments.map((_, i) => 
-          `https://picsum.photos/400/300?random=${Date.now()}-${i}`
-        );
-        setDraft(prev => ({ ...prev, photoUrls: placeholderUrls }));
-        return;
-      }
+      const { storage } = getFirebase();
       
       const uploadedUrls: string[] = [];
       
@@ -207,6 +200,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       if (!user?.id) {
         throw new Error('User not authenticated');
       }
+      
+      // Ensure Firebase authentication before posting
+      await ensureFirebaseAuth();
       
       setDraft(prev => ({ ...prev, isPosting: true }));
       
