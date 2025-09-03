@@ -143,9 +143,23 @@ export default function PostLoadStep5() {
       return;
     }
     
+    // Validate dates before proceeding
+    if (!draft.pickupDate || !(draft.pickupDate instanceof Date) || isNaN(draft.pickupDate.getTime())) {
+      Alert.alert('Error', 'Please select a valid pickup date.');
+      return;
+    }
+    
+    if (!draft.deliveryDate || !(draft.deliveryDate instanceof Date) || isNaN(draft.deliveryDate.getTime())) {
+      Alert.alert('Error', 'Please select a valid delivery date.');
+      return;
+    }
+    
     try {
-      // Save contact to draft first
+      // Save contact to draft first and wait for state update
       setField('contact', contact);
+      
+      // Small delay to ensure state is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Upload photos first if needed
       if ((draft.photoUrls?.length ?? 0) < (draft.attachments?.length ?? 0)) {

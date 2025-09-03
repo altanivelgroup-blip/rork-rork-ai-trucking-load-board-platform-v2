@@ -210,41 +210,55 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       
       setDraft(prev => ({ ...prev, isPosting: true }));
       
+      // Get the current draft state to ensure we have the latest values
+      const currentDraft = draft;
+      
       // Debug the draft state
       console.log('[PostLoad] postLoadWizard draft state:', {
-        title: draft.title,
-        description: draft.description,
-        vehicleType: draft.vehicleType,
-        pickup: draft.pickup,
-        delivery: draft.delivery,
-        pickupDate: draft.pickupDate,
-        deliveryDate: draft.deliveryDate,
-        pickupDateType: typeof draft.pickupDate,
-        deliveryDateType: typeof draft.deliveryDate,
-        pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
-        deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime()),
-        weight: draft.weight,
-        rateAmount: draft.rateAmount,
-        rateKind: draft.rateKind,
-        miles: draft.miles,
-        photoUrls: draft.photoUrls?.length,
-        contact: draft.contact
+        title: currentDraft.title,
+        description: currentDraft.description,
+        vehicleType: currentDraft.vehicleType,
+        pickup: currentDraft.pickup,
+        delivery: currentDraft.delivery,
+        pickupDate: currentDraft.pickupDate,
+        deliveryDate: currentDraft.deliveryDate,
+        pickupDateType: typeof currentDraft.pickupDate,
+        deliveryDateType: typeof currentDraft.deliveryDate,
+        pickupDateValid: currentDraft.pickupDate instanceof Date && !isNaN(currentDraft.pickupDate.getTime()),
+        deliveryDateValid: currentDraft.deliveryDate instanceof Date && !isNaN(currentDraft.deliveryDate.getTime()),
+        weight: currentDraft.weight,
+        rateAmount: currentDraft.rateAmount,
+        rateKind: currentDraft.rateKind,
+        miles: currentDraft.miles,
+        photoUrls: currentDraft.photoUrls?.length,
+        contact: currentDraft.contact
       });
+      
+      // Additional validation for dates before proceeding
+      if (!currentDraft.pickupDate || !(currentDraft.pickupDate instanceof Date) || isNaN(currentDraft.pickupDate.getTime())) {
+        setDraft(prev => ({ ...prev, isPosting: false }));
+        throw new Error('Valid pickup date is required');
+      }
+      
+      if (!currentDraft.deliveryDate || !(currentDraft.deliveryDate instanceof Date) || isNaN(currentDraft.deliveryDate.getTime())) {
+        setDraft(prev => ({ ...prev, isPosting: false }));
+        throw new Error('Valid delivery date is required');
+      }
       
       // Validate the load
       const validationData: LoadValidationData = {
-        title: draft.title,
-        description: draft.description,
-        vehicleType: draft.vehicleType,
-        originCity: draft.pickup,
-        destinationCity: draft.delivery,
-        pickupDate: draft.pickupDate,
-        deliveryDate: draft.deliveryDate,
-        weight: draft.weight,
-        rate: draft.rateAmount,
-        rateType: draft.rateKind,
-        miles: draft.miles,
-        photoUrls: draft.photoUrls,
+        title: currentDraft.title,
+        description: currentDraft.description,
+        vehicleType: currentDraft.vehicleType,
+        originCity: currentDraft.pickup,
+        destinationCity: currentDraft.delivery,
+        pickupDate: currentDraft.pickupDate,
+        deliveryDate: currentDraft.deliveryDate,
+        weight: currentDraft.weight,
+        rate: currentDraft.rateAmount,
+        rateType: currentDraft.rateKind,
+        miles: currentDraft.miles,
+        photoUrls: currentDraft.photoUrls || [],
         shipperId: user.id,
       };
       
@@ -258,9 +272,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       }
       
       // Build payload with Firestore Timestamps
-      const rateNum = toNumber(draft.rateAmount);
-      const milesNum = toNumber(draft.miles);
-      const totalRate = draft.rateKind === 'flat' ? rateNum : round(rateNum * milesNum, 2);
+      const rateNum = toNumber(currentDraft.rateAmount);
+      const milesNum = toNumber(currentDraft.miles);
+      const totalRate = currentDraft.rateKind === 'flat' ? rateNum : round(rateNum * milesNum, 2);
       
       // Convert dates to Firestore Timestamps
       const toTimestamp = (date: Date | null): Timestamp | null => {
@@ -268,19 +282,19 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       };
       
       const payload = {
-        title: draft.title.trim(),
-        description: draft.description.trim(),
-        vehicleType: draft.vehicleType,
-        originCity: draft.pickup.trim(),
-        destinationCity: draft.delivery.trim(),
-        pickupDate: toTimestamp(draft.pickupDate),
-        deliveryDate: toTimestamp(draft.deliveryDate),
-        weight: toNumber(draft.weight),
+        title: currentDraft.title.trim(),
+        description: currentDraft.description.trim(),
+        vehicleType: currentDraft.vehicleType,
+        originCity: currentDraft.pickup.trim(),
+        destinationCity: currentDraft.delivery.trim(),
+        pickupDate: toTimestamp(currentDraft.pickupDate),
+        deliveryDate: toTimestamp(currentDraft.deliveryDate),
+        weight: toNumber(currentDraft.weight),
         rate: rateNum,
-        rateType: draft.rateKind || 'flat',
-        miles: draft.rateKind === 'per_mile' && draft.miles ? milesNum : null,
+        rateType: currentDraft.rateKind || 'flat',
+        miles: currentDraft.rateKind === 'per_mile' && currentDraft.miles ? milesNum : null,
         totalRate,
-        photoUrls: draft.photoUrls,
+        photoUrls: currentDraft.photoUrls || [],
         shipperId: user.id,
         status: 'open' as const,
         createdAt: serverTimestamp(),
