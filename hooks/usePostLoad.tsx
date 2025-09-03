@@ -3,9 +3,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { Load, VehicleType } from '@/types';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
-import { validateLoad, toNumber, round, LoadValidationData } from '@/utils/loadValidation';
+import { validateLoad, toNumber, LoadValidationData } from '@/utils/loadValidation';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { postLoad } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/components/Toast';
 
@@ -415,41 +415,23 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       
       if (firebaseAvailable) {
         try {
-          // Build payload with Firestore Timestamps
+          // Use the new postLoad function with proper schema
           const rateNum = toNumber(currentDraft.rateAmount);
-          const milesNum = toNumber(currentDraft.miles);
-          const totalRate = currentDraft.rateKind === 'flat' ? rateNum : round(rateNum * milesNum, 2);
+          const loadId = `load-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
-          // Convert dates to Firestore Timestamps
-          const toTimestamp = (date: Date | null): Timestamp | null => {
-            return date ? Timestamp.fromDate(date) : null;
-          };
-          
-          const payload = {
+          await postLoad({
+            id: loadId,
             title: currentDraft.title.trim(),
-            description: currentDraft.description.trim(),
-            vehicleType: currentDraft.vehicleType,
-            originCity: currentDraft.pickup.trim(),
-            destinationCity: currentDraft.delivery.trim(),
-            pickupDate: toTimestamp(pickupDate),
-            deliveryDate: toTimestamp(deliveryDate),
-            weight: toNumber(currentDraft.weight),
+            origin: currentDraft.pickup.trim(),
+            destination: currentDraft.delivery.trim(),
+            vehicleType: currentDraft.vehicleType || 'truck',
             rate: rateNum,
-            rateType: currentDraft.rateKind || 'flat',
-            miles: currentDraft.rateKind === 'per_mile' && currentDraft.miles ? milesNum : null,
-            totalRate,
-            photoUrls: finalPhotoUrls,
-            shipperId: user.id,
-            status: 'open' as const,
-            createdAt: serverTimestamp(),
-          };
+            pickupDate,
+            deliveryDate,
+            finalPhotos: finalPhotoUrls.map(url => ({ url, path: null })),
+          });
           
-          // Create record in Firestore
-          const { db } = getFirebase();
-          const loadsCollection = collection(db, 'loads');
-          const docRef = await addDoc(loadsCollection, payload);
-          
-          console.log('[PostLoad] load posted successfully to Firebase:', docRef.id);
+          console.log('[PostLoad] load posted successfully to Firebase:', loadId);
           showToast('Load posted successfully!');
           
         } catch (firebaseError) {
