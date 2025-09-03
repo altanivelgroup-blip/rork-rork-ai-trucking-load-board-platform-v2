@@ -89,7 +89,7 @@ export default function PostLoadStep2() {
     } catch (e) {
       console.log('[PostLoadStep2] next error', e);
     }
-  }, [draft]);
+  }, [draft, router]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>

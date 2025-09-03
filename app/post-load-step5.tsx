@@ -28,10 +28,10 @@ function Stepper({ current, total }: { current: number; total: number }) {
 }
 export default function PostLoadStep5() {
   const router = useRouter();
-  const { draft, setField, canSubmit, submit, reset } = usePostLoad();
-  const [contact, setContact] = useState<string>('');
+  const { draft, setField, canPost, postLoadWizard } = usePostLoad();
+  const [contact, setContact] = useState<string>(draft.contact || '');
 
-  const canPost = useMemo(() => (contact.trim().length > 0) && canSubmit, [contact, canSubmit]);
+  const isReady = useMemo(() => (contact.trim().length > 0) && canPost && !draft.isPosting, [contact, canPost, draft.isPosting]);
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
@@ -100,17 +100,20 @@ export default function PostLoadStep5() {
 
   const onSubmit = useCallback(async () => {
     try {
+      // Save contact to draft first
       setField('contact', contact);
-      const created = await submit();
-      if (!created) return;
+      
+      // Use the new postLoadWizard function
+      await postLoadWizard();
+      
       Alert.alert('Load Posted', 'Your load has been posted to the board.');
-      reset();
-      router.replace('/(tabs)/(loads)/');
+      router.replace('/(tabs)/(loads)');
     } catch (e) {
       console.log('[PostLoadStep5] submit error', e);
-      Alert.alert('Error', 'Failed to post load. Please try again.');
+      const errorMessage = e instanceof Error ? e.message : 'Failed to post load. Please try again.';
+      Alert.alert('Error', errorMessage);
     }
-  }, [contact, submit, router, setField, reset]);
+  }, [contact, postLoadWizard, router, setField]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top','bottom']}>
@@ -140,9 +143,9 @@ export default function PostLoadStep5() {
           <View style={styles.attachCard}>
             <Text style={styles.summaryTitle}>Attachments (min 5 photos)</Text>
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Add at least 5 clear photos. You currently have {(draft.attachments?.length ?? 0)}.
+              Photos uploaded: {(draft.photoUrls?.length ?? 0)} / {(draft.attachments?.length ?? 0)} selected
             </Text>
-            {(draft.attachments?.length ?? 0) < 5 && (
+            {(draft.photoUrls?.length ?? 0) < 5 && (
               <Text style={styles.errorText} testID="attachmentsError">Minimum 5 photos required to post.</Text>
             )}
             <View style={styles.attachActions}>
@@ -186,7 +189,10 @@ export default function PostLoadStep5() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryKey}>Rate:</Text>
-              <Text style={styles.summaryValue}>${draft.rateAmount || '0'} ({draft.rateKind})</Text>
+              <Text style={styles.summaryValue}>
+                ${draft.rateAmount || '0'} ({draft.rateKind === 'per_mile' ? 'per mile' : 'flat'})
+                {draft.rateKind === 'per_mile' && draft.miles ? ` × ${draft.miles} miles` : ''}
+              </Text>
             </View>
           </View>
         </ScrollView>
@@ -195,9 +201,9 @@ export default function PostLoadStep5() {
           <Pressable onPress={onPrevious} style={styles.secondaryBtn} accessibilityRole="button" testID="prevButton">
             <Text style={styles.secondaryBtnText}>Previous</Text>
           </Pressable>
-          <Pressable onPress={onSubmit} style={[styles.postBtn, !canPost && styles.postBtnDisabled]} disabled={!canPost} accessibilityRole="button" accessibilityState={{ disabled: !canPost }} testID="postLoadBtn">
+          <Pressable onPress={onSubmit} style={[styles.postBtn, !isReady && styles.postBtnDisabled]} disabled={!isReady} accessibilityRole="button" accessibilityState={{ disabled: !isReady }} testID="postLoadBtn">
             <Send color={theme.colors.white} size={18} />
-            <Text style={styles.postBtnText}>Post Load</Text>
+            <Text style={styles.postBtnText}>{draft.isPosting ? 'Posting...' : 'Post Load'}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>

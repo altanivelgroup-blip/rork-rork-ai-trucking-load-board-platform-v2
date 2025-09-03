@@ -1,26 +1,12 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  Platform,
-  KeyboardAvoidingView,
-  Modal,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
+import { Camera, ImagePlus, Trash2 } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
-
-type PickerKind = 'pickup' | 'delivery';
-
-type DayCell = {
-  date: Date;
-  inCurrentMonth: boolean;
-  isDisabled: boolean;
-};
+import { usePostLoad } from '@/hooks/usePostLoad';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -41,154 +27,91 @@ function Stepper({ current, total }: { current: number; total: number }) {
   );
 }
 
-function formatDateLabel(d: Date | null): string {
-  if (!d) return 'Select date';
-  const mm = d.toLocaleString(undefined, { month: 'short' });
-  const dd = d.getDate();
-  const yyyy = d.getFullYear();
-  return `${mm} ${dd}, ${yyyy}`;
-}
-
-function startOfMonth(d: Date): Date { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function addMonths(d: Date, months: number): Date { return new Date(d.getFullYear(), d.getMonth() + months, 1); }
-function isSameDate(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-function buildCalendar(monthDate: Date, minDate?: Date): DayCell[] {
-  const first = startOfMonth(monthDate);
-  const firstWeekday = first.getDay();
-  const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
-  const prevMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 0);
-  const prevDays = prevMonth.getDate();
-  const grid: DayCell[] = [];
-  for (let i = firstWeekday - 1; i >= 0; i--) {
-    const date = new Date(prevMonth.getFullYear(), prevMonth.getMonth(), prevDays - i);
-    grid.push({ date, inCurrentMonth: false, isDisabled: true });
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
-    const isDisabled = !!minDate && date < new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
-    grid.push({ date, inCurrentMonth: true, isDisabled });
-  }
-  const rem = 42 - grid.length;
-  for (let i = 1; i <= rem; i++) {
-    const date = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, i);
-    grid.push({ date, inCurrentMonth: false, isDisabled: true });
-  }
-  return grid;
-}
-
-function CalendarModal({
-  visible,
-  initialDate,
-  onClose,
-  onConfirm,
-  minDate,
-}: {
-  visible: boolean;
-  initialDate: Date | null;
-  onClose: () => void;
-  onConfirm: (d: Date) => void;
-  minDate?: Date;
-}) {
-  const today = useMemo(() => new Date(), []);
-  const [viewMonth, setViewMonth] = useState<Date>(initialDate ? startOfMonth(initialDate) : startOfMonth(today));
-  const [temp, setTemp] = useState<Date | null>(initialDate ?? null);
-
-  const grid = useMemo(() => buildCalendar(viewMonth, minDate ?? today), [viewMonth, minDate, today]);
-  const monthLabel = useMemo(() => viewMonth.toLocaleString(undefined, { month: 'long', year: 'numeric' }), [viewMonth]);
-
-  const onUse = useCallback(() => {
-    if (temp) onConfirm(temp);
-  }, [temp, onConfirm]);
-
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.backdrop}>
-        <View style={styles.calendarCard}>
-          <View style={styles.calendarHeader}>
-            <Pressable accessibilityRole="button" onPress={() => setViewMonth(addMonths(viewMonth, -1))} testID="calPrevMonth" style={styles.iconBtn}>
-              <ChevronLeft color={theme.colors.dark} size={20} />
-            </Pressable>
-            <Text style={styles.monthTitle}>{monthLabel}</Text>
-            <Pressable accessibilityRole="button" onPress={() => setViewMonth(addMonths(viewMonth, 1))} testID="calNextMonth" style={styles.iconBtn}>
-              <ChevronRight color={theme.colors.dark} size={20} />
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={onClose} testID="calClose" style={styles.iconBtnRight}>
-              <X color={theme.colors.gray} size={18} />
-            </Pressable>
-          </View>
-
-          <View style={styles.weekHeader}>
-            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
-              <Text key={d} style={styles.weekHeaderText}>{d}</Text>
-            ))}
-          </View>
-
-          <View style={styles.grid}>
-            {grid.map((cell, idx) => {
-              const selected = temp ? isSameDate(cell.date, temp) : false;
-              const baseStyle = [styles.dayCell, !cell.inCurrentMonth && styles.dayCellMuted, cell.isDisabled && styles.dayCellDisabled, selected && styles.dayCellSelected];
-              return (
-                <Pressable
-                  key={idx}
-                  onPress={() => { if (!cell.isDisabled && cell.inCurrentMonth) setTemp(cell.date); }}
-                  disabled={cell.isDisabled}
-                  style={baseStyle}
-                  accessibilityRole="button"
-                  testID={`day-${cell.date.toISOString().slice(0,10)}`}
-                >
-                  <Text style={[styles.dayText, selected && styles.dayTextSelected, (!cell.inCurrentMonth || cell.isDisabled) && styles.dayTextMuted]}>
-                    {cell.date.getDate()}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <View style={styles.modalFooter}>
-            <Pressable onPress={() => { setTemp(today); }} style={styles.secondaryBtn} accessibilityRole="button" testID="todayBtn">
-              <Text style={styles.secondaryBtnText}>Today</Text>
-            </Pressable>
-            <Pressable onPress={onUse} disabled={!temp} style={[styles.primaryBtn, !temp && styles.primaryBtnDisabled]} accessibilityRole="button" accessibilityState={{ disabled: !temp }} testID="useDateBtn">
-              <Text style={styles.primaryBtnText}>Use this date</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-import { usePostLoad } from '@/hooks/usePostLoad';
-
 export default function PostLoadStep3() {
   const router = useRouter();
-  const { draft, setField } = usePostLoad();
-  const [pickupDate, setPickupDate] = useState<Date | null>(draft.pickupDate ?? null);
-  const [deliveryDate, setDeliveryDate] = useState<Date | null>(draft.deliveryDate ?? null);
-  const [picker, setPicker] = useState<PickerKind | null>(null);
+  const { draft, setField, uploadPhotos } = usePostLoad();
+  const [isUploading, setIsUploading] = useState<boolean>(false);
 
-  const canProceed = useMemo(() => !!pickupDate && !!deliveryDate, [pickupDate, deliveryDate]);
+  const canProceed = useMemo(() => (draft.attachments?.length ?? 0) >= 5, [draft.attachments]);
 
-  const openPicker = useCallback((k: PickerKind) => setPicker(k), []);
-  const closePicker = useCallback(() => setPicker(null), []);
+  const requestMediaPermission = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow photo library access to add attachments.');
+      return false;
+    }
+    return true;
+  }, []);
 
-  const onConfirm = useCallback((d: Date) => {
-    if (picker === 'pickup') setPickupDate(d); else if (picker === 'delivery') setDeliveryDate(d);
-    setPicker(null);
-  }, [picker]);
+  const pickFromLibrary = useCallback(async () => {
+    try {
+      const ok = await requestMediaPermission();
+      if (!ok) return;
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: 10,
+      });
+      if (result.canceled) return;
+      const newItems = (result.assets ?? []).map((a) => ({ uri: a.uri, name: a.fileName ?? 'image.jpg', type: a.mimeType ?? 'image/jpeg' }));
+      const next = [...(draft.attachments ?? []), ...newItems].slice(0, 10); // Max 10 photos
+      setField('attachments', next);
+    } catch (e) {
+      console.log('[PostLoadStep3] pickFromLibrary error', e);
+      Alert.alert('Error', 'Could not pick images.');
+    }
+  }, [draft.attachments, requestMediaPermission, setField]);
 
-  useEffect(() => {
-    if (pickupDate) setField('pickupDate', pickupDate);
-  }, [pickupDate, setField]);
-  useEffect(() => {
-    if (deliveryDate) setField('deliveryDate', deliveryDate);
-  }, [deliveryDate, setField]);
+  const takePhoto = useCallback(async () => {
+    try {
+      if (Platform.OS === 'web') {
+        Alert.alert('Not supported on web', 'Use Upload Photos on web.');
+        return;
+      }
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow camera access to take a photo.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+      if (result.canceled) return;
+      const a = result.assets?.[0];
+      if (!a) return;
+      const next = [...(draft.attachments ?? []), { uri: a.uri, name: a.fileName ?? 'photo.jpg', type: a.mimeType ?? 'image/jpeg' }].slice(0, 10);
+      setField('attachments', next);
+    } catch (e) {
+      console.log('[PostLoadStep3] takePhoto error', e);
+      Alert.alert('Error', 'Could not take photo.');
+    }
+  }, [draft.attachments, setField]);
+
+  const removeAttachment = useCallback((uri: string) => {
+    try {
+      const next = (draft.attachments ?? []).filter((i) => i.uri !== uri);
+      setField('attachments', next);
+    } catch (e) {
+      console.log('[PostLoadStep3] removeAttachment error', e);
+    }
+  }, [draft.attachments, setField]);
 
   const onPrevious = useCallback(() => { router.back(); }, [router]);
-  const onNext = useCallback(() => { console.log('[PostLoadStep3] next', { pickupDate, deliveryDate }); if (pickupDate && deliveryDate) { router.push('/post-load-step4'); } }, [pickupDate, deliveryDate, router]);
+  const onNext = useCallback(async () => {
+    try {
+      console.log('[PostLoadStep3] next - uploading photos');
+      if (!canProceed) return;
+      
+      setIsUploading(true);
+      await uploadPhotos();
+      setIsUploading(false);
+      
+      router.push('/post-load-step4');
+    } catch (e) {
+      console.log('[PostLoadStep3] next error', e);
+      setIsUploading(false);
+      Alert.alert('Upload Error', 'Failed to upload photos. Please try again.');
+    }
+  }, [canProceed, uploadPhotos, router]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -200,21 +123,37 @@ export default function PostLoadStep3() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Schedule</Text>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Pickup Date</Text>
-              <Pressable onPress={() => openPicker('pickup')} style={styles.dateField} accessibilityRole="button" testID="pickupDateBtn">
-                <Text style={styles.dateText}>{formatDateLabel(pickupDate)}</Text>
+            <Text style={styles.sectionTitle}>Attachments</Text>
+            <Text style={styles.helperText} testID="attachmentsHelper">
+              Add at least 5 clear photos of your load. You currently have {(draft.attachments?.length ?? 0)}.
+            </Text>
+            {(draft.attachments?.length ?? 0) < 5 && (
+              <Text style={styles.errorText} testID="attachmentsError">Minimum 5 photos required to continue.</Text>
+            )}
+            
+            <View style={styles.attachActions}>
+              <Pressable onPress={pickFromLibrary} style={styles.attachBtn} accessibilityRole="button" testID="attachLibraryBtn">
+                <ImagePlus color={theme.colors.white} size={18} />
+                <Text style={styles.attachBtnText}>Upload Photos</Text>
+              </Pressable>
+              <Pressable onPress={takePhoto} style={styles.attachBtnAlt} accessibilityRole="button" testID="attachCameraBtn">
+                <Camera color={theme.colors.dark} size={18} />
+                <Text style={styles.attachBtnAltText}>Take Photo</Text>
               </Pressable>
             </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Delivery Date</Text>
-              <Pressable onPress={() => openPicker('delivery')} style={styles.dateField} accessibilityRole="button" testID="deliveryDateBtn">
-                <Text style={styles.dateText}>{formatDateLabel(deliveryDate)}</Text>
-              </Pressable>
-            </View>
+            
+            {!!(draft.attachments?.length ?? 0) && (
+              <View style={styles.grid}>
+                {(draft.attachments ?? []).map((att) => (
+                  <View key={att.uri} style={styles.thumbWrap} testID={`thumb-${att.uri}`}>
+                    <Image source={{ uri: att.uri }} style={styles.thumb} contentFit="cover" />
+                    <Pressable onPress={() => removeAttachment(att.uri)} style={styles.removeBtn} accessibilityRole="button" testID={`remove-${att.uri}`}>
+                      <Trash2 color={theme.colors.white} size={14} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         </ScrollView>
 
@@ -222,19 +161,11 @@ export default function PostLoadStep3() {
           <Pressable onPress={onPrevious} style={styles.secondaryBtn} accessibilityRole="button" testID="prevButton">
             <Text style={styles.secondaryBtnText}>Previous</Text>
           </Pressable>
-          <Pressable onPress={onNext} style={[styles.primaryBtn, !canProceed && styles.primaryBtnDisabled]} disabled={!canProceed} accessibilityRole="button" accessibilityState={{ disabled: !canProceed }} testID="nextButton">
-            <Text style={styles.primaryBtnText}>Next</Text>
+          <Pressable onPress={onNext} style={[styles.primaryBtn, (!canProceed || isUploading) && styles.primaryBtnDisabled]} disabled={!canProceed || isUploading} accessibilityRole="button" accessibilityState={{ disabled: !canProceed || isUploading }} testID="nextButton">
+            <Text style={styles.primaryBtnText}>{isUploading ? 'Uploading...' : 'Next'}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
-
-      <CalendarModal
-        visible={picker !== null}
-        initialDate={picker === 'pickup' ? pickupDate : deliveryDate}
-        onClose={closePicker}
-        onConfirm={onConfirm}
-        minDate={new Date()}
-      />
     </SafeAreaView>
   );
 }
@@ -256,31 +187,21 @@ const styles = StyleSheet.create({
   stepConnector: { width: 24, height: 4, backgroundColor: '#cbd5e1', marginHorizontal: 8, borderRadius: 2 },
   card: { backgroundColor: theme.colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.colors.border },
   sectionTitle: { fontSize: theme.fontSize.xl, fontWeight: '800', color: theme.colors.dark, textAlign: 'center', marginBottom: 16 },
-  fieldGroup: { marginBottom: 16 },
-  label: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark, marginBottom: 8 },
-  dateField: { backgroundColor: theme.colors.white, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.select({ ios: 14, android: 12, default: 12 }) as number },
-  dateText: { fontSize: theme.fontSize.md, color: theme.colors.dark },
+  helperText: { color: theme.colors.gray, marginTop: 4, marginBottom: 8, fontSize: theme.fontSize.md },
+  errorText: { color: '#ef4444', fontWeight: '700', marginBottom: 8 },
+  attachActions: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  attachBtn: { flex: 1, backgroundColor: theme.colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  attachBtnText: { color: theme.colors.white, fontSize: theme.fontSize.md, fontWeight: '800' },
+  attachBtnAlt: { flex: 1, backgroundColor: '#e2e8f0', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  attachBtnAltText: { color: theme.colors.dark, fontSize: theme.fontSize.md, fontWeight: '800' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  thumbWrap: { width: '23%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', position: 'relative' },
+  thumb: { width: '100%', height: '100%' },
+  removeBtn: { position: 'absolute', right: 6, top: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   footerRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingBottom: Platform.select({ ios: 20, android: 16, default: 16 }) as number, paddingTop: 8, backgroundColor: theme.colors.lightGray },
   primaryBtn: { flex: 1, backgroundColor: theme.colors.primary, paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   primaryBtnDisabled: { backgroundColor: '#94a3b8' },
   primaryBtnText: { color: theme.colors.white, fontSize: theme.fontSize.lg, fontWeight: '800' },
   secondaryBtn: { flex: 1, backgroundColor: '#cbd5e1', paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   secondaryBtnText: { color: theme.colors.dark, fontSize: theme.fontSize.lg, fontWeight: '800' },
-  backdrop: { flex: 1, backgroundColor: theme.colors.backdrop, alignItems: 'center', justifyContent: 'center', padding: 16 },
-  calendarCard: { width: '100%', maxWidth: 680, backgroundColor: theme.colors.card, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, overflow: 'hidden' },
-  calendarHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12 },
-  monthTitle: { flex: 1, textAlign: 'center', fontSize: theme.fontSize.xl, fontWeight: '800', color: theme.colors.dark },
-  iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  iconBtnRight: { position: 'absolute', right: 8, top: 8, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  weekHeader: { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8 },
-  weekHeaderText: { flex: 1, textAlign: 'center', color: theme.colors.gray, fontWeight: '700' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingBottom: 12 },
-  dayCell: { width: `${100/7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  dayCellMuted: { opacity: 0.35 },
-  dayCellDisabled: { opacity: 0.5 },
-  dayCellSelected: { backgroundColor: theme.colors.primary },
-  dayText: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark },
-  dayTextMuted: { color: theme.colors.gray },
-  dayTextSelected: { color: theme.colors.white },
-  modalFooter: { flexDirection: 'row', gap: 12, padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.border },
 });

@@ -3,8 +3,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
+import { usePostLoad } from '@/hooks/usePostLoad';
 
- type RateKind = 'flat' | 'per-mile' | 'hourly';
+type RateKind = 'flat' | 'per_mile';
 
  function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -41,11 +42,17 @@ function SegButton({ label, selected, onPress, testID }: { label: string; select
 
 export default function PostLoadStep4() {
   const router = useRouter();
-  const [amount, setAmount] = useState<string>('1350');
-  const [rateKind, setRateKind] = useState<RateKind>('flat');
-  const [requirements, setRequirements] = useState<string>('Car hauler');
+  const { draft, setField } = usePostLoad();
+  const [amount, setAmount] = useState<string>(draft.rateAmount || '1350');
+  const [rateKind, setRateKind] = useState<RateKind>(draft.rateKind || 'flat');
+  const [miles, setMiles] = useState<string>(draft.miles || '');
+  const [requirements, setRequirements] = useState<string>(draft.requirements || 'Car hauler');
 
-  const canProceed = useMemo(() => amount.trim().length > 0, [amount]);
+  const canProceed = useMemo(() => {
+    const hasAmount = amount.trim().length > 0;
+    const hasMiles = rateKind === 'flat' || miles.trim().length > 0;
+    return hasAmount && hasMiles;
+  }, [amount, rateKind, miles]);
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep4] previous error', e); }
@@ -53,14 +60,21 @@ export default function PostLoadStep4() {
 
   const onNext = useCallback(() => {
     try {
-      console.log('[PostLoadStep4] next', { amount, rateKind, requirements });
+      console.log('[PostLoadStep4] next', { amount, rateKind, miles, requirements });
       if (!canProceed) return;
+      
+      // Save to draft
+      setField('rateAmount', amount);
+      setField('rateKind', rateKind);
+      setField('miles', miles);
+      setField('requirements', requirements);
+      
       // Navigate to final review step
       router.push('/post-load-step5');
     } catch (e) {
       console.log('[PostLoadStep4] next error', e);
     }
-  }, [amount, rateKind, requirements, canProceed, router]);
+  }, [amount, rateKind, miles, requirements, canProceed, router, setField]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top','bottom']}>
@@ -94,10 +108,24 @@ export default function PostLoadStep4() {
               <Text style={styles.label}>Rate Type</Text>
               <View style={styles.segRow}>
                 <SegButton label="Flat Rate" selected={rateKind==='flat'} onPress={() => setRateKind('flat')} testID="rate-flat" />
-                <SegButton label="Per Mile" selected={rateKind==='per-mile'} onPress={() => setRateKind('per-mile')} testID="rate-per-mile" />
-                <SegButton label="Hourly" selected={rateKind==='hourly'} onPress={() => setRateKind('hourly')} testID="rate-hourly" />
+                <SegButton label="Per Mile" selected={rateKind==='per_mile'} onPress={() => setRateKind('per_mile')} testID="rate-per-mile" />
               </View>
             </View>
+
+            {rateKind === 'per_mile' && (
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Miles *</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType={Platform.select({ ios: 'decimal-pad', android: 'number-pad', default: 'decimal-pad' }) as 'default' | 'numeric' | 'email-address' | 'phone-pad' | 'decimal-pad' | 'number-pad' | undefined}
+                  placeholder="250"
+                  placeholderTextColor={theme.colors.gray}
+                  value={miles}
+                  onChangeText={setMiles}
+                  testID="miles"
+                />
+              </View>
+            )}
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Special Requirements</Text>

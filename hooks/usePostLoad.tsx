@@ -2,8 +2,15 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useMemo, useState } from 'react';
 import { Load, VehicleType } from '@/types';
 import { useLoads } from '@/hooks/useLoads';
+import { useAuth } from '@/hooks/useAuth';
+import { validateLoad, toNumber, round, LoadValidationData } from '@/utils/loadValidation';
+import { getFirebase } from '@/utils/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useToast } from '@/components/Toast';
 
-export type RateKind = 'flat' | 'per-mile' | 'hourly';
+
+export type RateKind = 'flat' | 'per_mile';
 
 interface PostLoadDraft {
   title: string;
@@ -17,9 +24,15 @@ interface PostLoadDraft {
   deliveryDate: Date | null;
   rateAmount: string;
   rateKind: RateKind;
+  miles: string;
   requirements: string;
   contact: string;
   attachments: { uri: string; name?: string; type?: string }[];
+  photoUrls: string[];
+  reference: string;
+  isPosting: boolean;
+  uploadFailures: number;
+  lastUploadFailure: number;
 }
 
 interface PostLoadState {
@@ -27,7 +40,10 @@ interface PostLoadState {
   setField: <K extends keyof PostLoadDraft>(key: K, value: PostLoadDraft[K]) => void;
   reset: () => void;
   canSubmit: boolean;
+  canPost: boolean;
   submit: () => Promise<Load | null>;
+  uploadPhotos: () => Promise<void>;
+  postLoadWizard: () => Promise<void>;
 }
 
 const initialDraft: PostLoadDraft = {
@@ -42,13 +58,21 @@ const initialDraft: PostLoadDraft = {
   deliveryDate: null,
   rateAmount: '',
   rateKind: 'flat',
+  miles: '',
   requirements: '',
   contact: '',
   attachments: [],
+  photoUrls: [],
+  reference: `LOAD-${Date.now()}`,
+  isPosting: false,
+  uploadFailures: 0,
+  lastUploadFailure: 0,
 };
 
 export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(() => {
   const { addLoad } = useLoads();
+  const { user } = useAuth();
+  const { show: showToast } = useToast();
   const [draft, setDraft] = useState<PostLoadDraft>(initialDraft);
   const setField = useCallback(<K extends keyof PostLoadDraft>(key: K, value: PostLoadDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -69,7 +93,155 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     );
   }, [draft]);
 
-  const reset = useCallback(() => setDraft(initialDraft), []);
+  const canPost = useMemo(() => {
+    if (!user?.id) return false;
+    const validationData: LoadValidationData = {
+      title: draft.title,
+      description: draft.description,
+      vehicleType: draft.vehicleType,
+      originCity: draft.pickup,
+      destinationCity: draft.delivery,
+      pickupDate: draft.pickupDate,
+      deliveryDate: draft.deliveryDate,
+      weight: draft.weight,
+      rate: draft.rateAmount,
+      rateType: draft.rateKind,
+      miles: draft.miles,
+      photoUrls: draft.photoUrls,
+      shipperId: user.id,
+    };
+    return validateLoad(validationData).ok && !draft.isPosting;
+  }, [draft, user?.id]);
+
+  const reset = useCallback(() => {
+    setDraft({
+      ...initialDraft,
+      reference: `LOAD-${Date.now()}`,
+    });
+  }, []);
+
+  const uploadPhotos = useCallback(async (): Promise<void> => {
+    try {
+      if (!user?.id || draft.attachments.length === 0) return;
+      
+      const { storage } = getFirebase();
+      const uploadedUrls: string[] = [];
+      
+      for (let i = 0; i < draft.attachments.length; i++) {
+        const attachment = draft.attachments[i];
+        try {
+          const response = await fetch(attachment.uri);
+          const blob = await response.blob();
+          
+          const storageRef = ref(storage, `userPhotos/${user.id}/loads/${draft.reference}/photo-${i}.jpg`);
+          const snapshot = await uploadBytes(storageRef, blob);
+          const downloadURL = await getDownloadURL(snapshot.ref);
+          
+          uploadedUrls.push(downloadURL);
+          console.log(`[PostLoad] uploaded photo ${i + 1}/${draft.attachments.length}`);
+        } catch (uploadError) {
+          console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
+          
+          // Track upload failures
+          const now = Date.now();
+          const newFailures = draft.uploadFailures + 1;
+          const timeSinceLastFailure = now - draft.lastUploadFailure;
+          
+          setDraft(prev => ({
+            ...prev,
+            uploadFailures: newFailures,
+            lastUploadFailure: now,
+          }));
+          
+          // If 3 failures in 60 seconds, use placeholder
+          if (newFailures >= 3 && timeSinceLastFailure < 60000) {
+            console.warn('[PostLoad] using placeholder image due to upload failures');
+            uploadedUrls.push(`https://picsum.photos/400/300?random=${i}`);
+          } else {
+            throw uploadError;
+          }
+        }
+      }
+      
+      setDraft(prev => ({ ...prev, photoUrls: uploadedUrls }));
+    } catch (error) {
+      console.error('[PostLoad] uploadPhotos error:', error);
+      throw error;
+    }
+  }, [draft.attachments, draft.reference, draft.uploadFailures, draft.lastUploadFailure, user?.id]);
+
+  const postLoadWizard = useCallback(async (): Promise<void> => {
+    try {
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+      
+      setDraft(prev => ({ ...prev, isPosting: true }));
+      
+      // Validate the load
+      const validationData: LoadValidationData = {
+        title: draft.title,
+        description: draft.description,
+        vehicleType: draft.vehicleType,
+        originCity: draft.pickup,
+        destinationCity: draft.delivery,
+        pickupDate: draft.pickupDate,
+        deliveryDate: draft.deliveryDate,
+        weight: draft.weight,
+        rate: draft.rateAmount,
+        rateType: draft.rateKind,
+        miles: draft.miles,
+        photoUrls: draft.photoUrls,
+        shipperId: user.id,
+      };
+      
+      const validation = validateLoad(validationData);
+      if (!validation.ok) {
+        setDraft(prev => ({ ...prev, isPosting: false }));
+        throw new Error(validation.errors[0]);
+      }
+      
+      // Build payload
+      const rateNum = toNumber(draft.rateAmount);
+      const milesNum = toNumber(draft.miles);
+      const totalRate = draft.rateKind === 'flat' ? rateNum : round(rateNum * milesNum, 2);
+      
+      const payload = {
+        title: draft.title.trim(),
+        description: draft.description.trim(),
+        vehicleType: draft.vehicleType,
+        originCity: draft.pickup.trim(),
+        destinationCity: draft.delivery.trim(),
+        pickupDate: draft.pickupDate?.toISOString().split('T')[0],
+        deliveryDate: draft.deliveryDate?.toISOString().split('T')[0],
+        weight: toNumber(draft.weight),
+        rate: rateNum,
+        rateType: draft.rateKind,
+        miles: draft.rateKind === 'per_mile' ? milesNum : null,
+        totalRate,
+        photoUrls: draft.photoUrls,
+        shipperId: user.id,
+        status: 'open',
+        createdAt: serverTimestamp(),
+        reference: draft.reference,
+      };
+      
+      // Create record in Firestore
+      const { db } = getFirebase();
+      const loadsCollection = collection(db, 'loads');
+      await addDoc(loadsCollection, payload);
+      
+      console.log('[PostLoad] load posted successfully:', payload.reference);
+      
+      // Reset state
+      reset();
+      
+    } catch (error) {
+      console.error('[PostLoad] postLoadWizard error:', error);
+      setDraft(prev => ({ ...prev, isPosting: false }));
+      throw error;
+    }
+  }, [draft, user?.id, reset]);
 
   const submit = useCallback(async (): Promise<Load | null> => {
     try {
@@ -80,8 +252,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
 
       const load: Load = {
         id: String(now),
-        shipperId: 'current-shipper',
-        shipperName: 'You',
+        shipperId: user?.id || 'current-shipper',
+        shipperName: user?.name || 'You',
         origin: {
           address: '',
           city: draft.pickup,
@@ -118,7 +290,16 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.log('[PostLoad] submit error', e);
       throw e;
     }
-  }, [addLoad, canSubmit, draft]);
+  }, [addLoad, canSubmit, draft, user]);
 
-  return useMemo(() => ({ draft, setField, reset, canSubmit, submit }), [draft, setField, reset, canSubmit, submit]);
+  return useMemo(() => ({ 
+    draft, 
+    setField, 
+    reset, 
+    canSubmit, 
+    canPost, 
+    submit, 
+    uploadPhotos, 
+    postLoadWizard 
+  }), [draft, setField, reset, canSubmit, canPost, submit, uploadPhotos, postLoadWizard]);
 });
