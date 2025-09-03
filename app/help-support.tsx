@@ -2,14 +2,21 @@ import React from 'react';
 import { Stack, Link } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { theme } from '@/constants/theme';
-import { Mail, MessageSquare } from 'lucide-react-native';
+import { Mail, MessageSquare, BookOpen } from 'lucide-react-native';
 import MiniFAQ from '@/src/components/MiniFAQ';
 import { FAQ_ITEMS } from '@/src/data/faqLoadrush';
+import { DOCS_URL } from '@/src/config/links';
 
 export default function HelpSupportScreen() {
   const openUrl = (url: string) => {
     Linking.openURL(url).catch((e) => console.log('open url error', e));
   };
+
+  const openDocs = () => {
+    Linking.openURL(DOCS_URL).catch((e) => console.log('open docs error', e));
+  };
+
+  const shouldShowDocs = DOCS_URL && DOCS_URL.startsWith('http');
 
   return (
     <View style={styles.container} testID="help-support-screen">
@@ -23,6 +30,20 @@ export default function HelpSupportScreen() {
             initiallyOpenId="1"
           />
         </View>
+
+        {shouldShowDocs && (
+          <View style={styles.docsWrapper}>
+            <View style={styles.card}>
+              <Item 
+                icon={<BookOpen size={18} color={theme.colors.primary} />} 
+                title="Documentation" 
+                subtitle="Guides and tutorials" 
+                onPress={openDocs} 
+                testID="help-docs" 
+              />
+            </View>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Contact Us</Text>
         <View style={styles.card}>
@@ -62,6 +83,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
   scroll: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
   faqWrapper: { paddingHorizontal: 16, marginTop: 12, marginBottom: 24 },
+  docsWrapper: { marginTop: 8, marginBottom: 24 },
   sectionTitle: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark, marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm },
   card: { backgroundColor: theme.colors.card, borderRadius: theme.borderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border },
   row: { paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.card, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border, flexDirection: 'row', alignItems: 'center' },

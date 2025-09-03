@@ -1,0 +1,1 @@
+export const DOCS_URL = process.env.EXPO_PUBLIC_DOCS_URL || 'https://docs.loadrush.app';
