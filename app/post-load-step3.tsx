@@ -144,10 +144,10 @@ export default function PostLoadStep3() {
             
             {!!(draft.attachments?.length ?? 0) && (
               <View style={styles.grid}>
-                {(draft.attachments ?? []).map((att) => (
-                  <View key={att.uri} style={styles.thumbWrap} testID={`thumb-${att.uri}`}>
+                {(draft.attachments ?? []).map((att, index) => (
+                  <View key={att.uri || `attachment-${index}`} style={styles.thumbWrap} testID={`thumb-${att.uri || index}`}>
                     <Image source={{ uri: att.uri }} style={styles.thumb} contentFit="cover" />
-                    <Pressable onPress={() => removeAttachment(att.uri)} style={styles.removeBtn} accessibilityRole="button" testID={`remove-${att.uri}`}>
+                    <Pressable onPress={() => removeAttachment(att.uri)} style={styles.removeBtn} accessibilityRole="button" testID={`remove-${att.uri || index}`}>
                       <Trash2 color={theme.colors.white} size={14} />
                     </Pressable>
                   </View>
