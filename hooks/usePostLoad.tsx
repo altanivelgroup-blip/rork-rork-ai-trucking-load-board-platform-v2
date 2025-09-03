@@ -174,40 +174,50 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       if (!user?.id || draft.attachments.length === 0) return;
       
       // Try Firebase authentication, but continue with placeholders if it fails
-      try {
-        await ensureFirebaseAuth();
-        const { storage } = getFirebase();
-        
-        const uploadedUrls: string[] = [];
-        
-        for (let i = 0; i < draft.attachments.length; i++) {
-          const attachment = draft.attachments[i];
-          try {
-            const response = await fetch(attachment.uri);
-            const blob = await response.blob();
-            
-            // Use a simple path structure that works with default Firebase rules
-            const fileName = `${draft.reference}-photo-${i}-${Date.now()}.jpg`;
-            const storageRef = ref(storage, `images/${fileName}`);
-            
-            console.log(`[PostLoad] uploading photo ${i + 1}/${draft.attachments.length} to:`, storageRef.fullPath);
-            
-            const snapshot = await uploadBytes(storageRef, blob);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            
-            uploadedUrls.push(downloadURL);
-            console.log(`[PostLoad] uploaded photo ${i + 1}/${draft.attachments.length} successfully`);
-          } catch (uploadError) {
-            console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
-            // Use placeholder for failed uploads
-            uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+      const firebaseAvailable = await ensureFirebaseAuth();
+      
+      if (firebaseAvailable) {
+        try {
+          const { storage } = getFirebase();
+          
+          const uploadedUrls: string[] = [];
+          
+          for (let i = 0; i < draft.attachments.length; i++) {
+            const attachment = draft.attachments[i];
+            try {
+              const response = await fetch(attachment.uri);
+              const blob = await response.blob();
+              
+              // Use a simple path structure that works with default Firebase rules
+              const fileName = `${draft.reference}-photo-${i}-${Date.now()}.jpg`;
+              const storageRef = ref(storage, `images/${fileName}`);
+              
+              console.log(`[PostLoad] uploading photo ${i + 1}/${draft.attachments.length} to:`, storageRef.fullPath);
+              
+              const snapshot = await uploadBytes(storageRef, blob);
+              const downloadURL = await getDownloadURL(snapshot.ref);
+              
+              uploadedUrls.push(downloadURL);
+              console.log(`[PostLoad] uploaded photo ${i + 1}/${draft.attachments.length} successfully`);
+            } catch (uploadError) {
+              console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
+              // Use placeholder for failed uploads
+              uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+            }
           }
+          
+          setDraft(prev => ({ ...prev, photoUrls: uploadedUrls }));
+          
+        } catch (firebaseError) {
+          console.warn('[PostLoad] Firebase storage error, using placeholder images:', firebaseError);
+          // If Firebase storage fails, use all placeholders
+          const placeholderUrls = draft.attachments.map((_, i) => 
+            `https://picsum.photos/400/300?random=${Date.now()}-${i}`
+          );
+          setDraft(prev => ({ ...prev, photoUrls: placeholderUrls }));
         }
-        
-        setDraft(prev => ({ ...prev, photoUrls: uploadedUrls }));
-        
-      } catch (firebaseError) {
-        console.warn('[PostLoad] Firebase unavailable, using placeholder images:', firebaseError);
+      } else {
+        console.warn('[PostLoad] Firebase unavailable, using placeholder images');
         // If Firebase is completely unavailable, use all placeholders
         const placeholderUrls = draft.attachments.map((_, i) => 
           `https://picsum.photos/400/300?random=${Date.now()}-${i}`
@@ -306,48 +316,61 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       }
       
       // Try Firebase first, but fall back to local storage if it fails
-      try {
-        await ensureFirebaseAuth();
-        
-        // Build payload with Firestore Timestamps
-        const rateNum = toNumber(currentDraft.rateAmount);
-        const milesNum = toNumber(currentDraft.miles);
-        const totalRate = currentDraft.rateKind === 'flat' ? rateNum : round(rateNum * milesNum, 2);
-        
-        // Convert dates to Firestore Timestamps
-        const toTimestamp = (date: Date | null): Timestamp | null => {
-          return date ? Timestamp.fromDate(date) : null;
-        };
-        
-        const payload = {
-          title: currentDraft.title.trim(),
-          description: currentDraft.description.trim(),
-          vehicleType: currentDraft.vehicleType,
-          originCity: currentDraft.pickup.trim(),
-          destinationCity: currentDraft.delivery.trim(),
-          pickupDate: toTimestamp(pickupDate),
-          deliveryDate: toTimestamp(deliveryDate),
-          weight: toNumber(currentDraft.weight),
-          rate: rateNum,
-          rateType: currentDraft.rateKind || 'flat',
-          miles: currentDraft.rateKind === 'per_mile' && currentDraft.miles ? milesNum : null,
-          totalRate,
-          photoUrls: currentDraft.photoUrls || [],
-          shipperId: user.id,
-          status: 'open' as const,
-          createdAt: serverTimestamp(),
-        };
-        
-        // Create record in Firestore
-        const { db } = getFirebase();
-        const loadsCollection = collection(db, 'loads');
-        const docRef = await addDoc(loadsCollection, payload);
-        
-        console.log('[PostLoad] load posted successfully to Firebase:', docRef.id);
-        showToast('Load posted successfully!');
-        
-      } catch (firebaseError) {
-        console.warn('[PostLoad] Firebase unavailable, using local storage fallback:', firebaseError);
+      const firebaseAvailable = await ensureFirebaseAuth();
+      
+      if (firebaseAvailable) {
+        try {
+          // Build payload with Firestore Timestamps
+          const rateNum = toNumber(currentDraft.rateAmount);
+          const milesNum = toNumber(currentDraft.miles);
+          const totalRate = currentDraft.rateKind === 'flat' ? rateNum : round(rateNum * milesNum, 2);
+          
+          // Convert dates to Firestore Timestamps
+          const toTimestamp = (date: Date | null): Timestamp | null => {
+            return date ? Timestamp.fromDate(date) : null;
+          };
+          
+          const payload = {
+            title: currentDraft.title.trim(),
+            description: currentDraft.description.trim(),
+            vehicleType: currentDraft.vehicleType,
+            originCity: currentDraft.pickup.trim(),
+            destinationCity: currentDraft.delivery.trim(),
+            pickupDate: toTimestamp(pickupDate),
+            deliveryDate: toTimestamp(deliveryDate),
+            weight: toNumber(currentDraft.weight),
+            rate: rateNum,
+            rateType: currentDraft.rateKind || 'flat',
+            miles: currentDraft.rateKind === 'per_mile' && currentDraft.miles ? milesNum : null,
+            totalRate,
+            photoUrls: currentDraft.photoUrls || [],
+            shipperId: user.id,
+            status: 'open' as const,
+            createdAt: serverTimestamp(),
+          };
+          
+          // Create record in Firestore
+          const { db } = getFirebase();
+          const loadsCollection = collection(db, 'loads');
+          const docRef = await addDoc(loadsCollection, payload);
+          
+          console.log('[PostLoad] load posted successfully to Firebase:', docRef.id);
+          showToast('Load posted successfully!');
+          
+        } catch (firebaseError) {
+          console.warn('[PostLoad] Firebase storage/database error, using local storage fallback:', firebaseError);
+          
+          // Fallback to local storage using the existing submit function
+          const load = await submit();
+          if (load) {
+            console.log('[PostLoad] load posted successfully to local storage:', load.id);
+            showToast('Load posted successfully!');
+          } else {
+            throw new Error('Failed to post load to local storage');
+          }
+        }
+      } else {
+        console.warn('[PostLoad] Firebase unavailable, using local storage fallback');
         
         // Fallback to local storage using the existing submit function
         const load = await submit();
