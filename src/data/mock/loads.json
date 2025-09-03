@@ -1,0 +1,38 @@
+[
+  {
+    "id": "mock-1",
+    "title": "Construction Materials - Dallas to Austin",
+    "origin": "Dallas, TX",
+    "destination": "Austin, TX",
+    "weightLbs": 42000,
+    "equipment": "Flatbed",
+    "pickupDate": "2025-01-20T08:00:00.000Z",
+    "payUSD": 1200,
+    "postedAt": "2025-01-19T14:30:00.000Z",
+    "source": "Mock"
+  },
+  {
+    "id": "mock-2",
+    "title": "Electronics Shipment - Fort Worth to Waco",
+    "origin": "Fort Worth, TX",
+    "destination": "Waco, TX",
+    "weightLbs": 15000,
+    "equipment": "Dry Van",
+    "pickupDate": "2025-01-21T10:00:00.000Z",
+    "payUSD": 800,
+    "postedAt": "2025-01-19T16:45:00.000Z",
+    "source": "Mock"
+  },
+  {
+    "id": "mock-3",
+    "title": "Food Products - San Antonio to Houston",
+    "origin": "San Antonio, TX",
+    "destination": "Houston, TX",
+    "weightLbs": 28000,
+    "equipment": "Reefer",
+    "pickupDate": "2025-01-22T06:00:00.000Z",
+    "payUSD": 950,
+    "postedAt": "2025-01-19T12:15:00.000Z",
+    "source": "Mock"
+  }
+]

@@ -19,7 +19,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { theme } from '@/constants/theme';
 import { VehicleType } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
-import { mockLoads } from '@/mocks/loads';
+import { fetchAll, LoadItem } from '@/src/data';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -37,6 +37,8 @@ export default function LoadsScreen() {
   const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
   const [distances, setDistances] = useState<Record<string, number>>({});
   const [aiOrder, setAiOrder] = useState<string[] | null>(null);
+  const [demoLoads, setDemoLoads] = useState<LoadItem[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const insets = useSafeAreaInsets();
   const TABBAR_FALLBACK = 88;
 
@@ -106,19 +108,31 @@ export default function LoadsScreen() {
     return () => { try { unsub?.(); } catch {} };
   }, [filters.sort, requestPermissionAsync, startWatching, stopWatching]);
 
+  // Load demo data on mount
+  useEffect(() => {
+    const loadDemoData = async () => {
+      try {
+        const loads = await fetchAll();
+        setDemoLoads(loads);
+        setLastUpdated(new Date());
+        console.log(`[LoadsScreen] Loaded ${loads.length} demo loads`);
+      } catch (error) {
+        console.error('[LoadsScreen] Failed to load demo data:', error);
+        setDemoLoads([]);
+      }
+    };
+    loadDemoData();
+  }, []);
+
   useEffect(() => {
     if (!currentLoc) return;
     const map: Record<string, number> = {};
-    for (const l of mockLoads) {
-      if (l.origin?.lat != null && l.origin?.lng != null) {
-        map[l.id] = haversineMiles({ lat: currentLoc.latitude, lng: currentLoc.longitude }, { lat: l.origin.lat, lng: l.origin.lng });
-      }
-    }
+    // Note: Demo loads don't have lat/lng coordinates, so distance calculation is skipped
     setDistances(map);
   }, [currentLoc, haversineMiles]);
 
   const baseFiltered = useMemo(() => {
-    let base = mockLoads.slice();
+    let base = demoLoads.slice();
     const origin = String(filters.origin ?? '').toLowerCase();
     const destination = String(filters.destination ?? '').toLowerCase();
     const minW = parseInt(String(filters.minWeight ?? ''), 10);
@@ -129,31 +143,31 @@ export default function LoadsScreen() {
     const dateTo = String((filters as any).dateTo ?? '');
 
     if (origin) {
-      base = base.filter(l => `${l.origin?.city ?? ''}, ${l.origin?.state ?? ''}`.toLowerCase().includes(origin));
+      base = base.filter(l => l.origin.toLowerCase().includes(origin));
     }
     if (destination) {
-      base = base.filter(l => `${l.destination?.city ?? ''}, ${l.destination?.state ?? ''}`.toLowerCase().includes(destination));
+      base = base.filter(l => l.destination.toLowerCase().includes(destination));
     }
     if (!Number.isNaN(minW)) {
-      base = base.filter(l => (l.weight ?? 0) >= minW);
+      base = base.filter(l => (l.weightLbs ?? 0) >= minW);
     }
     if (!Number.isNaN(minP)) {
-      base = base.filter(l => (l.rate ?? 0) >= minP);
+      base = base.filter(l => (l.payUSD ?? 0) >= minP);
     }
 
     if (!Number.isNaN(maxW)) {
-      base = base.filter(l => (l.weight ?? 0) <= maxW);
+      base = base.filter(l => (l.weightLbs ?? 0) <= maxW);
     }
     if (truckType) {
-      base = base.filter(l => (l.vehicleType ?? '').toLowerCase() === truckType);
+      base = base.filter(l => (l.equipment ?? '').toLowerCase().includes(truckType));
     }
     if (dateFrom) {
       const fromTs = new Date(dateFrom).getTime();
-      if (!Number.isNaN(fromTs)) base = base.filter(l => new Date(l.pickupDate ?? 0).getTime() >= fromTs);
+      if (!Number.isNaN(fromTs)) base = base.filter(l => new Date(l.pickupDate).getTime() >= fromTs);
     }
     if (dateTo) {
       const toTs = new Date(dateTo).getTime();
-      if (!Number.isNaN(toTs)) base = base.filter(l => new Date(l.pickupDate ?? 0).getTime() <= toTs);
+      if (!Number.isNaN(toTs)) base = base.filter(l => new Date(l.pickupDate).getTime() <= toTs);
     }
 
     const sort = String(filters.sort ?? 'Best');
@@ -172,18 +186,27 @@ export default function LoadsScreen() {
 
     const list = base.slice();
     if (sort === 'Newest') {
-      list.sort((a, b) => new Date(b.pickupDate ?? 0).getTime() - new Date(a.pickupDate ?? 0).getTime());
+      list.sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime());
     } else if (sort === 'Highest $') {
-      list.sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0));
+      list.sort((a, b) => (b.payUSD ?? 0) - (a.payUSD ?? 0));
     } else if (sort === 'Lightest') {
-      list.sort((a, b) => (a.weight ?? 0) - (b.weight ?? 0));
+      list.sort((a, b) => (a.weightLbs ?? 0) - (b.weightLbs ?? 0));
     }
     return list;
-  }, [filters, currentLoc, distances, radiusMiles]);
+  }, [filters, currentLoc, distances, radiusMiles, demoLoads]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    try {
+      const loads = await fetchAll();
+      setDemoLoads(loads);
+      setLastUpdated(new Date());
+      console.log(`[LoadsScreen] Refreshed ${loads.length} demo loads`);
+    } catch (error) {
+      console.error('[LoadsScreen] Failed to refresh demo data:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleVehicleSelect = useCallback((vehicle?: VehicleType) => {
@@ -234,11 +257,51 @@ export default function LoadsScreen() {
     router.push({ pathname: '/load-details', params: { loadId } });
   }, [router]);
 
-  const renderItem = useCallback(({ item }: { item: (typeof baseFiltered)[number] }) => (
-    <LoadCard load={item} onPress={() => handleLoadPress(item.id)} distanceMiles={distances[item.id]} />
-  ), [handleLoadPress, distances]);
+  const renderItem = useCallback(({ item }: { item: LoadItem }) => {
+    // Convert LoadItem to Load format for LoadCard
+    const loadForCard = {
+      id: item.id,
+      shipperId: 'demo',
+      shipperName: 'Demo Shipper',
+      origin: {
+        address: '',
+        city: item.origin.split(', ')[0] || item.origin,
+        state: item.origin.split(', ')[1] || '',
+        zipCode: '',
+        lat: 0,
+        lng: 0,
+      },
+      destination: {
+        address: '',
+        city: item.destination.split(', ')[0] || item.destination,
+        state: item.destination.split(', ')[1] || '',
+        zipCode: '',
+        lat: 0,
+        lng: 0,
+      },
+      distance: 0,
+      weight: item.weightLbs || 0,
+      vehicleType: (item.equipment?.toLowerCase().replace(' ', '-') || 'dry-van') as any,
+      rate: item.payUSD || 0,
+      ratePerMile: 0,
+      pickupDate: new Date(item.pickupDate),
+      deliveryDate: new Date(item.pickupDate),
+      status: 'available' as const,
+      description: item.title,
+      special_requirements: [],
+    };
+    
+    return (
+      <View>
+        <LoadCard load={loadForCard} onPress={() => handleLoadPress(item.id)} distanceMiles={distances[item.id]} />
+        <View style={styles.sourceLabel}>
+          <Text style={styles.sourceText}>Source: {item.source}</Text>
+        </View>
+      </View>
+    );
+  }, [handleLoadPress, distances]);
 
-  const keyExtractor = useCallback((item: (typeof baseFiltered)[number]) => item.id, []);
+  const keyExtractor = useCallback((item: LoadItem) => item.id, []);
 
   const getItemLayout = useCallback((_: unknown, index: number) => {
     const ITEM_HEIGHT = 188;
@@ -253,143 +316,6 @@ export default function LoadsScreen() {
     if (GEO_SORT_ENABLED && hasLocationPerm) base.push('Nearest');
     return base;
   }, [hasLocationPerm]);
-
-  useEffect(() => {
-    let aborted = false;
-    const clientPersonalize = () => {
-      const loads = baseFiltered;
-      if (!loads || loads.length === 0) return null as string[] | null;
-      const maxRpm = loads.reduce((m, l) => Math.max(m, Number(l.ratePerMile ?? 0)), 0) || 1;
-      const radius = Number(radiusMiles ?? 50) || 50;
-      const fav: any = (user as any)?.favoriteLanes ?? [];
-      const truckPref: string | null = (user?.vehicleTypes && user.vehicleTypes.length > 0 ? user.vehicleTypes[0] : null) as any;
-      const cur = currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null;
-      const laneKey = (o?: any, d?: any) => {
-        const oc = `${o?.city ?? ''}`.toLowerCase();
-        const os = `${o?.state ?? ''}`.toLowerCase();
-        const dc = `${d?.city ?? ''}`.toLowerCase();
-        const ds = `${d?.state ?? ''}`.toLowerCase();
-        return [
-          `${oc}->${dc}`,
-          `${os}->${ds}`,
-          `${oc},${os}->${dc},${ds}`,
-        ];
-      };
-      const isFavLane = (o?: any, d?: any) => {
-        const keys = laneKey(o, d);
-        try {
-          if (Array.isArray(fav)) {
-            return fav.some((x: any) => {
-              const s = typeof x === 'string' ? x.toLowerCase() : JSON.stringify(x ?? {}).toLowerCase();
-              return keys.some(k => s.includes(k));
-            });
-          }
-        } catch {}
-        return false;
-      };
-      const score = (l: typeof loads[number]): number => {
-        let s = 0;
-        const rpm = Number(l.ratePerMile ?? 0) / maxRpm;
-        s += rpm * 0.5;
-        if (truckPref && String(l.vehicleType ?? '').toLowerCase() === String(truckPref).toLowerCase()) s += 0.15;
-        if (isFavLane(l.origin, l.destination)) s += 0.2;
-        const dist = typeof distances[l.id] === 'number' ? (distances[l.id] as number) : null;
-        if (cur && dist != null && !Number.isNaN(dist)) {
-          const dScore = 1 - Math.min(dist / Math.max(radius, 1), 1);
-          s += dScore * 0.25;
-        }
-        return s;
-      };
-      const ordered = loads.slice().sort((a, b) => score(b) - score(a)).map(l => l.id);
-      return ordered;
-    };
-    (async () => {
-      if (!AI_RERANK_ENABLED) { setAiOrder(null); return; }
-      const t0 = Date.now();
-      try {
-        const payload = {
-          loads: baseFiltered,
-          prefs: {
-            homeBase: (user as any)?.homeBase ?? null,
-            favoriteLanes: (user as any)?.favoriteLanes ?? [],
-            truckType: (user?.vehicleTypes && user.vehicleTypes.length > 0 ? user.vehicleTypes[0] : null),
-          },
-          context: {
-            currentLocation: currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null,
-          },
-        };
-        console.log('[LoadsScreen] AI rerank request', { size: baseFiltered.length });
-        const res = await fetch('/ai/rerankLoads', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const t1 = Date.now();
-        if (!res.ok) {
-          console.warn('[LoadsScreen] AI rerank failed', res.status, { ms: t1 - t0 });
-          if (!aborted) setAiOrder(clientPersonalize());
-          return;
-        }
-        const data: any = await res.json();
-        const ids: string[] = Array.isArray(data?.ids) ? data.ids : (Array.isArray(data?.order) ? data.order : []);
-        if (!ids || ids.length === 0) {
-          console.warn('[LoadsScreen] AI rerank empty/invalid response', { ms: t1 - t0 });
-          if (!aborted) setAiOrder(clientPersonalize());
-          return;
-        }
-        const allowed = new Set(baseFiltered.map(l => l.id));
-        const clean = ids.filter((id) => allowed.has(id));
-        if (!aborted) setAiOrder(clean.length > 0 ? clean : clientPersonalize());
-        console.log('[LoadsScreen] AI rerank applied', { count: clean.length, ms: t1 - t0 });
-      } catch (e) {
-        const tErr = Date.now();
-        console.warn('[LoadsScreen] AI rerank error', e, { ms: tErr - t0 });
-        if (!aborted) setAiOrder(clientPersonalize());
-      }
-    })();
-    return () => { aborted = true; };
-  }, [AI_RERANK_ENABLED, JSON.stringify(baseFiltered.map(l => l.id)), currentLoc?.latitude, currentLoc?.longitude, user?.id, radiusMiles, JSON.stringify(distances)])
-
-  const onSubmitNlSearch = useCallback(async () => {
-    if (!AI_NL_SEARCH_ENABLED) return;
-    const q = nlQuery.trim();
-    if (!q) return;
-    const t0 = Date.now();
-    try {
-      console.log('[LoadsScreen] NL parse start');
-      const res = await fetch('/ai/parseLoadQuery', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ query: q }),
-      });
-      const t1 = Date.now();
-      if (!res.ok) {
-        console.warn('[LoadsScreen] NL parse failed', res.status, { ms: t1 - t0 });
-        return;
-      }
-      const data: { origin?: string; dest?: string; minPrice?: number; maxWeight?: number; dateRange?: { from?: string; to?: string }; radiusMiles?: number; truckType?: string } | null = await res.json();
-      if (!data || typeof data !== 'object') {
-        console.warn('[LoadsScreen] NL parse returned empty/invalid payload', { ms: t1 - t0 });
-        return;
-      }
-      const next: Record<string, unknown> = { ...filters };
-      if (data.origin) next.origin = data.origin;
-      if (data.dest) next.destination = data.dest;
-      if (typeof data.minPrice === 'number') next.minPrice = String(data.minPrice);
-      if (typeof data.maxWeight === 'number') next.maxWeight = String(data.maxWeight);
-      if (data.truckType) next.truckType = data.truckType;
-      if (data.dateRange?.from) (next as any).dateFrom = data.dateRange.from;
-      if (data.dateRange?.to) (next as any).dateTo = data.dateRange.to;
-      setFilters(next);
-      if (typeof data.radiusMiles === 'number' && !Number.isNaN(data.radiusMiles)) {
-        await setRadiusMiles(data.radiusMiles);
-      }
-      console.log('[LoadsScreen] NL parse applied', { ms: t1 - t0, data });
-    } catch (e) {
-      const tErr = Date.now();
-      console.warn('[LoadsScreen] NL parse error', e, { ms: tErr - t0 });
-    }
-  }, [AI_NL_SEARCH_ENABLED, nlQuery, filters, setRadiusMiles]);
 
   const summaryLine = useMemo(() => {
     const parts: string[] = [];
@@ -422,6 +348,14 @@ export default function LoadsScreen() {
   return (
     <Screen>
       <View style={styles.container}>
+        {lastUpdated && (
+          <View style={styles.updatedHeader}>
+            <Text style={styles.updatedText}>
+              Updated {Math.floor((Date.now() - lastUpdated.getTime()) / 60000)} minutes ago
+            </Text>
+          </View>
+        )}
+        
         <FilterBar
           selectedVehicle={filters.truckType as any}
           showBackhaul={!!filters.showBackhaul}
@@ -446,18 +380,7 @@ export default function LoadsScreen() {
           </View>
         ) : null}
         <FlatList
-          data={aiOrder ? (
-            (() => {
-              const map = new Map(baseFiltered.map(l => [l.id, l] as const));
-              const ordered: typeof baseFiltered = [];
-              aiOrder.forEach(id => {
-                const item = map.get(id);
-                if (item) ordered.push(item);
-              });
-              baseFiltered.forEach(l => { if (!map.has(l.id) || (aiOrder.indexOf(l.id) === -1)) ordered.push(l); });
-              return ordered;
-            })()
-          ) : baseFiltered}
+          data={baseFiltered}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           keyboardDismissMode="on-drag"
@@ -475,8 +398,8 @@ export default function LoadsScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No loads found</Text>
-              <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
+              <Text style={styles.emptyText}>No loads available</Text>
+              <Text style={styles.emptySubtext}>Pull to refresh or try adjusting your filters</Text>
             </View>
           }
           getItemLayout={getItemLayout}
@@ -541,6 +464,31 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontSize: font(14),
     textDecorationLine: 'underline',
+  },
+  updatedHeader: {
+    paddingHorizontal: moderateScale(16),
+    paddingVertical: moderateScale(8),
+    backgroundColor: theme.colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  updatedText: {
+    fontSize: font(12),
+    color: theme.colors.gray,
+    textAlign: 'center',
+  },
+  sourceLabel: {
+    position: 'absolute',
+    bottom: moderateScale(8),
+    right: moderateScale(12),
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    paddingHorizontal: moderateScale(6),
+    paddingVertical: moderateScale(2),
+    borderRadius: moderateScale(4),
+  },
+  sourceText: {
+    fontSize: font(10),
+    color: theme.colors.gray,
   },
   input: {
     backgroundColor: theme.colors.white,
