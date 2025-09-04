@@ -1,5 +1,6 @@
 import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";port { Stack } from "expo-router";
-import React, { useMemo, useCallback } from "react";
+import { Stack } from "expo-router";
+import React, { useMemo, useCallback, useEffect } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import { theme } from "@/constants/theme";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
