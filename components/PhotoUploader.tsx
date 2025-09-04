@@ -21,7 +21,7 @@ import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
-import { prepareForUpload, normalizeToFile, isImageMime, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
+import { prepareForUpload, isImageMime, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -222,7 +222,7 @@ export function PhotoUploader({
     }
   }, [entityType, entityId, onChange, toast, state.photos]);
 
-  // Upload single file with complete preprocessing and path building
+  // Upload single file with retry logic and stall detection
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
       await ensureFirebaseAuth();
@@ -232,29 +232,16 @@ export function PhotoUploader({
       
       console.log('[UPLOAD_START] Processing image before upload...', input);
       
-      // 1. Normalize input to get file info
-      let normalizedFile;
-      try {
-        normalizedFile = await normalizeToFile(input);
-        console.log('[UPLOAD_START] File normalized:', {
-          name: normalizedFile.name,
-          mime: normalizedFile.mime,
-          ext: normalizedFile.ext
-        });
-      } catch (normalizeError) {
-        console.error('[UPLOAD_FAIL] File normalization failed:', normalizeError);
-        toast.show(normalizeError instanceof Error ? normalizeError.message : 'Failed to process file', 'error');
-        return;
-      }
-      
-      // 2. Preprocess image (resize/compress)
+      // 1. Preprocess image (resize/compress)
       let processedImage;
       try {
         processedImage = await prepareForUpload(input);
         console.log('[UPLOAD_START] Image processed:', {
           size: humanSize(processedImage.blob.size),
           mime: processedImage.mime,
-          ext: processedImage.ext
+          ext: processedImage.ext,
+          width: processedImage.width,
+          height: processedImage.height
         });
         
         // Reject >10 MB with toast "File too large (max 10MB)."
@@ -288,7 +275,6 @@ export function PhotoUploader({
       const key = uuid.v4() as string;
       const ext = processedImage.ext;
       const path = `${folder}/${safeId}/original/${key}.${ext}`;
-      const storageRef = ref(storage, path);
       
       // Guards to ensure correct path format
       if (path.startsWith('/')) {
@@ -298,111 +284,154 @@ export function PhotoUploader({
         throw new Error('No double slashes allowed in Firebase Storage paths');
       }
       
-      // 4. Metadata
-      const metadata = { contentType: processedImage.mime };
+      // Upload with retry logic
+      let lastBytes = 0;
+      let stalledMs = 0;
+      const STALL_LIMIT_MS = 20_000;   // 20s no progress → consider stalled
+      const MAX_RETRIES = 1;
+      let retries = 0;
       
-      console.log('[UPLOAD_START]', path, humanSize(processedImage.blob.size));
+      const doUploadOnce = async (blob: Blob, mime: string, path: string): Promise<string> => {
+        const storageRef = ref(storage, path);
+        const metadata = { contentType: mime || 'image/jpeg' };
+        const task = uploadBytesResumable(storageRef, blob, metadata);
+        
+        return await new Promise<string>((resolve, reject) => {
+          const timer = setInterval(() => {
+            // no progress since last check → accumulate stall time
+            if (task.snapshot.bytesTransferred === lastBytes) {
+              stalledMs += 1000;
+            } else {
+              stalledMs = 0;
+              lastBytes = task.snapshot.bytesTransferred;
+            }
+            
+            if (stalledMs >= STALL_LIMIT_MS) {
+              // cancel; will be retried by outer logic
+              try { task.cancel(); } catch {}
+            }
+          }, 1000);
+          
+          // QA: Throttle progress events to ~5 updates/sec
+          let lastProgressUpdate = 0;
+          const progressThrottle = qaState.qaSlowNetwork ? 200 : 0; // 200ms = 5 updates/sec
+          
+          task.on('state_changed',
+            (snap) => {
+              const pct = Math.round(100 * snap.bytesTransferred / snap.totalBytes);
+              const now = Date.now();
+              
+              // Throttle progress updates if QA slow network is enabled
+              if (now - lastProgressUpdate >= progressThrottle) {
+                console.log('[UPLOAD_PROGRESS]', path, pct + '%');
+                setState(prev => ({
+                  ...prev,
+                  photos: prev.photos.map(p => 
+                    p.id === fileId ? { ...p, progress: pct } : p
+                  ),
+                }));
+                lastProgressUpdate = now;
+              }
+            },
+            (err) => {
+              clearInterval(timer);
+              reject(err);
+            },
+            async () => {
+              clearInterval(timer);
+              const url = await getDownloadURL(storageRef);
+              resolve(url);
+            }
+          );
+        });
+      };
       
-      // QA: Simulate slow network if enabled
-      if (qaState.qaSlowNetwork) {
-        const delay = random(300, 1200);
-        console.log('[QA] Simulating network delay:', delay + 'ms');
-        await sleep(delay);
-      }
+      const uploadWithRetry = async (): Promise<string> => {
+        const { blob, mime } = processedImage;
+        
+        while (true) {
+          try {
+            // QA: Simulate slow network if enabled
+            if (qaState.qaSlowNetwork) {
+              const delay = random(300, 1200);
+              console.log('[QA] Simulating network delay:', delay + 'ms');
+              await sleep(delay);
+            }
+            
+            // QA: Randomly fail upload if enabled
+            if (qaState.qaFailRandomly && shouldFailRandomly()) {
+              console.log('[QA] Simulating random upload failure');
+              throw new Error('QA: Random failure simulation');
+            }
+            
+            const url = await doUploadOnce(blob, mime, path);
+            return url;
+          } catch (err: any) {
+            const code = String(err?.code || err?.message || '');
+            const stalled = code.includes('canceled') && stalledMs >= STALL_LIMIT_MS;
+            
+            if ((stalled || code.includes('retry-limit-exceeded')) && retries < MAX_RETRIES) {
+              retries++;
+              stalledMs = 0;
+              lastBytes = 0;
+              console.log(`[UPLOAD_RETRY] Attempt ${retries}/${MAX_RETRIES} for ${path}`);
+              continue; // one automatic retry
+            }
+            throw err; // bubble up after retry
+          }
+        }
+      };
       
-      // QA: Randomly fail upload if enabled
-      if (qaState.qaFailRandomly && shouldFailRandomly()) {
-        console.log('[QA] Simulating random upload failure');
-        console.log('[UPLOAD_FAIL]', path, 'qa-random-failure');
+      try {
+        const url = await uploadWithRetry();
+        console.log('[UPLOAD_DONE]', path);
+        
+        // On success: Add url to Firestore photos[], set primaryPhoto if empty
+        setState(prev => {
+          const updatedPhotos = prev.photos.map(p => 
+            p.id === fileId ? { ...p, url, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
+          );
+          
+          const newPrimaryPhoto = prev.primaryPhoto || url;
+          
+          // Update Firestore and fire onChange
+          updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
+          
+          const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+          onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+          
+          return {
+            ...prev,
+            photos: updatedPhotos,
+            primaryPhoto: newPrimaryPhoto,
+          };
+        });
+        
+        toast.show('Photo uploaded successfully', 'success');
+      } catch (error: any) {
+        console.log('[UPLOAD_FAIL]', path, error?.code || 'unknown-error');
+        console.error('[PhotoUploader] Upload error:', error);
+        
+        const code = (error && (error.code || error.message)) || '';
+        let errorMessage = 'Upload failed. Tap Retry.';
+        
+        if (code.includes('unauthorized') || code.includes('permission')) {
+          errorMessage = 'Upload blocked by rules — make sure you\'re signed in.';
+        } else if (code.includes('retry-limit-exceeded')) {
+          errorMessage = 'Network is slow — please retry this photo.';
+        } else if (code.includes('File too large')) {
+          errorMessage = 'Photo too large. Keep under 10MB.';
+        }
+        
         setState(prev => ({
           ...prev,
           photos: prev.photos.map(p => 
-            p.id === fileId ? { ...p, uploading: false, error: 'QA: Random failure simulation', originalFile: input } : p
+            p.id === fileId ? { ...p, uploading: false, error: errorMessage, originalFile: input } : p
           ),
         }));
-        toast.show('QA: Simulated upload failure', 'error');
-        return;
+        
+        toast.show(errorMessage, 'error');
       }
-      
-      // 5. Upload
-      const blob = processedImage.blob;
-      const task = uploadBytesResumable(storageRef, blob, metadata);
-      
-      // QA: Throttle progress events to ~5 updates/sec
-      let lastProgressUpdate = 0;
-      const progressThrottle = qaState.qaSlowNetwork ? 200 : 0; // 200ms = 5 updates/sec
-      
-      task.on('state_changed', 
-        (snap) => {
-          const pct = (snap.bytesTransferred / snap.totalBytes) * 100;
-          const now = Date.now();
-          
-          // Throttle progress updates if QA slow network is enabled
-          if (now - lastProgressUpdate >= progressThrottle) {
-            console.log('[UPLOAD_PROGRESS]', path, Math.round(pct) + '%');
-            setState(prev => ({
-              ...prev,
-              photos: prev.photos.map(p => 
-                p.id === fileId ? { ...p, progress: pct } : p
-              ),
-            }));
-            lastProgressUpdate = now;
-          }
-        },
-        (error) => {
-          console.log('[UPLOAD_FAIL]', path, error?.code || 'unknown-error');
-          console.error('[PhotoUploader] Upload error:', error);
-          const errorMessage = mapStorageError(error);
-          setState(prev => ({
-            ...prev,
-            photos: prev.photos.map(p => 
-              p.id === fileId ? { ...p, uploading: false, error: errorMessage, originalFile: input } : p
-            ),
-          }));
-          toast.show(errorMessage, 'error');
-        },
-        async () => {
-          try {
-            const url = await getDownloadURL(storageRef);
-            console.log('[UPLOAD_DONE]', path);
-            
-            // 5. On success: Add url to Firestore photos[], set primaryPhoto if empty
-            setState(prev => {
-              const updatedPhotos = prev.photos.map(p => 
-                p.id === fileId ? { ...p, url, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
-              );
-              
-              const newPrimaryPhoto = prev.primaryPhoto || url;
-              
-              // Update Firestore and fire onChange
-              updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
-              
-              const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
-              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
-              
-              return {
-                ...prev,
-                photos: updatedPhotos,
-                primaryPhoto: newPrimaryPhoto,
-              };
-            });
-            
-            toast.show('Photo uploaded successfully', 'success');
-          } catch (error) {
-            console.log('[UPLOAD_FAIL]', path, 'download-url-error');
-            console.error('[PhotoUploader] Error getting download URL:', error);
-            setState(prev => ({
-              ...prev,
-              photos: prev.photos.map(p => 
-                p.id === fileId ? { ...p, uploading: false, error: 'Failed to get download URL', originalFile: input } : p
-              ),
-            }));
-            toast.show('Upload failed: Could not get download URL', 'error');
-          }
-        }
-      );
-      
-      await task;
       
     } catch (error: any) {
       console.log('[UPLOAD_FAIL]', 'general-error', error?.code || 'unknown-error');
