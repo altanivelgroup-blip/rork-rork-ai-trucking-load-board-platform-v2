@@ -66,17 +66,26 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const [filters, setFilters] = useState<LoadFilters>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
+  const [, setFirebaseLoads] = useState<any[]>([]);
+  const [useFirebase, setUseFirebase] = useState<boolean>(false);
+  
+  // Always call hooks in the same order
   const { online } = useOnlineStatus();
   const { user } = useAuth();
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unsubscribeRef = useRef<Unsubscribe | null>(null);
-  const [, setFirebaseLoads] = useState<any[]>([]);
-  const [useFirebase, setUseFirebase] = useState<boolean>(false);
+
+  // Always define memoized values in the same order
+  const FAVORITES_KEY = useMemo(() => {
+    return user ? `favorites:${user.id}` : 'favorites:guest';
+  }, [user]);
 
   const currentLoad = useMemo(() => {
     const inTransit = loads.find(l => l.status === 'in-transit');
     return inTransit;
   }, [loads]);
+
+
 
   const filteredLoads = useMemo(() => {
     return loads.filter(load => {
@@ -203,9 +212,11 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     }
   }, []);
 
-  const FAVORITES_KEY = useMemo(() => {
-    return user ? `favorites:${user.id}` : 'favorites:guest';
-  }, [user]);
+  const setFiltersCallback = useCallback((newFilters: LoadFilters) => {
+    setFilters(newFilters);
+  }, []);
+
+
 
   useEffect(() => {
     let mounted = true;
@@ -351,7 +362,8 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
   }, [isLoading]);
 
-  const contextValue = useMemo(() => ({
+  // Always return the same structure with useMemo for optimization
+  return useMemo(() => ({
     loads,
     filters,
     isLoading,
@@ -361,14 +373,12 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     favorites,
     isFavorited,
     toggleFavorite,
-    setFilters,
+    setFilters: setFiltersCallback,
     acceptLoad,
     refreshLoads,
     addLoad,
     addLoadsBulk,
-  }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFilters, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
-
-  return contextValue;
+  }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
 });
 
 export function useLoadsWithToast(): LoadsWithToast {

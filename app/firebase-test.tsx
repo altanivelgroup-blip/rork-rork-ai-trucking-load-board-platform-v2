@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { testFirebaseConnection } from '@/lib/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirebase } from '@/utils/firebase';
 
 export default function FirebaseTestScreen() {
   const [testResult, setTestResult] = useState<any>(null);
@@ -12,8 +14,45 @@ export default function FirebaseTestScreen() {
     setTestResult(null);
     
     try {
+      // First run the connection test
       const result = await testFirebaseConnection();
-      setTestResult(result);
+      
+      if (result.success) {
+        // If connection test passes, try writing a test document
+        try {
+          const { db, auth } = getFirebase();
+          console.log('[Firebase Test] Writing test document...');
+          
+          const testId = `test-${Date.now()}`;
+          await setDoc(doc(db, 'loads', testId), {
+            title: 'Hello Rork Test Load',
+            origin: 'Phoenix, AZ',
+            destination: 'Los Angeles, CA',
+            vehicleType: 'box-truck',
+            rate: 1234,
+            status: 'OPEN',
+            createdBy: auth.currentUser?.uid ?? 'test-user',
+            createdAt: serverTimestamp(),
+            clientCreatedAt: Date.now(),
+          });
+          
+          console.log('[Firebase Test] Test document written successfully:', testId);
+          setTestResult({
+            ...result,
+            testDocumentId: testId,
+            writeTest: 'SUCCESS'
+          });
+        } catch (writeError: any) {
+          console.error('[Firebase Test] Write test failed:', writeError);
+          setTestResult({
+            ...result,
+            writeTest: 'FAILED',
+            writeError: writeError.message || 'Unknown write error'
+          });
+        }
+      } else {
+        setTestResult(result);
+      }
     } catch (error: any) {
       setTestResult({
         success: false,
@@ -55,6 +94,15 @@ export default function FirebaseTestScreen() {
                     <Text style={styles.resultText}>Project ID: {testResult.projectId}</Text>
                     <Text style={styles.resultText}>User ID: {testResult.userId}</Text>
                     <Text style={styles.resultText}>Documents Found: {testResult.docsFound}</Text>
+                    {testResult.writeTest && (
+                      <Text style={styles.resultText}>Write Test: {testResult.writeTest}</Text>
+                    )}
+                    {testResult.testDocumentId && (
+                      <Text style={styles.resultText}>Test Doc ID: {testResult.testDocumentId}</Text>
+                    )}
+                    {testResult.writeError && (
+                      <Text style={styles.resultText}>Write Error: {testResult.writeError}</Text>
+                    )}
                   </>
                 ) : (
                   <>
@@ -73,6 +121,7 @@ export default function FirebaseTestScreen() {
             <Text style={styles.infoText}>• Initializes Firebase services</Text>
             <Text style={styles.infoText}>• Tests authentication</Text>
             <Text style={styles.infoText}>• Queries the &apos;loads&apos; collection</Text>
+            <Text style={styles.infoText}>• Writes a test document</Text>
             <Text style={styles.infoText}>• Shows connection details</Text>
           </View>
         </View>
