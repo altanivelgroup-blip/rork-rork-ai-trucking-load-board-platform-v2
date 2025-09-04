@@ -17,7 +17,8 @@ import { Camera, Upload, Star, Trash2, X, AlertCircle } from 'lucide-react-nativ
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { v4 as uuid } from 'react-native-uuid';
+import 'react-native-get-random-values';
+import { v4 as uuid } from 'uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
 
@@ -76,7 +77,7 @@ export function PhotoUploader({
         const data = docSnap.data();
         const photos = (data.photos || []).map((url: string) => ({
           url,
-          id: uuid() as string,
+          id: uuid(),
         }));
         const primaryPhoto = data.primaryPhoto || '';
         
@@ -158,7 +159,7 @@ export function PhotoUploader({
       console.error('[PhotoUploader] Error updating Firestore:', error);
       toast.show('Failed to save photos', 'error');
     }
-  }, [entityType, entityId, onChange, toast]);
+  }, [entityType, entityId, onChange, toast, state.photos]);
 
   // Upload single file
   const uploadFile = useCallback(async (file: { uri: string; type?: string }) => {
@@ -166,7 +167,7 @@ export function PhotoUploader({
       await ensureFirebaseAuth();
       const { storage } = getFirebase();
       
-      const fileId = uuid() as string;
+      const fileId = uuid();
       const extension = file.type ? getExtensionFromMime(file.type) : 'jpg';
       const folder = entityType === 'load' ? 'loads' : 'vehicles';
       const storagePath = `/${folder}/${entityId}/original/${fileId}.${extension}`;
@@ -266,7 +267,7 @@ export function PhotoUploader({
       console.error('[PhotoUploader] Upload error:', error);
       toast.show('Upload failed: ' + error.message, 'error');
     }
-  }, [entityType, entityId, getExtensionFromMime, toast, updateFirestorePhotos]);
+  }, [entityType, entityId, getExtensionFromMime, toast, updateFirestorePhotos, onChange]);
 
   // Handle photo selection
   const handleAddPhotos = useCallback(async () => {
@@ -357,7 +358,7 @@ export function PhotoUploader({
       console.error('[PhotoUploader] Error setting primary photo:', error);
       toast.show('Failed to set cover photo', 'error');
     }
-  }, [state.photos, updateFirestorePhotos, toast]);
+  }, [state.photos, updateFirestorePhotos, toast, onChange]);
 
   // Delete photo
   const handleDeletePhoto = useCallback(async (photoToDelete: PhotoItem) => {
@@ -425,7 +426,7 @@ export function PhotoUploader({
         },
       ]
     );
-  }, [state.photos, state.primaryPhoto, entityType, entityId, updateFirestorePhotos, toast]);
+  }, [state.photos, state.primaryPhoto, entityType, entityId, updateFirestorePhotos, toast, onChange]);
 
 
 
