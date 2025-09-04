@@ -11,9 +11,10 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  Switch,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Upload, Star, Trash2, X, AlertCircle } from 'lucide-react-native';
+import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -46,6 +47,17 @@ interface PhotoUploadState {
   loading: boolean;
 }
 
+interface QAState {
+  qaSlowNetwork: boolean;
+  qaFailRandomly: boolean;
+  showQAPanel: boolean;
+}
+
+// QA Helper functions
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const random = (min: number, max: number) => Math.random() * (max - min) + min;
+const shouldFailRandomly = () => Math.random() < 0.1; // 10% chance
+
 const THUMBNAIL_SIZE = (screenWidth - 48) / 3; // 3 columns with padding
 
 export function PhotoUploader({
@@ -59,6 +71,12 @@ export function PhotoUploader({
     photos: [],
     primaryPhoto: '',
     loading: true,
+  });
+
+  const [qaState, setQAState] = useState<QAState>({
+    qaSlowNetwork: false,
+    qaFailRandomly: false,
+    showQAPanel: false,
   });
 
   const [showImageModal, setShowImageModal] = useState<string | null>(null);
@@ -150,7 +168,7 @@ export function PhotoUploader({
       
       const fileId = uuid.v4() as string;
       
-      console.log('[PhotoUploader] Processing image before upload...');
+      console.log('[UPLOAD_START] Processing image before upload...', file.uri);
       
       // Create photo item with uploading state
       const photoItem: PhotoItem = {
@@ -169,13 +187,13 @@ export function PhotoUploader({
       let processedImage;
       try {
         processedImage = await prepareForUpload(file);
-        console.log('[PhotoUploader] Image processed:', {
+        console.log('[UPLOAD_START] Image processed:', {
           size: humanSize(processedImage.blob.size),
           mime: processedImage.mime,
           ext: processedImage.ext
         });
       } catch (preprocessError) {
-        console.error('[PhotoUploader] Image preprocessing failed:', preprocessError);
+        console.error('[UPLOAD_FAIL] Image preprocessing failed:', preprocessError);
         setState(prev => ({
           ...prev,
           photos: prev.photos.map(p => 
@@ -189,7 +207,28 @@ export function PhotoUploader({
       const folder = entityType === 'load' ? 'loads' : 'vehicles';
       const storagePath = `/${folder}/${entityId}/original/${fileId}.${processedImage.ext}`;
       
-      console.log('[PhotoUploader] Uploading to:', storagePath);
+      console.log('[UPLOAD_START]', storagePath, humanSize(processedImage.blob.size));
+      
+      // QA: Simulate slow network if enabled
+      if (qaState.qaSlowNetwork) {
+        const delay = random(300, 1200);
+        console.log('[QA] Simulating network delay:', delay + 'ms');
+        await sleep(delay);
+      }
+      
+      // QA: Randomly fail upload if enabled
+      if (qaState.qaFailRandomly && shouldFailRandomly()) {
+        console.log('[QA] Simulating random upload failure');
+        console.log('[UPLOAD_FAIL]', storagePath, 'qa-random-failure');
+        setState(prev => ({
+          ...prev,
+          photos: prev.photos.map(p => 
+            p.id === fileId ? { ...p, uploading: false, error: 'QA: Random failure simulation' } : p
+          ),
+        }));
+        toast.show('QA: Simulated upload failure', 'error');
+        return;
+      }
       
       const blob = processedImage.blob;
       
@@ -199,18 +238,30 @@ export function PhotoUploader({
         contentType: processedImage.mime,
       });
       
+      // QA: Throttle progress events to ~5 updates/sec
+      let lastProgressUpdate = 0;
+      const progressThrottle = qaState.qaSlowNetwork ? 200 : 0; // 200ms = 5 updates/sec
+      
       // Track upload progress
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setState(prev => ({
-            ...prev,
-            photos: prev.photos.map(p => 
-              p.id === fileId ? { ...p, progress } : p
-            ),
-          }));
+          const now = Date.now();
+          
+          // Throttle progress updates if QA slow network is enabled
+          if (now - lastProgressUpdate >= progressThrottle) {
+            console.log('[UPLOAD_PROGRESS]', storagePath, Math.round(progress) + '%');
+            setState(prev => ({
+              ...prev,
+              photos: prev.photos.map(p => 
+                p.id === fileId ? { ...p, progress } : p
+              ),
+            }));
+            lastProgressUpdate = now;
+          }
         },
         (error) => {
+          console.log('[UPLOAD_FAIL]', storagePath, error?.code || 'unknown-error');
           console.error('[PhotoUploader] Upload error:', error);
           setState(prev => ({
             ...prev,
@@ -224,6 +275,7 @@ export function PhotoUploader({
           try {
             // Get download URL
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            console.log('[UPLOAD_DONE]', storagePath);
             
             // Update photo item with final URL
             setState(prev => {
@@ -249,6 +301,7 @@ export function PhotoUploader({
             
             toast.show('Photo uploaded successfully', 'success');
           } catch (error) {
+            console.log('[UPLOAD_FAIL]', storagePath, 'download-url-error');
             console.error('[PhotoUploader] Error getting download URL:', error);
             setState(prev => ({
               ...prev,
@@ -262,10 +315,11 @@ export function PhotoUploader({
       );
       
     } catch (error: any) {
+      console.log('[UPLOAD_FAIL]', 'unknown', error?.code || 'unknown-error');
       console.error('[PhotoUploader] Upload error:', error);
       toast.show('Upload failed: ' + error.message, 'error');
     }
-  }, [entityType, entityId, toast, updateFirestorePhotos, onChange]);
+  }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly]);
 
   // Handle photo selection
   const handleAddPhotos = useCallback(async () => {
@@ -510,10 +564,51 @@ export function PhotoUploader({
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Photos</Text>
-        <Text style={styles.counter}>
-          {state.photos.filter(p => !p.uploading && !p.error).length}/{maxPhotos}
-        </Text>
+        <View style={styles.headerRight}>
+          <Text style={styles.counter}>
+            {state.photos.filter(p => !p.uploading && !p.error).length}/{maxPhotos}
+          </Text>
+          <TouchableOpacity
+            style={styles.qaButton}
+            onPress={() => setQAState(prev => ({ ...prev, showQAPanel: !prev.showQAPanel }))}
+          >
+            <Settings color={theme.colors.gray} size={20} />
+          </TouchableOpacity>
+        </View>
       </View>
+      
+      {/* QA Panel */}
+      {qaState.showQAPanel && (
+        <View style={styles.qaPanel}>
+          <Text style={styles.qaPanelTitle}>Dev/QA Controls</Text>
+          
+          <View style={styles.qaControl}>
+            <Text style={styles.qaControlLabel}>Slow Network Simulation</Text>
+            <Switch
+              value={qaState.qaSlowNetwork}
+              onValueChange={(value) => setQAState(prev => ({ ...prev, qaSlowNetwork: value }))}
+              trackColor={{ false: theme.colors.lightGray, true: theme.colors.primary }}
+              thumbColor={qaState.qaSlowNetwork ? theme.colors.white : theme.colors.gray}
+            />
+          </View>
+          
+          <View style={styles.qaControl}>
+            <Text style={styles.qaControlLabel}>Random Failures (10%)</Text>
+            <Switch
+              value={qaState.qaFailRandomly}
+              onValueChange={(value) => setQAState(prev => ({ ...prev, qaFailRandomly: value }))}
+              trackColor={{ false: theme.colors.lightGray, true: theme.colors.danger }}
+              thumbColor={qaState.qaFailRandomly ? theme.colors.white : theme.colors.gray}
+            />
+          </View>
+          
+          <Text style={styles.qaNote}>
+            • Slow Network: 300-1200ms delay + throttled progress{"\n"}
+            • Random Failures: 10% chance to fail uploads{"\n"}
+            • Check console for verbose upload logs
+          </Text>
+        </View>
+      )}
       
       {/* Action buttons */}
       <View style={styles.actionButtons}>
@@ -615,6 +710,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  qaButton: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.lightGray,
   },
   title: {
     fontSize: theme.fontSize.lg,
@@ -791,6 +896,37 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'contain',
     borderRadius: theme.borderRadius.md,
+  },
+  qaPanel: {
+    backgroundColor: theme.colors.lightGray,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.gray + '30',
+  },
+  qaPanelTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600' as const,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  qaControl: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  qaControlLabel: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.dark,
+    flex: 1,
+  },
+  qaNote: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginTop: theme.spacing.sm,
+    lineHeight: 18,
   },
 });
 
