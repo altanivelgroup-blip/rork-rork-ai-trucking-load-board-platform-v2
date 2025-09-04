@@ -1,9 +1,11 @@
-import { Platform } from 'react-native';
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, initializeAuth, setPersistence, Auth, browserLocalPersistence, signInAnonymously } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
-import { getStorage, FirebaseStorage } from 'firebase/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
+import {
+  getFirestore,
+  doc, setDoc, serverTimestamp, Timestamp,
+  collection, onSnapshot,
+} from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 export type FirebaseServices = {
   app: FirebaseApp;
@@ -12,14 +14,16 @@ export type FirebaseServices = {
   storage: FirebaseStorage;
 };
 
-const config = {
-  apiKey: 'AIzaSyCr1HwvmwLzHax9Z7LNbKEA371I_isnExo',
-  authDomain: 'ai-trucking-load-board-v2.firebaseapp.com',
-  projectId: 'ai-trucking-load-board-v2',
-  storageBucket: 'ai-trucking-load-board-v2.firebasestorage.app',
-  messagingSenderId: '983252646715',
-  appId: '1:983252646715:web:12ed084739966c5572951e',
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
+  authDomain: "rork-prod.firebaseapp.com",
+  projectId: "rork-prod",
+  storageBucket: "rork-prod.firebasestorage.app",
+  messagingSenderId: "935855915227",
+  appId: "1:935855915227:web:20c4c517dd32f0e59a4cfe"
 };
+
 
 let services: FirebaseServices | undefined;
 let initPromise: Promise<FirebaseServices> | undefined;
