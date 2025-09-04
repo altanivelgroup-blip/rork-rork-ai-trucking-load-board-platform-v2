@@ -2,8 +2,6 @@
 import React, { useMemo } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { theme } from "@/constants/theme";
-import { Check, X, Star } from "lucide-react-native";
 
 type PlanKey = "driver-basic" | "driver-pro";
 
@@ -15,6 +13,16 @@ type Plan = {
   cta: string;
   features: { text: string; ok: boolean }[];
   highlight?: boolean;
+};
+
+const COLORS = {
+  bg: "#f5f5f5",
+  card: "#ffffff",
+  border: "#e5e7eb",
+  dark: "#111827",
+  gray: "#6b7280",
+  primary: "#1f5fff",
+  white: "#ffffff",
 };
 
 export default function DriverMembershipScreen() {
@@ -54,27 +62,18 @@ export default function DriverMembershipScreen() {
   );
 
   const onSelect = (key: PlanKey) => {
-    // Navigate to your checkout flow. These routes are simple & memorable.
-    // Create `app/subscribe/[plan].tsx` (stub below) if you don’t have it yet.
+    // Safe, simple route. We'll create this file next.
     router.push(`/subscribe/${key}`);
   };
 
   return (
     <>
       <Stack.Screen
-        options={{
-          title: "Driver Membership",
-          headerTitleAlign: "center",
-        }}
+        options={{ title: "Driver Membership", headerTitleAlign: "center" }}
       />
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
-      >
+      <ScrollView style={styles.screen} contentContainerStyle={styles.scroll}>
         <Text style={styles.heading}>Pick your plan</Text>
-        <Text style={styles.subheading}>
-          Upgrade anytime. Cancel anytime.
-        </Text>
+        <Text style={styles.subheading}>Upgrade anytime. Cancel anytime.</Text>
 
         <View style={styles.grid}>
           {plans.map((p) => (
@@ -102,13 +101,12 @@ function PlanCard({
     <View
       style={[
         styles.card,
-        plan.highlight && { borderColor: theme.colors.primary, borderWidth: 2 },
+        plan.highlight && { borderColor: COLORS.primary, borderWidth: 2 },
       ]}
     >
       {plan.highlight && (
         <View style={styles.ribbon}>
-          <Star size={14} color="#fff" />
-          <Text style={styles.ribbonText}>Recommended</Text>
+          <Text style={styles.ribbonText}>★ Recommended</Text>
         </View>
       )}
 
@@ -119,11 +117,9 @@ function PlanCard({
       <View style={styles.features}>
         {plan.features.map((f, idx) => (
           <View key={idx} style={styles.featureRow}>
-            {f.ok ? (
-              <Check size={18} color={theme.colors.primary} />
-            ) : (
-              <X size={18} color="#94a3b8" />
-            )}
+            <Text style={[styles.featureIcon, !f.ok && styles.featureIconOff]}>
+              {f.ok ? "✓" : "✕"}
+            </Text>
             <Text style={[styles.featureText, !f.ok && styles.featureOff]}>
               {f.text}
             </Text>
@@ -154,47 +150,36 @@ function PlanCard({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.lightGray },
+  screen: { flex: 1, backgroundColor: COLORS.bg },
+  scroll: { padding: 16, paddingBottom: 28 },
   heading: {
-    fontSize: theme.fontSize.xl,
+    fontSize: 22,
     fontWeight: "800",
-    color: theme.colors.dark,
+    color: COLORS.dark,
     textAlign: "center",
   },
-  subheading: {
-    marginTop: 6,
-    textAlign: "center",
-    color: theme.colors.gray,
-  },
-  grid: {
-    marginTop: 14,
-    gap: 12,
-  },
+  subheading: { marginTop: 6, textAlign: "center", color: COLORS.gray },
+  grid: { marginTop: 14, gap: 12 },
   card: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: COLORS.card,
     borderRadius: 16,
     padding: 16,
-    borderColor: theme.colors.border,
+    borderColor: COLORS.border,
     borderWidth: 1,
   },
-  planName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: "800",
-    color: theme.colors.dark,
-  },
+  planName: { fontSize: 18, fontWeight: "800", color: COLORS.dark },
   planPrice: {
     marginTop: 6,
-    fontSize: theme.fontSize.xl,
+    fontSize: 22,
     fontWeight: "900",
-    color: theme.colors.primary,
+    color: COLORS.primary,
   },
-  planTagline: {
-    marginTop: 2,
-    color: theme.colors.gray,
-  },
+  planTagline: { marginTop: 2, color: COLORS.gray },
   features: { marginTop: 12, gap: 8 },
   featureRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  featureText: { color: theme.colors.dark },
+  featureIcon: { width: 18, textAlign: "center", color: COLORS.primary },
+  featureIconOff: { color: "#94a3b8" },
+  featureText: { color: COLORS.dark },
   featureOff: { color: "#94a3b8", textDecorationLine: "line-through" },
   cta: {
     marginTop: 14,
@@ -203,34 +188,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  ctaPrimary: {
-    backgroundColor: theme.colors.primary,
-  },
+  ctaPrimary: { backgroundColor: COLORS.primary },
   ctaSecondary: {
-    backgroundColor: theme.colors.white,
-    borderColor: theme.colors.primary,
+    backgroundColor: COLORS.white,
+    borderColor: COLORS.primary,
     borderWidth: 2,
   },
-  ctaText: { fontWeight: "800", fontSize: theme.fontSize.md },
-  ctaTextPrimary: { color: theme.colors.white },
-  ctaTextSecondary: { color: theme.colors.primary },
+  ctaText: { fontWeight: "800", fontSize: 16 },
+  ctaTextPrimary: { color: COLORS.white },
+  ctaTextSecondary: { color: COLORS.primary },
   disclaimer: {
     marginTop: 18,
-    color: theme.colors.gray,
-    fontSize: theme.fontSize.sm,
+    color: COLORS.gray,
+    fontSize: 12,
     textAlign: "center",
   },
   ribbon: {
     position: "absolute",
     top: 12,
     right: 12,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
   },
   ribbonText: { color: "#fff", fontWeight: "800", fontSize: 12 },
 });
