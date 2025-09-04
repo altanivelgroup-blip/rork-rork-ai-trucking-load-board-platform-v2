@@ -1,471 +1,202 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { theme } from '@/constants/theme';
-import { Crown, Check, Zap, TrendingUp, Shield, UserRound, Smartphone } from 'lucide-react-native';
-import HeaderBack from '@/components/HeaderBack';
+// app/shipper-membership.tsx
+import React, { useMemo } from "react";
+import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
+import { Stack } from "expo-router";
+import { theme } from "@/constants/theme";
+import { Check, X, Star } from "lucide-react-native";
 
-type Tier = {
-  id: 'basic' | 'pro' | 'business';
-  title: string;
-  subtitle: string;
-  price: string;
-  period: string;
-  popular?: boolean;
-  accent: string;
-  iconBg: string;
-  features: string[];
-};
-
-const tiers: Tier[] = [
-  {
-    id: 'basic',
-    title: 'Basic',
-    subtitle: 'Perfect for getting started',
-    price: '$5',
-    period: '/month',
-    accent: '#E5E7EB',
-    iconBg: '#EEF2FF',
-    features: [
-      '1 vehicle post per month (Private)',
-      '3 vehicle posts per month (Business)',
-      'Limited to local listings (250 miles)',
-      'Basic AI prompt access',
-      'Email notifications only',
-      '7-day post expiration',
-    ],
-  },
-  {
-    id: 'pro',
-    title: 'Pro',
-    subtitle: 'For business owners, dealerships & auctions',
-    price: '$49',
-    period: '/month',
-    popular: true,
-    accent: theme.colors.warning,
-    iconBg: '#FFFBEB',
-    features: [
-      'Up to 50 vehicle posts per month',
-      'National exposure with map tracking',
-      'AI-enhanced listing assistant',
-      'Dealer dashboard with analytics',
-      'API access (read-only)',
-      'Premium post badge & branding',
-      'CRM export capabilities',
-      'SMS/email/app notifications',
-      'AI cost forecasting',
-      'Priority customer support',
-    ],
-  },
-  {
-    id: 'business',
-    title: 'Business',
-    subtitle: 'For fleets, brokers, and enterprises',
-    price: '$99.99',
-    period: '/month',
-    accent: '#E5E7EB',
-    iconBg: '#F8FAFC',
-    features: [
-      'Unlimited vehicle posts',
-      'Priority placement on searches',
-      'Full API access (read/write)',
-      'White-label options',
-      'Up to 10 team users',
-      'Custom integrations',
-      'Dedicated account manager',
-      '24/7 priority support',
-      'Fleet move planning',
-      'Advanced analytics',
-    ],
-  },
-];
-
-function useSelection() {
-  const [selected, setSelected] = useState<Tier['id']>('pro');
-  const onSelect = useCallback((id: Tier['id']) => {
-    setSelected(id);
-    console.log('membership.select', id);
-  }, []);
-  return { selected, onSelect } as const;
-}
-
-const FeatureRow = memo(function FeatureRow({ text }: { text: string }) {
-  return (
-    <View style={styles.featureRow} testID="feature-row">
-      <View style={styles.checkWrap}>
-        <Check size={16} color={theme.colors.success} />
-      </View>
-      <Text style={styles.featureText}>{text}</Text>
-    </View>
-  );
-});
-
-const TierCard = memo(function TierCard({ tier, selected, onSelect }: { tier: Tier; selected: boolean; onSelect: (id: Tier['id']) => void }) {
-  const borderStyle = useMemo(() => {
-    if (tier.popular) {
-      return { borderColor: theme.colors.warning };
-    }
-    return { borderColor: theme.colors.border };
-  }, [tier.popular]);
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => onSelect(tier.id)}
-      style={[styles.card, borderStyle]}
-      testID={`tier-${tier.id}`}
-    >
-      <View style={styles.cardHeader}>
-        <View style={[styles.cardIconWrap, { backgroundColor: tier.iconBg }]}> 
-          {tier.id === 'business' ? <Crown size={22} color={theme.colors.secondary} /> : tier.id === 'pro' ? <Zap size={22} color={theme.colors.warning} /> : <Crown size={22} color={theme.colors.primary} />}
-        </View>
-        <View style={styles.cardHeadings}>
-          <Text style={styles.cardTitle}>{tier.title}</Text>
-          <Text style={styles.cardSubtitle}>{tier.subtitle}</Text>
-        </View>
-        <View style={styles.priceWrap}>
-          <Text style={styles.priceMain}>{tier.price}</Text>
-          <Text style={styles.priceSub}>{tier.period}</Text>
-        </View>
-      </View>
-
-      {tier.popular && (
-        <View style={styles.popularBadge} testID="popular-badge">
-          <Text style={styles.popularText}>Most Popular</Text>
-        </View>
-      )}
-
-      <View style={styles.featuresWrap}>
-        {tier.features.map((f) => (
-          <FeatureRow key={f} text={f} />
-        ))}
-      </View>
-
-      <TouchableOpacity
-        activeOpacity={0.9}
-        accessibilityRole="button"
-        onPress={() => onSelect(tier.id)}
-        style={[styles.selectBtn, selected && styles.selectBtnActive]}
-        testID={`select-${tier.id}`}
-      >
-        <Text style={[styles.selectText, selected && styles.selectTextActive]}>{selected ? 'Selected' : 'Choose Plan'}</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
-});
+type PlanKey = "shipper-basic" | "shipper-pro" | "shipper-enterprise";
 
 export default function ShipperMembershipScreen() {
-  const { selected, onSelect } = useSelection();
-  const router = useRouter();
-
-  const handleSelect = useCallback((id: Tier['id']) => {
-    onSelect(id);
-    try {
-      router.push({ pathname: '/payment-methods', params: { plan: id } });
-    } catch (e) {
-      console.error('membership.select.navigate.error', e);
-    }
-  }, [onSelect, router]);
-
-  type WhyItem = {
-    icon: React.ComponentType<{ size?: number; color?: string }>;
-    title: string;
-    bullets: string[];
-  };
-
-  const why: WhyItem[] = useMemo(
+  const plans = useMemo(
     () => [
       {
-        icon: TrendingUp,
-        title: 'Increase Revenue',
-        bullets: [
-          'Priority placement on high-paying lanes',
-          'Instant access to backhauls that fit your routes',
-          'Smart pricing tips based on market demand',
-          'Featured shipper badge to attract top carriers',
+        key: "shipper-basic" as PlanKey,
+        name: "Basic",
+        price: "Free",
+        highlight: null as "popular" | "value" | null,
+        features: [
+          { label: "Post Loads / Month", ok: true, note: "3" },
+          { label: "CSV Bulk Upload", ok: false },
+          { label: "Load Visibility", ok: false, note: "Standard" },
+          { label: "Shipper Dashboard", ok: true, note: "Basic" },
+          { label: "Driver Ratings", ok: true, note: "View Only" },
+          { label: "Team Members", ok: true, note: "1" },
+          { label: "Support", ok: true, note: "Standard" },
         ],
+        cta: "Start with Basic",
       },
       {
-        icon: Shield,
-        title: 'Advanced Security',
-        bullets: [
-          'Enhanced fraud screening on posts and payments',
-          'Escrow-style payment protections with dispute workflow',
-          'Multi-factor authentication for teams',
-          'Audit trails on quotes, edits, and approvals',
+        key: "shipper-pro" as PlanKey,
+        name: "Pro",
+        price: "$49.99/mo",
+        highlight: "popular" as const,
+        features: [
+          { label: "Post Loads / Month", ok: true, note: "50" },
+          { label: "CSV Bulk Upload", ok: true, note: "Up to 50" },
+          { label: "Load Visibility", ok: true, note: "Boosted" },
+          { label: "Shipper Dashboard", ok: true, note: "Advanced" },
+          { label: "Driver Ratings + History", ok: true },
+          { label: "Team Members", ok: true, note: "Up to 3" },
+          { label: "Support", ok: true, note: "Priority" },
         ],
+        cta: "Upgrade to Pro",
       },
       {
-        icon: UserRound,
-        title: 'Priority Support',
-        bullets: [
-          '24/7 live support with <10 min first response',
-          'Dedicated account manager for onboarding',
-          'Fast-track issue resolution and carrier outreach',
-          'Proactive health checks on your active loads',
+        key: "shipper-enterprise" as PlanKey,
+        name: "Enterprise",
+        price: "$199/mo",
+        highlight: "value" as const,
+        features: [
+          { label: "Post Loads / Month", ok: true, note: "Unlimited" },
+          { label: "CSV Bulk Upload", ok: true, note: "Unlimited" },
+          { label: "Placement", ok: true, note: "Priority" },
+          { label: "Account Manager", ok: true, note: "Dedicated" },
+          { label: "Fleet Reporting & Analytics", ok: true },
+          { label: "Team Members", ok: true, note: "Unlimited" },
+          { label: "Branding", ok: true, note: "Logo + Profile" },
         ],
-      },
-      {
-        icon: Smartphone,
-        title: 'AI-Powered Tools',
-        bullets: [
-          'AI matchmaker to pair loads with best-fit carriers',
-          'Auto-generate postings, rate confirmations, and updates',
-          'Voice assistant for quick post, edit, and search',
-          'Analytics insights: lane trends, seasonality, and spend',
-        ],
+        cta: "Contact Sales",
       },
     ],
-    [],
+    []
   );
 
-  const onUpgrade = useCallback(() => {
-    try {
-      console.log('membership.upgrade', selected, Platform.OS);
-      if (!selected) return;
-      router.push({ pathname: '/payment-methods', params: { plan: selected } });
-    } catch (e) {
-      console.error('membership.upgrade.error', e);
-    }
-  }, [router, selected]);
-
   return (
-    <View style={styles.container} testID="shipper-membership-container">
-      <Stack.Screen options={{ title: 'Membership', headerLeft: () => <HeaderBack targetPath="/shipper" /> }} />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerWrap}>
-          <Text style={styles.pageTitle}>Choose Your Plan</Text>
-          <Text style={styles.pageSubtitle}>Unlock premium features and grow your business</Text>
+    <View style={{ flex: 1, backgroundColor: theme.colors.lightGray }}>
+      <Stack.Screen options={{ title: "Shipper Membership" }} />
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Text style={styles.h1}>Choose your Shipper plan</Text>
+        <Text style={styles.sub}>
+          CSV bulk uploads are available for Pro and Enterprise.
+        </Text>
+
+        <View style={styles.grid}>
+          {plans.map((p) => (
+            <PlanCard
+              key={p.key}
+              name={p.name}
+              price={p.price}
+              highlight={p.highlight}
+              features={p.features}
+              cta={p.cta}
+              onPress={() => {
+                // TODO: wire to purchase/upgrade or contact flow
+                console.log("[ShipperMembership] choose", p.key);
+              }}
+            />
+          ))}
         </View>
-
-        {tiers.map((t) => (
-          <TierCard key={t.id} tier={t} selected={selected === t.id} onSelect={handleSelect} />
-        ))}
-
-        <View style={styles.whyCard} testID="why-upgrade">
-          <Text style={styles.whyTitle}>Why Upgrade?</Text>
-          {why.map((w) => {
-            const isIncreaseRevenue = w.title === 'Increase Revenue';
-            const isAdvancedSecurity = w.title === 'Advanced Security';
-            const isPrioritySupport = w.title === 'Priority Support';
-            const isAiTools = w.title === 'AI-Powered Tools';
-            const isLink = isIncreaseRevenue || isAdvancedSecurity || isPrioritySupport || isAiTools;
-            const RowComp = isLink ? TouchableOpacity : View;
-            const onPress = () => {
-              console.log('why.open', w.title);
-              if (isIncreaseRevenue) router.push('/increase-revenue');
-              if (isAdvancedSecurity) router.push('/advance-security');
-              if (isPrioritySupport) router.push('/priority-support');
-              if (isAiTools) router.push('/ai-tools');
-            };
-            return (
-              <RowComp
-                key={w.title}
-                style={styles.whyRow}
-                {...(isLink ? { activeOpacity: 0.85, onPress } : {})}
-                testID={isIncreaseRevenue ? 'why-increase-revenue' : isAdvancedSecurity ? 'why-advanced-security' : isPrioritySupport ? 'why-priority-support' : isAiTools ? 'why-ai-tools' : undefined}
-              >
-                <View style={styles.whyIcon}>
-                  <w.icon size={20} color={theme.colors.secondary} />
-                </View>
-                <View style={styles.whyTextWrap}>
-                  <Text style={[styles.whyHeading, isLink && styles.linkHeading]}>{w.title}</Text>
-                  {w.bullets.map((b) => (
-                    <View key={b} style={styles.whyBulletRow} testID="why-bullet">
-                      <Check size={14} color={theme.colors.success} />
-                      <Text style={styles.whyDesc}>{b}</Text>
-                    </View>
-                  ))}
-                </View>
-              </RowComp>
-            );
-          })}
-        </View>
-
-        <TouchableOpacity activeOpacity={0.9} onPress={onUpgrade} style={styles.upgradeBar} testID="upgrade-now">
-          <Text style={styles.upgradeText}>Upgrade Now</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
 
+function PlanCard({
+  name,
+  price,
+  features,
+  cta,
+  highlight,
+  onPress,
+}: {
+  name: string;
+  price: string;
+  features: { label: string; ok: boolean; note?: string }[];
+  cta: string;
+  highlight: "popular" | "value" | null;
+  onPress: () => void;
+}) {
+  return (
+    <View style={[styles.card, highlight && styles.cardHighlight]}>
+      {!!highlight && (
+        <View style={[styles.ribbon, highlight === "popular" ? styles.ribbonPopular : styles.ribbonValue]}>
+          <Star size={14} color="#fff" />
+          <Text style={styles.ribbonText}>{highlight === "popular" ? "Most Popular" : "Best Value"}</Text>
+        </View>
+      )}
+
+      <Text style={styles.planName}>{name}</Text>
+      <Text style={styles.price}>{price}</Text>
+
+      <View style={styles.divider} />
+
+      <View style={{ gap: 10 }}>
+        {features.map((f, i) => (
+          <View key={i} style={styles.row}>
+            {f.ok ? (
+              <Check size={18} color={theme.colors.primary} />
+            ) : (
+              <X size={18} color="#94a3b8" />
+            )}
+            <Text style={styles.featureText}>
+              {f.label}
+              {f.note ? <Text style={styles.note}> — {f.note}</Text> : null}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <Pressable onPress={onPress} style={styles.cta}>
+        <Text style={styles.ctaText}>{cta}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.lightGray,
-  },
-  scroll: {
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
-  },
-  headerWrap: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: theme.colors.dark,
-  },
-  pageSubtitle: {
-    marginTop: 4,
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
+  scroll: { padding: 16, paddingBottom: 32 },
+  h1: { fontSize: theme.fontSize.xl, fontWeight: "800", color: theme.colors.dark, textAlign: "center" },
+  sub: { color: theme.colors.gray, textAlign: "center", marginTop: 6, marginBottom: 16 },
+  grid: {
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
+    justifyContent: "center",
   },
   card: {
+    width: 320,
     backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-    borderWidth: 2,
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    position: "relative",
+  },
+  cardHighlight: {
+    borderColor: theme.colors.primary,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 2,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: theme.spacing.md,
-  },
-  cardHeadings: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: theme.fontSize.lg,
-    color: theme.colors.dark,
-    fontWeight: '700',
-  },
-  cardSubtitle: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    marginTop: 2,
-  },
-  priceWrap: {
-    alignItems: 'flex-end',
-  },
-  priceMain: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: theme.colors.dark,
-  },
-  priceSub: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
-  },
-  popularBadge: {
-    alignSelf: 'flex-end',
-    backgroundColor: theme.colors.warning,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginTop: theme.spacing.sm,
-  },
-  popularText: {
-    color: theme.colors.white,
-    fontWeight: '700',
-    fontSize: theme.fontSize.sm,
-  },
-  featuresWrap: {
-    marginTop: theme.spacing.md,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  checkWrap: {
-    width: 22,
-    alignItems: 'center',
-    marginRight: theme.spacing.sm,
-  },
-  featureText: {
-    flex: 1,
-    fontSize: theme.fontSize.md,
-    color: theme.colors.dark,
-  },
-  selectBtn: {
-    marginTop: theme.spacing.lg,
+  ribbon: {
+    position: "absolute",
+    top: 12,
+    right: 12,
     backgroundColor: theme.colors.primary,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  selectBtnActive: {
-    backgroundColor: '#E5E7EB',
+  ribbonPopular: { backgroundColor: theme.colors.primary },
+  ribbonValue: { backgroundColor: "#0ea5e9" },
+  ribbonText: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  planName: { fontSize: theme.fontSize.lg, fontWeight: "800", color: theme.colors.dark },
+  price: { fontSize: theme.fontSize.xl, fontWeight: "900", marginTop: 4, color: theme.colors.primary },
+  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: 12 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10 },
+  featureText: { color: theme.colors.dark },
+  note: { color: theme.colors.gray },
+  cta: {
+    marginTop: 16,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
   },
-  selectText: {
-    color: theme.colors.white,
-    fontWeight: '700',
-    fontSize: theme.fontSize.md,
-  },
-  selectTextActive: {
-    color: theme.colors.gray,
-  },
-  whyCard: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.lg,
-    marginTop: theme.spacing.md,
-  },
-  whyTitle: {
-    fontSize: theme.fontSize.lg,
-    color: theme.colors.dark,
-    fontWeight: '700',
-    marginBottom: theme.spacing.md,
-  },
-  whyRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 8,
-  },
-  whyIcon: {
-    width: 28,
-    alignItems: 'center',
-    marginRight: theme.spacing.md,
-  },
-  whyTextWrap: {
-    flex: 1,
-  },
-  whyHeading: {
-    fontWeight: '700',
-    color: theme.colors.dark,
-    fontSize: theme.fontSize.md,
-  },
-  linkHeading: {
-    textDecorationLine: 'underline',
-    color: theme.colors.secondary,
-  },
-  whyDesc: {
-    color: theme.colors.gray,
-    marginTop: 2,
-    fontSize: theme.fontSize.sm,
-  },
-  whyBulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8 as unknown as number,
-    marginTop: 4,
-  },
-  upgradeBar: {
-    marginTop: theme.spacing.lg,
-    backgroundColor: theme.colors.secondary,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderRadius: theme.borderRadius.lg,
-  },
-  upgradeText: {
-    color: theme.colors.white,
-    fontWeight: '800',
-    fontSize: theme.fontSize.md,
-  },
+  ctaText: { color: "#fff", fontWeight: "800" },
 });
