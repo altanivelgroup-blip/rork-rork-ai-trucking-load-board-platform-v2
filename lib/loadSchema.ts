@@ -19,4 +19,27 @@ export type LoadDoc = {
   createdAt: any;      // serverTimestamp
   clientCreatedAt: number; // Date.now()
   attachments: { url: string; path?: string | null }[];
+  // New photo fields for PhotoUploader
+  photos?: string[];   // Array of HTTPS URLs
+  primaryPhoto?: string; // HTTPS URL of cover photo
+  updatedAt?: any;     // serverTimestamp
+};
+
+// Vehicle document type
+export const VEHICLES_COLLECTION = "vehicles";
+
+export type VehicleDoc = {
+  title: string;
+  type: string;
+  year?: number;
+  make?: string;
+  model?: string;
+  status: string;
+  createdBy: string;
+  createdAt: any;      // serverTimestamp
+  clientCreatedAt: number; // Date.now()
+  // Photo fields for PhotoUploader
+  photos?: string[];   // Array of HTTPS URLs
+  primaryPhoto?: string; // HTTPS URL of cover photo
+  updatedAt?: any;     // serverTimestamp
 };
