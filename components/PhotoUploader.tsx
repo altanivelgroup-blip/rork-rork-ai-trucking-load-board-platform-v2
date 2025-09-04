@@ -116,6 +116,28 @@ const mapStorageError = (error: any): string => {
   return error?.message || "Upload failed. Please try again.";
 };
 
+// Concurrency control for uploads
+const MAX_CONCURRENCY = 2;
+let activeUploads = 0;
+const uploadQueue: (() => Promise<void>)[] = [];
+
+async function runNextUpload() {
+  if (activeUploads >= MAX_CONCURRENCY || uploadQueue.length === 0) return;
+  activeUploads++;
+  const job = uploadQueue.shift()!;
+  try {
+    await job();
+  } finally {
+    activeUploads--;
+    runNextUpload();
+  }
+}
+
+function enqueueUpload(job: () => Promise<void>) {
+  uploadQueue.push(job);
+  runNextUpload();
+}
+
 
 
 const THUMBNAIL_SIZE = (screenWidth - 48) / 3; // 3 columns with padding
@@ -441,7 +463,7 @@ export function PhotoUploader({
     }
   }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly]);
 
-  // 7. Retry button: Calls same upload() function for the failed file
+  // 7. Retry button: Calls same upload() function for the failed file with concurrency control
   const handleRetryUpload = useCallback(async (photo: PhotoItem) => {
     if (!photo.originalFile) {
       // If no original file stored, prompt user to re-select
@@ -457,11 +479,17 @@ export function PhotoUploader({
       photos: prev.photos.filter(p => p.id !== photo.id),
     }));
 
-    // Reuse the upload logic with the stored original file
-    await uploadFile(photo.originalFile);
+    // Enqueue retry with concurrency control
+    enqueueUpload(async () => {
+      try {
+        await uploadFile(photo.originalFile!);
+      } catch (error) {
+        console.error('[PhotoUploader] Retry upload failed in queue:', error);
+      }
+    });
   }, [uploadFile, toast]);
 
-  // Handle photo selection
+  // Handle photo selection with concurrency control
   const handleAddPhotos = useCallback(async () => {
     try {
       if (state.photos.length >= maxPhotos) {
@@ -480,15 +508,22 @@ export function PhotoUploader({
         const remainingSlots = maxPhotos - state.photos.length;
         const filesToUpload = result.assets.slice(0, remainingSlots);
         
-        for (const asset of filesToUpload) {
+        // Enqueue all uploads with concurrency control
+        filesToUpload.forEach((asset) => {
           const validationError = validateFile(asset);
           if (validationError) {
             toast.show(validationError, 'error');
-            continue;
+            return;
           }
           
-          await uploadFile(asset);
-        }
+          enqueueUpload(async () => {
+            try {
+              await uploadFile(asset);
+            } catch (error) {
+              console.error('[PhotoUploader] Upload failed in queue:', error);
+            }
+          });
+        });
         
         if (result.assets.length > remainingSlots) {
           toast.show(`Only ${remainingSlots} photos could be added`, 'warning');
@@ -500,7 +535,7 @@ export function PhotoUploader({
     }
   }, [state.photos.length, maxPhotos, validateFile, uploadFile, toast]);
 
-  // Handle camera capture
+  // Handle camera capture with concurrency control
   const handleTakePhoto = useCallback(async () => {
     try {
       if (state.photos.length >= maxPhotos) {
@@ -522,7 +557,13 @@ export function PhotoUploader({
           return;
         }
         
-        await uploadFile(asset);
+        enqueueUpload(async () => {
+          try {
+            await uploadFile(asset);
+          } catch (error) {
+            console.error('[PhotoUploader] Upload failed in queue:', error);
+          }
+        });
       }
     } catch (error: any) {
       console.error('[PhotoUploader] Error taking photo:', error);
@@ -814,6 +855,11 @@ export function PhotoUploader({
           <Text style={styles.uploadingText}>
             Uploading {uploadsInProgress} photo{uploadsInProgress > 1 ? 's' : ''}... Please wait.
           </Text>
+          {uploadQueue.length > 0 && (
+            <Text style={styles.queueText}>
+              {uploadQueue.length} in queue
+            </Text>
+          )}
         </View>
       )}
       
@@ -1040,6 +1086,11 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.primary,
     fontWeight: '600' as const,
+  },
+  queueText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginTop: theme.spacing.xs,
   },
   modalContainer: {
     flex: 1,
