@@ -16,7 +16,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
@@ -138,6 +138,61 @@ function enqueueUpload(job: () => Promise<void>) {
   runNextUpload();
 }
 
+// Smart upload function with fallback
+async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
+  const { storage } = getFirebase();
+  const r = ref(storage, path);
+  const meta = { contentType: mime || "image/jpeg" };
+
+  // Small files: simple upload (fast, fewer retries)
+  if (blob.size <= 1_500_000) {
+    await uploadBytes(r, blob, meta);
+    return await getDownloadURL(r);
+  }
+
+  // Bigger: resumable with progress
+  const task = uploadBytesResumable(r, blob, meta);
+  return await new Promise<string>((resolve, reject) => {
+    let last = 0, stallMs = 0;
+    const timer = setInterval(() => {
+      const cur = task.snapshot.bytesTransferred;
+      if (cur === last) stallMs += 1000; else { stallMs = 0; last = cur; }
+      if (stallMs >= 20_000) { try { task.cancel(); } catch {} } // 20s stall
+    }, 1000);
+
+    task.on("state_changed",
+      (snap) => {
+        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        updateProgress?.(pct);
+      },
+      (err) => { clearInterval(timer); reject(err); },
+      async () => { clearInterval(timer); resolve(await getDownloadURL(r)); }
+    );
+  });
+}
+
+async function uploadWithFallback(basePath: string, input: any, updateProgress?: (progress: number) => void): Promise<string> {
+  const { blob, mime, ext } = await prepareForUpload(input);
+  const key = uuid.v4() as string;
+  const path = `${basePath}/${key}.${ext}`;
+
+  try {
+    return await uploadSmart(path, blob, mime, key, updateProgress);
+  } catch (err: any) {
+    const code = String(err?.code || err?.message || "");
+    if (code.includes("retry-limit-exceeded") || code.includes("canceled")) {
+      // hard fallback: try one more time with simple upload
+      const { storage } = getFirebase();
+      const key2 = uuid.v4() as string;
+      const p2 = `${basePath}/${key2}.${ext}`;
+      const r2 = ref(storage, p2);
+      await uploadBytes(r2, blob, { contentType: mime || "image/jpeg" });
+      return await getDownloadURL(r2);
+    }
+    throw err;
+  }
+}
+
 
 
 const THUMBNAIL_SIZE = (screenWidth - 48) / 3; // 3 columns with padding
@@ -244,38 +299,14 @@ export function PhotoUploader({
     }
   }, [entityType, entityId, onChange, toast, state.photos]);
 
-  // Upload single file with retry logic and stall detection
+  // Upload single file with new smart upload logic
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
       await ensureFirebaseAuth();
-      const { storage } = getFirebase();
       
       const fileId = uuid.v4() as string;
       
       console.log('[UPLOAD_START] Processing image before upload...', input);
-      
-      // 1. Preprocess image (resize/compress)
-      let processedImage;
-      try {
-        processedImage = await prepareForUpload(input);
-        console.log('[UPLOAD_START] Image processed:', {
-          size: humanSize(processedImage.blob.size),
-          mime: processedImage.mime,
-          ext: processedImage.ext,
-          width: processedImage.width,
-          height: processedImage.height
-        });
-        
-        // Reject >10 MB with toast "File too large (max 10MB)."
-        if (processedImage.blob.size > 10 * 1024 * 1024) {
-          toast.show('File too large (max 10MB).', 'error');
-          return;
-        }
-      } catch (preprocessError) {
-        console.error('[UPLOAD_FAIL] Image preprocessing failed:', preprocessError);
-        toast.show(preprocessError instanceof Error ? preprocessError.message : 'Failed to process image', 'error');
-        return;
-      }
       
       // Create photo item with uploading state
       const photoItem: PhotoItem = {
@@ -291,122 +322,35 @@ export function PhotoUploader({
         photos: [...prev.photos, photoItem],
       }));
       
-      // 3. Path builder
+      // Build the base path safely (NO leading slash)
       const folder = entityType === 'load' ? 'loads' : 'vehicles';
       const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
-      const key = uuid.v4() as string;
-      const ext = processedImage.ext;
-      const path = `${folder}/${safeId}/original/${key}.${ext}`;
+      const basePath = `${folder}/${safeId}/original`;
       
-      // Guards to ensure correct path format
-      if (path.startsWith('/')) {
-        throw new Error('Do not use leading slash in Firebase Storage paths');
-      }
-      if (path.includes('//')) {
-        throw new Error('No double slashes allowed in Firebase Storage paths');
+      // QA: Simulate slow network if enabled
+      if (qaState.qaSlowNetwork) {
+        const delay = random(300, 1200);
+        console.log('[QA] Simulating network delay:', delay + 'ms');
+        await sleep(delay);
       }
       
-      // Upload with retry logic
-      let lastBytes = 0;
-      let stalledMs = 0;
-      const STALL_LIMIT_MS = 20_000;   // 20s no progress → consider stalled
-      const MAX_RETRIES = 1;
-      let retries = 0;
-      
-      const doUploadOnce = async (blob: Blob, mime: string, path: string): Promise<string> => {
-        const storageRef = ref(storage, path);
-        const metadata = { contentType: mime || 'image/jpeg' };
-        const task = uploadBytesResumable(storageRef, blob, metadata);
-        
-        return await new Promise<string>((resolve, reject) => {
-          const timer = setInterval(() => {
-            // no progress since last check → accumulate stall time
-            if (task.snapshot.bytesTransferred === lastBytes) {
-              stalledMs += 1000;
-            } else {
-              stalledMs = 0;
-              lastBytes = task.snapshot.bytesTransferred;
-            }
-            
-            if (stalledMs >= STALL_LIMIT_MS) {
-              // cancel; will be retried by outer logic
-              try { task.cancel(); } catch {}
-            }
-          }, 1000);
-          
-          // QA: Throttle progress events to ~5 updates/sec
-          let lastProgressUpdate = 0;
-          const progressThrottle = qaState.qaSlowNetwork ? 200 : 0; // 200ms = 5 updates/sec
-          
-          task.on('state_changed',
-            (snap) => {
-              const pct = Math.round(100 * snap.bytesTransferred / snap.totalBytes);
-              const now = Date.now();
-              
-              // Throttle progress updates if QA slow network is enabled
-              if (now - lastProgressUpdate >= progressThrottle) {
-                console.log('[UPLOAD_PROGRESS]', path, pct + '%');
-                setState(prev => ({
-                  ...prev,
-                  photos: prev.photos.map(p => 
-                    p.id === fileId ? { ...p, progress: pct } : p
-                  ),
-                }));
-                lastProgressUpdate = now;
-              }
-            },
-            (err) => {
-              clearInterval(timer);
-              reject(err);
-            },
-            async () => {
-              clearInterval(timer);
-              const url = await getDownloadURL(storageRef);
-              resolve(url);
-            }
-          );
-        });
-      };
-      
-      const uploadWithRetry = async (): Promise<string> => {
-        const { blob, mime } = processedImage;
-        
-        while (true) {
-          try {
-            // QA: Simulate slow network if enabled
-            if (qaState.qaSlowNetwork) {
-              const delay = random(300, 1200);
-              console.log('[QA] Simulating network delay:', delay + 'ms');
-              await sleep(delay);
-            }
-            
-            // QA: Randomly fail upload if enabled
-            if (qaState.qaFailRandomly && shouldFailRandomly()) {
-              console.log('[QA] Simulating random upload failure');
-              throw new Error('QA: Random failure simulation');
-            }
-            
-            const url = await doUploadOnce(blob, mime, path);
-            return url;
-          } catch (err: any) {
-            const code = String(err?.code || err?.message || '');
-            const stalled = code.includes('canceled') && stalledMs >= STALL_LIMIT_MS;
-            
-            if ((stalled || code.includes('retry-limit-exceeded')) && retries < MAX_RETRIES) {
-              retries++;
-              stalledMs = 0;
-              lastBytes = 0;
-              console.log(`[UPLOAD_RETRY] Attempt ${retries}/${MAX_RETRIES} for ${path}`);
-              continue; // one automatic retry
-            }
-            throw err; // bubble up after retry
-          }
-        }
-      };
+      // QA: Randomly fail upload if enabled
+      if (qaState.qaFailRandomly && shouldFailRandomly()) {
+        console.log('[QA] Simulating random upload failure');
+        throw new Error('QA: Random failure simulation');
+      }
       
       try {
-        const url = await uploadWithRetry();
-        console.log('[UPLOAD_DONE]', path);
+        const url = await uploadWithFallback(basePath, input, (progress) => {
+          setState(prev => ({
+            ...prev,
+            photos: prev.photos.map(p => 
+              p.id === fileId ? { ...p, progress } : p
+            ),
+          }));
+        });
+        
+        console.log('[UPLOAD_DONE]', basePath);
         
         // On success: Add url to Firestore photos[], set primaryPhoto if empty
         setState(prev => {
@@ -431,7 +375,7 @@ export function PhotoUploader({
         
         toast.show('Photo uploaded successfully', 'success');
       } catch (error: any) {
-        console.log('[UPLOAD_FAIL]', path, error?.code || 'unknown-error');
+        console.log('[UPLOAD_FAIL]', basePath, error?.code || 'unknown-error');
         console.error('[PhotoUploader] Upload error:', error);
         
         const code = (error && (error.code || error.message)) || '';
@@ -667,6 +611,8 @@ export function PhotoUploader({
   const canPublish = useMemo(() => {
     return completedPhotos >= minPhotos && uploadsInProgress === 0;
   }, [completedPhotos, uploadsInProgress, minPhotos]);
+
+
 
   // Render photo thumbnail
   const renderPhotoThumbnail = useCallback((photo: PhotoItem, index: number) => {
