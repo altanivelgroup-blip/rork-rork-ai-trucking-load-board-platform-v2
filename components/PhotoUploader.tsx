@@ -59,11 +59,28 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const random = (min: number, max: number) => Math.random() * (max - min) + min;
 const shouldFailRandomly = () => Math.random() < 0.1; // 10% chance
 
+// Helper to infer file extension from MIME type and filename
+function inferExtension(mime?: string, filename?: string): string {
+  if (mime?.includes("jpeg") || filename?.toLowerCase().endsWith(".jpg") || filename?.toLowerCase().endsWith(".jpeg") || filename?.toLowerCase().endsWith(".jfif")) {
+    return "jpg";
+  }
+  if (mime?.includes("png") || filename?.toLowerCase().endsWith(".png")) {
+    return "png";
+  }
+  if (mime?.includes("webp") || filename?.toLowerCase().endsWith(".webp")) {
+    return "webp";
+  }
+  if (mime?.includes("heic") || filename?.toLowerCase().endsWith(".heic") || filename?.toLowerCase().endsWith(".heif")) {
+    return "heic";
+  }
+  return "jpg"; // Default fallback
+}
+
 // File type inference helper
 const inferMimeAndExt = (file: any) => {
   let mime = (file?.type || "").toLowerCase();
   let name = (file?.name || file?.filename || "");
-  let ext = name.split('.').pop()?.toLowerCase() || "";
+  let ext = inferExtension(mime, name);
   
   // Try to infer from extension if mime is missing or not image
   if (!mime.startsWith("image/")) {
@@ -76,25 +93,6 @@ const inferMimeAndExt = (file: any) => {
     } else if (ext === "heic" || ext === "heif") {
       mime = "image/heic";
     }
-  }
-  
-  // Derive extension from mime if missing
-  if (!ext) {
-    if (mime === "image/jpeg") {
-      ext = "jpg";
-    } else if (mime === "image/png") {
-      ext = "png";
-    } else if (mime === "image/webp") {
-      ext = "webp";
-    } else if (mime === "image/heic") {
-      ext = "heic";
-    }
-  }
-  
-  // Normalize uppercase extensions
-  if (["JPG", "JPEG", "JFIF"].includes(ext.toUpperCase())) {
-    ext = "jpg";
-    mime = "image/jpeg";
   }
   
   // Default fallback
@@ -266,13 +264,25 @@ export function PhotoUploader({
         return;
       }
       
-      // Infer correct MIME type and extension from original file
-      const { mime, ext } = inferMimeAndExt(file);
-      
+      // Build correct Firebase Storage path
       const folder = entityType === 'load' ? 'loads' : 'vehicles';
-      const storagePath = `/${folder}/${entityId}/original/${fileId}.${ext}`;
+      const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
+      const key = uuid.v4() as string;
+      const ext = inferExtension(file.type, file.name);
+      const path = `${folder}/${safeId}/original/${key}.${ext}`;
       
-      console.log('[UPLOAD_START]', storagePath, humanSize(processedImage.blob.size));
+      // Guards to ensure correct path format
+      if (path.startsWith('/')) {
+        throw new Error('Do not use leading slash in Firebase Storage paths');
+      }
+      if (path.includes('//')) {
+        throw new Error('No double slashes allowed in Firebase Storage paths');
+      }
+      
+      // Infer MIME type for metadata
+      const { mime } = inferMimeAndExt(file);
+      
+      console.log('[UPLOAD_START]', path, humanSize(processedImage.blob.size));
       
       // QA: Simulate slow network if enabled
       if (qaState.qaSlowNetwork) {
@@ -284,7 +294,7 @@ export function PhotoUploader({
       // QA: Randomly fail upload if enabled
       if (qaState.qaFailRandomly && shouldFailRandomly()) {
         console.log('[QA] Simulating random upload failure');
-        console.log('[UPLOAD_FAIL]', storagePath, 'qa-random-failure');
+        console.log('[UPLOAD_FAIL]', path, 'qa-random-failure');
         setState(prev => ({
           ...prev,
           photos: prev.photos.map(p => 
@@ -299,7 +309,7 @@ export function PhotoUploader({
       const metadata = { contentType: mime };
       
       // Create storage reference and upload
-      const storageRef = ref(storage, storagePath);
+      const storageRef = ref(storage, path);
       
       let uploadTask;
       
@@ -327,7 +337,7 @@ export function PhotoUploader({
             
             // Throttle progress updates if QA slow network is enabled
             if (now - lastProgressUpdate >= progressThrottle) {
-              console.log('[UPLOAD_PROGRESS]', storagePath, Math.round(progress) + '%');
+              console.log('[UPLOAD_PROGRESS]', path, Math.round(progress) + '%');
               setState(prev => ({
                 ...prev,
                 photos: prev.photos.map(p => 
@@ -338,7 +348,7 @@ export function PhotoUploader({
             }
           },
           (error) => {
-            console.log('[UPLOAD_FAIL]', storagePath, error?.code || 'unknown-error');
+            console.log('[UPLOAD_FAIL]', path, error?.code || 'unknown-error');
             console.error('[PhotoUploader] Upload error:', error);
             const errorMessage = mapStorageError(error);
             setState(prev => ({
@@ -353,7 +363,7 @@ export function PhotoUploader({
             try {
               // Get download URL
               const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              console.log('[UPLOAD_DONE]', storagePath);
+              console.log('[UPLOAD_DONE]', path);
               
               // Update photo item with final URL
               setState(prev => {
@@ -379,7 +389,7 @@ export function PhotoUploader({
               
               toast.show('Photo uploaded successfully', 'success');
             } catch (error) {
-              console.log('[UPLOAD_FAIL]', storagePath, 'download-url-error');
+              console.log('[UPLOAD_FAIL]', path, 'download-url-error');
               console.error('[PhotoUploader] Error getting download URL:', error);
               setState(prev => ({
                 ...prev,
@@ -411,7 +421,7 @@ export function PhotoUploader({
           }));
           
           const downloadURL = await getDownloadURL(storageRef);
-          console.log('[UPLOAD_DONE]', storagePath);
+          console.log('[UPLOAD_DONE]', path);
           
           // Update photo item with final URL
           setState(prev => {
@@ -437,7 +447,7 @@ export function PhotoUploader({
           
           toast.show('Photo uploaded successfully', 'success');
         } catch (error: any) {
-          console.log('[UPLOAD_FAIL]', storagePath, error?.code || 'unknown-error');
+          console.log('[UPLOAD_FAIL]', path, error?.code || 'unknown-error');
           console.error('[PhotoUploader] Upload error:', error);
           const errorMessage = mapStorageError(error);
           setState(prev => ({
@@ -451,7 +461,7 @@ export function PhotoUploader({
       }
       
     } catch (error: any) {
-      console.log('[UPLOAD_FAIL]', 'unknown', error?.code || 'unknown-error');
+      console.log('[UPLOAD_FAIL]', 'path-build-error', error?.code || 'unknown-error');
       console.error('[PhotoUploader] Upload error:', error);
       const errorMessage = mapStorageError(error);
       toast.show('Upload failed: ' + errorMessage, 'error');
