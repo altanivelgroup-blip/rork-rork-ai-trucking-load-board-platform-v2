@@ -17,8 +17,7 @@ import { Camera, Upload, Star, Trash2, X, AlertCircle } from 'lucide-react-nativ
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import 'react-native-get-random-values';
-import { v4 as uuid } from 'uuid';
+import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
 
@@ -77,7 +76,7 @@ export function PhotoUploader({
         const data = docSnap.data();
         const photos = (data.photos || []).map((url: string) => ({
           url,
-          id: uuid(),
+          id: uuid.v4() as string,
         }));
         const primaryPhoto = data.primaryPhoto || '';
         
@@ -167,7 +166,7 @@ export function PhotoUploader({
       await ensureFirebaseAuth();
       const { storage } = getFirebase();
       
-      const fileId = uuid();
+      const fileId = uuid.v4() as string;
       const extension = file.type ? getExtensionFromMime(file.type) : 'jpg';
       const folder = entityType === 'load' ? 'loads' : 'vehicles';
       const storagePath = `/${folder}/${entityId}/original/${fileId}.${extension}`;
