@@ -17,7 +17,7 @@ import { Camera, Upload, Star, Trash2, X, AlertCircle } from 'lucide-react-nativ
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { v4 as uuid } from 'react-native-uuid';
+import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
 
@@ -28,7 +28,7 @@ export interface PhotoUploaderProps {
   entityId: string;
   minPhotos?: number;
   maxPhotos?: number;
-  onChange?: (photos: string[], primaryPhoto: string) => void;
+  onChange?: (photos: string[], primaryPhoto: string, uploadStatus: { uploading: boolean; completedCount: number; totalCount: number }) => void;
 }
 
 interface PhotoItem {
@@ -76,7 +76,7 @@ export function PhotoUploader({
         const data = docSnap.data();
         const photos = (data.photos || []).map((url: string) => ({
           url,
-          id: uuid() as string,
+          id: uuid.v4() as string,
         }));
         const primaryPhoto = data.primaryPhoto || '';
         
@@ -87,7 +87,12 @@ export function PhotoUploader({
           loading: false,
         }));
         
-        onChange?.(data.photos || [], primaryPhoto);
+        const uploadStatus = {
+          uploading: false,
+          completedCount: (data.photos || []).length,
+          totalCount: (data.photos || []).length,
+        };
+        onChange?.(data.photos || [], primaryPhoto, uploadStatus);
       } else {
         setState(prev => ({ ...prev, loading: false }));
       }
@@ -142,7 +147,12 @@ export function PhotoUploader({
         updatedAt: serverTimestamp(),
       });
       
-      onChange?.(photos, primaryPhoto);
+      const currentUploadStatus = {
+        uploading: state.photos.some(p => p.uploading),
+        completedCount: state.photos.filter(p => !p.uploading && !p.error).length,
+        totalCount: state.photos.length,
+      };
+      onChange?.(photos, primaryPhoto, currentUploadStatus);
       console.log('[PhotoUploader] Firestore updated with', photos.length, 'photos');
     } catch (error) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
@@ -156,7 +166,7 @@ export function PhotoUploader({
       await ensureFirebaseAuth();
       const { storage } = getFirebase();
       
-      const fileId = uuid() as string;
+      const fileId = uuid.v4() as string;
       const extension = file.type ? getExtensionFromMime(file.type) : 'jpg';
       const folder = entityType === 'load' ? 'loads' : 'vehicles';
       const storagePath = `/${folder}/${entityId}/original/${fileId}.${extension}`;
@@ -222,6 +232,14 @@ export function PhotoUploader({
               
               // Update Firestore
               updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
+              
+              // Notify parent of upload status change
+              const newUploadStatus = {
+                uploading: updatedPhotos.some(p => p.uploading),
+                completedCount: updatedPhotos.filter(p => !p.uploading && !p.error).length,
+                totalCount: updatedPhotos.length,
+              };
+              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, newUploadStatus);
               
               return {
                 ...prev,
@@ -325,6 +343,15 @@ export function PhotoUploader({
       const newPrimaryPhoto = url;
       setState(prev => ({ ...prev, primaryPhoto: newPrimaryPhoto }));
       await updateFirestorePhotos(state.photos.map(p => p.url), newPrimaryPhoto);
+      
+      // Notify parent of status change
+      const currentUploadStatus = {
+        uploading: state.photos.some(p => p.uploading),
+        completedCount: state.photos.filter(p => !p.uploading && !p.error).length,
+        totalCount: state.photos.length,
+      };
+      onChange?.(state.photos.map(p => p.url), newPrimaryPhoto, currentUploadStatus);
+      
       toast.show('Cover photo updated', 'success');
     } catch (error) {
       console.error('[PhotoUploader] Error setting primary photo:', error);
@@ -362,6 +389,14 @@ export function PhotoUploader({
               // Update Firestore
               await updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
               
+              // Notify parent of status change
+              const currentUploadStatus = {
+                uploading: updatedPhotos.some(p => p.uploading),
+                completedCount: updatedPhotos.filter(p => !p.uploading && !p.error).length,
+                totalCount: updatedPhotos.length,
+              };
+              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, currentUploadStatus);
+              
               // Try to delete from Storage (best effort)
               try {
                 const { storage } = getFirebase();
@@ -394,11 +429,22 @@ export function PhotoUploader({
 
 
 
-  // Check if can publish
-  const canPublish = useMemo(() => {
+  // Check if can publish and upload status
+  const uploadStatus = useMemo(() => {
+    const uploadingPhotos = state.photos.filter(p => p.uploading);
     const completedPhotos = state.photos.filter(p => !p.uploading && !p.error);
-    return completedPhotos.length >= minPhotos;
-  }, [state.photos, minPhotos]);
+    const totalPhotos = state.photos.length;
+    
+    return {
+      uploading: uploadingPhotos.length > 0,
+      completedCount: completedPhotos.length,
+      totalCount: totalPhotos,
+    };
+  }, [state.photos]);
+
+  const canPublish = useMemo(() => {
+    return uploadStatus.completedCount >= minPhotos && !uploadStatus.uploading;
+  }, [uploadStatus.completedCount, uploadStatus.uploading, minPhotos]);
 
   // Render photo thumbnail
   const renderPhotoThumbnail = useCallback((photo: PhotoItem, index: number) => {
@@ -514,8 +560,17 @@ export function PhotoUploader({
         </ScrollView>
       )}
       
-      {/* Minimum photos warning */}
-      {!canPublish && (
+      {/* Upload status and warnings */}
+      {uploadStatus.uploading && (
+        <View style={styles.uploadingContainer}>
+          <ActivityIndicator color={theme.colors.primary} size="small" />
+          <Text style={styles.uploadingText}>
+            Uploading photos... ({uploadStatus.completedCount}/{uploadStatus.totalCount} completed)
+          </Text>
+        </View>
+      )}
+      
+      {!canPublish && !uploadStatus.uploading && (
         <View style={styles.warningContainer}>
           <AlertCircle color={theme.colors.warning} size={20} />
           <Text style={styles.warningText}>
@@ -703,6 +758,21 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: theme.fontSize.md,
     color: theme.colors.warning,
+  },
+  uploadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary + '20',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  uploadingText: {
+    flex: 1,
+    fontSize: theme.fontSize.md,
+    color: theme.colors.primary,
+    fontWeight: '600' as const,
   },
   modalContainer: {
     flex: 1,

@@ -3,10 +3,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Send, Camera, ImagePlus, Trash2 } from 'lucide-react-native';
+import { Send, Clock } from 'lucide-react-native';
 import { usePostLoad } from '@/hooks/usePostLoad';
-import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'expo-image';
+import { PhotoUploader } from '@/components/PhotoUploader';
+import { useToast } from '@/components/Toast';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -28,12 +28,15 @@ function Stepper({ current, total }: { current: number; total: number }) {
 }
 export default function PostLoadStep5() {
   const router = useRouter();
-  const { draft, setField, postLoadWizard, uploadPhotos } = usePostLoad();
+  const { draft, setField, postLoadWizard } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
+  const [photoUploadStatus, setPhotoUploadStatus] = useState<{ uploading: boolean; completedCount: number; totalCount: number }>({ uploading: false, completedCount: 0, totalCount: 0 });
+  const toast = useToast();
 
   const isReady = useMemo(() => {
     const hasContact = contact.trim().length > 0;
-    const hasMinPhotos = (draft.attachments?.length ?? 0) >= 5;
+    const hasMinPhotos = photoUploadStatus.completedCount >= 5;
+    const noUploadsInProgress = !photoUploadStatus.uploading;
     const hasRequiredFields = (
       draft.title?.trim() && 
       draft.description?.trim() && 
@@ -52,18 +55,18 @@ export default function PostLoadStep5() {
     );
     const notPosting = !draft.isPosting;
     
-    const ready = hasContact && hasMinPhotos && hasRequiredFields && hasValidDates && notPosting;
+    const ready = hasContact && hasMinPhotos && noUploadsInProgress && hasRequiredFields && hasValidDates && notPosting;
     
     console.log('[PostLoadStep5] isReady check:', {
       hasContact,
       hasMinPhotos,
+      noUploadsInProgress,
       hasRequiredFields,
       hasValidDates,
       notPosting,
       ready,
       contactValue: contact,
-      photoCount: draft.photoUrls?.length ?? 0,
-      attachmentCount: draft.attachments?.length ?? 0,
+      photoUploadStatus,
       pickupDate: draft.pickupDate,
       deliveryDate: draft.deliveryDate,
       pickupDateType: typeof draft.pickupDate,
@@ -73,79 +76,31 @@ export default function PostLoadStep5() {
     });
     
     return ready;
-  }, [contact, draft.isPosting, draft.photoUrls, draft.attachments, draft.title, draft.description, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate]);
+  }, [contact, draft.isPosting, draft.title, draft.description, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate, photoUploadStatus]);
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
   }, [router]);
 
-  const requestMediaPermission = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow photo library access to add attachments.');
-      return false;
-    }
-    return true;
-  }, []);
 
-  const pickFromLibrary = useCallback(async () => {
-    try {
-      const ok = await requestMediaPermission();
-      if (!ok) return;
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        quality: 0.8,
-        selectionLimit: 6,
-      });
-      if (result.canceled) return;
-      const newItems = (result.assets ?? []).map((a) => ({ uri: a.uri, name: a.fileName ?? 'image.jpg', type: a.mimeType ?? 'image/jpeg' }));
-      const next = [...(draft.attachments ?? []), ...newItems];
-      setField('attachments', next);
-    } catch (e) {
-      console.log('[PostLoadStep5] pickFromLibrary error', e);
-      Alert.alert('Error', 'Could not pick images.');
-    }
-  }, [draft.attachments, requestMediaPermission, setField]);
-
-  const takePhoto = useCallback(async () => {
-    try {
-      if (Platform.OS === 'web') {
-        Alert.alert('Not supported on web', 'Use Upload Photos on web.');
-        return;
-      }
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow camera access to take a photo.');
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-      if (result.canceled) return;
-      const a = result.assets?.[0];
-      if (!a) return;
-      const next = [...(draft.attachments ?? []), { uri: a.uri, name: a.fileName ?? 'photo.jpg', type: a.mimeType ?? 'image/jpeg' }];
-      setField('attachments', next);
-    } catch (e) {
-      console.log('[PostLoadStep5] takePhoto error', e);
-      Alert.alert('Error', 'Could not take photo.');
-    }
-  }, [draft.attachments, setField]);
-
-  const removeAttachment = useCallback((uri: string) => {
-    try {
-      const next = (draft.attachments ?? []).filter((i) => i.uri !== uri);
-      setField('attachments', next);
-    } catch (e) {
-      console.log('[PostLoadStep5] removeAttachment error', e);
-    }
-  }, [draft.attachments, setField]);
 
   const onSubmit = useCallback(async () => {
     console.log('POST BTN FIRED - onSubmit called');
     
+    // Check if photos are still uploading
+    if (photoUploadStatus.uploading) {
+      console.log('Photos still uploading, showing toast');
+      toast.show('Please wait, uploading photos...', 'warning');
+      return;
+    }
+    
     if (!isReady) {
       console.log('Button not ready, aborting submit');
-      Alert.alert('Error', 'Please complete all required fields before posting.');
+      if (photoUploadStatus.completedCount < 5) {
+        Alert.alert('Error', `You need at least 5 photos to post. Currently have ${photoUploadStatus.completedCount}.`);
+      } else {
+        Alert.alert('Error', 'Please complete all required fields before posting.');
+      }
       return;
     }
     
@@ -166,15 +121,6 @@ export default function PostLoadStep5() {
       // Small delay to ensure contact is updated in state
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Upload photos first if we have attachments but no uploaded URLs
-      if ((draft.attachments?.length ?? 0) > 0 && (draft.photoUrls?.length ?? 0) === 0) {
-        console.log('Uploading photos before posting...');
-        await uploadPhotos();
-        
-        // Small delay to ensure photo URLs are updated in state
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      
       // Final validation before posting
       console.log('[PostLoadStep5] Final validation before posting:', {
         title: draft.title?.trim(),
@@ -190,8 +136,7 @@ export default function PostLoadStep5() {
         pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
         deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime()),
         contact: contact.trim(),
-        attachments: draft.attachments?.length ?? 0,
-        photoUrls: draft.photoUrls?.length ?? 0
+        photoUploadStatus
       });
       
       // Use the postLoadWizard function which handles all validation and posting
@@ -210,7 +155,7 @@ export default function PostLoadStep5() {
       // Reset posting state on error
       setField('isPosting', false);
     }
-  }, [contact, postLoadWizard, router, setField, draft, isReady, uploadPhotos]);
+  }, [contact, postLoadWizard, router, setField, draft, isReady, photoUploadStatus, toast]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -242,39 +187,41 @@ export default function PostLoadStep5() {
           </View>
 
           <View style={styles.attachCard}>
-            <Text style={styles.summaryTitle}>Attachments (min 5 photos)</Text>
-            <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos selected: {(draft.attachments?.length ?? 0)} (min 5 required)
-            </Text>
-            {(draft.attachments?.length ?? 0) < 5 && (
-              <Text style={styles.errorText} testID="attachmentsError">Minimum 5 photos required to post.</Text>
-            )}
-            <View style={styles.attachActions}>
-              <Pressable onPress={pickFromLibrary} style={styles.attachBtn} accessibilityRole="button" testID="attachLibraryBtn">
-                <ImagePlus color={theme.colors.white} size={18} />
-                <Text style={styles.attachBtnText}>Upload Photos</Text>
-              </Pressable>
-              <Pressable onPress={takePhoto} style={styles.attachBtnAlt} accessibilityRole="button" testID="attachCameraBtn">
-                <Camera color={theme.colors.dark} size={18} />
-                <Text style={styles.attachBtnAltText}>Take Photo</Text>
-              </Pressable>
-            </View>
-            {!!(draft.attachments?.length ?? 0) && (
-              <View style={styles.grid}>
-                {(draft.attachments ?? []).map((att, index) => {
-                  // Create a truly unique key using index and uri (or fallback)
-                  const uniqueKey = att.uri ? `attachment-${index}-${att.uri.slice(-10)}` : `attachment-${index}-${Math.random()}`;
-                  return (
-                    <View key={uniqueKey} style={styles.thumbWrap} testID={`thumb-${index}`}>
-                      <Image source={{ uri: att.uri }} style={styles.thumb} contentFit="cover" />
-                      <Pressable onPress={() => removeAttachment(att.uri)} style={styles.removeBtn} accessibilityRole="button" testID={`remove-${index}`}>
-                        <Trash2 color={theme.colors.white} size={14} />
-                      </Pressable>
-                    </View>
-                  );
-                })}
+            <Text style={styles.summaryTitle}>Photos (min 5 required)</Text>
+            
+            {/* Upload status indicator */}
+            {photoUploadStatus.uploading && (
+              <View style={styles.uploadStatusContainer}>
+                <Clock color={theme.colors.primary} size={18} />
+                <Text style={styles.uploadStatusText}>
+                  Uploading photos... ({photoUploadStatus.completedCount}/{photoUploadStatus.totalCount} completed)
+                </Text>
               </View>
             )}
+            
+            <Text style={styles.helperText} testID="attachmentsHelper">
+              Photos completed: {photoUploadStatus.completedCount} (min 5 required)
+            </Text>
+            
+            {photoUploadStatus.completedCount < 5 && !photoUploadStatus.uploading && (
+              <Text style={styles.errorText} testID="attachmentsError">
+                Minimum 5 photos required to post.
+              </Text>
+            )}
+            
+            {/* Use PhotoUploader component */}
+            <PhotoUploader
+              entityType="load"
+              entityId={draft.reference}
+              minPhotos={5}
+              maxPhotos={20}
+              onChange={(photos, primaryPhoto, uploadStatus) => {
+                console.log('PhotoUploader onChange:', { photos: photos.length, primaryPhoto, uploadStatus });
+                setPhotoUploadStatus(uploadStatus);
+                // Update draft with photo URLs
+                setField('photoUrls', photos);
+              }}
+            />
           </View>
 
           <View style={styles.summaryCard}>
@@ -307,9 +254,18 @@ export default function PostLoadStep5() {
             <Pressable onPress={onPrevious} style={styles.secondaryBtn} accessibilityRole="button" testID="prevButton">
               <Text style={styles.secondaryBtnText}>Previous</Text>
             </Pressable>
-            <Pressable onPress={onSubmit} style={[styles.postBtn, (!isReady || draft.isPosting) && styles.postBtnDisabled]} disabled={!isReady || draft.isPosting} accessibilityRole="button" accessibilityState={{ disabled: !isReady || draft.isPosting }} testID="postLoadBtn">
+            <Pressable 
+              onPress={onSubmit} 
+              style={[styles.postBtn, (!isReady || draft.isPosting || photoUploadStatus.uploading) && styles.postBtnDisabled]} 
+              disabled={!isReady || draft.isPosting || photoUploadStatus.uploading} 
+              accessibilityRole="button" 
+              accessibilityState={{ disabled: !isReady || draft.isPosting || photoUploadStatus.uploading }} 
+              testID="postLoadBtn"
+            >
               <Send color={theme.colors.white} size={18} />
-              <Text style={styles.postBtnText}>{draft.isPosting ? 'Posting...' : 'Post Load'}</Text>
+              <Text style={styles.postBtnText}>
+                {photoUploadStatus.uploading ? 'Uploading Photos...' : draft.isPosting ? 'Posting...' : 'Post Load'}
+              </Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -357,6 +313,20 @@ const styles = StyleSheet.create({
 
   helperText: { color: theme.colors.gray, marginTop: 4, marginBottom: 8, fontSize: theme.fontSize.md },
   errorText: { color: '#ef4444', fontWeight: '700', marginBottom: 8 },
+  uploadStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary + '20',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  uploadStatusText: {
+    color: theme.colors.primary,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600' as const,
+  },
   attachActions: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   attachBtn: { flex: 1, backgroundColor: theme.colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   attachBtnText: { color: theme.colors.white, fontSize: theme.fontSize.md, fontWeight: '800' },
