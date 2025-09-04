@@ -43,6 +43,7 @@ export default function LoadEditScreen() {
   const [loadData, setLoadData] = useState<LoadData | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   const [primaryPhoto, setPrimaryPhoto] = useState<string>('');
+  const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
   
   // Form fields
   const [title, setTitle] = useState('');
@@ -52,7 +53,7 @@ export default function LoadEditScreen() {
   const [rate, setRate] = useState('');
   const [description, setDescription] = useState('');
   
-  const canPublish = useCanPublish('load', photos, 2);
+  const canPublish = useCanPublish('load', photos, 2) && uploadsInProgress === 0;
   
   // Load existing load data function
   const loadLoadData = useCallback(async () => {
@@ -108,14 +109,24 @@ export default function LoadEditScreen() {
   }, [load_id, loadLoadData]);
   
   // Handle photo changes from PhotoUploader
-  const handlePhotosChange = (newPhotos: string[], newPrimaryPhoto: string) => {
-    console.log('[LoadEdit] Photos updated:', { count: newPhotos.length, primary: newPrimaryPhoto });
+  const handlePhotosChange = (newPhotos: string[], newPrimaryPhoto: string, newUploadsInProgress: number) => {
+    console.log('[LoadEdit] Photos updated:', { 
+      count: newPhotos.length, 
+      primary: newPrimaryPhoto, 
+      uploadsInProgress: newUploadsInProgress 
+    });
     setPhotos(newPhotos);
     setPrimaryPhoto(newPrimaryPhoto);
+    setUploadsInProgress(newUploadsInProgress);
   };
   
   // Save load data
   const handleSave = async () => {
+    if (uploadsInProgress > 0) {
+      toast.show('Please wait, uploading photos...', 'warning');
+      return;
+    }
+    
     if (!canPublish) {
       Alert.alert(
         'Cannot Save',
@@ -325,7 +336,16 @@ export default function LoadEditScreen() {
             )}
           </TouchableOpacity>
           
-          {!canPublish && (
+          {uploadsInProgress > 0 && (
+            <View style={styles.warningContainer}>
+              <ActivityIndicator color={theme.colors.primary} size={16} />
+              <Text style={styles.warningText}>
+                Uploading {uploadsInProgress} photo{uploadsInProgress > 1 ? 's' : ''}... Please wait.
+              </Text>
+            </View>
+          )}
+          
+          {!canPublish && uploadsInProgress === 0 && (
             <View style={styles.warningContainer}>
               <AlertCircle color={theme.colors.warning} size={16} />
               <Text style={styles.warningText}>

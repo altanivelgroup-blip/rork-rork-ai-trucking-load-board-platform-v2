@@ -8,28 +8,34 @@ import { useToast } from '@/components/Toast';
 export default function PhotoUploaderDemo() {
   const [loadPhotos, setLoadPhotos] = useState<string[]>([]);
   const [loadPrimaryPhoto, setLoadPrimaryPhoto] = useState<string>('');
+  const [loadUploadsInProgress, setLoadUploadsInProgress] = useState<number>(0);
   const [vehiclePhotos, setVehiclePhotos] = useState<string[]>([]);
   const [vehiclePrimaryPhoto, setVehiclePrimaryPhoto] = useState<string>('');
+  const [vehicleUploadsInProgress, setVehicleUploadsInProgress] = useState<number>(0);
   
   const toast = useToast();
   
-  const canPublishLoad = useCanPublish('load', loadPhotos);
-  const canPublishVehicle = useCanPublish('vehicle', vehiclePhotos);
+  const canPublishLoad = useCanPublish('load', loadPhotos) && loadUploadsInProgress === 0;
+  const canPublishVehicle = useCanPublish('vehicle', vehiclePhotos) && vehicleUploadsInProgress === 0;
 
-  const handleLoadPhotosChange = (photos: string[], primaryPhoto: string) => {
-    console.log('[Demo] Load photos changed:', photos.length, 'primary:', primaryPhoto);
+  const handleLoadPhotosChange = (photos: string[], primaryPhoto: string, uploadsInProgress: number) => {
+    console.log('[Demo] Load photos changed:', photos.length, 'primary:', primaryPhoto, 'uploadsInProgress:', uploadsInProgress);
     setLoadPhotos(photos);
     setLoadPrimaryPhoto(primaryPhoto);
+    setLoadUploadsInProgress(uploadsInProgress);
   };
 
-  const handleVehiclePhotosChange = (photos: string[], primaryPhoto: string) => {
-    console.log('[Demo] Vehicle photos changed:', photos.length, 'primary:', primaryPhoto);
+  const handleVehiclePhotosChange = (photos: string[], primaryPhoto: string, uploadsInProgress: number) => {
+    console.log('[Demo] Vehicle photos changed:', photos.length, 'primary:', primaryPhoto, 'uploadsInProgress:', uploadsInProgress);
     setVehiclePhotos(photos);
     setVehiclePrimaryPhoto(primaryPhoto);
+    setVehicleUploadsInProgress(uploadsInProgress);
   };
 
   const handlePublishLoad = () => {
-    if (canPublishLoad) {
+    if (loadUploadsInProgress > 0) {
+      toast.show('Please wait, uploading photos...', 'warning');
+    } else if (canPublishLoad) {
       toast.show('Load published successfully!', 'success');
     } else {
       toast.show('Cannot publish load - need at least 2 photos', 'error');
@@ -37,7 +43,9 @@ export default function PhotoUploaderDemo() {
   };
 
   const handlePublishVehicle = () => {
-    if (canPublishVehicle) {
+    if (vehicleUploadsInProgress > 0) {
+      toast.show('Please wait, uploading photos...', 'warning');
+    } else if (canPublishVehicle) {
       toast.show('Vehicle published successfully!', 'success');
     } else {
       toast.show('Cannot publish vehicle - need at least 5 photos', 'error');
@@ -60,6 +68,7 @@ export default function PhotoUploaderDemo() {
           <Text style={styles.sectionTitle}>Load Photos (Min: 2)</Text>
           <Text style={styles.sectionSubtitle}>
             Current: {loadPhotos.length} photos
+            {loadUploadsInProgress > 0 && ` • Uploading: ${loadUploadsInProgress}`}
             {loadPrimaryPhoto && ` • Primary: ${loadPrimaryPhoto.substring(0, 30)}...`}
           </Text>
           
@@ -83,7 +92,7 @@ export default function PhotoUploaderDemo() {
               styles.publishButtonText,
               canPublishLoad ? styles.publishButtonTextEnabled : styles.publishButtonTextDisabled
             ]}>
-              {canPublishLoad ? 'Publish Load' : `Need ${2 - loadPhotos.length} more photos`}
+              {loadUploadsInProgress > 0 ? 'Uploading...' : canPublishLoad ? 'Publish Load' : `Need ${2 - loadPhotos.length} more photos`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -93,6 +102,7 @@ export default function PhotoUploaderDemo() {
           <Text style={styles.sectionTitle}>Vehicle Photos (Min: 5)</Text>
           <Text style={styles.sectionSubtitle}>
             Current: {vehiclePhotos.length} photos
+            {vehicleUploadsInProgress > 0 && ` • Uploading: ${vehicleUploadsInProgress}`}
             {vehiclePrimaryPhoto && ` • Primary: ${vehiclePrimaryPhoto.substring(0, 30)}...`}
           </Text>
           
@@ -116,7 +126,7 @@ export default function PhotoUploaderDemo() {
               styles.publishButtonText,
               canPublishVehicle ? styles.publishButtonTextEnabled : styles.publishButtonTextDisabled
             ]}>
-              {canPublishVehicle ? 'Publish Vehicle' : `Need ${5 - vehiclePhotos.length} more photos`}
+              {vehicleUploadsInProgress > 0 ? 'Uploading...' : canPublishVehicle ? 'Publish Vehicle' : `Need ${5 - vehiclePhotos.length} more photos`}
             </Text>
           </TouchableOpacity>
         </View>

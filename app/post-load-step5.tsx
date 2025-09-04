@@ -31,12 +31,13 @@ export default function PostLoadStep5() {
   const { draft, setField, postLoadWizard } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
   const [photoUploadStatus, setPhotoUploadStatus] = useState<{ uploading: boolean; completedCount: number; totalCount: number }>({ uploading: false, completedCount: 0, totalCount: 0 });
+  const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
   const toast = useToast();
 
   const isReady = useMemo(() => {
     const hasContact = contact.trim().length > 0;
     const hasMinPhotos = photoUploadStatus.completedCount >= 5;
-    const noUploadsInProgress = !photoUploadStatus.uploading;
+    const noUploadsInProgress = uploadsInProgress === 0;
     const hasRequiredFields = (
       draft.title?.trim() && 
       draft.description?.trim() && 
@@ -76,7 +77,7 @@ export default function PostLoadStep5() {
     });
     
     return ready;
-  }, [contact, draft.isPosting, draft.title, draft.description, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate, photoUploadStatus]);
+  }, [contact, draft.isPosting, draft.title, draft.description, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate, photoUploadStatus, uploadsInProgress]);
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
@@ -88,7 +89,7 @@ export default function PostLoadStep5() {
     console.log('POST BTN FIRED - onSubmit called');
     
     // Check if photos are still uploading
-    if (photoUploadStatus.uploading) {
+    if (uploadsInProgress > 0) {
       console.log('Photos still uploading, showing toast');
       toast.show('Please wait, uploading photos...', 'warning');
       return;
@@ -155,7 +156,7 @@ export default function PostLoadStep5() {
       // Reset posting state on error
       setField('isPosting', false);
     }
-  }, [contact, postLoadWizard, router, setField, draft, isReady, photoUploadStatus, toast]);
+  }, [contact, postLoadWizard, router, setField, draft, isReady, photoUploadStatus, toast, uploadsInProgress]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -190,11 +191,11 @@ export default function PostLoadStep5() {
             <Text style={styles.summaryTitle}>Photos (min 5 required)</Text>
             
             {/* Upload status indicator */}
-            {photoUploadStatus.uploading && (
+            {uploadsInProgress > 0 && (
               <View style={styles.uploadStatusContainer}>
                 <Clock color={theme.colors.primary} size={18} />
                 <Text style={styles.uploadStatusText}>
-                  Uploading photos... ({photoUploadStatus.completedCount}/{photoUploadStatus.totalCount} completed)
+                  Uploading {uploadsInProgress} photo{uploadsInProgress > 1 ? 's' : ''}... Please wait.
                 </Text>
               </View>
             )}
@@ -203,7 +204,7 @@ export default function PostLoadStep5() {
               Photos completed: {photoUploadStatus.completedCount} (min 5 required)
             </Text>
             
-            {photoUploadStatus.completedCount < 5 && !photoUploadStatus.uploading && (
+            {photoUploadStatus.completedCount < 5 && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Minimum 5 photos required to post.
               </Text>
@@ -215,9 +216,15 @@ export default function PostLoadStep5() {
               entityId={draft.reference}
               minPhotos={5}
               maxPhotos={20}
-              onChange={(photos, primaryPhoto, uploadStatus) => {
-                console.log('PhotoUploader onChange:', { photos: photos.length, primaryPhoto, uploadStatus });
-                setPhotoUploadStatus(uploadStatus);
+              onChange={(photos, primaryPhoto, newUploadsInProgress) => {
+                console.log('PhotoUploader onChange:', { photos: photos.length, primaryPhoto, uploadsInProgress: newUploadsInProgress });
+                setUploadsInProgress(newUploadsInProgress);
+                // Update photo upload status for UI
+                setPhotoUploadStatus({
+                  uploading: newUploadsInProgress > 0,
+                  completedCount: photos.length,
+                  totalCount: photos.length + newUploadsInProgress
+                });
                 // Update draft with photo URLs
                 setField('photoUrls', photos);
               }}
@@ -257,14 +264,14 @@ export default function PostLoadStep5() {
             <Pressable 
               onPress={onSubmit} 
               style={[styles.postBtn, (!isReady || draft.isPosting || photoUploadStatus.uploading) && styles.postBtnDisabled]} 
-              disabled={!isReady || draft.isPosting || photoUploadStatus.uploading} 
+              disabled={!isReady || draft.isPosting || uploadsInProgress > 0} 
               accessibilityRole="button" 
-              accessibilityState={{ disabled: !isReady || draft.isPosting || photoUploadStatus.uploading }} 
+              accessibilityState={{ disabled: !isReady || draft.isPosting || uploadsInProgress > 0 }} 
               testID="postLoadBtn"
             >
               <Send color={theme.colors.white} size={18} />
               <Text style={styles.postBtnText}>
-                {photoUploadStatus.uploading ? 'Uploading Photos...' : draft.isPosting ? 'Posting...' : 'Post Load'}
+                {uploadsInProgress > 0 ? 'Uploading Photos...' : draft.isPosting ? 'Posting...' : 'Post Load'}
               </Text>
             </Pressable>
           </View>

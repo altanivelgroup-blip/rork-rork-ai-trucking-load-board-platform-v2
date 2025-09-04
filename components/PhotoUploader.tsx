@@ -29,7 +29,7 @@ export interface PhotoUploaderProps {
   entityId: string;
   minPhotos?: number;
   maxPhotos?: number;
-  onChange?: (photos: string[], primaryPhoto: string, uploadStatus: { uploading: boolean; completedCount: number; totalCount: number }) => void;
+  onChange?: (photos: string[], primaryPhoto: string, uploadsInProgress: number) => void;
 }
 
 interface PhotoItem {
@@ -88,12 +88,7 @@ export function PhotoUploader({
           loading: false,
         }));
         
-        const uploadStatus = {
-          uploading: false,
-          completedCount: (data.photos || []).length,
-          totalCount: (data.photos || []).length,
-        };
-        onChange?.(data.photos || [], primaryPhoto, uploadStatus);
+        onChange?.(data.photos || [], primaryPhoto, 0);
       } else {
         setState(prev => ({ ...prev, loading: false }));
       }
@@ -138,12 +133,8 @@ export function PhotoUploader({
         updatedAt: serverTimestamp(),
       });
       
-      const currentUploadStatus = {
-        uploading: state.photos.some(p => p.uploading),
-        completedCount: state.photos.filter(p => !p.uploading && !p.error).length,
-        totalCount: state.photos.length,
-      };
-      onChange?.(photos, primaryPhoto, currentUploadStatus);
+      const uploadsInProgress = state.photos.filter(p => p.uploading).length;
+      onChange?.(photos, primaryPhoto, uploadsInProgress);
       console.log('[PhotoUploader] Firestore updated with', photos.length, 'photos');
     } catch (error) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
@@ -246,12 +237,8 @@ export function PhotoUploader({
               updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
               
               // Notify parent of upload status change
-              const newUploadStatus = {
-                uploading: updatedPhotos.some(p => p.uploading),
-                completedCount: updatedPhotos.filter(p => !p.uploading && !p.error).length,
-                totalCount: updatedPhotos.length,
-              };
-              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, newUploadStatus);
+              const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
               
               return {
                 ...prev,
@@ -357,12 +344,8 @@ export function PhotoUploader({
       await updateFirestorePhotos(state.photos.map(p => p.url), newPrimaryPhoto);
       
       // Notify parent of status change
-      const currentUploadStatus = {
-        uploading: state.photos.some(p => p.uploading),
-        completedCount: state.photos.filter(p => !p.uploading && !p.error).length,
-        totalCount: state.photos.length,
-      };
-      onChange?.(state.photos.map(p => p.url), newPrimaryPhoto, currentUploadStatus);
+      const uploadsInProgress = state.photos.filter(p => p.uploading).length;
+      onChange?.(state.photos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
       
       toast.show('Cover photo updated', 'success');
     } catch (error) {
@@ -402,12 +385,8 @@ export function PhotoUploader({
               await updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
               
               // Notify parent of status change
-              const currentUploadStatus = {
-                uploading: updatedPhotos.some(p => p.uploading),
-                completedCount: updatedPhotos.filter(p => !p.uploading && !p.error).length,
-                totalCount: updatedPhotos.length,
-              };
-              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, currentUploadStatus);
+              const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
               
               // Try to delete from Storage (best effort)
               try {
@@ -441,22 +420,18 @@ export function PhotoUploader({
 
 
 
-  // Check if can publish and upload status
-  const uploadStatus = useMemo(() => {
-    const uploadingPhotos = state.photos.filter(p => p.uploading);
-    const completedPhotos = state.photos.filter(p => !p.uploading && !p.error);
-    const totalPhotos = state.photos.length;
-    
-    return {
-      uploading: uploadingPhotos.length > 0,
-      completedCount: completedPhotos.length,
-      totalCount: totalPhotos,
-    };
+  // Check upload status
+  const uploadsInProgress = useMemo(() => {
+    return state.photos.filter(p => p.uploading).length;
+  }, [state.photos]);
+
+  const completedPhotos = useMemo(() => {
+    return state.photos.filter(p => !p.uploading && !p.error).length;
   }, [state.photos]);
 
   const canPublish = useMemo(() => {
-    return uploadStatus.completedCount >= minPhotos && !uploadStatus.uploading;
-  }, [uploadStatus.completedCount, uploadStatus.uploading, minPhotos]);
+    return completedPhotos >= minPhotos && uploadsInProgress === 0;
+  }, [completedPhotos, uploadsInProgress, minPhotos]);
 
   // Render photo thumbnail
   const renderPhotoThumbnail = useCallback((photo: PhotoItem, index: number) => {
@@ -573,16 +548,16 @@ export function PhotoUploader({
       )}
       
       {/* Upload status and warnings */}
-      {uploadStatus.uploading && (
+      {uploadsInProgress > 0 && (
         <View style={styles.uploadingContainer}>
           <ActivityIndicator color={theme.colors.primary} size="small" />
           <Text style={styles.uploadingText}>
-            Uploading photos... ({uploadStatus.completedCount}/{uploadStatus.totalCount} completed)
+            Uploading {uploadsInProgress} photo{uploadsInProgress > 1 ? 's' : ''}... Please wait.
           </Text>
         </View>
       )}
       
-      {!canPublish && !uploadStatus.uploading && (
+      {!canPublish && uploadsInProgress === 0 && (
         <View style={styles.warningContainer}>
           <AlertCircle color={theme.colors.warning} size={20} />
           <Text style={styles.warningText}>
