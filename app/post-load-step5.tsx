@@ -1,12 +1,15 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Send, Clock } from 'lucide-react-native';
+
 import { usePostLoad } from '@/hooks/usePostLoad';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
+import { getFirebase } from '@/utils/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -28,56 +31,13 @@ function Stepper({ current, total }: { current: number; total: number }) {
 }
 export default function PostLoadStep5() {
   const router = useRouter();
-  const { draft, setField, postLoadWizard } = usePostLoad();
+  const { draft, setField } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
-  const [photoUploadStatus, setPhotoUploadStatus] = useState<{ uploading: boolean; completedCount: number; totalCount: number }>({ uploading: false, completedCount: 0, totalCount: 0 });
+  const [, setPhotoUploadStatus] = useState<{ uploading: boolean; completedCount: number; totalCount: number }>({ uploading: false, completedCount: 0, totalCount: 0 });
   const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
   const toast = useToast();
 
-  const isReady = useMemo(() => {
-    const hasContact = contact.trim().length > 0;
-    const hasMinPhotos = photoUploadStatus.completedCount >= 5;
-    const noUploadsInProgress = uploadsInProgress === 0;
-    const hasRequiredFields = (
-      draft.title?.trim() && 
-      draft.description?.trim() && 
-      draft.pickup?.trim() && 
-      draft.delivery?.trim() && 
-      draft.vehicleType && 
-      draft.rateAmount?.trim()
-    );
-    const hasValidDates = (
-      draft.pickupDate && 
-      draft.deliveryDate &&
-      draft.pickupDate instanceof Date &&
-      draft.deliveryDate instanceof Date &&
-      !isNaN(draft.pickupDate.getTime()) &&
-      !isNaN(draft.deliveryDate.getTime())
-    );
-    const notPosting = !draft.isPosting;
-    
-    const ready = hasContact && hasMinPhotos && noUploadsInProgress && hasRequiredFields && hasValidDates && notPosting;
-    
-    console.log('[PostLoadStep5] isReady check:', {
-      hasContact,
-      hasMinPhotos,
-      noUploadsInProgress,
-      hasRequiredFields,
-      hasValidDates,
-      notPosting,
-      ready,
-      contactValue: contact,
-      photoUploadStatus,
-      pickupDate: draft.pickupDate,
-      deliveryDate: draft.deliveryDate,
-      pickupDateType: typeof draft.pickupDate,
-      deliveryDateType: typeof draft.deliveryDate,
-      pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
-      deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime())
-    });
-    
-    return ready;
-  }, [contact, draft.isPosting, draft.title, draft.description, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, draft.pickupDate, draft.deliveryDate, photoUploadStatus, uploadsInProgress]);
+
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
@@ -85,78 +45,79 @@ export default function PostLoadStep5() {
 
 
 
+  // Helper functions
+  const str = useCallback((v: any) => typeof v === 'string' ? v.trim() : '', []);
+  
+  const mapFirestoreError = useCallback((err: any) => {
+    if (err?.code === 'permission-denied') return 'Permission denied. Check Firestore rules for /loads.';
+    if (err?.code === 'invalid-argument') return 'Bad field types. Ensure numbers are numbers.';
+    return err?.message || 'Failed to post. Try again.';
+  }, []);
+
   const onSubmit = useCallback(async () => {
     console.log('POST BTN FIRED - onSubmit called');
     
-    // Check if photos are still uploading
-    if (uploadsInProgress > 0) {
-      console.log('Photos still uploading, showing toast');
-      toast.show('Please wait, uploading photos...', 'warning');
-      return;
-    }
-    
-    if (!isReady) {
-      console.log('Button not ready, aborting submit');
-      if (photoUploadStatus.completedCount < 5) {
-        Alert.alert('Error', `You need at least 5 photos to post. Currently have ${photoUploadStatus.completedCount}.`);
-      } else {
-        Alert.alert('Error', 'Please complete all required fields before posting.');
-      }
-      return;
-    }
-    
-    if (draft.isPosting) {
-      console.log('Already posting, aborting duplicate submit');
-      return;
-    }
-    
     try {
-      console.log('Starting post load process...');
+      // Validation checks
+      if (uploadsInProgress > 0) {
+        toast.show('Please wait, uploading photos…', 'warning');
+        return;
+      }
       
-      // Update contact in draft first
-      setField('contact', contact.trim());
+      if (!Array.isArray(draft.photoUrls) || draft.photoUrls.length < 5) {
+        toast.show('Need at least 5 photos.', 'error');
+        return;
+      }
       
-      // Set posting state immediately to prevent double-clicks
+      if (!draft.photoUrls[0]) {
+        toast.show('Primary photo is required.', 'error');
+        return;
+      }
+      
+      if (draft.isPosting) {
+        console.log('Already posting, aborting duplicate submit');
+        return;
+      }
+      
+      // Set posting state
       setField('isPosting', true);
       
-      // Small delay to ensure contact is updated in state
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Prepare payload
+      const load_id = `load-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const photos = draft.photoUrls || [];
+      const primaryPhoto = photos[0] || '';
       
-      // Final validation before posting
-      console.log('[PostLoadStep5] Final validation before posting:', {
-        title: draft.title?.trim(),
-        description: draft.description?.trim(),
-        pickup: draft.pickup?.trim(),
-        delivery: draft.delivery?.trim(),
-        vehicleType: draft.vehicleType,
-        rateAmount: draft.rateAmount?.trim(),
-        pickupDate: draft.pickupDate,
-        deliveryDate: draft.deliveryDate,
-        pickupDateType: typeof draft.pickupDate,
-        deliveryDateType: typeof draft.deliveryDate,
-        pickupDateValid: draft.pickupDate instanceof Date && !isNaN(draft.pickupDate.getTime()),
-        deliveryDateValid: draft.deliveryDate instanceof Date && !isNaN(draft.deliveryDate.getTime()),
-        contact: contact.trim(),
-        photoUploadStatus
-      });
+      const payload = {
+        title: str(draft.title),
+        route: { 
+          pickupZip: str(draft.pickup), 
+          dropZip: str(draft.delivery) 
+        },
+        vehicleType: str(draft.vehicleType || 'CAR-HAULER'),
+        rateUsd: Number(draft.rateAmount || 0),
+        membership_required: 'Basic',
+        is_featured: false,
+        photos,
+        primaryPhoto,
+        created_at: serverTimestamp(),
+        status: 'posted'
+      };
       
-      // Use the postLoadWizard function which handles all validation and posting
-      console.log('Calling postLoadWizard with contact info:', contact.trim());
-      await postLoadWizard(contact.trim());
+      console.log('Posting load:', load_id, photos, primaryPhoto);
       
-      console.log('Load posted successfully, navigating...');
-      // Navigate to loads list on success
+      // Post to Firestore
+      const { db } = getFirebase();
+      await setDoc(doc(db, 'loads', load_id), payload, { merge: true });
+      
+      toast.show('Load posted!', 'success');
       router.replace('/(tabs)/(loads)');
       
-    } catch (e) {
-      console.error('[PostLoadStep5] submit error:', e);
-      const errorMessage = e instanceof Error ? e.message : 'Failed to post load. Please try again.';
-      Alert.alert('Error', errorMessage);
-      
-      // Reset posting state on error
+    } catch (err) {
+      console.error('POST_LOAD_ERROR', err);
+      toast.show(mapFirestoreError(err), 'error');
       setField('isPosting', false);
     }
-  }, [contact, postLoadWizard, router, setField, draft, isReady, photoUploadStatus, toast, uploadsInProgress]);
+  }, [router, setField, draft, uploadsInProgress, toast, str, mapFirestoreError]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -201,10 +162,10 @@ export default function PostLoadStep5() {
             )}
             
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos completed: {photoUploadStatus.completedCount} (min 5 required)
+              Photos completed: {draft.photoUrls?.length || 0} (min 5 required)
             </Text>
             
-            {photoUploadStatus.completedCount < 5 && uploadsInProgress === 0 && (
+            {(!draft.photoUrls || draft.photoUrls.length < 5) && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Minimum 5 photos required to post.
               </Text>
@@ -263,15 +224,43 @@ export default function PostLoadStep5() {
             </Pressable>
             <Pressable 
               onPress={onSubmit} 
-              style={[styles.postBtn, (!isReady || draft.isPosting || photoUploadStatus.uploading) && styles.postBtnDisabled]} 
-              disabled={!isReady || draft.isPosting || uploadsInProgress > 0} 
+              style={[
+                styles.postBtn, 
+                (uploadsInProgress > 0 || 
+                 !draft.photoUrls || 
+                 draft.photoUrls.length < 5 || 
+                 !draft.photoUrls[0] || 
+                 draft.isPosting) && styles.postBtnDisabled
+              ]} 
+              disabled={
+                uploadsInProgress > 0 || 
+                !draft.photoUrls || 
+                draft.photoUrls.length < 5 || 
+                !draft.photoUrls[0] || 
+                draft.isPosting
+              } 
               accessibilityRole="button" 
-              accessibilityState={{ disabled: !isReady || draft.isPosting || uploadsInProgress > 0 }} 
+              accessibilityState={{ 
+                disabled: uploadsInProgress > 0 || 
+                         !draft.photoUrls || 
+                         draft.photoUrls.length < 5 || 
+                         !draft.photoUrls[0] || 
+                         draft.isPosting 
+              }} 
               testID="postLoadBtn"
             >
-              <Send color={theme.colors.white} size={18} />
+              {draft.isPosting ? (
+                <ActivityIndicator color={theme.colors.white} size={18} />
+              ) : (
+                <Send color={theme.colors.white} size={18} />
+              )}
               <Text style={styles.postBtnText}>
-                {uploadsInProgress > 0 ? 'Uploading Photos...' : draft.isPosting ? 'Posting...' : 'Post Load'}
+                {uploadsInProgress > 0 
+                  ? 'Please wait, uploading photos…' 
+                  : draft.isPosting 
+                  ? 'Posting...' 
+                  : 'Post Load'
+                }
               </Text>
             </Pressable>
           </View>
