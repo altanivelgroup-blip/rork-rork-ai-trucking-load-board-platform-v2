@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Fuel, Gauge, Info, Layers, ShieldAlert, Book, Truck, Wrench } from 'lucide-react-native';
+import { Fuel, Gauge, Info, Layers, ShieldAlert, Truck, Wrench, Edit, Plus } from 'lucide-react-native';
 
 interface EquipmentItem {
   id: string;
@@ -89,14 +89,36 @@ export default function EquipmentScreen() {
                 <Wrench size={16} color={theme.colors.primary} />
                 <Text style={styles.actionText}>Schedule Service</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.emergency]} onPress={() => console.log('Emergency')}>
-                <Book size={16} color={theme.colors.danger} />
-                <Text style={[styles.actionText, { color: theme.colors.danger }]}>Emergency</Text>
+              <TouchableOpacity 
+                style={[styles.actionBtn]} 
+                onPress={() => {
+                  console.log('Editing vehicle:', item.id);
+                  router.push(`/vehicle-edit?vehicle_id=${item.id}`);
+                }}
+                testID={`edit-${item.id}`}
+              >
+                <Edit size={16} color={theme.colors.primary} />
+                <Text style={styles.actionText}>Edit Vehicle</Text>
               </TouchableOpacity>
             </View>
           </View>
         ))}
 
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Equipment Management</Text>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => {
+              console.log('Adding new vehicle');
+              router.push('/vehicle-edit');
+            }}
+            testID="add-vehicle"
+          >
+            <Plus size={16} color={theme.colors.white} />
+            <Text style={styles.addButtonText}>Add Vehicle</Text>
+          </TouchableOpacity>
+        </View>
+        
         <Text style={styles.sectionTitle}>Maintenance Alerts</Text>
         <View style={styles.alertItem}>
           <Text style={styles.alertTitle}>Oil Change Due</Text>
@@ -136,7 +158,10 @@ const styles = StyleSheet.create({
   actionBtn: { flex: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10, backgroundColor: '#F1F5F9' },
   emergency: { backgroundColor: '#FEE2E2' },
   actionText: { fontWeight: '700', color: theme.colors.primary },
-  sectionTitle: { fontSize: theme.fontSize.md, fontWeight: '800', color: theme.colors.dark, marginTop: 18 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 10 },
+  addButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: theme.colors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  addButtonText: { color: theme.colors.white, fontWeight: '600', fontSize: theme.fontSize.sm },
+  sectionTitle: { fontSize: theme.fontSize.md, fontWeight: '800', color: theme.colors.dark },
   alertItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   alertTitle: { fontWeight: '800' },
   alertAmount: { fontWeight: '800' },

@@ -1,0 +1,675 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { theme } from '@/constants/theme';
+import { PhotoUploader } from '@/components/PhotoUploader';
+import { useToast } from '@/components/Toast';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Save, AlertCircle } from 'lucide-react-native';
+import uuid from 'react-native-uuid';
+
+interface VehicleData {
+  id: string;
+  name: string;
+  year: string;
+  make: string;
+  model: string;
+  type: 'truck' | 'trailer';
+  subtype: string;
+  vin?: string;
+  licensePlate?: string;
+  photos: string[];
+  primaryPhoto: string;
+  status: 'draft' | 'published';
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+interface VehicleEditState {
+  vehicle: VehicleData;
+  photos: string[];
+  primaryPhoto: string;
+  uploadsInProgress: number;
+  loading: boolean;
+  saving: boolean;
+}
+
+const VEHICLE_TYPES = [
+  { value: 'truck', label: 'Truck' },
+  { value: 'trailer', label: 'Trailer' },
+];
+
+const TRUCK_SUBTYPES = [
+  'Hotshot Truck',
+  'Cargo Van',
+  'Box Truck',
+  'Semi Truck',
+  'Pickup Truck',
+  'Other',
+];
+
+const TRAILER_SUBTYPES = [
+  'Flatbed Trailer',
+  'Enclosed Trailer',
+  'Gooseneck Trailer',
+  'Car Hauler',
+  'Utility Trailer',
+  'Other',
+];
+
+export default function VehicleEditScreen() {
+  const router = useRouter();
+  const { vehicle_id } = useLocalSearchParams<{ vehicle_id: string }>();
+  const toast = useToast();
+  
+  const [state, setState] = useState<VehicleEditState>({
+    vehicle: {
+      id: vehicle_id || (uuid.v4() as string),
+      name: '',
+      year: '',
+      make: '',
+      model: '',
+      type: 'truck',
+      subtype: 'Hotshot Truck',
+      vin: '',
+      licensePlate: '',
+      photos: [],
+      primaryPhoto: '',
+      status: 'draft',
+    },
+    photos: [],
+    primaryPhoto: '',
+    uploadsInProgress: 0,
+    loading: !!vehicle_id,
+    saving: false,
+  });
+
+  // Load existing vehicle data
+  const loadVehicle = useCallback(async () => {
+    if (!vehicle_id) {
+      setState(prev => ({ ...prev, loading: false }));
+      return;
+    }
+
+    try {
+      console.log('[VehicleEdit] Loading vehicle:', vehicle_id);
+      const { db } = getFirebase();
+      const docRef = doc(db, 'vehicles', vehicle_id);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data() as VehicleData;
+        setState(prev => ({
+          ...prev,
+          vehicle: {
+            ...data,
+            id: vehicle_id,
+          },
+          photos: data.photos || [],
+          primaryPhoto: data.primaryPhoto || '',
+          loading: false,
+        }));
+      } else {
+        setState(prev => ({ ...prev, loading: false }));
+        toast.show('Vehicle not found', 'error');
+      }
+    } catch (error) {
+      console.error('[VehicleEdit] Error loading vehicle:', error);
+      toast.show('Failed to load vehicle', 'error');
+      setState(prev => ({ ...prev, loading: false }));
+    }
+  }, [vehicle_id, toast]);
+
+  useEffect(() => {
+    loadVehicle();
+  }, [loadVehicle]);
+
+  // Handle photo uploader changes
+  const handlePhotoChange = useCallback((photos: string[], primaryPhoto: string, uploadsInProgress: number) => {
+    console.log('[VehicleEdit] Photo change:', { photos: photos.length, primaryPhoto: !!primaryPhoto, uploadsInProgress });
+    setState(prev => ({
+      ...prev,
+      photos,
+      primaryPhoto,
+      uploadsInProgress,
+      vehicle: {
+        ...prev.vehicle,
+        photos,
+        primaryPhoto,
+      },
+    }));
+  }, []);
+
+  // Update vehicle field
+  const updateField = useCallback((field: keyof VehicleData, value: string) => {
+    setState(prev => ({
+      ...prev,
+      vehicle: {
+        ...prev.vehicle,
+        [field]: value,
+      },
+    }));
+  }, []);
+
+  // Validate vehicle data
+  const validateVehicle = useCallback(() => {
+    const { vehicle, photos, uploadsInProgress } = state;
+    
+    if (!vehicle.name.trim()) {
+      return 'Vehicle name is required';
+    }
+    
+    if (!vehicle.year.trim()) {
+      return 'Year is required';
+    }
+    
+    if (!vehicle.make.trim()) {
+      return 'Make is required';
+    }
+    
+    if (!vehicle.model.trim()) {
+      return 'Model is required';
+    }
+    
+    if (uploadsInProgress > 0) {
+      return 'Please wait for photos to finish uploading';
+    }
+    
+    if (photos.length < 5) {
+      return 'At least 5 photos are required to publish';
+    }
+    
+    return null;
+  }, [state]);
+
+  // Save vehicle
+  const handleSave = useCallback(async (publish = false) => {
+    try {
+      await ensureFirebaseAuth();
+      
+      const validationError = validateVehicle();
+      if (validationError) {
+        toast.show(validationError, 'error');
+        return;
+      }
+      
+      setState(prev => ({ ...prev, saving: true }));
+      
+      const { db } = getFirebase();
+      const vehicleData: VehicleData = {
+        ...state.vehicle,
+        status: publish ? 'published' : 'draft',
+        photos: state.photos,
+        primaryPhoto: state.primaryPhoto,
+        updatedAt: serverTimestamp(),
+        ...(vehicle_id ? {} : { createdAt: serverTimestamp() }),
+      };
+      
+      console.log('[VehicleEdit] Saving vehicle:', vehicleData.id, {
+        status: vehicleData.status,
+        photos: vehicleData.photos.length,
+        primaryPhoto: !!vehicleData.primaryPhoto,
+      });
+      
+      const docRef = doc(db, 'vehicles', vehicleData.id);
+      await setDoc(docRef, vehicleData, { merge: true });
+      
+      toast.show(
+        publish ? 'Vehicle published successfully!' : 'Vehicle saved as draft',
+        'success'
+      );
+      
+      // Navigate back
+      router.back();
+      
+    } catch (error: any) {
+      console.error('[VehicleEdit] Save error:', error);
+      toast.show('Failed to save vehicle: ' + (error.message || 'Unknown error'), 'error');
+    } finally {
+      setState(prev => ({ ...prev, saving: false }));
+    }
+  }, [state, validateVehicle, toast, router, vehicle_id]);
+
+  // Handle publish
+  const handlePublish = useCallback(() => {
+    const validationError = validateVehicle();
+    if (validationError) {
+      toast.show(validationError, 'error');
+      return;
+    }
+    
+    Alert.alert(
+      'Publish Vehicle',
+      'Are you sure you want to publish this vehicle? It will be visible to all users.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Publish',
+          onPress: () => handleSave(true),
+        },
+      ]
+    );
+  }, [validateVehicle, toast, handleSave]);
+
+  const canPublish = state.photos.length >= 5 && state.uploadsInProgress === 0 && !state.saving;
+  const canSave = !state.saving;
+  
+  const subtypes = state.vehicle.type === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+
+  if (state.loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: 'Loading Vehicle...' }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading vehicle data...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <Stack.Screen 
+        options={{ 
+          title: vehicle_id ? 'Edit Vehicle' : 'Add Vehicle',
+          headerRight: () => (
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={[styles.headerButton, !canSave && styles.headerButtonDisabled]}
+                onPress={() => handleSave(false)}
+                disabled={!canSave}
+              >
+                <Text style={[styles.headerButtonText, !canSave && styles.headerButtonTextDisabled]}>
+                  Save Draft
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.headerButton, styles.publishButton, !canPublish && styles.headerButtonDisabled]}
+                onPress={handlePublish}
+                disabled={!canPublish}
+              >
+                {state.saving ? (
+                  <ActivityIndicator size="small" color={theme.colors.white} />
+                ) : (
+                  <>
+                    <Save size={16} color={theme.colors.white} />
+                    <Text style={[styles.headerButtonText, styles.publishButtonText]}>
+                      Publish
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          ),
+        }} 
+      />
+      
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+        {/* Basic Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Basic Information</Text>
+          
+          <View style={styles.field}>
+            <Text style={styles.label}>Vehicle Name *</Text>
+            <TextInput
+              style={styles.input}
+              value={state.vehicle.name}
+              onChangeText={(value) => updateField('name', value)}
+              placeholder="e.g., Main Hotshot, City Runner"
+              placeholderTextColor={theme.colors.gray}
+            />
+          </View>
+          
+          <View style={styles.row}>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>Year *</Text>
+              <TextInput
+                style={styles.input}
+                value={state.vehicle.year}
+                onChangeText={(value) => updateField('year', value)}
+                placeholder="2020"
+                placeholderTextColor={theme.colors.gray}
+                keyboardType="numeric"
+                maxLength={4}
+              />
+            </View>
+            
+            <View style={[styles.field, { flex: 2, marginLeft: theme.spacing.sm }]}>
+              <Text style={styles.label}>Make *</Text>
+              <TextInput
+                style={styles.input}
+                value={state.vehicle.make}
+                onChangeText={(value) => updateField('make', value)}
+                placeholder="Ford, Chevrolet, etc."
+                placeholderTextColor={theme.colors.gray}
+              />
+            </View>
+          </View>
+          
+          <View style={styles.field}>
+            <Text style={styles.label}>Model *</Text>
+            <TextInput
+              style={styles.input}
+              value={state.vehicle.model}
+              onChangeText={(value) => updateField('model', value)}
+              placeholder="F-350, Silverado, etc."
+              placeholderTextColor={theme.colors.gray}
+            />
+          </View>
+          
+          <View style={styles.row}>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>Type *</Text>
+              <View style={styles.segmentedControl}>
+                {VEHICLE_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type.value}
+                    style={[
+                      styles.segmentButton,
+                      state.vehicle.type === type.value && styles.segmentButtonActive,
+                    ]}
+                    onPress={() => {
+                      updateField('type', type.value);
+                      // Reset subtype when changing type
+                      const newSubtypes = type.value === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+                      updateField('subtype', newSubtypes[0]);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentButtonText,
+                        state.vehicle.type === type.value && styles.segmentButtonTextActive,
+                      ]}
+                    >
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            
+            <View style={[styles.field, { flex: 2, marginLeft: theme.spacing.sm }]}>
+              <Text style={styles.label}>Subtype *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subtypeScroll}>
+                <View style={styles.subtypeContainer}>
+                  {subtypes.map((subtype) => (
+                    <TouchableOpacity
+                      key={subtype}
+                      style={[
+                        styles.subtypeButton,
+                        state.vehicle.subtype === subtype && styles.subtypeButtonActive,
+                      ]}
+                      onPress={() => updateField('subtype', subtype)}
+                    >
+                      <Text
+                        style={[
+                          styles.subtypeButtonText,
+                          state.vehicle.subtype === subtype && styles.subtypeButtonTextActive,
+                        ]}
+                      >
+                        {subtype}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+        
+        {/* Optional Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Optional Information</Text>
+          
+          <View style={styles.field}>
+            <Text style={styles.label}>VIN</Text>
+            <TextInput
+              style={styles.input}
+              value={state.vehicle.vin}
+              onChangeText={(value) => updateField('vin', value)}
+              placeholder="Vehicle Identification Number"
+              placeholderTextColor={theme.colors.gray}
+              autoCapitalize="characters"
+            />
+          </View>
+          
+          <View style={styles.field}>
+            <Text style={styles.label}>License Plate</Text>
+            <TextInput
+              style={styles.input}
+              value={state.vehicle.licensePlate}
+              onChangeText={(value) => updateField('licensePlate', value)}
+              placeholder="ABC-1234"
+              placeholderTextColor={theme.colors.gray}
+              autoCapitalize="characters"
+            />
+          </View>
+        </View>
+        
+        {/* Photos Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Photos</Text>
+          <Text style={styles.sectionSubtitle}>
+            Add at least 5 high-quality photos of your vehicle. The first photo will be used as the cover image.
+          </Text>
+          
+          <PhotoUploader
+            entityType="vehicle"
+            entityId={state.vehicle.id}
+            minPhotos={5}
+            maxPhotos={20}
+            onChange={handlePhotoChange}
+          />
+        </View>
+        
+        {/* Status Information */}
+        {!canPublish && (
+          <View style={styles.statusContainer}>
+            <AlertCircle color={theme.colors.warning} size={20} />
+            <View style={styles.statusTextContainer}>
+              <Text style={styles.statusTitle}>Requirements for Publishing</Text>
+              <Text style={styles.statusText}>
+                • Complete all required fields{"\n"}
+                • Upload at least 5 photos{"\n"}
+                • Wait for all photos to finish uploading
+              </Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: theme.colors.lightGray,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  loadingText: {
+    marginTop: theme.spacing.sm,
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  headerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.gray,
+    gap: theme.spacing.xs,
+  },
+  headerButtonDisabled: {
+    opacity: 0.5,
+  },
+  headerButtonText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600' as const,
+    color: theme.colors.white,
+  },
+  headerButtonTextDisabled: {
+    color: theme.colors.gray,
+  },
+  publishButton: {
+    backgroundColor: theme.colors.primary,
+  },
+  publishButtonText: {
+    color: theme.colors.white,
+  },
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
+  },
+  section: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600' as const,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  sectionSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: theme.spacing.md,
+    lineHeight: 20,
+  },
+  field: {
+    marginBottom: theme.spacing.md,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  label: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '500' as const,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    fontSize: theme.fontSize.md,
+    color: theme.colors.dark,
+    backgroundColor: theme.colors.white,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+    padding: 2,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+  },
+  segmentButtonActive: {
+    backgroundColor: theme.colors.white,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  segmentButtonText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500' as const,
+    color: theme.colors.gray,
+  },
+  segmentButtonTextActive: {
+    color: theme.colors.dark,
+    fontWeight: '600' as const,
+  },
+  subtypeScroll: {
+    maxHeight: 40,
+  },
+  subtypeContainer: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+  },
+  subtypeButton: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.lightGray,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  subtypeButtonActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  subtypeButtonText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    fontWeight: '500' as const,
+  },
+  subtypeButtonTextActive: {
+    color: theme.colors.white,
+    fontWeight: '600' as const,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.warning + '20',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing.sm,
+  },
+  statusTextContainer: {
+    flex: 1,
+  },
+  statusTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600' as const,
+    color: theme.colors.warning,
+    marginBottom: theme.spacing.xs,
+  },
+  statusText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.warning,
+    lineHeight: 18,
+  },
+});
