@@ -318,7 +318,30 @@ function RootLayoutNav() {
 
 
 export default function RootLayout() {
-  console.log('[RootLayout] rendering');
+  console.log("[RootLayout] rendering");
+
+  useEffect(() => {
+    try {
+      const { app } = getFirebase();
+      console.log("[check] projectId:", app.options.projectId);
+
+      ensureFirebaseAuth()
+        .then((ok) => {
+          console.log("[check] auth ready:", ok);
+        })
+        .catch((e) => {
+          console.warn("[check] auth error:", e);
+        });
+    } catch (e) {
+      console.warn("[check] firebase not ready:", e);
+    }
+  }, []);
+
+  return (
+    // … your existing JSX remains the same …
+  );
+}
+
   return (
     <ErrorBoundary safeRoute="/(auth)/login">
       <GestureHandlerRootView style={{ flex: 1 }}>
