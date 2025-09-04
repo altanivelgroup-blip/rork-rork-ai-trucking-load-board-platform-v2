@@ -85,8 +85,6 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     return inTransit;
   }, [loads]);
 
-
-
   const filteredLoads = useMemo(() => {
     return loads.filter(load => {
       if (filters.vehicleType && load.vehicleType !== filters.vehicleType) return false;
@@ -216,24 +214,6 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     setFilters(newFilters);
   }, []);
 
-
-
-  useEffect(() => {
-    let mounted = true;
-    const loadFavs = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(FAVORITES_KEY);
-        const parsed = raw ? JSON.parse(raw) as Record<string, boolean> : {};
-        if (mounted) setFavorites(parsed);
-      } catch (e) {
-        console.warn('[Loads] failed to load favorites', e);
-        if (mounted) setFavorites({});
-      }
-    };
-    loadFavs();
-    return () => { mounted = false; };
-  }, [FAVORITES_KEY]);
-
   const isFavorited = useCallback((loadId: string) => {
     return !!favorites[loadId];
   }, [favorites]);
@@ -249,6 +229,22 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       console.error('[Loads] toggleFavorite error', e);
       throw e;
     }
+  }, [FAVORITES_KEY]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadFavs = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(FAVORITES_KEY);
+        const parsed = raw ? JSON.parse(raw) as Record<string, boolean> : {};
+        if (mounted) setFavorites(parsed);
+      } catch (e) {
+        console.warn('[Loads] failed to load favorites', e);
+        if (mounted) setFavorites({});
+      }
+    };
+    loadFavs();
+    return () => { mounted = false; };
   }, [FAVORITES_KEY]);
 
   // Set up Firebase real-time listener
@@ -362,7 +358,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
   }, [isLoading]);
 
-  // Always return the same structure with useMemo for optimization
+  // Always return the same structure - no conditional hooks
   return useMemo(() => ({
     loads,
     filters,
