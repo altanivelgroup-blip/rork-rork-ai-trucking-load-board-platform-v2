@@ -20,6 +20,7 @@ import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
+import { prepareForUpload, isImageFile, humanSize } from '@/utils/imagePreprocessor';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -110,29 +111,19 @@ export function PhotoUploader({
   // Validate file
   const validateFile = useCallback((file: { type?: string; size?: number; uri: string }) => {
     // Check MIME type
-    if (file.type && !file.type.startsWith('image/')) {
+    if (file.type && !isImageFile(file.type)) {
       return 'File must be an image (JPG, PNG, WebP, HEIC)';
     }
     
-    // Check file size (10MB limit)
-    if (file.size && file.size > 10 * 1024 * 1024) {
-      return 'File size must be less than 10MB';
+    // Check file size (original limit before preprocessing)
+    if (file.size && file.size > 50 * 1024 * 1024) {
+      return `File size too large (${humanSize(file.size)}). Maximum 50MB before processing.`;
     }
     
     return null;
   }, []);
 
-  // Get file extension from MIME type
-  const getExtensionFromMime = useCallback((mimeType: string) => {
-    const mimeMap: Record<string, string> = {
-      'image/jpeg': 'jpg',
-      'image/jpg': 'jpg',
-      'image/png': 'png',
-      'image/webp': 'webp',
-      'image/heic': 'heic',
-    };
-    return mimeMap[mimeType] || 'jpg';
-  }, []);
+
 
   // Update Firestore with new photo arrays
   const updateFirestorePhotos = useCallback(async (photos: string[], primaryPhoto: string) => {
@@ -167,11 +158,8 @@ export function PhotoUploader({
       const { storage } = getFirebase();
       
       const fileId = uuid.v4() as string;
-      const extension = file.type ? getExtensionFromMime(file.type) : 'jpg';
-      const folder = entityType === 'load' ? 'loads' : 'vehicles';
-      const storagePath = `/${folder}/${entityId}/original/${fileId}.${extension}`;
       
-      console.log('[PhotoUploader] Uploading to:', storagePath);
+      console.log('[PhotoUploader] Processing image before upload...');
       
       // Create photo item with uploading state
       const photoItem: PhotoItem = {
@@ -186,14 +174,38 @@ export function PhotoUploader({
         photos: [...prev.photos, photoItem],
       }));
       
-      // Fetch file as blob
-      const response = await fetch(file.uri);
-      const blob = await response.blob();
+      // Preprocess the image
+      let processedImage;
+      try {
+        processedImage = await prepareForUpload(file);
+        console.log('[PhotoUploader] Image processed:', {
+          size: humanSize(processedImage.blob.size),
+          mime: processedImage.mime,
+          ext: processedImage.ext
+        });
+      } catch (preprocessError) {
+        console.error('[PhotoUploader] Image preprocessing failed:', preprocessError);
+        setState(prev => ({
+          ...prev,
+          photos: prev.photos.map(p => 
+            p.id === fileId ? { ...p, uploading: false, error: preprocessError instanceof Error ? preprocessError.message : 'Processing failed' } : p
+          ),
+        }));
+        toast.show(preprocessError instanceof Error ? preprocessError.message : 'Failed to process image', 'error');
+        return;
+      }
+      
+      const folder = entityType === 'load' ? 'loads' : 'vehicles';
+      const storagePath = `/${folder}/${entityId}/original/${fileId}.${processedImage.ext}`;
+      
+      console.log('[PhotoUploader] Uploading to:', storagePath);
+      
+      const blob = processedImage.blob;
       
       // Create storage reference and upload
       const storageRef = ref(storage, storagePath);
       const uploadTask = uploadBytesResumable(storageRef, blob, {
-        contentType: file.type || 'image/jpeg',
+        contentType: processedImage.mime,
       });
       
       // Track upload progress
@@ -266,7 +278,7 @@ export function PhotoUploader({
       console.error('[PhotoUploader] Upload error:', error);
       toast.show('Upload failed: ' + error.message, 'error');
     }
-  }, [entityType, entityId, getExtensionFromMime, toast, updateFirestorePhotos, onChange]);
+  }, [entityType, entityId, toast, updateFirestorePhotos, onChange]);
 
   // Handle photo selection
   const handleAddPhotos = useCallback(async () => {
