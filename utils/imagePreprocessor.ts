@@ -1,30 +1,143 @@
-import { Platform } from 'react-native';
-import * as ImageManipulator from 'expo-image-manipulator';
+export type AnyImage =
+  | File
+  | Blob
+  | string                       // data URL or http(s) URL or local file URL
+  | { uri: string; name?: string; type?: string };
 
-const MAX_WIDTH = 1920;
-const MAX_HEIGHT = 1080;
-const TARGET_SIZE_MB = 2;
-const MAX_SIZE_MB = 8;
-const INITIAL_QUALITY = 0.8;
-const FALLBACK_QUALITY = 0.6;
+const isWeb = typeof window !== "undefined" && typeof document !== "undefined";
 
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/jpg', 
-  'image/png',
-  'image/webp',
-  'image/heic',
-  'image/heif'
-];
-
-interface PreparedImage {
-  blob: Blob;
-  mime: string;
-  ext: string;
+function inferExtFromMime(m?: string) {
+  const mime = (m || "").toLowerCase();
+  if (mime.includes("jpeg") || mime.includes("jpg")) return "jpg";
+  if (mime.includes("png")) return "png";
+  if (mime.includes("webp")) return "webp";
+  if (mime.includes("heic") || mime.includes("heif")) return "heic";
+  return "jpg";
 }
 
+function inferMimeFromName(name = "") {
+  const n = name.toLowerCase();
+  if (n.endsWith(".png")) return "image/png";
+  if (n.endsWith(".webp")) return "image/webp";
+  if (n.endsWith(".heic") || n.endsWith(".heif")) return "image/heic";
+  return "image/jpeg";
+}
+
+function blobToFile(b: Blob, name: string, type?: string) {
+  // Some browsers need a proper File
+  return new File([b], name, { type: type || b.type || "image/jpeg" });
+}
+
+async function fetchToBlob(url: string): Promise<Blob> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+  return await res.blob();
+}
+
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  // fetch handles data: URLs nicely in modern browsers
+  return await fetch(dataUrl).then(r => r.blob());
+}
+
+/** Normalize ANY input to a File (web) or Blob (native) + name + mime + ext */
+export async function normalizeToFile(input: AnyImage): Promise<{ file: File | Blob, name: string, mime: string, ext: string }> {
+  // Case 1: real File (web file picker)
+  if (typeof File !== "undefined" && input instanceof File) {
+    const mime = input.type || inferMimeFromName(input.name);
+    const ext = inferExtFromMime(mime);
+    return { file: input, name: input.name || `image.${ext}`, mime, ext };
+  }
+
+  // Case 2: Blob
+  if (input instanceof Blob) {
+    const mime = input.type || "image/jpeg";
+    const ext = inferExtFromMime(mime);
+    const f = isWeb ? blobToFile(input, `image.${ext}`, mime) : input;
+    return { file: f, name: `image.${ext}`, mime, ext };
+  }
+
+  // Case 3: string
+  if (typeof input === "string") {
+    if (input.startsWith("data:")) {
+      const b = await dataUrlToBlob(input);
+      const mime = b.type || "image/jpeg";
+      const ext = inferExtFromMime(mime);
+      const f = isWeb ? blobToFile(b, `image.${ext}`, mime) : b;
+      return { file: f, name: `image.${ext}`, mime, ext };
+    }
+    // http(s) or file:/content:
+    const b = await fetchToBlob(input);
+    const mime = b.type || "image/jpeg";
+    const ext = inferExtFromMime(mime);
+    const f = isWeb ? blobToFile(b, `image.${ext}`, mime) : b;
+    return { file: f, name: `image.${ext}`, mime, ext };
+  }
+
+  // Case 4: RN asset-like { uri, name?, type? }
+  if (input && typeof input === "object" && "uri" in input) {
+    const name = (input as any).name || "image.jpg";
+    const mime = (input as any).type || inferMimeFromName(name);
+    const b = await fetchToBlob((input as any).uri);
+    const ext = inferExtFromMime(mime || b.type);
+    const f = isWeb ? blobToFile(b, name, mime) : b;
+    return { file: f, name, mime: mime || b.type || "image/jpeg", ext };
+  }
+
+  throw new Error("Unsupported image input");
+}
+
+/** Resize/compress and return { blob, mime, ext }  */
+export async function prepareForUpload(input: AnyImage): Promise<{ blob: Blob; mime: string; ext: string }> {
+  const { file, name, mime, ext } = await normalizeToFile(input);
+
+  // Web: use canvas to downscale
+  if (isWeb) {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onerror = () => reject(new Error("File read failed"));
+      r.onload = () => resolve(r.result as string);
+      r.readAsDataURL(file as File);
+    });
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error("Image decode failed"));
+      im.src = dataUrl;
+    });
+
+    const MAX_W = 1920, MAX_H = 1080;
+    let { width, height } = img;
+    const scale = Math.min(1, MAX_W / width, MAX_H / height);
+    const w = Math.max(1, Math.round(width * scale));
+    const h = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const targetMime = mime.startsWith("image/") ? (mime === "image/png" ? "image/png" : "image/jpeg") : "image/jpeg";
+    const qualityList = targetMime === "image/png" ? [1] : [0.8, 0.7, 0.6];
+
+    let out: Blob | null = null;
+    for (const q of qualityList) {
+      out = await new Promise<Blob | null>(res => canvas.toBlob(res, targetMime, q));
+      if (out && out.size <= 8 * 1024 * 1024) break; // <= 8MB
+    }
+    if (!out) throw new Error("Compression failed");
+    return { blob: out, mime: targetMime, ext: targetMime === "image/png" ? "png" : "jpg" };
+  }
+
+  // Native: keep blob; optional compression could be added via native libs
+  const nativeBlob = file as Blob;
+  if (nativeBlob.size > 10 * 1024 * 1024) throw new Error("File too large (>10MB)");
+  return { blob: nativeBlob, mime: mime || "image/jpeg", ext: ext || "jpg" };
+}
+
+// Legacy exports for backward compatibility
 export function isImageFile(mime: string): boolean {
-  return ALLOWED_MIME_TYPES.includes(mime.toLowerCase());
+  return mime.toLowerCase().startsWith("image/");
 }
 
 export function humanSize(bytes: number): string {
@@ -35,271 +148,9 @@ export function humanSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-function getExtensionFromMime(mime: string): string {
-  switch (mime.toLowerCase()) {
-    case 'image/jpeg':
-    case 'image/jpg':
-      return 'jpg';
-    case 'image/png':
-      return 'png';
-    case 'image/webp':
-      return 'webp';
-    case 'image/heic':
-    case 'image/heif':
-      return 'heic';
-    default:
-      return 'jpg';
-  }
-}
-
-function calculateDimensions(originalWidth: number, originalHeight: number): { width: number; height: number } {
-  if (originalWidth <= MAX_WIDTH && originalHeight <= MAX_HEIGHT) {
-    return { width: originalWidth, height: originalHeight };
-  }
-
-  const aspectRatio = originalWidth / originalHeight;
-  
-  if (aspectRatio > 1) {
-    // Landscape
-    const width = Math.min(originalWidth, MAX_WIDTH);
-    const height = Math.round(width / aspectRatio);
-    return { width, height };
-  } else {
-    // Portrait or square
-    const height = Math.min(originalHeight, MAX_HEIGHT);
-    const width = Math.round(height * aspectRatio);
-    return { width, height };
-  }
-}
-
-async function prepareForUploadMobile(fileOrAsset: any): Promise<PreparedImage> {
-  console.log('Processing image on mobile:', fileOrAsset);
-  
-  let uri: string;
-  let originalMime: string;
-  
-  if (typeof fileOrAsset === 'string') {
-    uri = fileOrAsset;
-    originalMime = 'image/jpeg'; // Default assumption
-  } else if (fileOrAsset.uri) {
-    uri = fileOrAsset.uri;
-    originalMime = fileOrAsset.type || fileOrAsset.mimeType || 'image/jpeg';
-  } else {
-    throw new Error('Invalid file format');
-  }
-
-  if (!isImageFile(originalMime)) {
-    throw new Error(`Unsupported file type: ${originalMime}. Only JPEG, PNG, WebP, and HEIC are allowed.`);
-  }
-
-  try {
-    // Get image info first
-    const imageInfo = await ImageManipulator.manipulateAsync(uri, [], {
-      format: ImageManipulator.SaveFormat.JPEG
-    });
-    
-    // Calculate target dimensions
-    const { width, height } = calculateDimensions(imageInfo.width || MAX_WIDTH, imageInfo.height || MAX_HEIGHT);
-    
-    console.log(`Resizing from ${imageInfo.width}x${imageInfo.height} to ${width}x${height}`);
-    
-    // Process with initial quality
-    let result = await ImageManipulator.manipulateAsync(
-      uri,
-      [
-        { resize: { width, height } }
-      ],
-      {
-        compress: INITIAL_QUALITY,
-        format: originalMime.includes('png') && !originalMime.includes('jpeg') 
-          ? ImageManipulator.SaveFormat.PNG 
-          : ImageManipulator.SaveFormat.JPEG,
-        base64: false
-      }
-    );
-
-    // Check file size and compress further if needed
-    const response = await fetch(result.uri);
-    let blob = await response.blob();
-    
-    console.log(`Initial processed size: ${humanSize(blob.size)}`);
-    
-    // If still too large, compress more aggressively
-    if (blob.size > TARGET_SIZE_MB * 1024 * 1024) {
-      console.log('File too large, compressing further...');
-      result = await ImageManipulator.manipulateAsync(
-        uri,
-        [
-          { resize: { width, height } }
-        ],
-        {
-          compress: FALLBACK_QUALITY,
-          format: ImageManipulator.SaveFormat.JPEG, // Force JPEG for better compression
-          base64: false
-        }
-      );
-      
-      const newResponse = await fetch(result.uri);
-      blob = await newResponse.blob();
-      console.log(`Final compressed size: ${humanSize(blob.size)}`);
-    }
-
-    // Final size check
-    if (blob.size > MAX_SIZE_MB * 1024 * 1024) {
-      throw new Error(`Photo too large (${humanSize(blob.size)}) after compression. Maximum allowed is ${MAX_SIZE_MB}MB.`);
-    }
-
-    const finalMime = blob.type || 'image/jpeg';
-    const ext = getExtensionFromMime(finalMime);
-    
-    console.log(`Image processed successfully: ${humanSize(blob.size)}, ${finalMime}`);
-    
-    return {
-      blob,
-      mime: finalMime,
-      ext
-    };
-    
-  } catch (error) {
-    console.error('Image processing error:', error);
-    throw new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-async function prepareForUploadWeb(file: File): Promise<PreparedImage> {
-  console.log('Processing image on web:', file.name, file.type, humanSize(file.size));
-  
-  if (!isImageFile(file.type)) {
-    throw new Error(`Unsupported file type: ${file.type}. Only JPEG, PNG, WebP, and HEIC are allowed.`);
-  }
-
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    if (!ctx) {
-      reject(new Error('Canvas not supported'));
-      return;
-    }
-
-    img.onload = () => {
-      try {
-        // Calculate target dimensions
-        const { width, height } = calculateDimensions(img.width, img.height);
-        
-        console.log(`Resizing from ${img.width}x${img.height} to ${width}x${height}`);
-        
-        canvas.width = width;
-        canvas.height = height;
-        
-        // Draw and resize image
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Determine output format
-        const shouldUseJPEG = !file.type.includes('png') || file.type.includes('jpeg');
-        const outputMime = shouldUseJPEG ? 'image/jpeg' : 'image/png';
-        
-        // Try with initial quality
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error('Failed to create blob'));
-            return;
-          }
-          
-          console.log(`Initial processed size: ${humanSize(blob.size)}`);
-          
-          // Check if we need further compression
-          if (blob.size > TARGET_SIZE_MB * 1024 * 1024 && outputMime === 'image/jpeg') {
-            console.log('File too large, compressing further...');
-            
-            canvas.toBlob((compressedBlob) => {
-              if (!compressedBlob) {
-                reject(new Error('Failed to create compressed blob'));
-                return;
-              }
-              
-              console.log(`Final compressed size: ${humanSize(compressedBlob.size)}`);
-              
-              if (compressedBlob.size > MAX_SIZE_MB * 1024 * 1024) {
-                reject(new Error(`Photo too large (${humanSize(compressedBlob.size)}) after compression. Maximum allowed is ${MAX_SIZE_MB}MB.`));
-                return;
-              }
-              
-              const ext = getExtensionFromMime(outputMime);
-              console.log(`Image processed successfully: ${humanSize(compressedBlob.size)}, ${outputMime}`);
-              
-              resolve({
-                blob: compressedBlob,
-                mime: outputMime,
-                ext
-              });
-            }, outputMime, FALLBACK_QUALITY);
-          } else {
-            if (blob.size > MAX_SIZE_MB * 1024 * 1024) {
-              reject(new Error(`Photo too large (${humanSize(blob.size)}) after compression. Maximum allowed is ${MAX_SIZE_MB}MB.`));
-              return;
-            }
-            
-            const ext = getExtensionFromMime(outputMime);
-            console.log(`Image processed successfully: ${humanSize(blob.size)}, ${outputMime}`);
-            
-            resolve({
-              blob,
-              mime: outputMime,
-              ext
-            });
-          }
-        }, outputMime, INITIAL_QUALITY);
-        
-      } catch (error) {
-        console.error('Canvas processing error:', error);
-        reject(new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`));
-      }
-    };
-    
-    img.onerror = () => {
-      reject(new Error('Failed to load image'));
-    };
-    
-    // Load the image
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        img.src = e.target.result as string;
-      } else {
-        reject(new Error('Failed to read file'));
-      }
-    };
-    reader.onerror = () => {
-      reject(new Error('Failed to read file'));
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-export async function prepareForUpload(fileOrAsset: any): Promise<PreparedImage> {
-  console.log('prepareForUpload called with:', fileOrAsset);
-  
-  try {
-    if (Platform.OS === 'web') {
-      // Web: expect File object
-      if (!(fileOrAsset instanceof File)) {
-        throw new Error('Web platform expects File object');
-      }
-      return await prepareForUploadWeb(fileOrAsset);
-    } else {
-      // Mobile: expect asset object or URI string
-      return await prepareForUploadMobile(fileOrAsset);
-    }
-  } catch (error) {
-    console.error('prepareForUpload error:', error);
-    throw error;
-  }
-}
-
 export const imagePreprocessor = {
   prepareForUpload,
+  normalizeToFile,
   isImageFile,
   humanSize
 };

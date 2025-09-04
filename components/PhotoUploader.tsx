@@ -21,7 +21,7 @@ import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
-import { prepareForUpload, isImageFile, humanSize } from '@/utils/imagePreprocessor';
+import { prepareForUpload, normalizeToFile, isImageFile, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -39,7 +39,7 @@ interface PhotoItem {
   progress?: number;
   error?: string;
   id: string;
-  originalFile?: { uri: string; type?: string }; // Store original file for retry
+  originalFile?: AnyImage; // Store original input for retry
 }
 
 interface PhotoUploadState {
@@ -223,19 +223,34 @@ export function PhotoUploader({
   }, [entityType, entityId, onChange, toast, state.photos]);
 
   // Upload single file with complete preprocessing and path building
-  const uploadFile = useCallback(async (file: { uri: string; type?: string; name?: string; size?: number }) => {
+  const uploadFile = useCallback(async (input: AnyImage) => {
     try {
       await ensureFirebaseAuth();
       const { storage } = getFirebase();
       
       const fileId = uuid.v4() as string;
       
-      console.log('[UPLOAD_START] Processing image before upload...', file.uri);
+      console.log('[UPLOAD_START] Processing image before upload...', input);
       
-      // 1. Always preprocess images with imagePreprocessor.prepareForUpload(file)
+      // 1. Normalize input to get file info
+      let normalizedFile;
+      try {
+        normalizedFile = await normalizeToFile(input);
+        console.log('[UPLOAD_START] File normalized:', {
+          name: normalizedFile.name,
+          mime: normalizedFile.mime,
+          ext: normalizedFile.ext
+        });
+      } catch (normalizeError) {
+        console.error('[UPLOAD_FAIL] File normalization failed:', normalizeError);
+        toast.show(normalizeError instanceof Error ? normalizeError.message : 'Failed to process file', 'error');
+        return;
+      }
+      
+      // 2. Preprocess image (resize/compress)
       let processedImage;
       try {
-        processedImage = await prepareForUpload(file);
+        processedImage = await prepareForUpload(input);
         console.log('[UPLOAD_START] Image processed:', {
           size: humanSize(processedImage.blob.size),
           mime: processedImage.mime,
@@ -255,11 +270,11 @@ export function PhotoUploader({
       
       // Create photo item with uploading state
       const photoItem: PhotoItem = {
-        url: file.uri, // Temporary local URI
+        url: typeof input === 'string' ? input : (input as any)?.uri || 'processing...', // Temporary local URI
         uploading: true,
         progress: 0,
         id: fileId,
-        originalFile: file, // Store original file for retry
+        originalFile: input, // Store original input for retry
       };
       
       setState(prev => ({
@@ -267,11 +282,11 @@ export function PhotoUploader({
         photos: [...prev.photos, photoItem],
       }));
       
-      // 2. Path builder
+      // 3. Path builder
       const folder = entityType === 'load' ? 'loads' : 'vehicles';
       const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
       const key = uuid.v4() as string;
-      const ext = inferExtension(file.type, file.name);
+      const ext = processedImage.ext;
       const path = `${folder}/${safeId}/original/${key}.${ext}`;
       const storageRef = ref(storage, path);
       
@@ -283,9 +298,8 @@ export function PhotoUploader({
         throw new Error('No double slashes allowed in Firebase Storage paths');
       }
       
-      // 3. Metadata
-      const mime = file?.type?.startsWith('image/') ? file.type : 'image/jpeg';
-      const metadata = { contentType: mime };
+      // 4. Metadata
+      const metadata = { contentType: processedImage.mime };
       
       console.log('[UPLOAD_START]', path, humanSize(processedImage.blob.size));
       
@@ -303,14 +317,14 @@ export function PhotoUploader({
         setState(prev => ({
           ...prev,
           photos: prev.photos.map(p => 
-            p.id === fileId ? { ...p, uploading: false, error: 'QA: Random failure simulation', originalFile: file } : p
+            p.id === fileId ? { ...p, uploading: false, error: 'QA: Random failure simulation', originalFile: input } : p
           ),
         }));
         toast.show('QA: Simulated upload failure', 'error');
         return;
       }
       
-      // 4. Upload
+      // 5. Upload
       const blob = processedImage.blob;
       const task = uploadBytesResumable(storageRef, blob, metadata);
       
@@ -342,7 +356,7 @@ export function PhotoUploader({
           setState(prev => ({
             ...prev,
             photos: prev.photos.map(p => 
-              p.id === fileId ? { ...p, uploading: false, error: errorMessage, originalFile: file } : p
+              p.id === fileId ? { ...p, uploading: false, error: errorMessage, originalFile: input } : p
             ),
           }));
           toast.show(errorMessage, 'error');
@@ -380,7 +394,7 @@ export function PhotoUploader({
             setState(prev => ({
               ...prev,
               photos: prev.photos.map(p => 
-                p.id === fileId ? { ...p, uploading: false, error: 'Failed to get download URL', originalFile: file } : p
+                p.id === fileId ? { ...p, uploading: false, error: 'Failed to get download URL', originalFile: input } : p
               ),
             }));
             toast.show('Upload failed: Could not get download URL', 'error');
