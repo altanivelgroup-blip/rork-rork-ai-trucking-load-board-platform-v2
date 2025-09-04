@@ -351,7 +351,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
   }, [isLoading]);
 
-  return useMemo(() => ({
+  const contextValue = useMemo(() => ({
     loads,
     filters,
     isLoading,
@@ -367,6 +367,8 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     addLoad,
     addLoadsBulk,
   }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFilters, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
+
+  return contextValue;
 });
 
 export function useLoadsWithToast(): LoadsWithToast {

@@ -210,12 +210,12 @@ export default function LoadsScreen() {
   };
 
   const handleVehicleSelect = useCallback((vehicle?: VehicleType) => {
-    setFilters({ ...filters, vehicleType: vehicle });
-  }, [filters, setFilters]);
+    setFilters(prev => ({ ...prev, vehicleType: vehicle }));
+  }, []);
 
   const handleBackhaulToggle = useCallback(() => {
-    setFilters({ ...filters, showBackhaul: !filters.showBackhaul });
-  }, [filters, setFilters]);
+    setFilters(prev => ({ ...prev, showBackhaul: !prev.showBackhaul }));
+  }, []);
 
   const handleOpenFilters = useCallback(() => {
     console.log('Open filters modal');
@@ -251,7 +251,7 @@ export default function LoadsScreen() {
     }
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 350);
-  }, [setFilters, setSortOrder, radiusMiles, setRadiusMiles]);
+  }, [setSortOrder, radiusMiles, setRadiusMiles]);
 
   const handleLoadPress = useCallback((loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
@@ -343,7 +343,7 @@ export default function LoadsScreen() {
     await setSortOrder('Best' as any);
     await setRadiusMiles(50);
     setNlQuery('');
-  }, [setFilters, setSortOrder, setRadiusMiles]);
+  }, [setSortOrder, setRadiusMiles]);
 
   return (
     <Screen>
