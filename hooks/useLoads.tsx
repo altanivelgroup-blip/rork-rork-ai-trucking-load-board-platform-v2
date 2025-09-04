@@ -359,7 +359,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   }, [isLoading]);
 
   // Always return the same structure - no conditional hooks
-  return useMemo(() => ({
+  const value = useMemo(() => ({
     loads,
     filters,
     isLoading,
@@ -375,6 +375,8 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     addLoad,
     addLoadsBulk,
   }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
+
+  return value;
 });
 
 export function useLoadsWithToast(): LoadsWithToast {
