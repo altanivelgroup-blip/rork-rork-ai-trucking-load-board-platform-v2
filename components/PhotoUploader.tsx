@@ -39,6 +39,7 @@ interface PhotoItem {
   progress?: number;
   error?: string;
   id: string;
+  originalFile?: { uri: string; type?: string }; // Store original file for retry
 }
 
 interface PhotoUploadState {
@@ -176,6 +177,7 @@ export function PhotoUploader({
         uploading: true,
         progress: 0,
         id: fileId,
+        originalFile: file, // Store original file for retry
       };
       
       setState(prev => ({
@@ -197,7 +199,7 @@ export function PhotoUploader({
         setState(prev => ({
           ...prev,
           photos: prev.photos.map(p => 
-            p.id === fileId ? { ...p, uploading: false, error: preprocessError instanceof Error ? preprocessError.message : 'Processing failed' } : p
+            p.id === fileId ? { ...p, uploading: false, error: preprocessError instanceof Error ? preprocessError.message : 'Processing failed', originalFile: file } : p
           ),
         }));
         toast.show(preprocessError instanceof Error ? preprocessError.message : 'Failed to process image', 'error');
@@ -223,7 +225,7 @@ export function PhotoUploader({
         setState(prev => ({
           ...prev,
           photos: prev.photos.map(p => 
-            p.id === fileId ? { ...p, uploading: false, error: 'QA: Random failure simulation' } : p
+            p.id === fileId ? { ...p, uploading: false, error: 'QA: Random failure simulation', originalFile: file } : p
           ),
         }));
         toast.show('QA: Simulated upload failure', 'error');
@@ -266,7 +268,7 @@ export function PhotoUploader({
           setState(prev => ({
             ...prev,
             photos: prev.photos.map(p => 
-              p.id === fileId ? { ...p, uploading: false, error: error.message } : p
+              p.id === fileId ? { ...p, uploading: false, error: error.message, originalFile: file } : p
             ),
           }));
           toast.show('Upload failed: ' + error.message, 'error');
@@ -280,7 +282,7 @@ export function PhotoUploader({
             // Update photo item with final URL
             setState(prev => {
               const updatedPhotos = prev.photos.map(p => 
-                p.id === fileId ? { ...p, url: downloadURL, uploading: false, progress: 100 } : p
+                p.id === fileId ? { ...p, url: downloadURL, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
               );
               
               const newPrimaryPhoto = prev.primaryPhoto || downloadURL;
@@ -306,7 +308,7 @@ export function PhotoUploader({
             setState(prev => ({
               ...prev,
               photos: prev.photos.map(p => 
-                p.id === fileId ? { ...p, uploading: false, error: 'Failed to get download URL' } : p
+                p.id === fileId ? { ...p, uploading: false, error: 'Failed to get download URL', originalFile: file } : p
               ),
             }));
             toast.show('Upload failed: Could not get download URL', 'error');
@@ -320,6 +322,28 @@ export function PhotoUploader({
       toast.show('Upload failed: ' + error.message, 'error');
     }
   }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly]);
+
+  // Retry failed upload
+  const handleRetryUpload = useCallback(async (photo: PhotoItem) => {
+    if (!photo.originalFile) {
+      // If no original file stored, prompt user to re-select
+      toast.show('Please re-select the photo to retry upload', 'warning');
+      return;
+    }
+
+    console.log('[RETRY_UPLOAD] Retrying upload for photo:', photo.id);
+    
+    // Reset photo state to uploading
+    setState(prev => ({
+      ...prev,
+      photos: prev.photos.map(p => 
+        p.id === photo.id ? { ...p, uploading: true, progress: 0, error: undefined } : p
+      ),
+    }));
+
+    // Reuse the upload logic with the stored original file
+    await uploadFile(photo.originalFile);
+  }, [uploadFile, toast]);
 
   // Handle photo selection
   const handleAddPhotos = useCallback(async () => {
@@ -508,11 +532,17 @@ export function PhotoUploader({
             </View>
           )}
           
-          {/* Error overlay */}
+          {/* Error overlay with retry button */}
           {photo.error && (
             <View style={styles.errorOverlay}>
               <AlertCircle color={theme.colors.white} size={20} />
               <Text style={styles.errorText}>Failed</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => handleRetryUpload(photo)}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
             </View>
           )}
           
@@ -546,9 +576,28 @@ export function PhotoUploader({
             </TouchableOpacity>
           </View>
         )}
+        
+        {/* Error state actions */}
+        {photo.error && (
+          <View style={styles.thumbnailActions}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.retryActionButton]}
+              onPress={() => handleRetryUpload(photo)}
+            >
+              <Upload color={theme.colors.primary} size={16} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => handleDeletePhoto(photo)}
+            >
+              <Trash2 color={theme.colors.danger} size={16} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
-  }, [state.primaryPhoto, handleSetPrimary, handleDeletePhoto]);
+  }, [state.primaryPhoto, handleSetPrimary, handleDeletePhoto, handleRetryUpload]);
 
   if (state.loading) {
     return (
@@ -648,6 +697,16 @@ export function PhotoUploader({
           <ActivityIndicator color={theme.colors.primary} size="small" />
           <Text style={styles.uploadingText}>
             Uploading {uploadsInProgress} photo{uploadsInProgress > 1 ? 's' : ''}... Please wait.
+          </Text>
+        </View>
+      )}
+      
+      {/* Failed uploads warning */}
+      {state.photos.some(p => p.error) && (
+        <View style={styles.errorContainer}>
+          <AlertCircle color={theme.colors.danger} size={20} />
+          <Text style={styles.errorContainerText}>
+            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap &quot;Retry&quot; to try again.
           </Text>
         </View>
       )}
@@ -927,6 +986,35 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     marginTop: theme.spacing.sm,
     lineHeight: 18,
+  },
+  retryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.xs,
+  },
+  retryButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600' as const,
+  },
+  retryActionButton: {
+    backgroundColor: theme.colors.primary + '20',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.danger + '20',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  errorContainerText: {
+    flex: 1,
+    fontSize: theme.fontSize.md,
+    color: theme.colors.danger,
   },
 });
 
