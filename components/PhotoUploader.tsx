@@ -21,7 +21,7 @@ import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
-import { prepareForUpload, normalizeToFile, isImageFile, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
+import { prepareForUpload, normalizeToFile, isImageMime, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -191,7 +191,7 @@ export function PhotoUploader({
     
     // Infer mime type and validate
     const { mime } = inferMimeAndExt(file);
-    if (!isImageFile(mime)) {
+    if (!isImageMime(mime)) {
       return 'File must be an image (JPG, PNG, WebP, HEIC)';
     }
     
