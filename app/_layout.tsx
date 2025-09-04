@@ -1,4 +1,5 @@
 import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";port { Stack } from "expo-router";
+
 import { Stack } from "expo-router";
 import React, { useMemo, useCallback, useEffect } from "react";
 import { View } from "react-native";
@@ -17,6 +18,9 @@ import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import { theme } from "@/constants/theme";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
+
+// ✅ Add this import as its own line (no “;port”)
+import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
 
 
 const queryClient = new QueryClient({
