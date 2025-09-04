@@ -421,10 +421,10 @@ export function useLoadsWithToast(): LoadsWithToast {
     }
   }, [addLoadsBulk, show]);
 
-  return useMemo(() => ({
+  return {
     acceptLoadWithToast,
     refreshLoadsWithToast,
     addLoadWithToast,
     addLoadsBulkWithToast,
-  }), [acceptLoadWithToast, refreshLoadsWithToast, addLoadWithToast, addLoadsBulkWithToast]);
+  };
 }
