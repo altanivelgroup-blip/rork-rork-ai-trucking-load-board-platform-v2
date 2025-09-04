@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Load, VehicleType } from '@/types';
 import { mockLoads } from '@/mocks/loads';
 
-import useOnlineStatus from '@/hooks/useOnlineStatus';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { collection, query, where, orderBy, limit, onSnapshot, Unsubscribe } from 'firebase/firestore';
@@ -62,6 +62,7 @@ function haversineMiles(a: GeoPoint, b: GeoPoint): number {
 }
 
 export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
+  // Always call hooks in the same order - no conditional hooks
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -69,7 +70,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const [, setFirebaseLoads] = useState<any[]>([]);
   const [useFirebase, setUseFirebase] = useState<boolean>(false);
   
-  // Always call hooks in the same order
+  // Always call these hooks in the same order
   const { online } = useOnlineStatus();
   const { user } = useAuth();
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -380,6 +381,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
 });
 
 export function useLoadsWithToast(): LoadsWithToast {
+  // Always call hooks in the same order
   const { acceptLoad, refreshLoads, addLoad, addLoadsBulk } = useLoads();
   const { show } = useToast();
   const { online } = useOnlineStatus();

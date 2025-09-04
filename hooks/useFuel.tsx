@@ -5,7 +5,7 @@ import { Load, VehicleType } from '@/types';
 import { getDefaultsFor } from '@/utils/fuel';
 import { getStateAvgPrice, normalizeStateCode } from '@/utils/fuelStateAvg';
 import { useToast } from '@/components/Toast';
-import useOnlineStatus from '@/hooks/useOnlineStatus';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 export type FuelSource = 'auto' | 'live' | 'state';
 export type RegionMode = 'auto' | 'zip' | 'state';

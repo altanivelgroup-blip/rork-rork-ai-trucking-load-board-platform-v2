@@ -41,4 +41,6 @@ export function useOnlineStatus() {
 
   return useMemo(() => ({ online }), [online]);
 }
+
+// Keep default export for backward compatibility
 export default useOnlineStatus;

@@ -11,28 +11,7 @@ import {
   getDocsFromServer,
 } from "firebase/firestore";
 import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
-
-// ---- Canonical collection + status ----
-export const LOADS_COLLECTION = "loads";
-
-export const LOAD_STATUS = {
-  OPEN: "OPEN",
-} as const;
-
-export type LoadDoc = {
-  title: string;
-  origin: string;
-  destination: string;
-  vehicleType: string;
-  rate: number;
-  status: keyof typeof LOAD_STATUS | "OPEN";
-  createdBy: string;
-  pickupDate: any;       // Firestore Timestamp
-  deliveryDate: any;     // Firestore Timestamp
-  createdAt: any;        // serverTimestamp
-  clientCreatedAt: number;
-  attachments: { url: string; path?: string | null }[];
-};
+import { LOADS_COLLECTION, LOAD_STATUS, LoadDoc } from "@/lib/loadSchema";
 
 // ---- Quick connection test you can call from anywhere ----
 export async function testFirebaseConnection() {

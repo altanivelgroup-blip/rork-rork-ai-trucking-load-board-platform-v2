@@ -8,7 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import useOnlineStatus from '@/hooks/useOnlineStatus';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 interface DocField {
   key: keyof FormState;
