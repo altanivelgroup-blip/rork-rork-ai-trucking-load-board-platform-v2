@@ -16,7 +16,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytesResumable, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
@@ -58,6 +58,65 @@ interface QAState {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const random = (min: number, max: number) => Math.random() * (max - min) + min;
 const shouldFailRandomly = () => Math.random() < 0.1; // 10% chance
+
+// File type inference helper
+const inferMimeAndExt = (file: any) => {
+  let mime = (file?.type || "").toLowerCase();
+  let name = (file?.name || file?.filename || "");
+  let ext = name.split('.').pop()?.toLowerCase() || "";
+  
+  // Try to infer from extension if mime is missing or not image
+  if (!mime.startsWith("image/")) {
+    if (["jpg", "jpeg", "jfif"].includes(ext)) {
+      mime = "image/jpeg";
+    } else if (ext === "png") {
+      mime = "image/png";
+    } else if (ext === "webp") {
+      mime = "image/webp";
+    } else if (ext === "heic" || ext === "heif") {
+      mime = "image/heic";
+    }
+  }
+  
+  // Derive extension from mime if missing
+  if (!ext) {
+    if (mime === "image/jpeg") {
+      ext = "jpg";
+    } else if (mime === "image/png") {
+      ext = "png";
+    } else if (mime === "image/webp") {
+      ext = "webp";
+    } else if (mime === "image/heic") {
+      ext = "heic";
+    }
+  }
+  
+  // Normalize uppercase extensions
+  if (["JPG", "JPEG", "JFIF"].includes(ext.toUpperCase())) {
+    ext = "jpg";
+    mime = "image/jpeg";
+  }
+  
+  // Default fallback
+  if (!mime.startsWith("image/")) {
+    mime = "image/jpeg";
+    ext = "jpg";
+  }
+  
+  return { mime, ext };
+};
+
+// Map Firebase Storage errors to user-friendly messages
+const mapStorageError = (error: any): string => {
+  const code = error?.code;
+  if (code === "storage/unauthorized" || code === "storage/unauthenticated") {
+    return "Upload blocked by rules; ensure you're signed in.";
+  }
+  if (code === "storage/retry-limit-exceeded") {
+    return "Network slow — try again or compress more.";
+  }
+  return error?.message || "Upload failed. Please try again.";
+};
 
 const THUMBNAIL_SIZE = (screenWidth - 48) / 3; // 3 columns with padding
 
@@ -124,14 +183,15 @@ export function PhotoUploader({
 
   // Validate file
   const validateFile = useCallback((file: { type?: string; size?: number; uri: string }) => {
-    // Check MIME type
-    if (file.type && !isImageFile(file.type)) {
-      return 'File must be an image (JPG, PNG, WebP, HEIC)';
+    // Check file size - reject files > 10MB BEFORE upload
+    if (file.size && file.size > 10 * 1024 * 1024) {
+      return `File size too large (${humanSize(file.size)}). Maximum 10MB allowed.`;
     }
     
-    // Check file size (original limit before preprocessing)
-    if (file.size && file.size > 50 * 1024 * 1024) {
-      return `File size too large (${humanSize(file.size)}). Maximum 50MB before processing.`;
+    // Infer mime type and validate
+    const { mime } = inferMimeAndExt(file);
+    if (!isImageFile(mime)) {
+      return 'File must be an image (JPG, PNG, WebP, HEIC)';
     }
     
     return null;
@@ -162,7 +222,7 @@ export function PhotoUploader({
   }, [entityType, entityId, onChange, toast, state.photos]);
 
   // Upload single file
-  const uploadFile = useCallback(async (file: { uri: string; type?: string }) => {
+  const uploadFile = useCallback(async (file: { uri: string; type?: string; name?: string }) => {
     try {
       await ensureFirebaseAuth();
       const { storage } = getFirebase();
@@ -206,8 +266,11 @@ export function PhotoUploader({
         return;
       }
       
+      // Infer correct MIME type and extension from original file
+      const { mime, ext } = inferMimeAndExt(file);
+      
       const folder = entityType === 'load' ? 'loads' : 'vehicles';
-      const storagePath = `/${folder}/${entityId}/original/${fileId}.${processedImage.ext}`;
+      const storagePath = `/${folder}/${entityId}/original/${fileId}.${ext}`;
       
       console.log('[UPLOAD_START]', storagePath, humanSize(processedImage.blob.size));
       
@@ -233,93 +296,165 @@ export function PhotoUploader({
       }
       
       const blob = processedImage.blob;
+      const metadata = { contentType: mime };
       
       // Create storage reference and upload
       const storageRef = ref(storage, storagePath);
-      const uploadTask = uploadBytesResumable(storageRef, blob, {
-        contentType: processedImage.mime,
-      });
+      
+      let uploadTask;
+      
+      // Handle different upload methods based on platform and data type
+      if (Platform.OS === 'web' && typeof blob === 'string' && (blob as string).startsWith('data:')) {
+        // Web with data URL - use uploadString
+        console.log('[UPLOAD_START] Using uploadString for data URL');
+        uploadTask = uploadString(storageRef, blob, 'data_url', metadata);
+      } else {
+        // Standard blob upload
+        uploadTask = uploadBytesResumable(storageRef, blob, metadata);
+      }
       
       // QA: Throttle progress events to ~5 updates/sec
       let lastProgressUpdate = 0;
       const progressThrottle = qaState.qaSlowNetwork ? 200 : 0; // 200ms = 5 updates/sec
       
-      // Track upload progress
-      uploadTask.on('state_changed', 
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          const now = Date.now();
-          
-          // Throttle progress updates if QA slow network is enabled
-          if (now - lastProgressUpdate >= progressThrottle) {
-            console.log('[UPLOAD_PROGRESS]', storagePath, Math.round(progress) + '%');
+      // Handle uploadString (Promise) vs uploadBytesResumable (UploadTask)
+      if ('on' in uploadTask) {
+        // uploadBytesResumable - has progress tracking
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            const now = Date.now();
+            
+            // Throttle progress updates if QA slow network is enabled
+            if (now - lastProgressUpdate >= progressThrottle) {
+              console.log('[UPLOAD_PROGRESS]', storagePath, Math.round(progress) + '%');
+              setState(prev => ({
+                ...prev,
+                photos: prev.photos.map(p => 
+                  p.id === fileId ? { ...p, progress } : p
+                ),
+              }));
+              lastProgressUpdate = now;
+            }
+          },
+          (error) => {
+            console.log('[UPLOAD_FAIL]', storagePath, error?.code || 'unknown-error');
+            console.error('[PhotoUploader] Upload error:', error);
+            const errorMessage = mapStorageError(error);
             setState(prev => ({
               ...prev,
               photos: prev.photos.map(p => 
-                p.id === fileId ? { ...p, progress } : p
+                p.id === fileId ? { ...p, uploading: false, error: errorMessage, originalFile: file } : p
               ),
             }));
-            lastProgressUpdate = now;
+            toast.show('Upload failed: ' + errorMessage, 'error');
+          },
+          async () => {
+            try {
+              // Get download URL
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log('[UPLOAD_DONE]', storagePath);
+              
+              // Update photo item with final URL
+              setState(prev => {
+                const updatedPhotos = prev.photos.map(p => 
+                  p.id === fileId ? { ...p, url: downloadURL, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
+                );
+                
+                const newPrimaryPhoto = prev.primaryPhoto || downloadURL;
+                
+                // Update Firestore
+                updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
+                
+                // Notify parent of upload status change
+                const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+                onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+                
+                return {
+                  ...prev,
+                  photos: updatedPhotos,
+                  primaryPhoto: newPrimaryPhoto,
+                };
+              });
+              
+              toast.show('Photo uploaded successfully', 'success');
+            } catch (error) {
+              console.log('[UPLOAD_FAIL]', storagePath, 'download-url-error');
+              console.error('[PhotoUploader] Error getting download URL:', error);
+              setState(prev => ({
+                ...prev,
+                photos: prev.photos.map(p => 
+                  p.id === fileId ? { ...p, uploading: false, error: 'Failed to get download URL', originalFile: file } : p
+                ),
+              }));
+              toast.show('Upload failed: Could not get download URL', 'error');
+            }
           }
-        },
-        (error) => {
-          console.log('[UPLOAD_FAIL]', storagePath, error?.code || 'unknown-error');
-          console.error('[PhotoUploader] Upload error:', error);
+        );
+      } else {
+        // uploadString - Promise-based, no progress tracking
+        try {
           setState(prev => ({
             ...prev,
             photos: prev.photos.map(p => 
-              p.id === fileId ? { ...p, uploading: false, error: error.message, originalFile: file } : p
+              p.id === fileId ? { ...p, progress: 50 } : p
             ),
           }));
-          toast.show('Upload failed: ' + error.message, 'error');
-        },
-        async () => {
-          try {
-            // Get download URL
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            console.log('[UPLOAD_DONE]', storagePath);
+          
+          await uploadTask;
+          
+          setState(prev => ({
+            ...prev,
+            photos: prev.photos.map(p => 
+              p.id === fileId ? { ...p, progress: 100 } : p
+            ),
+          }));
+          
+          const downloadURL = await getDownloadURL(storageRef);
+          console.log('[UPLOAD_DONE]', storagePath);
+          
+          // Update photo item with final URL
+          setState(prev => {
+            const updatedPhotos = prev.photos.map(p => 
+              p.id === fileId ? { ...p, url: downloadURL, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
+            );
             
-            // Update photo item with final URL
-            setState(prev => {
-              const updatedPhotos = prev.photos.map(p => 
-                p.id === fileId ? { ...p, url: downloadURL, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
-              );
-              
-              const newPrimaryPhoto = prev.primaryPhoto || downloadURL;
-              
-              // Update Firestore
-              updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
-              
-              // Notify parent of upload status change
-              const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
-              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
-              
-              return {
-                ...prev,
-                photos: updatedPhotos,
-                primaryPhoto: newPrimaryPhoto,
-              };
-            });
+            const newPrimaryPhoto = prev.primaryPhoto || downloadURL;
             
-            toast.show('Photo uploaded successfully', 'success');
-          } catch (error) {
-            console.log('[UPLOAD_FAIL]', storagePath, 'download-url-error');
-            console.error('[PhotoUploader] Error getting download URL:', error);
-            setState(prev => ({
+            // Update Firestore
+            updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
+            
+            // Notify parent of upload status change
+            const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+            onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+            
+            return {
               ...prev,
-              photos: prev.photos.map(p => 
-                p.id === fileId ? { ...p, uploading: false, error: 'Failed to get download URL', originalFile: file } : p
-              ),
-            }));
-            toast.show('Upload failed: Could not get download URL', 'error');
-          }
+              photos: updatedPhotos,
+              primaryPhoto: newPrimaryPhoto,
+            };
+          });
+          
+          toast.show('Photo uploaded successfully', 'success');
+        } catch (error: any) {
+          console.log('[UPLOAD_FAIL]', storagePath, error?.code || 'unknown-error');
+          console.error('[PhotoUploader] Upload error:', error);
+          const errorMessage = mapStorageError(error);
+          setState(prev => ({
+            ...prev,
+            photos: prev.photos.map(p => 
+              p.id === fileId ? { ...p, uploading: false, error: errorMessage, originalFile: file } : p
+            ),
+          }));
+          toast.show('Upload failed: ' + errorMessage, 'error');
         }
-      );
+      }
       
     } catch (error: any) {
       console.log('[UPLOAD_FAIL]', 'unknown', error?.code || 'unknown-error');
       console.error('[PhotoUploader] Upload error:', error);
-      toast.show('Upload failed: ' + error.message, 'error');
+      const errorMessage = mapStorageError(error);
+      toast.show('Upload failed: ' + errorMessage, 'error');
     }
   }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly]);
 
