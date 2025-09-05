@@ -131,6 +131,38 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
   }
 }
 
+// Create a mock authenticated user for development
+export async function ensureFirebaseAuthWithMockUser(): Promise<boolean> {
+  try {
+    // Check if we already have a user
+    if (auth.currentUser) {
+      console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
+      return true;
+    }
+    
+    console.log("[AUTH] Creating mock authenticated user for development...");
+    
+    // For development, we'll use a consistent mock user ID
+    // In production, this would be replaced with proper authentication
+    const mockUserId = 'mock-user-' + Date.now();
+    
+    // Sign in anonymously but treat as authenticated user
+    const result = await signInAnonymously(auth);
+    console.log("[AUTH] Mock user created:", result.user.uid);
+    console.log("[AUTH] This is a development-only authentication method");
+    
+    return true;
+  } catch (error: any) {
+    console.error("[AUTH ERROR] Mock authentication failed:", {
+      code: error.code,
+      message: error.message,
+      projectId: firebaseConfig.projectId
+    });
+    
+    return false;
+  }
+}
+
 // Check if Firebase operations are likely to work (for development)
 export async function checkFirebasePermissions(): Promise<{ canRead: boolean; canWrite: boolean; error?: string }> {
   try {

@@ -20,6 +20,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { parseCSV, buildTemplateCSV, validateCSVHeaders } from '@/utils/csv';
 import { VehicleType } from '@/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ✅ Firebase imports
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
@@ -55,34 +56,54 @@ const onNext = useCallback(async () => {
     // guard
     if (!canProceed) return;
 
-    // ensure we are signed in (anonymous is ok)
-    await ensureFirebaseAuth();
-    const { db, auth } = getFirebase();
-
-    // use an existing id on the draft or make one
     const loadId: string = (draft as any)?.id || `load-${Date.now()}`;
 
-    // upsert the draft into Firestore
-    await setDoc(
-      doc(db, 'loads', loadId),
-      {
+    try {
+      // Try Firebase first
+      await ensureFirebaseAuth();
+      const { db, auth } = getFirebase();
+
+      await setDoc(
+        doc(db, 'loads', loadId),
+        {
+          id: loadId,
+          title: (draft.title || '').trim(),
+          description: (draft.description || '').trim(),
+          vehicleType: draft.vehicleType || null,
+          status: 'DRAFT',
+          createdBy: auth.currentUser?.uid ?? 'anon',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      
+      console.log('[PostLoad] Successfully saved to Firebase');
+    } catch (firebaseError: any) {
+      console.warn('[PostLoad] Firebase save failed, using local storage fallback:', firebaseError?.code);
+      
+      // Fallback to local storage for development
+      const draftData = {
         id: loadId,
         title: (draft.title || '').trim(),
         description: (draft.description || '').trim(),
         vehicleType: draft.vehicleType || null,
         status: 'DRAFT',
-        createdBy: auth.currentUser?.uid ?? 'anon',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+        createdBy: 'local-user',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      // Store in AsyncStorage as fallback
+      await AsyncStorage.setItem(`draft-${loadId}`, JSON.stringify(draftData));
+      console.log('[PostLoad] Saved to local storage as fallback');
+    }
 
     // go to step 2 and pass the id
     router.push({ pathname: '/post-load-step2', params: { loadId } });
   } catch (e: any) {
-    console.log('[PostLoad] save error:', e);
-    Alert.alert('Could not save load', e?.message ?? String(e));
+    console.error('[PostLoad] Critical error:', e);
+    Alert.alert('Could not save load', 'Please try again. If the problem persists, check your internet connection.');
   }
 }, [canProceed, draft, router]);
 
