@@ -34,11 +34,18 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="(loads)"
+        name="Loads"
         options={{
           title: 'Loads',
+          headerShown: true,
           tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e?.preventDefault?.();
+            (navigation as any).navigate('Loads');
+          },
+        })}
       />
       <Tabs.Screen
         name="shipper"

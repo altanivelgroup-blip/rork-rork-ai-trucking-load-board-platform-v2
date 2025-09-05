@@ -296,7 +296,7 @@ export default function DashboardScreen() {
     if (!q) return;
     console.log('[Dashboard] Natural language search:', q);
     // For now, just navigate to loads page with the query
-    router.push({ pathname: '/(tabs)/(loads)', params: { nlQuery: q } });
+    router.push({ pathname: '/Loads', params: { nlQuery: q } });
   }, [nlQuery, router]);
 
   const handleNlQueryChange = useCallback((text: string) => {
@@ -311,7 +311,7 @@ export default function DashboardScreen() {
     if (minPrice) params.minPrice = minPrice;
     if (sort) params.sort = sort;
     if (radiusMiles) params.radius = String(radiusMiles);
-    router.push({ pathname: '/(tabs)/(loads)', params });
+    router.push({ pathname: '/Loads', params });
   }, [router, origin, destination, minWeight, minPrice, sort, radiusMiles]);
 
   const handleOpenLoad = useCallback((loadId: string) => {
@@ -321,7 +321,7 @@ export default function DashboardScreen() {
   const toggleBackhaul = useCallback((value: boolean) => {
     setBackhaulOn(value);
     if (value && lastDelivery) {
-      router.push('/(tabs)/(loads)');
+      router.push('/Loads');
     }
   }, [lastDelivery, router]);
 
