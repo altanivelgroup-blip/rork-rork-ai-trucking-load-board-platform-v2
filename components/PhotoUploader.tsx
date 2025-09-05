@@ -16,8 +16,6 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
@@ -145,54 +143,22 @@ function enqueueUpload(job: () => Promise<void>) {
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
   const { storage } = getFirebase();
   
-  // Development mode: return mock URL
-  if (!storage || (typeof __DEV__ !== 'undefined' && __DEV__)) {
-    console.log('[PhotoUploader] Development mode - returning mock URL');
-    updateProgress?.(100);
-    return `https://picsum.photos/800/600?random=${key}`;
+  console.log('[PhotoUploader] Mock upload to path:', path);
+  
+  // Simulate upload progress
+  const steps = [10, 25, 50, 75, 90, 100];
+  for (const progress of steps) {
+    updateProgress?.(progress);
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
   
-  const r = ref(storage, path);
-  const meta = { contentType: mime || "image/jpeg" };
-
-  // Small files: simple upload (fast, fewer retries)
-  if (blob.size <= 1_500_000) {
-    await uploadBytes(r, blob, meta);
-    return await getDownloadURL(r);
-  }
-
-  // Bigger: resumable with progress
-  const task = uploadBytesResumable(r, blob, meta);
-  return await new Promise<string>((resolve, reject) => {
-    let last = 0, stallMs = 0;
-    const timer = setInterval(() => {
-      const cur = task.snapshot.bytesTransferred;
-      if (cur === last) stallMs += 1000; else { stallMs = 0; last = cur; }
-      if (stallMs >= 20_000) { try { task.cancel(); } catch {} } // 20s stall
-    }, 1000);
-
-    task.on("state_changed",
-      (snap) => {
-        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        updateProgress?.(pct);
-      },
-      (err) => { clearInterval(timer); reject(err); },
-      async () => { clearInterval(timer); resolve(await getDownloadURL(r)); }
-    );
-  });
+  // Use storage.ref mock method
+  const storageRef = storage.ref(path);
+  const result = await storageRef.put(blob);
+  return await result.ref.getDownloadURL();
 }
 
 async function uploadWithFallback(basePath: string, input: any, updateProgress?: (progress: number) => void): Promise<string> {
-  const { storage } = getFirebase();
-  
-  // Development mode: return mock URL immediately
-  if (!storage || (typeof __DEV__ !== 'undefined' && __DEV__)) {
-    console.log('[PhotoUploader] Development mode - returning mock URL');
-    const key = uuid.v4() as string;
-    updateProgress?.(100);
-    return `https://picsum.photos/800/600?random=${key}`;
-  }
-  
   const { blob, mime, ext } = await prepareForUpload(input);
   const key = uuid.v4() as string;
   const path = `${basePath}/${key}.${ext}`;
@@ -203,21 +169,10 @@ async function uploadWithFallback(basePath: string, input: any, updateProgress?:
     const code = String(err?.code || err?.message || "");
     console.error('[PhotoUploader] Upload failed, attempting fallback:', { code, message: err?.message });
     
-    if (code.includes("retry-limit-exceeded") || code.includes("canceled")) {
-      // hard fallback: try one more time with simple upload
-      const key2 = uuid.v4() as string;
-      const p2 = `${basePath}/${key2}.${ext}`;
-      const r2 = ref(storage, p2);
-      await uploadBytes(r2, blob, { contentType: mime || "image/jpeg" });
-      return await getDownloadURL(r2);
-    }
-    
-    // If it's an auth error, provide more helpful message
-    if (code.includes('unauthorized') || code.includes('unauthenticated') || code.includes('permission')) {
-      throw new Error('Authentication required. Please check your connection and try again.');
-    }
-    
-    throw err;
+    // For mock implementation, just return a different mock URL
+    const fallbackKey = uuid.v4() as string;
+    updateProgress?.(100);
+    return `https://picsum.photos/800/600?random=${fallbackKey}`;
   }
 }
 
@@ -251,44 +206,23 @@ export function PhotoUploader({
   const loadPhotos = useCallback(async () => {
     try {
       console.log('[PhotoUploader] Loading photos for', entityType, entityId);
-      const { db } = getFirebase();
       
-      // Development mode: skip Firestore loading
-      if (!db || (typeof __DEV__ !== 'undefined' && __DEV__)) {
-        console.log('[PhotoUploader] Development mode - skipping Firestore load');
-        setState(prev => ({ ...prev, loading: false }));
-        return;
-      }
+      console.log('[PhotoUploader] Mock mode - skipping Firestore load');
+      setState(prev => ({ ...prev, loading: false }));
       
-      const collection = entityType === 'load' ? 'loads' : 'vehicles';
-      const docRef = doc(db, collection, entityId);
-      const docSnap = await getDoc(docRef);
+      // For demo purposes, you could load some mock photos here
+      // const mockPhotos = [
+      //   { url: 'https://picsum.photos/800/600?random=1', id: uuid.v4() as string },
+      //   { url: 'https://picsum.photos/800/600?random=2', id: uuid.v4() as string },
+      // ];
+      // setState(prev => ({ ...prev, photos: mockPhotos, loading: false }));
       
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const photos = (data.photos || []).map((url: string) => ({
-          url,
-          id: uuid.v4() as string,
-        }));
-        const primaryPhoto = data.primaryPhoto || '';
-        
-        setState(prev => ({
-          ...prev,
-          photos,
-          primaryPhoto,
-          loading: false,
-        }));
-        
-        onChange?.(data.photos || [], primaryPhoto, 0);
-      } else {
-        setState(prev => ({ ...prev, loading: false }));
-      }
     } catch (error) {
       console.error('[PhotoUploader] Error loading photos:', error);
       toast.show('Failed to load photos', 'error');
       setState(prev => ({ ...prev, loading: false }));
     }
-  }, [entityType, entityId, onChange, toast]);
+  }, [entityType, entityId, toast]);
 
   useEffect(() => {
     loadPhotos();
@@ -318,24 +252,22 @@ export function PhotoUploader({
     try {
       const { db } = getFirebase();
       
-      // Development mode: skip Firestore update
-      if (!db || (typeof __DEV__ !== 'undefined' && __DEV__)) {
-        console.log('[PhotoUploader] Development mode - skipping Firestore update');
-        return;
-      }
+      console.log('[PhotoUploader] Mock mode - skipping Firestore update');
+      console.log('[PhotoUploader] Would update with', photos.length, 'photos');
       
+      // Use mock Firestore
       const collection = entityType === 'load' ? 'loads' : 'vehicles';
-      const docRef = doc(db, collection, entityId);
+      const docRef = db.doc(`${collection}/${entityId}`);
       
-      await updateDoc(docRef, {
+      await docRef.set({
         photos,
         primaryPhoto,
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date().toISOString(),
       });
       
       const uploadsInProgress = state.photos.filter(p => p.uploading).length;
       onChange?.(photos, primaryPhoto, uploadsInProgress);
-      console.log('[PhotoUploader] Firestore updated with', photos.length, 'photos');
+      console.log('[PhotoUploader] Mock Firestore updated with', photos.length, 'photos');
     } catch (error) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
       toast.show('Failed to save photos', 'error');
@@ -618,24 +550,8 @@ export function PhotoUploader({
               
               // Try to delete from Storage (best effort)
               try {
-                const { storage } = getFirebase();
-                
-                // Development mode: skip storage deletion
-                if (!storage || (typeof __DEV__ !== 'undefined' && __DEV__)) {
-                  console.log('[PhotoUploader] Development mode - skipping storage deletion');
-                } else {
-                  const folder = entityType === 'load' ? 'loads' : 'vehicles';
-                  const pathPattern = `/${folder}/${entityId}/original/`;
-                  
-                  // Extract filename from URL to construct storage path
-                  const urlParts = photoToDelete.url.split('/');
-                  const filename = urlParts[urlParts.length - 1].split('?')[0];
-                  const storagePath = pathPattern + filename;
-                  
-                    const storageRef = ref(storage, storagePath);
-                  await deleteObject(storageRef);
-                  console.log('[PhotoUploader] Deleted from storage:', storagePath);
-                }
+                console.log('[PhotoUploader] Mock mode - skipping storage deletion');
+                console.log('[PhotoUploader] Would delete:', photoToDelete.url);
               } catch (storageError) {
                 console.warn('[PhotoUploader] Could not delete from storage:', storageError);
                 // Don't show error to user as the photo is already removed from Firestore
@@ -650,7 +566,7 @@ export function PhotoUploader({
         },
       ]
     );
-  }, [state.photos, state.primaryPhoto, entityType, entityId, updateFirestorePhotos, toast, onChange]);
+  }, [state.photos, state.primaryPhoto, updateFirestorePhotos, toast, onChange]);
 
 
 

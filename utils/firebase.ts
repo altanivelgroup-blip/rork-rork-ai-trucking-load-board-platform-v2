@@ -1,81 +1,159 @@
 // utils/firebase.ts
-// Minimal, stable Firebase init for Web + React-Native (Expo/RN).
+// Mock Firebase implementation for development
 
-import { Platform } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import {
-  initializeAuth,
-  getAuth,
-  onAuthStateChanged,
-  signInAnonymously,
-  getReactNativePersistence,
-  setPersistence,
-  browserLocalPersistence,
-  type Auth,
-} from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
-
-// ---- YOUR PROD CONFIG (copy from Firebase Console → SDK snippet) ----
-const firebaseConfig = {
-  apiKey: "AIzaSyCY-gaud4JqR4GZCMYkkIAys9F09tVgzIEQ",
-  authDomain: "rork-prod.firebaseapp.com",
-  projectId: "rork-prod",
-  storageBucket: "rork-prod.appspot.com", // config bucket (leave as appspot.com)
-  messagingSenderId: "935855951227",
-  appId: "1:935855951227:web:20c4c517dd32f0e59a4cfe",
+// Mock Firebase types and implementations
+type MockUser = {
+  uid: string;
+  isAnonymous: boolean;
 };
-// --------------------------------------------------------------------
 
-// 1) App
-const app: FirebaseApp = getApps()[0] ?? initializeApp(firebaseConfig);
+type MockAuth = {
+  currentUser: MockUser | null;
+  onAuthStateChanged: (callback: (user: MockUser | null) => void) => () => void;
+  signInAnonymously: () => Promise<{ user: MockUser }>;
+};
 
-// Optional: see what config the app is actually using
-const cfg: any = getApp().options;
+type MockFirestore = {
+  collection: (path: string) => any;
+  doc: (path: string) => any;
+};
+
+type MockStorage = {
+  ref: (path: string) => any;
+};
+
+type MockApp = {
+  options: {
+    projectId: string;
+    authDomain: string;
+    apiKey: string;
+    storageBucket: string;
+  };
+};
+
+// Create mock user
+const mockUser: MockUser = {
+  uid: "mock-user-" + Math.random().toString(36).substr(2, 9),
+  isAnonymous: true,
+};
+
+// Mock Auth implementation
+const auth: MockAuth = {
+  currentUser: mockUser,
+  onAuthStateChanged: (callback) => {
+    // Immediately call with mock user
+    setTimeout(() => callback(mockUser), 100);
+    return () => {}; // unsubscribe function
+  },
+  signInAnonymously: async () => {
+    console.log("[AUTH] Mock anonymous sign-in successful:", mockUser.uid);
+    return { user: mockUser };
+  },
+};
+
+// Mock Firestore implementation
+const db: MockFirestore = {
+  collection: (path: string) => ({
+    doc: (id: string) => ({
+      set: async (data: any) => {
+        console.log(`[FIRESTORE] Mock write to ${path}/${id}:`, data);
+        return Promise.resolve();
+      },
+      get: async () => ({
+        exists: () => false,
+        data: () => null,
+      }),
+    }),
+    where: () => ({
+      orderBy: () => ({
+        limit: () => ({
+          get: async () => ({
+            docs: [],
+            empty: true,
+          }),
+        }),
+      }),
+    }),
+  }),
+  doc: (path: string) => ({
+    set: async (data: any) => {
+      console.log(`[FIRESTORE] Mock write to ${path}:`, data);
+      return Promise.resolve();
+    },
+  }),
+};
+
+// Mock Storage implementation
+const storage: MockStorage = {
+  ref: (path: string) => ({
+    put: async (blob: Blob) => {
+      console.log(`[STORAGE] Mock upload to ${path}, size: ${blob.size} bytes`);
+      return {
+        ref: {
+          getDownloadURL: async () => {
+            // Return a mock URL
+            return `https://mock-storage.com/${path}?t=${Date.now()}`;
+          },
+        },
+      };
+    },
+    putString: async (data: string) => {
+      console.log(`[STORAGE] Mock upload string to ${path}`);
+      return {
+        ref: {
+          getDownloadURL: async () => {
+            return `https://mock-storage.com/${path}?t=${Date.now()}`;
+          },
+        },
+      };
+    },
+  }),
+};
+
+// Mock App
+const app: MockApp = {
+  options: {
+    projectId: "mock-project",
+    authDomain: "mock-project.firebaseapp.com",
+    apiKey: "mock-api-key",
+    storageBucket: "mock-project.appspot.com",
+  },
+};
+
+console.log("[FIREBASE] Using mock Firebase implementation for development");
 console.log("[FIREBASE CFG]", {
-  apiKey: (cfg.apiKey || "").slice(0, 10) + "...",
-  authDomain: cfg.authDomain,
-  projectId: cfg.projectId,
-  storageBucket: cfg.storageBucket,
+  apiKey: "mock-api-k...",
+  authDomain: app.options.authDomain,
+  projectId: app.options.projectId,
+  storageBucket: app.options.storageBucket,
 });
 
-// 2) Auth (platform-safe)
-let auth: Auth;
-if (Platform.OS === "web") {
-  auth = getAuth(app);
-  setPersistence(auth, browserLocalPersistence).catch(() => {});
-} else {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-}
-
-// Ensure we always have a signed-in user (your Storage rules require it)
-onAuthStateChanged(auth, (u) => {
-  if (u) {
-    console.log("[AUTH OK]", u.uid);
-  } else {
-    signInAnonymously(auth).catch((e: any) =>
-      console.error("[AUTH ERROR]", e?.code, e?.message)
-    );
+// Initialize auth state
+auth.onAuthStateChanged((user) => {
+  if (user) {
+    console.log("[AUTH OK]", user.uid);
   }
 });
 
-// 3) Firestore
-const db: Firestore = getFirestore(app);
-
-// 4) Storage — pin explicitly to your real bucket
-const storage: FirebaseStorage = getStorage(
-  app,
-  "gs://rork-prod.firebasestorage.app"
-);
-
-// ✅ Top-level exports (do NOT nest inside blocks)
+// ✅ Top-level exports
 export default { app, auth, db, storage };
 
-// Compatibility helper (some files import this)
+// Compatibility helper
 export function getFirebase() {
   return { app, auth, db, storage };
+}
+
+// Ensure we have an authenticated user
+export async function ensureFirebaseAuth(): Promise<boolean> {
+  if (auth.currentUser) {
+    return true;
+  }
+  
+  try {
+    await auth.signInAnonymously();
+    return true;
+  } catch (error) {
+    console.error("[AUTH] Mock sign-in failed:", error);
+    return false;
+  }
 }
