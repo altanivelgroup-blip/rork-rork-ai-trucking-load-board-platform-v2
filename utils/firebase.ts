@@ -124,7 +124,8 @@ if (app) {
 // 4) Storage - only if we have valid config
 let storage: FirebaseStorage | null = null;
 if (app) {
-  storage = getStorage(app, "gs://yourproject.appspot.com");
+  storage = getStorage(app, "gs://rork-prod.firebasestorage.app");
+
 
 // Export functions for compatibility
 export function getFirebase() {
