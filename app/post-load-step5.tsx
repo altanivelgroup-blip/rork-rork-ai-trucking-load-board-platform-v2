@@ -110,7 +110,7 @@ export default function PostLoadStep5() {
       await setDoc(doc(db, 'loads', load_id), payload, { merge: true });
       
       toast.show('Load posted!', 'success');
-      router.replace('/(tabs)/(loads)');
+      router.replace('/(tabs)/loads');
       
     } catch (err) {
       console.error('POST_LOAD_ERROR', err);
