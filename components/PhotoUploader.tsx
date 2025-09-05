@@ -15,7 +15,19 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+// ✅ use our firebase singleton (gives you firebase.db)
+import firebase from "@/utils/firebase";
+
+// ✅ modular Firestore API (v9)
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  arrayUnion,
+  serverTimestamp,
+} from "firebase/firestore";
+
 
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
