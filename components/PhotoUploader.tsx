@@ -52,6 +52,26 @@ interface PhotoItem {
   id: string;
   originalFile?: AnyImage; // Store original input for retry
 }
+// ✅ Helper to upsert photo into Firestore
+async function upsertLoadPhoto(loadId: string, url: string, makePrimary = false) {
+  const ref = doc(firebase.db, "loads", loadId);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      photos: [url],
+      ...(makePrimary ? { primaryPhoto: url } : {}),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    await updateDoc(ref, {
+      photos: arrayUnion(url),
+      ...(makePrimary ? { primaryPhoto: url } : {}),
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
 
 interface PhotoUploadState {
   photos: PhotoItem[];
