@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+
+import uuid from 'react-native-uuid';
+importimport React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,12 +19,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
-// ✅ use our firebase singleton (gives you firebase.db)
-
-
-// ✅ modular Firestore API (v9)
+// ✅ modular Firestore API (v9) — use only this
 import {
   doc,
   getDoc,
@@ -30,11 +28,10 @@ import {
   updateDoc,
   arrayUnion,
   serverTimestamp,
-} from "firebase/firestore";
-
+} from 'firebase/firestore';
 
 import uuid from 'react-native-uuid';
-import { useToast } from '@/components/Toast';
+ { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
 import { prepareForUpload, isImageMime, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 
