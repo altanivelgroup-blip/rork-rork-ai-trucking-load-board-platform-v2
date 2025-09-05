@@ -16,6 +16,7 @@ import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { VEHICLES_COLLECTION } from '@/lib/loadSchema';
 import { Save, AlertCircle } from 'lucide-react-native';
 import uuid from 'react-native-uuid';
 
@@ -105,7 +106,7 @@ export default function VehicleEditScreen() {
     try {
       console.log('[VehicleEdit] Loading vehicle:', vehicle_id);
       const { db } = getFirebase();
-      const docRef = doc(db, 'vehicles', vehicle_id);
+      const docRef = doc(db, VEHICLES_COLLECTION, vehicle_id);
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
@@ -222,7 +223,7 @@ export default function VehicleEditScreen() {
         primaryPhoto: !!vehicleData.primaryPhoto,
       });
       
-      const docRef = doc(db, 'vehicles', vehicleData.id);
+      const docRef = doc(db, VEHICLES_COLLECTION, vehicleData.id);
       await setDoc(docRef, vehicleData, { merge: true });
       
       toast.show(

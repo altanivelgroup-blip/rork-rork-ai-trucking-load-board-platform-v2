@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { parseCSV, validateCSVHeaders, CSVRow } from '@/utils/csv';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
 
@@ -317,7 +318,7 @@ export default function CSVImportScreen() {
           updated_at: serverTimestamp(),
         };
 
-        await setDoc(doc(db, 'loads', original.load_id), loadData, { merge: true });
+        await setDoc(doc(db, LOADS_COLLECTION, original.load_id), loadData, { merge: true });
         
         imported++;
         if (asDraft || photos.length < 2) {

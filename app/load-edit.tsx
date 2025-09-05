@@ -17,6 +17,7 @@ import { theme } from '@/constants/theme';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { LOADS_COLLECTION } from '@/lib/loadSchema';
 
 interface LoadData {
   id: string;
@@ -60,7 +61,7 @@ export default function LoadEditScreen() {
     try {
       console.log('[LoadEdit] Loading load data for:', load_id);
       const { db } = getFirebase();
-      const docRef = doc(db, 'loads', load_id!);
+      const docRef = doc(db, LOADS_COLLECTION, load_id!);
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
@@ -146,7 +147,7 @@ export default function LoadEditScreen() {
     try {
       await ensureFirebaseAuth();
       const { db } = getFirebase();
-      const docRef = doc(db, 'loads', load_id!);
+      const docRef = doc(db, LOADS_COLLECTION, load_id!);
       
       const updateData = {
         title: title.trim(),

@@ -10,7 +10,7 @@ export type VehicleType =
   | 'enclosed-trailer'
   | 'reefer';
 
-export type LoadStatus = 'available' | 'in-transit' | 'delivered' | 'cancelled';
+export type LoadStatus = 'OPEN' | 'available' | 'in-transit' | 'delivered' | 'cancelled';
 
 export type DocumentType = 
   | 'cdl'

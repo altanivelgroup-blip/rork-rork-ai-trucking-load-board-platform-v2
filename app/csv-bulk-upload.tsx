@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { parseCSV, validateCSVHeaders, buildTemplateCSV, SimpleLoadRow, validateSimpleLoadRow } from '@/utils/csv';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
 
@@ -124,7 +125,7 @@ export default function CSVBulkUploadScreen() {
           vehicleType: original['Vehicle Type'].trim(),
           weight: Number(original['Weight']),
           rate: Number(original['Price']),
-          status: 'open',
+          status: 'OPEN',
           createdBy: user!.id,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -134,7 +135,7 @@ export default function CSVBulkUploadScreen() {
           clientCreatedAt: Date.now(),
         };
 
-        await setDoc(doc(db, 'loads', id), loadData);
+        await setDoc(doc(db, LOADS_COLLECTION, id), loadData);
         imported++;
       }
       

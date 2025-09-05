@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { LOADS_COLLECTION, VEHICLES_COLLECTION } from '@/lib/loadSchema';
 
 import {
   ref,
@@ -62,7 +63,8 @@ interface PhotoItem {
 }
 // ✅ Helper to upsert photo into Firestore
 async function upsertLoadPhoto(loadId: string, url: string, makePrimary = false) {
-  const ref = doc(firebase.db, "loads", loadId);
+  const { db } = getFirebase();
+  const ref = doc(db, LOADS_COLLECTION, loadId);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {

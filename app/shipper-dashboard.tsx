@@ -19,7 +19,7 @@ interface LoadRowProps {
 }
 
 function LoadRow({ id, title, originCity, destinationCity, rate, status, onView, onEdit, onDelete }: LoadRowProps) {
-  const statusColor = status === 'available' ? '#10b981' : status === 'in-transit' ? '#f59e0b' : '#6b7280';
+  const statusColor = status === 'OPEN' ? '#10b981' : status === 'in-transit' ? '#f59e0b' : '#6b7280';
   
   return (
     <View style={styles.loadRow} testID={`load-row-${id}`}>
@@ -58,7 +58,7 @@ export default function ShipperDashboard() {
   
   const stats = useMemo(() => {
     const totalLoads = shipperLoads.length;
-    const activeLoads = shipperLoads.filter(l => l.status === 'available').length;
+    const activeLoads = shipperLoads.filter(l => l.status === 'OPEN').length;
     const totalRevenue = shipperLoads.reduce((sum, l) => sum + (l.rate || 0), 0);
     const avgRate = totalLoads > 0 ? totalRevenue / totalLoads : 0;
     
