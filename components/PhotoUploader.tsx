@@ -1,5 +1,6 @@
+// components/PhotoUploader.tsx — CLEAN IMPORTS
 import uuid from 'react-native-uuid';
-importimport React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,10 +17,17 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 
-// ✅ modular Firestore API (v9) — use only this
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+
+import {
+  ref,
+  uploadBytes,
+  uploadBytesResumable,
+  getDownloadURL,
+  deleteObject,
+} from 'firebase/storage';
+
 import {
   doc,
   getDoc,
@@ -29,12 +37,12 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 
-import uuid from 'react-native-uuid';
- { useToast } from '@/components/Toast';
+import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
 import { prepareForUpload, isImageMime, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 
 const { width: screenWidth } = Dimensions.get('window');
+
 
 export interface PhotoUploaderProps {
   entityType: 'load' | 'vehicle';
