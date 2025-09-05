@@ -144,6 +144,14 @@ function enqueueUpload(job: () => Promise<void>) {
 // Smart upload function with fallback
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
   const { storage } = getFirebase();
+  
+  // Development mode: return mock URL
+  if (!storage || (typeof __DEV__ !== 'undefined' && __DEV__)) {
+    console.log('[PhotoUploader] Development mode - returning mock URL');
+    updateProgress?.(100);
+    return `https://picsum.photos/800/600?random=${key}`;
+  }
+  
   const r = ref(storage, path);
   const meta = { contentType: mime || "image/jpeg" };
 
@@ -175,6 +183,16 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
 }
 
 async function uploadWithFallback(basePath: string, input: any, updateProgress?: (progress: number) => void): Promise<string> {
+  const { storage } = getFirebase();
+  
+  // Development mode: return mock URL immediately
+  if (!storage || (typeof __DEV__ !== 'undefined' && __DEV__)) {
+    console.log('[PhotoUploader] Development mode - returning mock URL');
+    const key = uuid.v4() as string;
+    updateProgress?.(100);
+    return `https://picsum.photos/800/600?random=${key}`;
+  }
+  
   const { blob, mime, ext } = await prepareForUpload(input);
   const key = uuid.v4() as string;
   const path = `${basePath}/${key}.${ext}`;
@@ -187,7 +205,6 @@ async function uploadWithFallback(basePath: string, input: any, updateProgress?:
     
     if (code.includes("retry-limit-exceeded") || code.includes("canceled")) {
       // hard fallback: try one more time with simple upload
-      const { storage } = getFirebase();
       const key2 = uuid.v4() as string;
       const p2 = `${basePath}/${key2}.${ext}`;
       const r2 = ref(storage, p2);
@@ -235,6 +252,14 @@ export function PhotoUploader({
     try {
       console.log('[PhotoUploader] Loading photos for', entityType, entityId);
       const { db } = getFirebase();
+      
+      // Development mode: skip Firestore loading
+      if (!db || (typeof __DEV__ !== 'undefined' && __DEV__)) {
+        console.log('[PhotoUploader] Development mode - skipping Firestore load');
+        setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+      
       const collection = entityType === 'load' ? 'loads' : 'vehicles';
       const docRef = doc(db, collection, entityId);
       const docSnap = await getDoc(docRef);
@@ -292,6 +317,13 @@ export function PhotoUploader({
   const updateFirestorePhotos = useCallback(async (photos: string[], primaryPhoto: string) => {
     try {
       const { db } = getFirebase();
+      
+      // Development mode: skip Firestore update
+      if (!db || (typeof __DEV__ !== 'undefined' && __DEV__)) {
+        console.log('[PhotoUploader] Development mode - skipping Firestore update');
+        return;
+      }
+      
       const collection = entityType === 'load' ? 'loads' : 'vehicles';
       const docRef = doc(db, collection, entityId);
       
@@ -587,17 +619,23 @@ export function PhotoUploader({
               // Try to delete from Storage (best effort)
               try {
                 const { storage } = getFirebase();
-                const folder = entityType === 'load' ? 'loads' : 'vehicles';
-                const pathPattern = `/${folder}/${entityId}/original/`;
                 
-                // Extract filename from URL to construct storage path
-                const urlParts = photoToDelete.url.split('/');
-                const filename = urlParts[urlParts.length - 1].split('?')[0];
-                const storagePath = pathPattern + filename;
-                
-                const storageRef = ref(storage, storagePath);
-                await deleteObject(storageRef);
-                console.log('[PhotoUploader] Deleted from storage:', storagePath);
+                // Development mode: skip storage deletion
+                if (!storage || (typeof __DEV__ !== 'undefined' && __DEV__)) {
+                  console.log('[PhotoUploader] Development mode - skipping storage deletion');
+                } else {
+                  const folder = entityType === 'load' ? 'loads' : 'vehicles';
+                  const pathPattern = `/${folder}/${entityId}/original/`;
+                  
+                  // Extract filename from URL to construct storage path
+                  const urlParts = photoToDelete.url.split('/');
+                  const filename = urlParts[urlParts.length - 1].split('?')[0];
+                  const storagePath = pathPattern + filename;
+                  
+                    const storageRef = ref(storage, storagePath);
+                  await deleteObject(storageRef);
+                  console.log('[PhotoUploader] Deleted from storage:', storagePath);
+                }
               } catch (storageError) {
                 console.warn('[PhotoUploader] Could not delete from storage:', storageError);
                 // Don't show error to user as the photo is already removed from Firestore

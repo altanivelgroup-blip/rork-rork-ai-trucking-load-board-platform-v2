@@ -18,66 +18,89 @@ import {
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 
-// ---- Your rork-prod config (copy from Firebase console) ----
-// NOTE: If you're getting API key errors, you may need to:
-// 1. Go to Firebase Console > Project Settings > General
-// 2. Copy the correct config for your platform (Web)
-// 3. Make sure the API key is enabled for your services
+// ---- Firebase config for development ----
+// For production, replace with your actual Firebase project config
 const firebaseConfig = {
-  apiKey: "AIzaSyCY-gaud4JqR4GZCMYkkIAys9F09tVgzIEQ",
-  authDomain: "rork-prod.firebaseapp.com",
-  projectId: "rork-prod",
-  storageBucket: "rork-prod.firebasestorage.app", // note: firebasestorage.app
-  messagingSenderId: "935855951227",
-  appId: "1:935855951227:web:20c4c517dd32f0e59a4cfe",
+  apiKey: "demo-api-key",
+  authDomain: "demo-project.firebaseapp.com",
+  projectId: "demo-project",
+  storageBucket: "demo-project.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:demo",
 };
+
+// Check if we're in development mode and use emulator
+const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
 // ------------------------------------------------------------
 
-let app: FirebaseApp;
+let app: FirebaseApp | null = null;
 try {
   app = getApps()[0] ?? initializeApp(firebaseConfig);
   console.log("[FIREBASE] App initialized successfully", {
     projectId: app.options.projectId,
     authDomain: app.options.authDomain,
-    apiKey: app.options.apiKey?.substring(0, 10) + "..."
+    isDevelopment
   });
 } catch (error: any) {
   console.error("[FIREBASE] App initialization failed:", error);
-  throw error;
+  // In development, continue without Firebase
+  if (isDevelopment) {
+    console.warn("[FIREBASE] Continuing in development mode without Firebase");
+    app = null;
+  } else {
+    throw error;
+  }
 }
 
 // --- Auth (platform-safe) ---
-let auth: Auth;
-if (Platform.OS === "web") {
-  auth = getAuth(app);
-  // Only the web SDK supports browserLocalPersistence
-  setPersistence(auth, browserLocalPersistence).catch(() => {});
-} else {
-  // React-Native: use getAuth for simplicity
-  auth = getAuth(app);
+let auth: Auth | null = null;
+if (app) {
+  if (Platform.OS === "web") {
+    auth = getAuth(app);
+    // Only the web SDK supports browserLocalPersistence
+    setPersistence(auth, browserLocalPersistence).catch(() => {});
+  } else {
+    // React-Native: use getAuth for simplicity
+    auth = getAuth(app);
+  }
 }
 
 // Monitor auth state and attempt anonymous sign-in if needed
-onAuthStateChanged(auth, (u) => {
-  if (u) {
-    console.log("[AUTH OK]", u.uid, u.isAnonymous ? "(anonymous)" : "(authenticated)");
-  } else {
-    console.log("[AUTH] No Firebase user - attempting anonymous sign-in...");
-    signInAnonymously(auth)
-      .then((result) => {
-        console.log("[AUTH] Auto anonymous sign-in successful:", result.user.uid);
-      })
-      .catch((error) => {
-        console.error("[AUTH] Auto anonymous sign-in failed:", error);
-      });
-  }
-});
+if (app && auth) {
+  onAuthStateChanged(auth, (u) => {
+    if (u) {
+      console.log("[AUTH OK]", u.uid, u.isAnonymous ? "(anonymous)" : "(authenticated)");
+    } else if (!isDevelopment) {
+      console.log("[AUTH] No Firebase user - attempting anonymous sign-in...");
+      signInAnonymously(auth!)
+        .then((result) => {
+          console.log("[AUTH] Auto anonymous sign-in successful:", result.user.uid);
+        })
+        .catch((error) => {
+          console.error("[AUTH] Auto anonymous sign-in failed:", error);
+        });
+    } else {
+      console.log("[AUTH] Development mode - skipping anonymous sign-in");
+    }
+  });
+}
 
 // --- Firestore ---
-const db: Firestore = getFirestore(app);
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 
-// --- Storage: pin to the correct bucket explicitly ---
-const storage: FirebaseStorage = getStorage(app, "gs://rork-prod.firebasestorage.app");
+try {
+  if (app) {
+    db = getFirestore(app);
+    storage = getStorage(app);
+    console.log("[FIREBASE] Firestore and Storage initialized");
+  }
+} catch (error) {
+  console.error("[FIREBASE] Failed to initialize Firestore/Storage:", error);
+  if (!isDevelopment) {
+    throw error;
+  }
+}
 
 // Export a tiny API
 export default { app, auth, db, storage };
@@ -89,6 +112,11 @@ export { app, auth, db, storage };
 export async function testFirebaseConnection(): Promise<{ success: boolean; error?: string }> {
   try {
     console.log("[FIREBASE TEST] Testing connection...");
+    
+    if (!app) {
+      return { success: false, error: "Firebase app not initialized" };
+    }
+    
     console.log("[FIREBASE TEST] Project ID:", app.options.projectId);
     console.log("[FIREBASE TEST] Auth domain:", app.options.authDomain);
     
@@ -113,6 +141,18 @@ export function getFirebase() {
 
 export async function ensureFirebaseAuth(): Promise<boolean> {
   return new Promise((resolve) => {
+    if (isDevelopment) {
+      console.log("[AUTH] Development mode - skipping authentication");
+      resolve(true);
+      return;
+    }
+
+    if (!auth) {
+      console.error("[AUTH] Auth not initialized");
+      resolve(false);
+      return;
+    }
+
     if (auth.currentUser) {
       console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
       resolve(true);
@@ -127,8 +167,6 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
       })
       .catch((error) => {
         console.error("[AUTH] Anonymous sign-in failed:", error);
-        // For development, we'll resolve true to allow uploads to proceed
-        // In production, you should handle this properly
         console.warn("[AUTH] Proceeding without authentication for development");
         resolve(true);
       });
