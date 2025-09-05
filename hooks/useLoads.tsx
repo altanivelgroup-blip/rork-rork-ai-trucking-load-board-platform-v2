@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 // Firebase imports temporarily disabled for bundling fix
 // import { collection, query, where, orderBy, limit, onSnapshot, Unsubscribe } from 'firebase/firestore';
 // import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-// import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
+import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
 
 interface GeoPoint { lat: number; lng: number }
 

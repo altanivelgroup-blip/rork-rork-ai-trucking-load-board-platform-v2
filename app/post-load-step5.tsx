@@ -12,6 +12,7 @@ import { getFirebase } from '@/utils/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoads } from '@/hooks/useLoads';
+import { LOADS_COLLECTION } from '@/lib/loadSchema';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -107,7 +108,7 @@ export default function PostLoadStep5() {
       
       // Post to Firestore
       const { db } = getFirebase();
-      const ref = await addDoc(collection(db, 'loads'), payload);
+      const ref = await addDoc(collection(db, LOADS_COLLECTION), payload);
       
       // Success actions
       toast.show('Load posted: ' + ref.id, 'success');

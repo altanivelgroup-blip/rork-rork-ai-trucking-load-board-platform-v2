@@ -25,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ✅ Firebase imports
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { LOADS_COLLECTION } from '@/lib/loadSchema';
 
 
 
@@ -64,7 +65,7 @@ const onNext = useCallback(async () => {
       const { db, auth } = getFirebase();
 
       await setDoc(
-        doc(db, 'loads', loadId),
+        doc(db, LOADS_COLLECTION, loadId),
         {
           id: loadId,
           title: (draft.title || '').trim(),

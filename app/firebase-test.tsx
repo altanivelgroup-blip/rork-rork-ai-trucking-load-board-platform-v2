@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { LOADS_COLLECTION } from '@/lib/loadSchema';
 
 export default function FirebaseTestScreen() {
   const [testResult, setTestResult] = useState<any>(null);
@@ -53,7 +54,7 @@ export default function FirebaseTestScreen() {
         console.log('[Firebase Test] Writing test document...');
         testDocumentId = `test-${Date.now()}`;
         
-        await setDoc(doc(db, 'loads', testDocumentId), {
+        await setDoc(doc(db, LOADS_COLLECTION, testDocumentId), {
           title: 'Hello Rork Test Load',
           origin: 'Phoenix, AZ',
           destination: 'Los Angeles, CA',
