@@ -110,6 +110,7 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     
     const result = await signInAnonymously(auth);
     console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
+    console.log("[AUTH] Note: Anonymous users may have limited permissions in production");
     return true;
   } catch (error: any) {
     console.error("[AUTH ERROR] Sign-in failed:", {
@@ -122,9 +123,37 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     // If it's an API key error, provide more specific guidance
     if (error.code === 'auth/api-key-not-valid') {
       console.error("[AUTH ERROR] Invalid API key. Please check Firebase project configuration.");
+    } else if (error.code === 'auth/operation-not-allowed') {
+      console.error("[AUTH ERROR] Anonymous authentication is not enabled in Firebase Console.");
     }
     
     return false;
+  }
+}
+
+// Check if Firebase operations are likely to work (for development)
+export async function checkFirebasePermissions(): Promise<{ canRead: boolean; canWrite: boolean; error?: string }> {
+  try {
+    const authSuccess = await ensureFirebaseAuth();
+    if (!authSuccess) {
+      return { canRead: false, canWrite: false, error: 'Authentication failed' };
+    }
+
+    // For now, assume anonymous users can't write in production
+    // This is a common Firebase security rule configuration
+    const isAnonymous = auth.currentUser?.isAnonymous;
+    
+    return {
+      canRead: true, // Usually anonymous users can read public data
+      canWrite: !isAnonymous, // Anonymous users typically can't write
+      error: isAnonymous ? 'Anonymous users have read-only access' : undefined
+    };
+  } catch (error: any) {
+    return {
+      canRead: false,
+      canWrite: false,
+      error: error.message || 'Unknown error'
+    };
   }
 }
 

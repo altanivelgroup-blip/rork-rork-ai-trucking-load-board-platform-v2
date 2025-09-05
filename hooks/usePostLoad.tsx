@@ -4,7 +4,7 @@ import { Load, VehicleType } from '@/types';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { toNumber } from '@/utils/loadValidation';
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
 import { postLoad } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/components/Toast';
@@ -475,14 +475,17 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       
       console.log('[PostLoad] final photo URLs count:', finalPhotoUrls.length);
       
-      // Try Firebase first, but fall back to local storage if it fails
-      const firebaseAvailable = await ensureFirebaseAuth();
+      // Check Firebase permissions first
+      const permissions = await checkFirebasePermissions();
+      console.log('[PostLoad] Firebase permissions check:', permissions);
       
-      if (firebaseAvailable) {
+      if (permissions.canWrite) {
         try {
           // Use the new postLoad function with proper schema
           const rateNum = toNumber(currentDraft.rateAmount);
           const loadId = `load-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          console.log('[PostLoad] Attempting Firebase write with permissions:', permissions);
           
           await postLoad({
             id: loadId,
@@ -497,10 +500,10 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           });
           
           console.log('[PostLoad] load posted successfully to Firebase:', loadId);
-          showToast('Load posted successfully!');
+          showToast('Load posted successfully to Firebase!');
           
         } catch (firebaseError: any) {
-          console.warn('[PostLoad] Firebase error, using local storage fallback:', {
+          console.warn('[PostLoad] Firebase write failed despite permissions check:', {
             code: firebaseError?.code,
             message: firebaseError?.message,
             name: firebaseError?.name
@@ -508,17 +511,24 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           // Provide user-friendly error context
           if (firebaseError?.code === 'permission-denied') {
-            console.warn('[PostLoad] Permission denied - this is expected in development mode');
-            showToast('Using local storage (Firebase permissions not configured)');
+            console.warn('[PostLoad] Permission denied - Firebase security rules prevent this operation');
+            showToast('Firebase access restricted, saving locally');
           } else {
-            console.warn('[PostLoad] Firebase unavailable, using local storage');
-            showToast('Firebase unavailable, saving locally');
+            console.warn('[PostLoad] Firebase error, using local storage fallback');
+            showToast('Firebase error, saving locally');
           }
           
           await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls);
         }
       } else {
-        console.warn('[PostLoad] Firebase unavailable, using local storage fallback');
+        console.warn('[PostLoad] Firebase write not available:', permissions.error || 'Unknown reason');
+        
+        if (permissions.error?.includes('Anonymous')) {
+          showToast('Development mode: saving locally');
+        } else {
+          showToast('Firebase unavailable, saving locally');
+        }
+        
         await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls);
       }
       

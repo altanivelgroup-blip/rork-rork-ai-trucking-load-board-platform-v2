@@ -138,12 +138,23 @@ export async function postLoad(args: {
   } catch (error: any) {
     console.error("[POST_LOAD_ERROR]", error?.code || 'unknown-code', error?.message || 'Unknown error');
     
-    // Log specific Firebase permission errors
+    // Log specific Firebase permission errors with more context
     if (error?.code === 'permission-denied') {
-      console.error("[POST_LOAD_ERROR] Firebase permission denied. This usually means:");
-      console.error("[POST_LOAD_ERROR] 1. Firestore security rules don't allow this operation");
-      console.error("[POST_LOAD_ERROR] 2. User doesn't have sufficient permissions");
-      console.error("[POST_LOAD_ERROR] 3. Anonymous users might not be allowed to write");
+      console.error("[POST_LOAD_ERROR] Firebase permission denied. This is expected in development mode.");
+      console.error("[POST_LOAD_ERROR] Reasons:");
+      console.error("[POST_LOAD_ERROR] 1. Firestore security rules restrict anonymous user writes");
+      console.error("[POST_LOAD_ERROR] 2. This is a security feature to prevent unauthorized data writes");
+      console.error("[POST_LOAD_ERROR] 3. The app will fallback to local storage automatically");
+      const { auth: authInstance } = getFirebase();
+      console.error("[POST_LOAD_ERROR] Current user:", authInstance.currentUser ? {
+        uid: authInstance.currentUser.uid,
+        isAnonymous: authInstance.currentUser.isAnonymous,
+        email: authInstance.currentUser.email
+      } : 'No user');
+    } else if (error?.code === 'unavailable') {
+      console.error("[POST_LOAD_ERROR] Firebase service unavailable - network or server issue");
+    } else if (error?.code === 'unauthenticated') {
+      console.error("[POST_LOAD_ERROR] User not authenticated properly");
     }
     
     // Re-throw the error so the calling code can handle it (fallback to local storage)
