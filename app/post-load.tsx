@@ -24,7 +24,7 @@ import { VehicleType } from '@/types';
 // ✅ Firebase imports
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import uuid from 'react-native-uuid';
+
 
 
 type VehicleOption = {
@@ -250,15 +250,15 @@ const onNext = useCallback(async () => {
               >
                 <FileUp size={18} color={theme.colors.white} />
                 <Text style={styles.bulkBtnText}>{isImporting ? 'Importing…' : 'Upload CSV'}</Text>
-              </Pressable
-       <Pressable
-  style={{ ...theme.button }}
-  onPress={onNext}
-  disabled={!canProceed()} // prevents clicking too early
->
-  <Text style={theme.buttonText}>Post Load</Text>
-</Pressable>
-
+              </Pressable>
+              <Pressable
+                onPress={onDownloadTemplate}
+                style={styles.secondaryBtn}
+                accessibilityRole="button"
+                testID="downloadTemplateButton"
+              >
+                <Download size={18} color={theme.colors.primary} />
+                <Text style={styles.secondaryBtnText}>Download Template</Text>
               </Pressable>
             </View>
             {csvErrors.length > 0 && (
