@@ -50,15 +50,42 @@ export default function PostLoadScreen() {
   const canProceed = useMemo(() => {
     return draft.title.trim().length > 0 && draft.description.trim().length > 0 && !!draft.vehicleType;
   }, [draft]);
+const onNext = useCallback(async () => {
+  try {
+    // guard
+    if (!canProceed) return;
 
-  const onNext = useCallback(() => {
-    try {
-      console.log('[PostLoad] Next pressed', { draft });
-      if (!canProceed) return;
-      router.push('/post-load-step2');
-    } catch (e) {
-      console.log('[PostLoad] onNext error', e);
-    }
+    // ensure we are signed in (anonymous is ok)
+    await ensureFirebaseAuth();
+    const { db, auth } = getFirebase();
+
+    // use an existing id on the draft or make one
+    const loadId: string = (draft as any)?.id || `load-${Date.now()}`;
+
+    // upsert the draft into Firestore
+    await setDoc(
+      doc(db, 'loads', loadId),
+      {
+        id: loadId,
+        title: (draft.title || '').trim(),
+        description: (draft.description || '').trim(),
+        vehicleType: draft.vehicleType || null,
+        status: 'DRAFT',
+        createdBy: auth.currentUser?.uid ?? 'anon',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // go to step 2 and pass the id
+    router.push({ pathname: '/post-load-step2', params: { loadId } });
+  } catch (e: any) {
+    console.log('[PostLoad] save error:', e);
+    Alert.alert('Could not save load', e?.message ?? String(e));
+  }
+}, [canProceed, draft, router]);
+
   }, [canProceed, draft, router]);
 
   const toVehicleType = useCallback((v: string | undefined): VehicleType | null => {
