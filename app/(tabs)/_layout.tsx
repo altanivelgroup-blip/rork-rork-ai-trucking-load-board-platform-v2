@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
-import { Home, PlusCircle, User, Truck, Crown, Search } from 'lucide-react-native';
+import { Home, User, Truck, Crown } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 
 export default function TabsLayout() {
@@ -29,7 +29,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Dashboard',
+          title: 'Home',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
@@ -41,17 +41,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="service-finder"
+        name="shipper"
         options={{
-          title: 'Service Finder',
-          tabBarIcon: ({ color, size }) => <Search color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="post-load"
-        options={{
-          title: 'Post a Load',
-          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
+          title: 'Membership',
+          tabBarIcon: ({ color, size }) => <Crown color={color} size={size} />,
+          href: '/membership',
         }}
       />
       <Tabs.Screen
@@ -59,14 +53,6 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
-        }}
-      />
-
-      <Tabs.Screen
-        name="shipper"
-        options={{
-          title: 'Shipper',
-          tabBarIcon: ({ color, size }) => <Crown color={color} size={size} />,
         }}
       />
       <Tabs.Screen
