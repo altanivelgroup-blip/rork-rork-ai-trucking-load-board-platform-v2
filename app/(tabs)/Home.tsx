@@ -2,12 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '@/constants/theme';
 
-export default function Loads() {
-  console.log('[Loads] mounted');
+export default function Home() {
+  console.log('[Home] mounted');
   return (
-    <View style={styles.container} testID="LoadsScreen">
-      <Text style={styles.title} accessibilityRole="header">Loads</Text>
-      <Text style={styles.body}>Loads screen works</Text>
+    <View style={styles.container} testID="HomeScreen">
+      <Text style={styles.title} accessibilityRole="header">Home</Text>
+      <Text style={styles.body}>Home screen works</Text>
     </View>
   );
 }

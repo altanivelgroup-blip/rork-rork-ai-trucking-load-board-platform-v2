@@ -14,7 +14,7 @@ export default function IndexScreen() {
         console.log('[Index] Auth loaded, isAuthenticated:', isAuthenticated);
         if (isAuthenticated) {
           console.log('[Index] User authenticated, navigating to tabs');
-          router.replace('/(tabs)/(loads)/loads');
+          router.replace('/(tabs)/Home');
         } else {
           console.log('[Index] User not authenticated, navigating to login');
           router.replace('/(auth)/login');
