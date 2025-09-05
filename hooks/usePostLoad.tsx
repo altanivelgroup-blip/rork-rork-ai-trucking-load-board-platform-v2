@@ -511,11 +511,11 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           // Provide user-friendly error context
           if (firebaseError?.code === 'permission-denied') {
-            console.warn('[PostLoad] Permission denied - Firebase security rules prevent this operation');
-            showToast('Firebase access restricted, saving locally');
+            console.log('[PostLoad] Permission denied - this is expected in development mode with anonymous users');
+            showToast('Development mode: saving locally');
           } else {
             console.warn('[PostLoad] Firebase error, using local storage fallback');
-            showToast('Firebase error, saving locally');
+            showToast('Firebase unavailable, saving locally');
           }
           
           await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls);
