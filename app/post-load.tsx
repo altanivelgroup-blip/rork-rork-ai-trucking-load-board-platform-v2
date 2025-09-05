@@ -14,13 +14,18 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Truck, FileUp, Download, AlertCircle } from 'lucide-react-native';
-
 import { usePostLoad } from '@/hooks/usePostLoad';
 import { useLoadsWithToast } from '@/hooks/useLoads';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { parseCSV, buildTemplateCSV, validateCSVHeaders } from '@/utils/csv';
 import { VehicleType } from '@/types';
+
+// ✅ Firebase imports
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import uuid from 'react-native-uuid';
+
 
 type VehicleOption = {
   key: VehicleType;
