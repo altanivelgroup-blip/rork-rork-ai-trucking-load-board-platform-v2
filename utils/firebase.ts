@@ -125,7 +125,7 @@ if (app) {
 let storage: FirebaseStorage | null = null;
 if (app) {
   storage = getStorage(app, "gs://rork-prod.firebasestorage.app");
-
+}
 
 // Export functions for compatibility
 export function getFirebase() {
