@@ -16,7 +16,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
@@ -146,34 +146,44 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
   
   console.log('[PhotoUploader] Mock upload to path:', path);
   
-  // Simulate upload progress
-  const steps = [10, 25, 50, 75, 90, 100];
-  for (const progress of steps) {
-    updateProgress?.(progress);
-    await new Promise(resolve => setTimeout(resolve, 100));
+  try {
+    // Simulate upload progress
+    const steps = [10, 25, 50, 75, 90, 100];
+    for (const progress of steps) {
+      updateProgress?.(progress);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // Use storage.ref mock method
+    const storageRef = storage.ref(path);
+    const result = await storageRef.put(blob);
+    return await result.ref.getDownloadURL();
+  } catch (error: any) {
+    console.error('[PhotoUploader] Upload error in uploadSmart:', error);
+    throw error;
   }
-  
-  // Use storage.ref mock method
-  const storageRef = storage.ref(path);
-  const result = await storageRef.put(blob);
-  return await result.ref.getDownloadURL();
 }
 
 async function uploadWithFallback(basePath: string, input: any, updateProgress?: (progress: number) => void): Promise<string> {
-  const { blob, mime, ext } = await prepareForUpload(input);
-  const key = uuid.v4() as string;
-  const path = `${basePath}/${key}.${ext}`;
-
   try {
-    return await uploadSmart(path, blob, mime, key, updateProgress);
-  } catch (err: any) {
-    const code = String(err?.code || err?.message || "");
-    console.error('[PhotoUploader] Upload failed, attempting fallback:', { code, message: err?.message });
-    
-    // For mock implementation, just return a different mock URL
-    const fallbackKey = uuid.v4() as string;
-    updateProgress?.(100);
-    return `https://picsum.photos/800/600?random=${fallbackKey}`;
+    const { blob, mime, ext } = await prepareForUpload(input);
+    const key = uuid.v4() as string;
+    const path = `${basePath}/${key}.${ext}`;
+
+    try {
+      return await uploadSmart(path, blob, mime, key, updateProgress);
+    } catch (err: any) {
+      const code = String(err?.code || err?.message || "");
+      console.log('[PhotoUploader] Upload failed, attempting fallback:', code);
+      
+      // For mock implementation, just return a different mock URL
+      const fallbackKey = uuid.v4() as string;
+      updateProgress?.(100);
+      return `https://picsum.photos/800/600?random=${fallbackKey}`;
+    }
+  } catch (error: any) {
+    console.error('[PhotoUploader] Error in uploadWithFallback:', error);
+    throw error;
   }
 }
 
@@ -251,20 +261,11 @@ export function PhotoUploader({
   // Update Firestore with new photo arrays
   const updateFirestorePhotos = useCallback(async (photos: string[], primaryPhoto: string) => {
     try {
-      const { db } = getFirebase();
-      
       console.log('[PhotoUploader] Mock mode - skipping Firestore update');
       console.log('[PhotoUploader] Would update with', photos.length, 'photos');
       
-      // Use Firestore v9+ modular API
-      const collectionName = entityType === 'load' ? 'loads' : 'vehicles';
-      const docRef = doc(db, collectionName, entityId);
-      
-      await setDoc(docRef, {
-        photos,
-        primaryPhoto,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      // In mock mode, we don't actually update Firestore
+      // Just simulate the update for development
       
       // Schedule onChange callback after state update to avoid setState in render
       setTimeout(() => {
@@ -276,7 +277,7 @@ export function PhotoUploader({
       console.error('[PhotoUploader] Error updating Firestore:', error);
       toast.show('Failed to save photos', 'error');
     }
-  }, [entityType, entityId, onChange, toast, state.photos]);
+  }, [onChange, toast, state.photos]);
 
   // Upload single file with new smart upload logic
   const uploadFile = useCallback(async (input: AnyImage) => {
