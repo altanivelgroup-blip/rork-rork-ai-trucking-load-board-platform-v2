@@ -86,7 +86,6 @@ const onNext = useCallback(async () => {
   }
 }, [canProceed, draft, router]);
 
-  }, [canProceed, draft, router]);
 
   const toVehicleType = useCallback((v: string | undefined): VehicleType | null => {
     if (!v) return null;
@@ -251,15 +250,15 @@ const onNext = useCallback(async () => {
               >
                 <FileUp size={18} color={theme.colors.white} />
                 <Text style={styles.bulkBtnText}>{isImporting ? 'Importing…' : 'Upload CSV'}</Text>
-              </Pressable>
-              <Pressable
-                onPress={onDownloadTemplate}
-                style={[styles.secondaryBtn]}
-                accessibilityRole="button"
-                testID="downloadTemplateButton"
-              >
-                <Download size={18} color={theme.colors.primary} />
-                <Text style={styles.secondaryBtnText}>Template</Text>
+              </Pressable
+       <Pressable
+  style={{ ...theme.button }}
+  onPress={onNext}
+  disabled={!canProceed()} // prevents clicking too early
+>
+  <Text style={theme.buttonText}>Post Load</Text>
+</Pressable>
+
               </Pressable>
             </View>
             {csvErrors.length > 0 && (
