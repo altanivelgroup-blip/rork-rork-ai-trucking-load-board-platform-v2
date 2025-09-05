@@ -16,6 +16,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import uuid from 'react-native-uuid';
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
@@ -255,18 +256,21 @@ export function PhotoUploader({
       console.log('[PhotoUploader] Mock mode - skipping Firestore update');
       console.log('[PhotoUploader] Would update with', photos.length, 'photos');
       
-      // Use mock Firestore
-      const collection = entityType === 'load' ? 'loads' : 'vehicles';
-      const docRef = db.doc(`${collection}/${entityId}`);
+      // Use Firestore v9+ modular API
+      const collectionName = entityType === 'load' ? 'loads' : 'vehicles';
+      const docRef = doc(db, collectionName, entityId);
       
-      await docRef.set({
+      await setDoc(docRef, {
         photos,
         primaryPhoto,
-        updatedAt: new Date().toISOString(),
-      });
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
       
-      const uploadsInProgress = state.photos.filter(p => p.uploading).length;
-      onChange?.(photos, primaryPhoto, uploadsInProgress);
+      // Schedule onChange callback after state update to avoid setState in render
+      setTimeout(() => {
+        const uploadsInProgress = state.photos.filter(p => p.uploading).length;
+        onChange?.(photos, primaryPhoto, uploadsInProgress);
+      }, 0);
       console.log('[PhotoUploader] Mock Firestore updated with', photos.length, 'photos');
     } catch (error) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
@@ -339,11 +343,12 @@ export function PhotoUploader({
           
           const newPrimaryPhoto = prev.primaryPhoto || url;
           
-          // Update Firestore and fire onChange
-          updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
-          
-          const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
-          onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+          // Schedule Firestore update and onChange callback after state update
+          setTimeout(() => {
+            updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
+            const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+            onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+          }, 0);
           
           return {
             ...prev,
@@ -503,9 +508,11 @@ export function PhotoUploader({
       setState(prev => ({ ...prev, primaryPhoto: newPrimaryPhoto }));
       await updateFirestorePhotos(state.photos.map(p => p.url), newPrimaryPhoto);
       
-      // Notify parent of status change
-      const uploadsInProgress = state.photos.filter(p => p.uploading).length;
-      onChange?.(state.photos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+      // Schedule onChange callback after state update
+      setTimeout(() => {
+        const uploadsInProgress = state.photos.filter(p => p.uploading).length;
+        onChange?.(state.photos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+      }, 0);
       
       toast.show('Cover photo updated', 'success');
     } catch (error) {
@@ -544,9 +551,11 @@ export function PhotoUploader({
               // Update Firestore
               await updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
               
-              // Notify parent of status change
-              const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
-              onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+              // Schedule onChange callback after state update
+              setTimeout(() => {
+                const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+                onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+              }, 0);
               
               // Try to delete from Storage (best effort)
               try {

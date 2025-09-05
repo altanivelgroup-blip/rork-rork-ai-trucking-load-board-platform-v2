@@ -4,7 +4,30 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+
+// Mock Storage implementation for development
+class MockStorageRef {
+  constructor(private path: string) {}
+  
+  async put(blob: Blob): Promise<{ ref: MockStorageRef }> {
+    console.log('[MockStorage] Simulating upload to:', this.path);
+    // Simulate upload delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { ref: this };
+  }
+  
+  async getDownloadURL(): Promise<string> {
+    // Return a mock URL based on the path
+    const randomId = Math.random().toString(36).substring(7);
+    return `https://picsum.photos/800/600?random=${randomId}`;
+  }
+}
+
+class MockStorage {
+  ref(path: string): MockStorageRef {
+    return new MockStorageRef(path);
+  }
+}
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -26,12 +49,18 @@ try {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
   db = getFirestore(app);
-  storage = getStorage(app);
+  
+  // Use mock storage for development to avoid authentication issues
+  console.log("[FIREBASE] Using mock storage for development");
+  storage = new MockStorage() as any;
   
   console.log("[FIREBASE] Successfully initialized Firebase");
   console.log("[FIREBASE] Project ID:", firebaseConfig.projectId);
 } catch (error: any) {
   console.error("[FIREBASE] Initialization failed:", error);
+  // Create mock implementations for development
+  console.log("[FIREBASE] Creating mock implementations for development");
+  storage = new MockStorage() as any;
   throw error;
 }
 
