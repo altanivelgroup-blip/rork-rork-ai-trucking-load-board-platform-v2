@@ -19,12 +19,12 @@ import { getStorage, FirebaseStorage } from "firebase/storage";
 // ---- DEVELOPMENT CONFIG (replace with your actual Firebase config) ----
 // To get your config: Firebase Console → Project settings → SDK snippet
 const firebaseConfig = {
-  apiKey: "demo-api-key", // Replace with your actual API key
-  authDomain: "demo-project.firebaseapp.com", // Replace with your actual auth domain
-  projectId: "demo-project", // Replace with your actual project ID
-  storageBucket: "demo-project.appspot.com", // Replace with your actual storage bucket
-  messagingSenderId: "123456789", // Replace with your actual sender ID
-  appId: "1:123456789:web:demo", // Replace with your actual app ID
+  apiKey: "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
+  authDomain: "rork-prod.firebaseapp.com",
+  projectId: "rork-prod",
+  storageBucket: "rork-prod.firebasestorage.app",
+  messagingSenderId: "935855915227",
+  appId: "1:935855915227:web:20c4c517dd32f0e59a4cfe"
 };
 
 // Development mode detection
