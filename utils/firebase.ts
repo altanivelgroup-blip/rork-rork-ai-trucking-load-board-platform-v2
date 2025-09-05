@@ -19,10 +19,12 @@ export type FirebaseServices = {
 
 // --- Your rork-prod config ---
 const firebaseConfig = {
-  apiKey: "YOUR_ACTUAL_API_KEY_HERE", // Replace with your actual Firebase API key
+  apiKey: "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
   authDomain: "rork-prod.firebaseapp.com",
   projectId: "rork-prod",
   storageBucket: "rork-prod.firebasestorage.app",
+  messagingSenderId: "935855915227",
+  appId: "1:935855915227:web:20c4c517dd32f0e59a4cfe"
 };
 
 let app: FirebaseApp;
