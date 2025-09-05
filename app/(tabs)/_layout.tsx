@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
-import { Home, Search, Settings, Truck } from 'lucide-react-native';
+import { Home, Search, Settings, Truck, Package } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 
 export default function TabsLayout() {
@@ -34,6 +34,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="loads"
+        options={{
+          title: 'Loads',
+          tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="service-finder"
         options={{
           title: 'Service Finder',
@@ -43,7 +50,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="admin"
         options={{
-          title: 'Admin',
+          title: 'Profile',
           tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
         }}
       />
