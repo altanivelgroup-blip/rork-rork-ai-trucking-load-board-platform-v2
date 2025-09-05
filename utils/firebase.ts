@@ -124,8 +124,7 @@ if (app) {
 // 4) Storage - only if we have valid config
 let storage: FirebaseStorage | null = null;
 if (app) {
-  storage = getStorage(app, "gs://demo-project.firebasestorage.app"); // Update this with your actual bucket
-}
+  storage = getStorage(app, "gs://yourproject.appspot.com");
 
 // Export functions for compatibility
 export function getFirebase() {
