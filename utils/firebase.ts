@@ -2,17 +2,14 @@
 // One file to initialize Firebase correctly on both Web and React-Native.
 
 import { Platform } from "react-native"; // safe on web builds too (RN shim)
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 
 import {
   // RN + Web safe auth imports
-  initializeAuth,
   getAuth,
   onAuthStateChanged,
   signInAnonymously,
-  getReactNativePersistence,
   setPersistence,
   browserLocalPersistence,
   Auth,
@@ -22,6 +19,10 @@ import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 
 // ---- Your rork-prod config (copy from Firebase console) ----
+// NOTE: If you're getting API key errors, you may need to:
+// 1. Go to Firebase Console > Project Settings > General
+// 2. Copy the correct config for your platform (Web)
+// 3. Make sure the API key is enabled for your services
 const firebaseConfig = {
   apiKey: "AIzaSyCY-gaud4JqR4GZCMYkkIAys9F09tVgzIEQ",
   authDomain: "rork-prod.firebaseapp.com",
@@ -32,7 +33,18 @@ const firebaseConfig = {
 };
 // ------------------------------------------------------------
 
-let app: FirebaseApp = getApps()[0] ?? initializeApp(firebaseConfig);
+let app: FirebaseApp;
+try {
+  app = getApps()[0] ?? initializeApp(firebaseConfig);
+  console.log("[FIREBASE] App initialized successfully", {
+    projectId: app.options.projectId,
+    authDomain: app.options.authDomain,
+    apiKey: app.options.apiKey?.substring(0, 10) + "..."
+  });
+} catch (error: any) {
+  console.error("[FIREBASE] App initialization failed:", error);
+  throw error;
+}
 
 // --- Auth (platform-safe) ---
 let auth: Auth;
@@ -41,20 +53,27 @@ if (Platform.OS === "web") {
   // Only the web SDK supports browserLocalPersistence
   setPersistence(auth, browserLocalPersistence).catch(() => {});
 } else {
-  // React-Native must use initializeAuth + AsyncStorage
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
+  // React-Native: use getAuth for simplicity
+  auth = getAuth(app);
 }
 
 // Ensure we always have a signed-in user for Storage rules
 onAuthStateChanged(auth, (u) => {
   if (u) {
-    console.log("[AUTH OK]", u.uid);
+    console.log("[AUTH OK]", u.uid, u.isAnonymous ? "(anonymous)" : "(authenticated)");
   } else {
-    signInAnonymously(auth).catch((e) =>
-      console.error("[AUTH ERROR]", e.code || e.message)
-    );
+    console.log("[AUTH] No user, attempting anonymous sign-in...");
+    signInAnonymously(auth)
+      .then((result) => {
+        console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
+      })
+      .catch((e) => {
+        console.error("[AUTH ERROR]", {
+          code: e.code,
+          message: e.message,
+          details: e
+        });
+      });
   }
 });
 
@@ -66,3 +85,32 @@ const storage: FirebaseStorage = getStorage(app, "gs://rork-prod.firebasestorage
 
 // Export a tiny API
 export default { app, auth, db, storage };
+
+// Named exports for compatibility
+export { app, auth, db, storage };
+
+// Helper functions
+export function getFirebase() {
+  return { app, auth, db, storage };
+}
+
+export async function ensureFirebaseAuth(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (auth.currentUser) {
+      resolve(true);
+      return;
+    }
+    
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      if (user) {
+        resolve(true);
+      } else {
+        // Try to sign in anonymously
+        signInAnonymously(auth)
+          .then(() => resolve(true))
+          .catch(() => resolve(false));
+      }
+    });
+  });
+}
