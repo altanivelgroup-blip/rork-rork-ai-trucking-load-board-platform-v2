@@ -1,141 +1,66 @@
 // utils/firebase.ts
-// Mock Firebase implementation for development
+// Real Firebase implementation
 
-// Mock Firebase types and implementations
-type MockUser = {
-  uid: string;
-  isAnonymous: boolean;
+import { initializeApp } from "firebase/app";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
+  authDomain: "rork-prod.firebaseapp.com",
+  projectId: "rork-prod",
+  storageBucket: "rork-prod.firebasestorage.app",
+  messagingSenderId: "935855915227",
+  appId: "1:935855915227:web:20c4c517dd32f0e59a4cfe"
 };
 
-type MockAuth = {
-  currentUser: MockUser | null;
-  onAuthStateChanged: (callback: (user: MockUser | null) => void) => () => void;
-  signInAnonymously: () => Promise<{ user: MockUser }>;
-};
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app, "gs://rork-prod.firebasestorage.app");
 
-type MockFirestore = {
-  collection: (path: string) => any;
-  doc: (path: string) => any;
-};
-
-type MockStorage = {
-  ref: (path: string) => any;
-};
-
-type MockApp = {
-  options: {
-    projectId: string;
-    authDomain: string;
-    apiKey: string;
-    storageBucket: string;
-  };
-};
-
-// Create mock user
-const mockUser: MockUser = {
-  uid: "mock-user-" + Math.random().toString(36).substr(2, 9),
-  isAnonymous: true,
-};
-
-// Mock Auth implementation
-const auth: MockAuth = {
-  currentUser: mockUser,
-  onAuthStateChanged: (callback) => {
-    // Immediately call with mock user
-    setTimeout(() => callback(mockUser), 100);
-    return () => {}; // unsubscribe function
-  },
-  signInAnonymously: async () => {
-    console.log("[AUTH] Mock anonymous sign-in successful:", mockUser.uid);
-    return { user: mockUser };
-  },
-};
-
-// Mock Firestore implementation
-const db: MockFirestore = {
-  collection: (path: string) => ({
-    doc: (id: string) => ({
-      set: async (data: any) => {
-        console.log(`[FIRESTORE] Mock write to ${path}/${id}:`, data);
-        return Promise.resolve();
-      },
-      get: async () => ({
-        exists: () => false,
-        data: () => null,
-      }),
-    }),
-    where: () => ({
-      orderBy: () => ({
-        limit: () => ({
-          get: async () => ({
-            docs: [],
-            empty: true,
-          }),
-        }),
-      }),
-    }),
-  }),
-  doc: (path: string) => ({
-    set: async (data: any) => {
-      console.log(`[FIRESTORE] Mock write to ${path}:`, data);
-      return Promise.resolve();
-    },
-  }),
-};
-
-// Mock Storage implementation
-const storage: MockStorage = {
-  ref: (path: string) => ({
-    put: async (blob: Blob) => {
-      console.log(`[STORAGE] Mock upload to ${path}, size: ${blob.size} bytes`);
-      return {
-        ref: {
-          getDownloadURL: async () => {
-            // Return a mock URL
-            return `https://mock-storage.com/${path}?t=${Date.now()}`;
-          },
-        },
-      };
-    },
-    putString: async (data: string) => {
-      console.log(`[STORAGE] Mock upload string to ${path}`);
-      return {
-        ref: {
-          getDownloadURL: async () => {
-            return `https://mock-storage.com/${path}?t=${Date.now()}`;
-          },
-        },
-      };
-    },
-  }),
-};
-
-// Mock App
-const app: MockApp = {
-  options: {
-    projectId: "mock-project",
-    authDomain: "mock-project.firebaseapp.com",
-    apiKey: "mock-api-key",
-    storageBucket: "mock-project.appspot.com",
-  },
-};
-
-console.log("[FIREBASE] Using mock Firebase implementation for development");
+console.log("[FIREBASE] Using real Firebase implementation");
 console.log("[FIREBASE CFG]", {
-  apiKey: "mock-api-k...",
-  authDomain: app.options.authDomain,
-  projectId: app.options.projectId,
-  storageBucket: app.options.storageBucket,
+  apiKey: "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+  storageBucket: firebaseConfig.storageBucket,
 });
 
 // Initialize auth state
-auth.onAuthStateChanged((user) => {
+onAuthStateChanged(auth, (user) => {
   if (user) {
     console.log("[AUTH OK]", user.uid);
+  } else {
+    console.log("[AUTH] No user signed in");
   }
 });
 
+// Auto sign-in anonymously
+let authInitialized = false;
+const initAuth = async () => {
+  if (authInitialized) return;
+  authInitialized = true;
+  
+  try {
+    if (!auth.currentUser) {
+      console.log("[AUTH] Starting anonymous sign-in...");
+      const result = await signInAnonymously(auth);
+      console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
+    }
+  } catch (error: any) {
+    console.error("[AUTH] Auto anonymous sign-in failed:", error);
+  }
+};
+
+// Initialize auth immediately
+initAuth();
+
 // ✅ Top-level exports
+export { app, auth, db, storage };
 export default { app, auth, db, storage };
 
 // Compatibility helper
@@ -150,10 +75,12 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
   }
   
   try {
-    await auth.signInAnonymously();
+    console.log("[AUTH] Ensuring authentication...");
+    const result = await signInAnonymously(auth);
+    console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
     return true;
-  } catch (error) {
-    console.error("[AUTH] Mock sign-in failed:", error);
+  } catch (error: any) {
+    console.error("[AUTH ERROR]", error.code, error.message);
     return false;
   }
 }
