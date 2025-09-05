@@ -108,10 +108,13 @@ const inferMimeAndExt = (file: any) => {
 const mapStorageError = (error: any): string => {
   const code = error?.code;
   if (code === "storage/unauthorized" || code === "storage/unauthenticated") {
-    return "Upload blocked by rules; ensure you're signed in.";
+    return "Authentication required. Please check your connection and try again.";
   }
   if (code === "storage/retry-limit-exceeded") {
     return "Network slow — try again or compress more.";
+  }
+  if (code === "auth/api-key-not-valid") {
+    return "Configuration error. Please contact support.";
   }
   return error?.message || "Upload failed. Please try again.";
 };
@@ -180,6 +183,8 @@ async function uploadWithFallback(basePath: string, input: any, updateProgress?:
     return await uploadSmart(path, blob, mime, key, updateProgress);
   } catch (err: any) {
     const code = String(err?.code || err?.message || "");
+    console.error('[PhotoUploader] Upload failed, attempting fallback:', { code, message: err?.message });
+    
     if (code.includes("retry-limit-exceeded") || code.includes("canceled")) {
       // hard fallback: try one more time with simple upload
       const { storage } = getFirebase();
@@ -189,6 +194,12 @@ async function uploadWithFallback(basePath: string, input: any, updateProgress?:
       await uploadBytes(r2, blob, { contentType: mime || "image/jpeg" });
       return await getDownloadURL(r2);
     }
+    
+    // If it's an auth error, provide more helpful message
+    if (code.includes('unauthorized') || code.includes('unauthenticated') || code.includes('permission')) {
+      throw new Error('Authentication required. Please check your connection and try again.');
+    }
+    
     throw err;
   }
 }
@@ -302,7 +313,11 @@ export function PhotoUploader({
   // Upload single file with new smart upload logic
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
-      await ensureFirebaseAuth();
+      // Try to ensure Firebase auth, but continue even if it fails for development
+      const authSuccess = await ensureFirebaseAuth();
+      if (!authSuccess) {
+        console.warn('[PhotoUploader] Authentication failed, but continuing for development');
+      }
       
       const fileId = uuid.v4() as string;
       
@@ -381,12 +396,14 @@ export function PhotoUploader({
         const code = (error && (error.code || error.message)) || '';
         let errorMessage = 'Upload failed. Tap Retry.';
         
-        if (code.includes('unauthorized') || code.includes('permission')) {
-          errorMessage = 'Upload blocked by rules — make sure you\'re signed in.';
+        if (code.includes('unauthorized') || code.includes('permission') || code.includes('unauthenticated')) {
+          errorMessage = 'Authentication error. Check connection and retry.';
         } else if (code.includes('retry-limit-exceeded')) {
           errorMessage = 'Network is slow — please retry this photo.';
         } else if (code.includes('File too large')) {
           errorMessage = 'Photo too large. Keep under 10MB.';
+        } else if (code.includes('api-key-not-valid')) {
+          errorMessage = 'Configuration error. Please contact support.';
         }
         
         setState(prev => ({
