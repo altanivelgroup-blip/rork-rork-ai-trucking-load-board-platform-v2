@@ -57,23 +57,12 @@ if (Platform.OS === "web") {
   auth = getAuth(app);
 }
 
-// Ensure we always have a signed-in user for Storage rules
+// Monitor auth state but don't automatically sign in
 onAuthStateChanged(auth, (u) => {
   if (u) {
     console.log("[AUTH OK]", u.uid, u.isAnonymous ? "(anonymous)" : "(authenticated)");
   } else {
-    console.log("[AUTH] No user, attempting anonymous sign-in...");
-    signInAnonymously(auth)
-      .then((result) => {
-        console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
-      })
-      .catch((e) => {
-        console.error("[AUTH ERROR]", {
-          code: e.code,
-          message: e.message,
-          details: e
-        });
-      });
+    console.log("[AUTH] No Firebase user - will sign in when needed");
   }
 });
 
@@ -89,6 +78,27 @@ export default { app, auth, db, storage };
 // Named exports for compatibility
 export { app, auth, db, storage };
 
+// Test function to verify Firebase is working
+export async function testFirebaseConnection(): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log("[FIREBASE TEST] Testing connection...");
+    console.log("[FIREBASE TEST] Project ID:", app.options.projectId);
+    console.log("[FIREBASE TEST] Auth domain:", app.options.authDomain);
+    
+    // Test if we can initialize auth without signing in
+    const authReady = auth !== null;
+    console.log("[FIREBASE TEST] Auth initialized:", authReady);
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("[FIREBASE TEST] Failed:", error);
+    return { 
+      success: false, 
+      error: error?.message || 'Unknown error' 
+    };
+  }
+}
+
 // Helper functions
 export function getFirebase() {
   return { app, auth, db, storage };
@@ -97,20 +107,23 @@ export function getFirebase() {
 export async function ensureFirebaseAuth(): Promise<boolean> {
   return new Promise((resolve) => {
     if (auth.currentUser) {
+      console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
       resolve(true);
       return;
     }
     
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      unsubscribe();
-      if (user) {
+    console.log("[AUTH] No current user, attempting anonymous sign-in...");
+    signInAnonymously(auth)
+      .then((result) => {
+        console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
         resolve(true);
-      } else {
-        // Try to sign in anonymously
-        signInAnonymously(auth)
-          .then(() => resolve(true))
-          .catch(() => resolve(false));
-      }
-    });
+      })
+      .catch((error) => {
+        console.error("[AUTH] Anonymous sign-in failed:", {
+          code: error?.code || 'unknown',
+          message: error?.message || 'Unknown error'
+        });
+        resolve(false);
+      });
   });
 }

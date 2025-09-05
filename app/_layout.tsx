@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import React, { useMemo, useCallback, useEffect } from "react";
+import React, { useMemo, useCallback } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -19,7 +19,7 @@ import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
 import { theme } from "@/constants/theme";
 
-import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
+// Firebase is available but not used for auth in this app
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -167,29 +167,6 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   console.log("[RootLayout] rendering");
-
-  useEffect(() => {
-    // Initialize Firebase auth in the background
-    const initAuth = async () => {
-      try {
-        console.log("[RootLayout] Initializing Firebase auth...");
-        const authReady = await ensureFirebaseAuth();
-        console.log("[RootLayout] Firebase auth ready:", authReady);
-        
-        if (authReady) {
-          const { app } = getFirebase();
-          console.log("[RootLayout] Firebase project:", app.options.projectId);
-        }
-      } catch (error) {
-        console.warn("[RootLayout] Firebase initialization error:", error);
-      }
-    };
-    
-    // Delay initialization slightly to avoid blocking the UI
-    const timer = setTimeout(initAuth, 100);
-    
-    return () => clearTimeout(timer);
-  }, []);
 
   return (
     <ErrorBoundary safeRoute="/(auth)/login">
