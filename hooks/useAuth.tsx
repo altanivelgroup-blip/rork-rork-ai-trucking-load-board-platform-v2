@@ -2,11 +2,16 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Driver } from '@/types';
+import { auth, ensureFirebaseAuth } from '@/utils/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useToast } from '@/components/Toast';
 
 interface AuthState {
   user: Driver | null;
+  userId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isFirebaseAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, profile?: Partial<Driver>) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -18,7 +23,10 @@ const DRIVER_STORAGE_KEY = 'auth:user:driver';
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [user, setUser] = useState<Driver | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
+  const toast = useToast();
 
   useEffect(() => {
     let isMounted = true;
@@ -26,6 +34,42 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     const init = async () => {
       try {
         console.log('[auth] initializing...');
+        
+        // First, try to authenticate with Firebase anonymously
+        const firebaseAuthSuccess = await ensureFirebaseAuth();
+        
+        if (!isMounted) return;
+        
+        if (firebaseAuthSuccess) {
+          console.log('[auth] Firebase authentication successful');
+          setIsFirebaseAuthenticated(true);
+          
+          // Set up Firebase auth state listener
+          const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+            if (firebaseUser) {
+              console.log('[auth] Firebase user state changed:', firebaseUser.uid);
+              setUserId(firebaseUser.uid);
+              setIsFirebaseAuthenticated(true);
+            } else {
+              console.log('[auth] Firebase user signed out');
+              setUserId(null);
+              setIsFirebaseAuthenticated(false);
+            }
+          });
+          
+          // Clean up listener when component unmounts
+          if (isMounted) {
+            // Store the unsubscribe function for cleanup
+            (init as any).unsubscribe = unsubscribe;
+          }
+        } else {
+          console.log('[auth] Firebase authentication failed');
+          if (isMounted) {
+            toast.show('Sign-in failed, please refresh.', 'error');
+          }
+        }
+        
+        // Load cached user profile
         const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
         
         if (!isMounted) return;
@@ -38,6 +82,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         }
       } catch (e) {
         console.error('[auth] init error', e);
+        if (isMounted) {
+          toast.show('Sign-in failed, please refresh.', 'error');
+        }
       } finally {
         if (isMounted) {
           console.log('[auth] initialization complete');
@@ -51,8 +98,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     return () => {
       isMounted = false;
       clearTimeout(timer);
+      // Clean up Firebase auth listener if it exists
+      if ((init as any).unsubscribe) {
+        (init as any).unsubscribe();
+      }
     };
-  }, []);
+  }, [toast]);
 
   const login = useCallback(async (email: string, password: string) => {
     console.log('[auth] login attempt for', email);
@@ -130,14 +181,16 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const value = useMemo(() => ({
     user,
+    userId,
     isLoading,
     isAuthenticated: !!user,
+    isFirebaseAuthenticated,
     login,
     register,
     resetPassword,
     logout,
     updateProfile,
-  }), [user, isLoading, login, register, resetPassword, logout, updateProfile]);
+  }), [user, userId, isLoading, isFirebaseAuthenticated, login, register, resetPassword, logout, updateProfile]);
 
   return value;
 });
