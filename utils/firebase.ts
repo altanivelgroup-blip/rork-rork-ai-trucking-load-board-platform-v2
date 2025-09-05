@@ -1,7 +1,7 @@
 // utils/firebase.ts
 // Real Firebase implementation
 
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -16,11 +16,11 @@ const firebaseConfig = {
   appId: "1:935855915227:web:20c4c517dd32f0e59a4cfe"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase with singleton pattern to prevent duplicate initialization
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app, "gs://rork-prod.firebasestorage.app");
+const storage = getStorage(app);
 
 console.log("[FIREBASE] Using real Firebase implementation");
 console.log("[FIREBASE CFG]", {
