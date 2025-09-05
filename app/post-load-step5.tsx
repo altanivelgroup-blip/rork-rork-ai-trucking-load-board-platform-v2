@@ -9,7 +9,9 @@ import { usePostLoad } from '@/hooks/usePostLoad';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '@/hooks/useAuth';
+import { useLoads } from '@/hooks/useLoads';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -36,6 +38,8 @@ export default function PostLoadStep5() {
   const [, setPhotoUploadStatus] = useState<{ uploading: boolean; completedCount: number; totalCount: number }>({ uploading: false, completedCount: 0, totalCount: 0 });
   const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
   const toast = useToast();
+  const { userId } = useAuth();
+  const { refreshLoads } = useLoads();
 
 
 
@@ -47,12 +51,6 @@ export default function PostLoadStep5() {
 
   // Helper functions
   const str = useCallback((v: any) => typeof v === 'string' ? v.trim() : '', []);
-  
-  const mapFirestoreError = useCallback((err: any) => {
-    if (err?.code === 'permission-denied') return 'Permission denied. Check Firestore rules for /loads.';
-    if (err?.code === 'invalid-argument') return 'Bad field types. Ensure numbers are numbers.';
-    return err?.message || 'Failed to post. Try again.';
-  }, []);
 
   const onSubmit = useCallback(async () => {
     console.log('POST BTN FIRED - onSubmit called');
@@ -82,42 +80,50 @@ export default function PostLoadStep5() {
       // Set posting state
       setField('isPosting', true);
       
-      // Prepare payload
-      const load_id = `load-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const photos = draft.photoUrls || [];
-      const primaryPhoto = photos[0] || '';
-      
+      // Build payload from the 5-step form
       const payload = {
         title: str(draft.title),
-        route: { 
-          pickupZip: str(draft.pickup), 
-          dropZip: str(draft.delivery) 
-        },
-        vehicleType: str(draft.vehicleType || 'CAR-HAULER'),
-        rateUsd: Number(draft.rateAmount || 0),
-        membership_required: 'Basic',
-        is_featured: false,
-        photos,
-        primaryPhoto,
-        created_at: serverTimestamp(),
-        status: 'posted'
+        description: str(draft.description),
+        vehicleType: str(draft.vehicleType || 'truck'),
+        pickup: str(draft.pickup),
+        delivery: str(draft.delivery),
+        weight: draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0,
+        dimensions: str(draft.dimensions),
+        pickupDate: draft.pickupDate,
+        deliveryDate: draft.deliveryDate,
+        rateAmount: Number(draft.rateAmount || 0),
+        rateKind: draft.rateKind,
+        miles: draft.miles ? Number(draft.miles.replace(/[^0-9.]/g, '')) || 0 : 0,
+        requirements: str(draft.requirements),
+        contact: str(contact || draft.contact),
+        photoUrls: draft.photoUrls || [],
+        reference: str(draft.reference),
+        createdBy: userId || 'anonymous',
+        createdAt: serverTimestamp(),
+        status: 'OPEN'
       };
       
-      console.log('Posting load:', load_id, photos, primaryPhoto);
+      console.log('Posting load with payload:', payload);
       
       // Post to Firestore
       const { db } = getFirebase();
-      await setDoc(doc(db, 'loads', load_id), payload, { merge: true });
+      const ref = await addDoc(collection(db, 'loads'), payload);
       
-      toast.show('Load posted!', 'success');
+      // Success actions
+      toast.show('Load posted: ' + ref.id, 'success');
+      
+      // Trigger loads reload
+      await refreshLoads();
+      
+      // Navigate to loads page
       router.replace('/(tabs)/loads');
       
     } catch (err) {
       console.error('POST_LOAD_ERROR', err);
-      toast.show(mapFirestoreError(err), 'error');
+      toast.show('Post failed', 'error');
       setField('isPosting', false);
     }
-  }, [router, setField, draft, uploadsInProgress, toast, str, mapFirestoreError]);
+  }, [router, setField, draft, uploadsInProgress, toast, str, contact, userId, refreshLoads]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
