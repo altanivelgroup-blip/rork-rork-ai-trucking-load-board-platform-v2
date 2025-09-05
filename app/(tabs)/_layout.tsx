@@ -1,13 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
-import { Home as HomeIcon, User, Truck, Crown } from 'lucide-react-native';
+import { User, Truck, Crown } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 
 export default function TabsLayout() {
   return (
     <Tabs
-      initialRouteName="Home"
+      initialRouteName="Loads"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -26,13 +26,6 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="Home"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <HomeIcon color={color} size={size} />,
-        }}
-      />
       <Tabs.Screen
         name="Loads"
         options={{
