@@ -1,63 +1,101 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
-import { testFirebaseConnection } from '@/lib/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { getFirebase } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 
 export default function FirebaseTestScreen() {
   const [testResult, setTestResult] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [initStatus, setInitStatus] = useState<string>("Checking...");
+
+  useEffect(() => {
+    checkFirebaseStatus();
+  }, []);
+
+  const checkFirebaseStatus = async () => {
+    try {
+      const authReady = await ensureFirebaseAuth();
+      if (authReady) {
+        const { app, auth } = getFirebase();
+        setInitStatus(`✅ Ready - Project: ${app.options.projectId}, User: ${auth.currentUser?.uid || 'none'}`);
+      } else {
+        setInitStatus("❌ Auth failed");
+      }
+    } catch (error) {
+      setInitStatus(`❌ Error: ${error}`);
+    }
+  };
 
   const runTest = async () => {
     setIsLoading(true);
     setTestResult(null);
     
     try {
-      // First run the connection test
-      const result = await testFirebaseConnection();
+      console.log("[FirebaseTest] Starting test...");
       
-      if (result.success) {
-        // If connection test passes, try writing a test document
-        try {
-          const { db, auth } = getFirebase();
-          console.log('[Firebase Test] Writing test document...');
-          
-          const testId = `test-${Date.now()}`;
-          await setDoc(doc(db, 'loads', testId), {
-            title: 'Hello Rork Test Load',
-            origin: 'Phoenix, AZ',
-            destination: 'Los Angeles, CA',
-            vehicleType: 'box-truck',
-            rate: 1234,
-            status: 'OPEN',
-            createdBy: auth.currentUser?.uid ?? 'test-user',
-            createdAt: serverTimestamp(),
-            clientCreatedAt: Date.now(),
-          });
-          
-          console.log('[Firebase Test] Test document written successfully:', testId);
-          setTestResult({
-            ...result,
-            testDocumentId: testId,
-            writeTest: 'SUCCESS'
-          });
-        } catch (writeError: any) {
-          console.error('[Firebase Test] Write test failed:', writeError);
-          setTestResult({
-            ...result,
-            writeTest: 'FAILED',
-            writeError: writeError.message || 'Unknown write error'
-          });
-        }
-      } else {
-        setTestResult(result);
+      // Test Firebase initialization
+      const authReady = await ensureFirebaseAuth();
+      if (!authReady) {
+        throw new Error("Firebase auth not ready");
       }
+      
+      const { app, auth, db, storage } = getFirebase();
+      
+      // Test writing a document
+      let writeTest = 'SKIPPED';
+      let testDocumentId = '';
+      let writeError = '';
+      
+      try {
+        // Dynamic import to avoid initialization issues
+        const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+        
+        console.log('[Firebase Test] Writing test document...');
+        testDocumentId = `test-${Date.now()}`;
+        
+        await setDoc(doc(db, 'loads', testDocumentId), {
+          title: 'Hello Rork Test Load',
+          origin: 'Phoenix, AZ',
+          destination: 'Los Angeles, CA',
+          vehicleType: 'box-truck',
+          rate: 1234,
+          status: 'OPEN',
+          createdBy: auth.currentUser?.uid ?? 'test-user',
+          createdAt: serverTimestamp(),
+          clientCreatedAt: Date.now(),
+        });
+        
+        writeTest = 'SUCCESS';
+        console.log('[Firebase Test] Test document written successfully:', testDocumentId);
+      } catch (writeErr: any) {
+        writeTest = 'FAILED';
+        writeError = writeErr.message || 'Unknown write error';
+        console.error('[Firebase Test] Write test failed:', writeErr);
+      }
+      
+      // Test basic Firebase services
+      const result = {
+        success: true,
+        projectId: app.options.projectId,
+        authDomain: app.options.authDomain,
+        userId: auth.currentUser?.uid || "none",
+        dbConnected: !!db,
+        storageConnected: !!storage,
+        writeTest,
+        testDocumentId,
+        writeError,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log("[FirebaseTest] Test completed:", result);
+      setTestResult(result);
+      
     } catch (error: any) {
-      setTestResult({
-        success: false,
-        error: error.message || 'Test failed',
-        code: error.code || 'unknown'
+      console.error("[FirebaseTest] Test failed:", error);
+      setTestResult({ 
+        success: false, 
+        error: error?.message || String(error),
+        code: error?.code || "unknown"
       });
     } finally {
       setIsLoading(false);
@@ -70,6 +108,10 @@ export default function FirebaseTestScreen() {
       <ScrollView style={styles.container}>
         <View style={styles.content}>
           <Text style={styles.title}>Firebase Connection Test</Text>
+          
+          <View style={styles.statusContainer}>
+            <Text style={styles.statusText}>Status: {initStatus}</Text>
+          </View>
           
           <TouchableOpacity 
             style={[styles.button, isLoading && styles.buttonDisabled]} 
@@ -143,6 +185,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
+  },
+  statusContainer: {
+    backgroundColor: '#f0f0f0',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  statusText: {
+    fontSize: 14,
+    fontFamily: 'monospace',
   },
   button: {
     backgroundColor: '#007AFF',

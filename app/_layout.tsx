@@ -169,20 +169,26 @@ export default function RootLayout() {
   console.log("[RootLayout] rendering");
 
   useEffect(() => {
-    try {
-      const { app } = getFirebase();
-      console.log("[check] projectId:", app.options.projectId);
-
-      ensureFirebaseAuth()
-        .then((ok) => {
-          console.log("[check] auth ready:", ok);
-        })
-        .catch((e) => {
-          console.warn("[check] auth error:", e);
-        });
-    } catch (e) {
-      console.warn("[check] firebase not ready:", e);
-    }
+    // Initialize Firebase auth in the background
+    const initAuth = async () => {
+      try {
+        console.log("[RootLayout] Initializing Firebase auth...");
+        const authReady = await ensureFirebaseAuth();
+        console.log("[RootLayout] Firebase auth ready:", authReady);
+        
+        if (authReady) {
+          const { app } = getFirebase();
+          console.log("[RootLayout] Firebase project:", app.options.projectId);
+        }
+      } catch (error) {
+        console.warn("[RootLayout] Firebase initialization error:", error);
+      }
+    };
+    
+    // Delay initialization slightly to avoid blocking the UI
+    const timer = setTimeout(initAuth, 100);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   return (
