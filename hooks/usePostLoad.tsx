@@ -499,8 +499,22 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           console.log('[PostLoad] load posted successfully to Firebase:', loadId);
           showToast('Load posted successfully!');
           
-        } catch (firebaseError) {
-          console.warn('[PostLoad] Firebase error, using local storage fallback:', firebaseError);
+        } catch (firebaseError: any) {
+          console.warn('[PostLoad] Firebase error, using local storage fallback:', {
+            code: firebaseError?.code,
+            message: firebaseError?.message,
+            name: firebaseError?.name
+          });
+          
+          // Provide user-friendly error context
+          if (firebaseError?.code === 'permission-denied') {
+            console.warn('[PostLoad] Permission denied - this is expected in development mode');
+            showToast('Using local storage (Firebase permissions not configured)');
+          } else {
+            console.warn('[PostLoad] Firebase unavailable, using local storage');
+            showToast('Firebase unavailable, saving locally');
+          }
+          
           await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls);
         }
       } else {

@@ -72,20 +72,42 @@ export async function postLoad(args: {
   deliveryDate: Date;
   finalPhotos: { url: string; path?: string | null }[];
 }) {
-  // Make sure auth is ready (your helper can sign in or refresh token)
-  await ensureFirebaseAuth();
+  try {
+    console.log("[POST_LOAD] Starting postLoad with args:", {
+      id: args.id,
+      title: args.title,
+      origin: args.origin,
+      destination: args.destination,
+      vehicleType: args.vehicleType,
+      rate: args.rate,
+      photosCount: args.finalPhotos?.length || 0
+    });
 
-  const { auth, db, app } = getFirebase();
-  const uid = auth.currentUser?.uid ?? "anonymous";
-  const rateNum = Number(args.rate);
+    // Make sure auth is ready (your helper can sign in or refresh token)
+    const authSuccess = await ensureFirebaseAuth();
+    if (!authSuccess) {
+      console.warn("[POST_LOAD] Firebase auth failed, throwing error to trigger fallback");
+      throw new Error("Firebase authentication failed");
+    }
 
-  console.log("[POST] projectId:", app.options.projectId);
-  console.log("[POST] writing path:", `${LOADS_COLLECTION}/${args.id}`);
-  console.log("[POST] createdBy:", uid);
+    const { auth, db, app } = getFirebase();
+    const uid = auth.currentUser?.uid;
+    
+    if (!uid) {
+      console.warn("[POST_LOAD] No authenticated user, throwing error to trigger fallback");
+      throw new Error("No authenticated user");
+    }
 
-  await setDoc(
-    doc(db, LOADS_COLLECTION, args.id),
-    {
+    const rateNum = Number(args.rate);
+
+    console.log("[POST_LOAD] Firebase details:", {
+      projectId: app.options.projectId,
+      writePath: `${LOADS_COLLECTION}/${args.id}`,
+      createdBy: uid,
+      rate: rateNum
+    });
+
+    const loadData = {
       title: String(args.title).trim(),
       origin: String(args.origin).trim(),
       destination: String(args.destination).trim(),
@@ -101,9 +123,30 @@ export async function postLoad(args: {
       })),
       createdAt: serverTimestamp(),
       clientCreatedAt: Date.now(), // lets UI sort immediately
-    },
-    { merge: true }
-  );
+    };
 
-  console.log("[POST] wrote", `${LOADS_COLLECTION}/${args.id}`);
+    console.log("[POST_LOAD] Attempting to write to Firestore...");
+    
+    await setDoc(
+      doc(db, LOADS_COLLECTION, args.id),
+      loadData,
+      { merge: true }
+    );
+
+    console.log("[POST_LOAD] Successfully wrote to Firestore:", `${LOADS_COLLECTION}/${args.id}`);
+    
+  } catch (error: any) {
+    console.error("[POST_LOAD_ERROR]", error?.code || 'unknown-code', error?.message || 'Unknown error');
+    
+    // Log specific Firebase permission errors
+    if (error?.code === 'permission-denied') {
+      console.error("[POST_LOAD_ERROR] Firebase permission denied. This usually means:");
+      console.error("[POST_LOAD_ERROR] 1. Firestore security rules don't allow this operation");
+      console.error("[POST_LOAD_ERROR] 2. User doesn't have sufficient permissions");
+      console.error("[POST_LOAD_ERROR] 3. Anonymous users might not be allowed to write");
+    }
+    
+    // Re-throw the error so the calling code can handle it (fallback to local storage)
+    throw error;
+  }
 }
