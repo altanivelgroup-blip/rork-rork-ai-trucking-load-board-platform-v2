@@ -251,18 +251,17 @@ const onNext = useCallback(async () => {
                 <FileUp size={18} color={theme.colors.white} />
                 <Text style={styles.bulkBtnText}>{isImporting ? 'Importing…' : 'Upload CSV'}</Text>
               </Pressable>
-            
+              <Pressable
+                onPress={onDownloadTemplate}
+                style={styles.secondaryBtn}
+                accessibilityRole="button"
+                testID="downloadTemplateButton"
+              >
+                <Download size={18} color={theme.colors.primary} />
+                <Text style={styles.secondaryBtnText}>Template</Text>
+              </Pressable>
             </View>
-            {csvErrors.length > 0 && (<Pressable
-  style={{ ...theme.button }}
-  onPress={onNext}
-  disabled={!canProceed()}
-  accessibilityRole="button"
-  testID="postLoadButton"
->
-  <Text style={theme.buttonText}>Post Load</Text>
-</Pressable>
-
+            {csvErrors.length > 0 && (
               <View style={styles.errorPanel} testID="csvErrorPanel">
                 <View style={styles.errorHeader}>
                   <AlertCircle size={18} color="#ef4444" />
