@@ -1,172 +1,73 @@
 // utils/firebase.ts
-// One file to initialize Firebase correctly on both Web and React-Native.
+// Minimal, stable Firebase init for Web + React-Native (Expo/RN).
 
-import { Platform } from "react-native"; // safe on web builds too (RN shim)
+import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-
+import { initializeApp, getApps, FirebaseApp, getApp } from "firebase/app";
 import {
-  // RN + Web safe auth imports
+  initializeAuth,
   getAuth,
   onAuthStateChanged,
   signInAnonymously,
+  getReactNativePersistence,
   setPersistence,
   browserLocalPersistence,
   Auth,
 } from "firebase/auth";
-
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 
-// ---- Firebase config for development ----
-// For production, replace with your actual Firebase project config
+// ---- YOUR PROD CONFIG (from Firebase Console → Project settings → SDK snippet) ----
 const firebaseConfig = {
-  apiKey: "demo-api-key",
-  authDomain: "demo-project.firebaseapp.com",
-  projectId: "demo-project",
-  storageBucket: "demo-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:demo",
+  apiKey: "AIzaSyCY-gaud4JqR4GZCMYkkIAys9F09tVgzIEQ",
+  authDomain: "rork-prod.firebaseapp.com",
+  projectId: "rork-prod",
+  storageBucket: "rork-prod.appspot.com",      // keep appspot.com here
+  messagingSenderId: "935855951227",
+  appId: "1:935855951227:web:20c4c517dd32f0e59a4cfe",
 };
+// -----------------------------------------------------------------------------
 
-// Check if we're in development mode and use emulator
-const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
-// ------------------------------------------------------------
+// 1) App
+const app: FirebaseApp = getApps()[0] ?? initializeApp(firebaseConfig);
 
-let app: FirebaseApp | null = null;
-try {
-  app = getApps()[0] ?? initializeApp(firebaseConfig);
-  console.log("[FIREBASE] App initialized successfully", {
-    projectId: app.options.projectId,
-    authDomain: app.options.authDomain,
-    isDevelopment
+// Log what config the app is actually using (helps catch typos/dupes)
+const cfg: any = getApp().options;
+console.log("[FIREBASE CFG]", {
+  apiKey: (cfg.apiKey || "").slice(0, 10) + "...",
+  authDomain: cfg.authDomain,
+  projectId: cfg.projectId,
+  storageBucket: cfg.storageBucket,
+});
+
+// 2) Auth (platform-safe)
+let auth: Auth;
+if (Platform.OS === "web") {
+  auth = getAuth(app);
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
+} else {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
   });
-} catch (error: any) {
-  console.error("[FIREBASE] App initialization failed:", error);
-  // In development, continue without Firebase
-  if (isDevelopment) {
-    console.warn("[FIREBASE] Continuing in development mode without Firebase");
-    app = null;
-  } else {
-    throw error;
-  }
 }
 
-// --- Auth (platform-safe) ---
-let auth: Auth | null = null;
-if (app) {
-  if (Platform.OS === "web") {
-    auth = getAuth(app);
-    // Only the web SDK supports browserLocalPersistence
-    setPersistence(auth, browserLocalPersistence).catch(() => {});
-  } else {
-    // React-Native: use getAuth for simplicity
-    auth = getAuth(app);
-  }
-}
-
-// Monitor auth state and attempt anonymous sign-in if needed
-if (app && auth) {
-// Show exactly what's going wrong during anonymous sign-in
+// Make sure we always have a signed-in user (required by your Storage rules)
 onAuthStateChanged(auth, (u) => {
   if (u) {
     console.log("[AUTH OK]", u.uid);
   } else {
-    signInAnonymously(auth).catch((e: any) => {
-      console.error(
-        "[AUTH ERROR]",
-        e?.code || e?.error?.code || "unknown",
-        e?.message || e?.error?.message || JSON.stringify(e)
-      );
-    });
+    signInAnonymously(auth).catch((e: any) =>
+      console.error("[AUTH ERROR]", e?.code, e?.message)
+    );
   }
 });
 
+// 3) Firestore
+const db: Firestore = getFirestore(app);
 
-// --- Firestore ---
-let db: Firestore | null = null;
-let storage: FirebaseStorage | null = null;
+// 4) Storage (pin to the real bucket)
+const storage: FirebaseStorage = getStorage(app, "gs://rork-prod.firebasestorage.app");
 
-try {
-  if (app) {
-    db = getFirestore(app);
-    storage = getStorage(app);
-    console.log("[FIREBASE] Firestore and Storage initialized");
-  }
-} catch (error) {
-  console.error("[FIREBASE] Failed to initialize Firestore/Storage:", error);
-  if (!isDevelopment) {
-    throw error;
-  }
-}
-
-// Export a tiny API
+// Export
 export default { app, auth, db, storage };
-
-// Named exports for compatibility
-export { app, auth, db, storage };
-
-// Test function to verify Firebase is working
-export async function testFirebaseConnection(): Promise<{ success: boolean; error?: string }> {
-  try {
-    console.log("[FIREBASE TEST] Testing connection...");
-    
-    if (!app) {
-      return { success: false, error: "Firebase app not initialized" };
-    }
-    
-    console.log("[FIREBASE TEST] Project ID:", app.options.projectId);
-    console.log("[FIREBASE TEST] Auth domain:", app.options.authDomain);
-    
-    // Test if we can initialize auth without signing in
-    const authReady = auth !== null;
-    console.log("[FIREBASE TEST] Auth initialized:", authReady);
-    
-    return { success: true };
-  } catch (error: any) {
-    console.error("[FIREBASE TEST] Failed:", error);
-    return { 
-      success: false, 
-      error: error?.message || 'Unknown error' 
-    };
-  }
-}
-
-// Helper functions
-export function getFirebase() {
-  return { app, auth, db, storage };
-}
-
-export async function ensureFirebaseAuth(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (isDevelopment) {
-      console.log("[AUTH] Development mode - skipping authentication");
-      resolve(true);
-      return;
-    }
-
-    if (!auth) {
-      console.error("[AUTH] Auth not initialized");
-      resolve(false);
-      return;
-    }
-
-    if (auth.currentUser) {
-      console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
-      resolve(true);
-      return;
-    }
-    
-    console.log("[AUTH] No current user, attempting anonymous sign-in...");
-    signInAnonymously(auth)
-      .then((result) => {
-        console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
-        resolve(true);
-      })
-      .catch((error) => {
-        console.error("[AUTH] Anonymous sign-in failed:", error);
-        console.warn("[AUTH] Proceeding without authentication for development");
-        resolve(true);
-      });
-  });
-}
