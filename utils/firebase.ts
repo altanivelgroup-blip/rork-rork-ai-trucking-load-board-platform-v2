@@ -8,10 +8,7 @@ import {
   browserLocalPersistence,
 } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
-import {
-  getStorage,
-  FirebaseStorage,
-} from "firebase/storage";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 
 export type FirebaseServices = {
   app: FirebaseApp;
@@ -25,8 +22,7 @@ const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
   authDomain: "rork-prod.firebaseapp.com",
   projectId: "rork-prod",
-  // ⚠️ Not used to select the bucket. Leave as-is or update, but we will PIN the bucket below.
-  storageBucket: "rork-prod.firebasestorage.app",
+  storageBucket: "rork-prod.firebasestorage.app", // pinned below too
 };
 
 let app: FirebaseApp;
