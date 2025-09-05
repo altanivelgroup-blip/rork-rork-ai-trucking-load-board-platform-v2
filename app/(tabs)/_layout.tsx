@@ -1,13 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
-import { User, Truck, Crown } from 'lucide-react-native';
+import { Home, Search, Settings, Truck } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 
 export default function TabsLayout() {
   return (
     <Tabs
-      initialRouteName="Loads"
+      initialRouteName="dashboard"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -27,24 +27,31 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="Loads"
+        name="dashboard"
         options={{
-          title: 'Loads',
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="service-finder"
+        options={{
+          title: 'Service Finder',
+          tabBarIcon: ({ color, size }) => <Search color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'Admin',
+          tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="shipper"
+        options={{
+          title: 'Shipper',
           tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="Members"
-        options={{
-          title: 'Members',
-          tabBarIcon: ({ color, size }) => <Crown color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="Profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />
     </Tabs>
