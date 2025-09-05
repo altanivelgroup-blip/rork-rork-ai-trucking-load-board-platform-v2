@@ -129,14 +129,24 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
 }
 
 // Manual sign-in function that can be called when needed
-export async function signInAnonymouslyManual(): Promise<boolean> {
+export async function ensureFirebaseAuth(): Promise<boolean> {
+  if (!auth) return false;
+
   try {
-    console.log("[AUTH] Manual anonymous sign-in requested...");
-    const result = await signInAnonymously(auth);
-    console.log("[AUTH] Manual sign-in successful:", result.user.uid);
+    // Check if already signed in
+    const user = auth.currentUser;
+    if (user) {
+      console.log("[AUTH] Already signed in:", user.uid);
+      return true;
+    }
+
+    // Otherwise, sign in anonymously
+    await signInAnonymously(auth);
+    console.log("[AUTH] Anonymous sign-in OK");
     return true;
-  } catch (error: any) {
-    console.error("[AUTH ERROR] Manual sign-in failed:", error);
+  } catch (err) {
+    console.error("[AUTH ERROR]", err);
     return false;
   }
 }
+
