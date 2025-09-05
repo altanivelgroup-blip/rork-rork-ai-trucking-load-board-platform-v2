@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { X, LocateFixed } from 'lucide-react-native';
+import { X, LocateFixed, MapPin } from 'lucide-react-native';
 import { VehicleType } from '@/types';
 import { theme } from '@/constants/theme';
 
@@ -18,6 +18,8 @@ interface FilterBarProps {
   hasLocationPerm?: boolean;
   radiusMiles?: number;
   onSetRadius?: (radius: number) => void;
+  onOpenGeoFencing?: () => void;
+  geoFencingActive?: boolean;
 }
 
 const vehicleTypes: VehicleType[] = [
@@ -41,6 +43,8 @@ const FilterBarComponent: React.FC<FilterBarProps> = ({
   hasLocationPerm,
   radiusMiles,
   onSetRadius,
+  onOpenGeoFencing,
+  geoFencingActive,
 }) => {
   return (
     <View>
@@ -112,6 +116,15 @@ const FilterBarComponent: React.FC<FilterBarProps> = ({
           </TouchableOpacity>
           
           <TouchableOpacity 
+            style={[styles.topTab, styles.topTabGeo, geoFencingActive && styles.topTabActive]} 
+            onPress={onOpenGeoFencing}
+            testID="open-geo-fencing"
+          >
+            <MapPin size={14} color={geoFencingActive ? theme.colors.white : theme.colors.white} />
+            <Text style={[styles.topTabText, styles.topTabGeoText, geoFencingActive && styles.topTabTextActive]}>Location</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
             style={[styles.topTab, styles.topTabAi]} 
             onPress={onOpenAiBackhaul}
             testID="open-ai-backhaul"
@@ -174,6 +187,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary,
   },
+  topTabGeo: {
+    backgroundColor: theme.colors.secondary,
+    borderColor: theme.colors.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   topTabText: {
     color: theme.colors.dark,
     fontSize: theme.fontSize.sm,
@@ -190,6 +210,9 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
   },
   topTabAiText: {
+    color: theme.colors.white,
+  },
+  topTabGeoText: {
     color: theme.colors.white,
   },
   container: {
