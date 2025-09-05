@@ -67,23 +67,21 @@ if (app) {
 
 // Monitor auth state and attempt anonymous sign-in if needed
 if (app && auth) {
-  onAuthStateChanged(auth, (u) => {
-    if (u) {
-      console.log("[AUTH OK]", u.uid, u.isAnonymous ? "(anonymous)" : "(authenticated)");
-    } else if (!isDevelopment) {
-      console.log("[AUTH] No Firebase user - attempting anonymous sign-in...");
-      signInAnonymously(auth!)
-        .then((result) => {
-          console.log("[AUTH] Auto anonymous sign-in successful:", result.user.uid);
-        })
-        .catch((error) => {
-          console.error("[AUTH] Auto anonymous sign-in failed:", error);
-        });
-    } else {
-      console.log("[AUTH] Development mode - skipping anonymous sign-in");
-    }
-  });
-}
+// Show exactly what's going wrong during anonymous sign-in
+onAuthStateChanged(auth, (u) => {
+  if (u) {
+    console.log("[AUTH OK]", u.uid);
+  } else {
+    signInAnonymously(auth).catch((e: any) => {
+      console.error(
+        "[AUTH ERROR]",
+        e?.code || e?.error?.code || "unknown",
+        e?.message || e?.error?.message || JSON.stringify(e)
+      );
+    });
+  }
+});
+
 
 // --- Firestore ---
 let db: Firestore | null = null;
