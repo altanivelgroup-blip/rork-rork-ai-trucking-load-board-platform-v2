@@ -57,28 +57,58 @@ function splitCSVLine(line: string): string[] {
 
 export function buildTemplateCSV(): string {
   const headers = [
-    'title',
-    'description',
-    'vehicleType',
-    'originCity',
-    'destinationCity',
-    'pickupDate',
-    'deliveryDate',
-    'weight',
-    'rate'
+    'Origin',
+    'Destination', 
+    'Vehicle Type',
+    'Weight',
+    'Price'
   ];
   const example = [
-    'Pallets of water',
-    '48 pallets, forklift needed',
-    'flatbed',
-    'Dallas',
-    'Houston',
-    '2025-08-20',
-    '2025-08-21',
-    '40000',
+    'Dallas, TX',
+    'Houston, TX',
+    'CAR-HAULER',
+    '5000',
     '1200'
   ];
   return headers.join(',') + '\n' + example.map(v => csvEscape(v)).join(',') + '\n';
+}
+
+export interface SimpleLoadRow {
+  'Origin': string;
+  'Destination': string;
+  'Vehicle Type': string;
+  'Weight': string;
+  'Price': string;
+}
+
+export function validateSimpleLoadRow(row: SimpleLoadRow): string[] {
+  const errors: string[] = [];
+  
+  if (!row['Origin']?.trim()) {
+    errors.push('Origin is required');
+  }
+  
+  if (!row['Destination']?.trim()) {
+    errors.push('Destination is required');
+  }
+  
+  if (!row['Vehicle Type']?.trim()) {
+    errors.push('Vehicle Type is required');
+  }
+  
+  if (!row['Weight']?.trim()) {
+    errors.push('Weight is required');
+  } else if (isNaN(Number(row['Weight']))) {
+    errors.push('Weight must be a valid number');
+  }
+  
+  if (!row['Price']?.trim()) {
+    errors.push('Price is required');
+  } else if (isNaN(Number(row['Price']))) {
+    errors.push('Price must be a valid number');
+  }
+  
+  return errors;
 }
 
 function csvEscape(v: string): string {

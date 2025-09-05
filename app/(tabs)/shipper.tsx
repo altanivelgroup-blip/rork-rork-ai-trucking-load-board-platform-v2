@@ -55,9 +55,9 @@ export default function ShipperHome() {
     router.push('/advance-security');
   }, [router]);
 
-  const goCsvImport = useCallback(() => {
-    console.log('shipper.goCsvImport');
-    router.push('/csv-import');
+  const goCsvBulkUpload = useCallback(() => {
+    console.log('shipper.goCsvBulkUpload');
+    router.push('/csv-bulk-upload');
   }, [router]);
 
   return (
@@ -69,7 +69,7 @@ export default function ShipperHome() {
 
         <Tile title="Shipper Dashboard" subtitle="View your loads and analytics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
         <Tile title="Post a Load" subtitle="Create a new shipment" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
-        <Tile title="CSV Import" subtitle="Bulk import loads from CSV file" onPress={goCsvImport} Icon={Upload} testID="tile-csv-import" />
+        <Tile title="CSV Bulk Upload" subtitle="Upload loads from CSV file" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
         <Tile title="AI Tools" subtitle="Draft posts, quotes and more" onPress={goAiTools} Icon={Bot} testID="tile-ai-tools" />
         <Tile title="Increase Revenue" subtitle="Tips and premium placement" onPress={goIncreaseRevenue} Icon={TrendingUp} testID="tile-increase-revenue" />
         <Tile title="Advanced Security" subtitle="Protect posts and payments" onPress={goAdvancedSecurity} Icon={Shield} testID="tile-advanced-security" />
