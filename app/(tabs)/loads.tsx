@@ -1,10 +1,9 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useLoads } from '@/hooks/useLoads';
 import { MapPin, Calendar, Package, DollarSign } from 'lucide-react-native';
-import Screen from '@/src/ui/Screen';
 
 export default function LoadsScreen() {
   const params = useLocalSearchParams();
@@ -54,7 +53,8 @@ export default function LoadsScreen() {
   };
   
   return (
-    <Screen>
+    <>
+      <Stack.Screen options={{ title: 'Available Loads' }} />
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
           {loads.length === 0 ? (
@@ -109,7 +109,7 @@ export default function LoadsScreen() {
           )}
         </ScrollView>
       </View>
-    </Screen>
+    </>
   );
 }
 
