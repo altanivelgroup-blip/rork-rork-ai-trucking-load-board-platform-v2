@@ -10,10 +10,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Image } from 'expo-image';
-import { db } from '@/lib/firebase'; // adjust path if different
+import { db } from '@/utils/firebase';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+
 type NormAsset =
   | { kind:'file'; file: File; name: string; mime?: string }
   | { kind:'uri';  uri: string; name: string; mime?: string };
@@ -21,98 +22,33 @@ type NormAsset =
 function normalizeAssets(input: any[]): NormAsset[] {
   if (!Array.isArray(input)) return [];
   return input.map((a: any, i) => {
-    // Web File
     if (typeof File !== 'undefined' && a instanceof File) {
       return { kind:'file', file:a, name:a.name || `photo-${i}.jpg`, mime:a.type || 'image/jpeg' };
     }
-    // Expo ImagePicker: asset.uri (and maybe fileName)
     const uri = a?.uri || (typeof a === 'string' ? a : '');
-    const last = String(a?.fileName || uri.split(/[/?#]/).pop() || `photo-${i}.jpg`);
-    return { kind:'uri', uri, name:last, mime:'image/jpeg' };
+    const last = String(a?.fileName || a?.name || uri.split(/[/?#]/).pop() || `photo-${i}.jpg`);
+    const mime = a?.mime || a?.mimeType || 'image/jpeg';
+    return { kind:'uri', uri, name:last, mime };
   });
 }
 
+const auth = getAuth();
+const storage = getStorage();
+
 async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[]) {
-  const assets = normalizeAssets(picked).filter(a => (a as any).file || (a as any).uri);
+  const assets = normalizeAssets(picked).filter((a) => (a as any).file || (a as any).uri);
   console.log('[Upload] normalized:', assets.length);
-async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any) {
-  try {
-    if (draft?.isPosting) return;
-    if (!auth.currentUser?.uid) throw new Error('Please sign in');
-
-    // ✅ Require 5 photos before posting (your rule)
-    const picked = draft?.photosLocal ?? draft?.photos ?? [];
-    if (!Array.isArray(picked) || picked.length < 5) {
-      throw new Error('Please add at least 5 photos.');
-    }
-
-    draft.isPosting = true;
-    const uid = auth.currentUser.uid;
-
-    // Base payload (adjust field names if yours differ)
-    const base = {
-      status: 'active',
-      pickupDate: draft?.pickupDate || '',
-      deliveryDate: draft?.deliveryDate || '',
-      originCity: draft?.originCity || '',
-      originState: draft?.originState || '',
-      originZip:   draft?.originZip   || '',
-      destCity:    draft?.destCity    || '',
-      destState:   draft?.destState   || '',
-      destZip:     draft?.destZip     || '',
-      equipmentType: draft?.equipmentType || '',
-      weightLbs: Number(draft?.weightLbs || 0),
-      rateTotalUSD: Number(draft?.rateTotalUSD || 0),
-      ratePerMileUSD: Number(draft?.ratePerMileUSD || 0),
-      contactName:  draft?.contactName  || '',
-      contactPhone: draft?.contactPhone || '',
-      contactEmail: draft?.contactEmail || '',
-      photos: [], photoCount: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: uid,
-    };
-
-    // 1) Create doc first (get stable id)
-    const docRef = await addDoc(collection(db, 'loads'), base);
-    console.log('[PostLoad] created id:', docRef.id);
-
-    // 2) Upload photos (works for Expo + Web)
-    const urls = await uploadPhotosForLoad(uid, docRef.id, picked);
-    console.log('[PostLoad] uploaded urls:', urls.length);
-
-    // 3) Update doc with photo URLs
-    await updateDoc(doc(db, 'loads', docRef.id), {
-      photos: urls,
-      photoCount: urls.length,
-      updatedAt: serverTimestamp(),
-    });
-
-    // 4) Optional optimistic insert if you keep a store
-    loadsStore?.prepend?.({ id: docRef.id, ...base, photos: urls, photoCount: urls.length });
-
-    toast?.success?.('Load posted successfully');
-    router?.replace?.('/loads');
-  } catch (err: any) {
-    console.error('[PostLoad] failed:', err?.code || '', err?.message || err);
-    toast?.error?.(err?.message || 'Post failed — please try again');
-  } finally {
-    if (draft) draft.isPosting = false;
-  }
-}
-
   const urls: string[] = [];
   for (let i = 0; i < assets.length; i++) {
     const a = assets[i];
-    const ext = (a.name?.split('.').pop() || 'jpg').toLowerCase();
     const safeName = a.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const fileRef = ref(storage, `loadPhotos/${uid}/${loadId}/${String(i).padStart(2,'0')}-${safeName}`);
+    const refPath = `loadPhotos/${uid}/${loadId}/${String(i).padStart(2,'0')}-${safeName}`;
+    const fileRef = ref(storage, refPath);
     console.log('[Upload] ->', fileRef.fullPath);
 
     if (a.kind === 'file') {
       await uploadBytesResumable(fileRef, a.file, { contentType: a.mime || 'image/jpeg' });
     } else {
-      // Expo RN: fetch file:///… to Blob
       const resp = await fetch(a.uri);
       const blob = await resp.blob();
       await uploadBytesResumable(fileRef, blob, { contentType: blob.type || 'image/jpeg' });
@@ -122,9 +58,6 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
   }
   return urls;
 }
-
-const auth = getAuth();
-const storage = getStorage();
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -152,45 +85,35 @@ export default function PostLoadStep5() {
   const toast = useToast();
   const { addLoad } = useLoads();
 
-
-
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
   }, [router]);
 
-
-
-
-
   const handleAddPhotos = useCallback(async () => {
     try {
-      // Clear draft.photos first when starting a new load (only if no photos selected yet)
       if (draft.photosLocal.length === 0) {
         setField('photoUrls', []);
         console.log('[PostLoad] Cleared previous photos for new load');
       }
-      
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         quality: 0.8,
         allowsEditing: false,
       });
-      
+
       if (!result.canceled && result.assets) {
         const newPhotos = result.assets.map((asset, index) => {
-          // Extract filename from URI for better captions
           const uriParts = asset.uri.split('/');
-          const fileName = asset.fileName || uriParts[uriParts.length - 1] || `photo-${Date.now()}-${index}.jpg`;
-          
+          const fileName = (asset as any).fileName || uriParts[uriParts.length - 1] || `photo-${Date.now()}-${index}.jpg`;
           return {
             uri: asset.uri,
             name: fileName,
-            type: asset.type || 'image/jpeg',
-          };
+            type: (asset as any).mimeType || 'image/jpeg',
+          } as const;
         });
-        
-        // Add to existing photosLocal array
+
         setField('photosLocal', [...draft.photosLocal, ...newPhotos]);
         console.log('[PostLoad] Added photos to photosLocal:', newPhotos.length, 'total:', draft.photosLocal.length + newPhotos.length);
       }
@@ -199,7 +122,7 @@ export default function PostLoadStep5() {
       toast.show('Failed to select photos', 'error');
     }
   }, [draft.photosLocal, setField, toast]);
-  
+
   const handleRemovePhoto = useCallback((index: number) => {
     const updatedPhotos = draft.photosLocal.filter((_, i) => i !== index);
     setField('photosLocal', updatedPhotos);
@@ -208,136 +131,87 @@ export default function PostLoadStep5() {
 
   const onSubmit = useCallback(async () => {
     console.log('POST BTN FIRED - onSubmit called');
-    
+
     try {
-      // Validation checks
       if (uploadsInProgress > 0) {
         toast.show('Please wait, uploading photos…', 'warning');
         return;
       }
-      
+
       if (draft.isPosting) {
         console.log('Already posting, aborting duplicate submit');
         return;
       }
-      
-      // Validate minimum photos from photosLocal
+
       if (!draft.photosLocal || draft.photosLocal.length < 5) {
         toast.show('At least 5 photos are required', 'error');
         return;
       }
-      
-      // Validate contact info
+
       if (!contact.trim()) {
         toast.show('Contact information is required', 'error');
         return;
       }
-      
-      // Validate required fields
+
       if (!draft.pickupDate || !draft.deliveryDate) {
         toast.show('Pickup and delivery dates are required', 'error');
         return;
       }
-      
+
       if (!draft.title?.trim() || !draft.pickup?.trim() || !draft.delivery?.trim() || !draft.vehicleType || !draft.rateAmount?.trim()) {
         toast.show('Please complete all required fields', 'error');
         return;
       }
-      
-      // Set posting state - disable button immediately
-      setField('isPosting', true);
-      
-      try {
-        console.log('[PostLoad] Starting atomic submit process');
-        
-        // Step 1: Build base payload without photos
-        const { getFirebase, ensureFirebaseAuth } = await import('@/utils/firebase');
-        const { addDoc, collection, updateDoc, serverTimestamp } = await import('firebase/firestore');
 
-        
-        const authSuccess = await ensureFirebaseAuth();
-        if (!authSuccess) {
-          throw new Error('Authentication failed');
-        }
-        
-        const { db, storage, auth } = getFirebase();
-        const currentUser = auth.currentUser;
-        
-        if (!currentUser) {
-          throw new Error('No authenticated user');
-        }
-        
+      setField('isPosting', true);
+
+      try {
+        if (!auth.currentUser?.uid) throw new Error('Please sign in');
+        const uid = auth.currentUser.uid;
+
         const base = {
-          status: "active",
+          status: 'active',
           pickupDate: draft.pickupDate,
           deliveryDate: draft.deliveryDate,
           originCity: draft.pickup.trim(),
-          originState: "", // TODO: Parse from pickup string
-          originZip: "",
+          originState: '',
+          originZip: '',
           destCity: draft.delivery.trim(),
-          destState: "", // TODO: Parse from delivery string
-          destZip: "",
+          destState: '',
+          destZip: '',
           equipmentType: draft.vehicleType,
           weightLbs: draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0,
           rateTotalUSD: Number(draft.rateAmount.replace(/[^0-9.]/g, '')) || 0,
-          ratePerMileUSD: 0, // TODO: Calculate if needed
+          ratePerMileUSD: 0,
           contactName: contact.trim(),
-          contactPhone: contact.trim(), // Assuming contact is phone for now
-          contactEmail: "", // TODO: Parse if email format
+          contactPhone: contact.trim(),
+          contactEmail: '',
+          photos: [],
+          photoCount: 0,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          createdBy: currentUser.uid
+          createdBy: uid,
         };
-        
+
         console.log('[PostLoad] Creating Firestore document');
-        const docRef = await addDoc(collection(db, "loads"), base);
+        const docRef = await addDoc(collection(db, 'loads'), base);
         console.log('[PostLoad] Document created with ID:', docRef.id);
-        
-        // Step 2: Upload photos with progress tracking
+
         console.log('[PostLoad] Starting photo upload for', draft.photosLocal.length, 'photos');
-        const uploadedUrls: string[] = [];
-        
-        for (let i = 0; i < draft.photosLocal.length; i++) {
-          const photo = draft.photosLocal[i];
-          setUploadsInProgress(i + 1);
-          
-          try {
-            const response = await fetch(photo.uri);
-            const blob = await response.blob();
-            
-            const fileName = `${docRef.id}/${i}.jpg`;
-            const path = `loadPhotos/${currentUser.uid}/${fileName}`;
-            
-            console.log(`[PostLoad] Uploading photo ${i + 1}/${draft.photosLocal.length} to`, path);
-            // Use mock-compatible storage API
-            const storageRef: any = (storage as any).ref(path);
-            const snapshot = await storageRef.put(blob);
-            const downloadURL: string = await snapshot.ref.getDownloadURL();
-            
-            uploadedUrls.push(downloadURL);
-            console.log(`[PostLoad] Photo ${i + 1} uploaded successfully`);
-          } catch (uploadError) {
-            console.error(`[PostLoad] Failed to upload photo ${i}:`, uploadError);
-            // Use placeholder for failed uploads
-            uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
-          }
-        }
-        
-        // Step 3: Update Firestore document with photos
-        console.log('[PostLoad] Updating document with', uploadedUrls.length, 'photo URLs');
-        await updateDoc(docRef, {
-          photos: uploadedUrls,
-          photoCount: uploadedUrls.length,
-          updatedAt: serverTimestamp()
-        });
-        
+        setUploadsInProgress(1);
+        const urls = await uploadPhotosForLoad(uid, docRef.id, draft.photosLocal);
         setUploadsInProgress(0);
-        
-        // Step 4: Optimistically add to local loads store
-        
+        console.log('[PostLoad] uploaded urls:', urls.length);
+
+        await updateDoc(doc(db, 'loads', docRef.id), {
+          photos: urls,
+          photoCount: urls.length,
+          updatedAt: serverTimestamp(),
+        });
+
         const optimisticLoad = {
           id: docRef.id,
-          shipperId: currentUser.uid,
+          shipperId: uid,
           shipperName: 'You',
           origin: {
             address: '',
@@ -363,29 +237,21 @@ export default function PostLoadStep5() {
           pickupDate: draft.pickupDate!,
           deliveryDate: draft.deliveryDate!,
           status: 'available' as const,
-          description: draft.description.trim(),
+          description: draft.description?.trim?.() ?? '',
           special_requirements: draft.requirements ? [draft.requirements] : undefined,
           isBackhaul: false,
         };
-        
+
         await addLoad(optimisticLoad);
         console.log('[PostLoad] Added optimistic load to local store');
-        
-        // Step 5: Success-only navigation and cleanup
+
         console.log('[PostLoad] Load posted successfully, navigating to loads');
         toast.show('Load posted successfully', 'success');
-        
-        // Reset the draft state
         reset();
-        
-        // Navigate to loads page only on success
-        router.replace('/(tabs)/loads');
-        
+        router.replace('/loads');
       } catch (error: any) {
-        console.error('[PostLoad] Submit failed:', error);
+        console.error('[PostLoad] Submit failed:', error?.code || '', error?.message || error);
         setUploadsInProgress(0);
-        
-        // Provide specific error messages
         if (error?.message?.includes('permission') || error?.code === 'permission-denied') {
           toast.show('Post failed — please sign in', 'error');
         } else if (error?.message?.includes('network') || error?.code === 'unavailable') {
@@ -393,11 +259,9 @@ export default function PostLoadStep5() {
         } else {
           toast.show('Post failed — please try again', 'error');
         }
-        
-        // Reset posting state on error
         setField('isPosting', false);
+        return;
       }
-      
     } catch (err) {
       console.error('POST_LOAD_CRITICAL_ERROR', err);
       toast.show('Post failed — please try again', 'error');
@@ -437,8 +301,6 @@ export default function PostLoadStep5() {
 
           <View style={styles.attachCard}>
             <Text style={styles.summaryTitle}>Photos (min 5 required)</Text>
-            
-            {/* Upload status indicator */}
             {uploadsInProgress > 0 && (
               <View style={styles.uploadStatusContainer}>
                 <Clock color={theme.colors.primary} size={18} />
@@ -447,18 +309,14 @@ export default function PostLoadStep5() {
                 </Text>
               </View>
             )}
-            
             <Text style={styles.helperText} testID="attachmentsHelper">
               Photos selected: {draft.photosLocal?.length || 0} (min 5 required)
             </Text>
-            
             {(!draft.photosLocal || draft.photosLocal.length < 5) && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Minimum 5 photos required to post.
               </Text>
             )}
-            
-            {/* Photo selection and preview */}
             <View style={styles.photoActions}>
               <Pressable
                 onPress={handleAddPhotos}
@@ -469,14 +327,10 @@ export default function PostLoadStep5() {
                 <Text style={styles.addPhotosBtnText}>Add Photos</Text>
               </Pressable>
             </View>
-            
-            {/* Photo previews - always render from draft.photosLocal */}
             {draft.photosLocal && draft.photosLocal.length > 0 && (
               <View style={styles.photoGrid}>
-                {draft.photosLocal.map((photo, index) => {
-                  // Extract just the filename for caption display
-                  const displayName = photo.name ? photo.name.split('/').pop() || photo.name : `photo-${index + 1}.jpg`;
-                  
+                {draft.photosLocal.map((photo: any, index: number) => {
+                  const displayName = (photo.name ? String(photo.name).split('/').pop() : undefined) || `photo-${index + 1}.jpg`;
                   return (
                     <View key={`${photo.uri}-${index}`} style={styles.photoPreview}>
                       <Image
