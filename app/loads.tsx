@@ -36,7 +36,8 @@ useEffect(() => {
 }, []);
   
   const loads = useMemo(() => {
-    let filtered = mockLoads;
+    let filtered = items ?? [];
+
     
     // Apply filters from params if any
     if (params.origin && typeof params.origin === 'string') {
