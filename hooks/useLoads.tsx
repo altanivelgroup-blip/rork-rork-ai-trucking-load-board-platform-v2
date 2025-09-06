@@ -104,13 +104,13 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
         );
         if (miles > radius) return false;
       }
-      return load.status === 'OPEN';
+      return load.status === 'available';
     });
   }, [loads, filters]);
 
   const aiRecommendedLoads = useMemo(() => {
     return loads
-      .filter(load => load.aiScore && load.aiScore > 85 && load.status === 'OPEN')
+      .filter(load => load.aiScore && load.aiScore > 85 && load.status === 'available')
       .sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0))
       .slice(0, 5);
   }, [loads]);
