@@ -7,6 +7,10 @@ import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { moderateScale } from '@/src/ui/scale';
+import { Dimensions } from 'react-native';
+
+const { width: screenWidth } = Dimensions.get('window');
+const isTablet = screenWidth >= 768;
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/26wbvri4j4j5lt84ceaac';
 
@@ -99,8 +103,8 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: theme.spacing.lg },
   header: { alignItems: 'center', marginBottom: theme.spacing.xl },
   logoContainer: {
-    width: moderateScale(100),
-    height: moderateScale(100),
+    width: isTablet ? 160 : moderateScale(100),
+    height: isTablet ? 160 : moderateScale(100),
     borderRadius: moderateScale(24),
     backgroundColor: theme.colors.lightGray,
     justifyContent: 'center',
@@ -109,8 +113,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoImage: {
-    width: moderateScale(100),
-    height: moderateScale(100),
+    width: isTablet ? 160 : moderateScale(100),
+    height: isTablet ? 160 : moderateScale(100),
     borderRadius: moderateScale(24),
   },
   title: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.dark, marginTop: theme.spacing.sm },
