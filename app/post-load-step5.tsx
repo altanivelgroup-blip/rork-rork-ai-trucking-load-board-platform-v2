@@ -40,7 +40,7 @@ export default function PostLoadStep5() {
   const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
   const toast = useToast();
   const { userId } = useAuth();
-  const { refreshLoads } = useLoads();
+  const { addLoad } = useLoads();
 
 
 
@@ -63,16 +63,6 @@ export default function PostLoadStep5() {
         return;
       }
       
-      if (!Array.isArray(draft.photoUrls) || draft.photoUrls.length < 5) {
-        toast.show('Need at least 5 photos.', 'error');
-        return;
-      }
-      
-      if (!draft.photoUrls[0]) {
-        toast.show('Primary photo is required.', 'error');
-        return;
-      }
-      
       if (draft.isPosting) {
         console.log('Already posting, aborting duplicate submit');
         return;
@@ -81,50 +71,168 @@ export default function PostLoadStep5() {
       // Set posting state
       setField('isPosting', true);
       
-      // Build payload from the 5-step form
+      // Validate required fields
+      const pickupDate = draft.pickupDate;
+      const deliveryDate = draft.deliveryDate;
+      const originCity = str(draft.pickup);
+      const originState = ''; // Not collected in current form
+      const originZip = ''; // Not collected in current form
+      const destCity = str(draft.delivery);
+      const destState = ''; // Not collected in current form
+      const destZip = ''; // Not collected in current form
+      const equipmentType = str(draft.vehicleType || 'truck');
+      const contactName = str(contact || draft.contact);
+      const contactPhone = str(contact || draft.contact);
+      
+      // Validate required fields
+      if (!pickupDate || !(pickupDate instanceof Date) || isNaN(pickupDate.getTime())) {
+        toast.show('Valid pickup date is required', 'error');
+        setField('isPosting', false);
+        return;
+      }
+      
+      if (!originCity) {
+        toast.show('Origin city is required', 'error');
+        setField('isPosting', false);
+        return;
+      }
+      
+      if (!destCity) {
+        toast.show('Destination city is required', 'error');
+        setField('isPosting', false);
+        return;
+      }
+      
+      if (!equipmentType) {
+        toast.show('Equipment type is required', 'error');
+        setField('isPosting', false);
+        return;
+      }
+      
+      if (!contactName) {
+        toast.show('Contact name is required', 'error');
+        setField('isPosting', false);
+        return;
+      }
+      
+      if (!contactPhone) {
+        toast.show('Contact phone is required', 'error');
+        setField('isPosting', false);
+        return;
+      }
+      
+      // Convert numbers properly
+      const weightLbs = draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
+      const rateTotalUSD = Number(draft.rateAmount || 0);
+      const ratePerMileUSD = draft.rateKind === 'per_mile' && draft.miles ? 
+        rateTotalUSD / (Number(draft.miles.replace(/[^0-9.]/g, '')) || 1) : 0;
+      const lengthFt = 0; // Not collected in current form
+      const widthFt = 0; // Not collected in current form
+      const heightFt = 0; // Not collected in current form
+      const latOrigin = 0; // Not collected in current form
+      const lngOrigin = 0; // Not collected in current form
+      const latDest = 0; // Not collected in current form
+      const lngDest = 0; // Not collected in current form
+      
+      // Build payload for Firestore
       const payload = {
-        title: str(draft.title),
-        description: str(draft.description),
-        vehicleType: str(draft.vehicleType || 'truck'),
-        pickup: str(draft.pickup),
-        delivery: str(draft.delivery),
-        weight: draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0,
-        dimensions: str(draft.dimensions),
-        pickupDate: draft.pickupDate,
-        deliveryDate: draft.deliveryDate,
-        rateAmount: Number(draft.rateAmount || 0),
-        rateKind: draft.rateKind,
-        miles: draft.miles ? Number(draft.miles.replace(/[^0-9.]/g, '')) || 0 : 0,
-        requirements: str(draft.requirements),
-        contact: str(contact || draft.contact),
-        photoUrls: draft.photoUrls || [],
-        reference: str(draft.reference),
-        createdBy: userId || 'anonymous',
+        status: 'active',
+        pickupDate,
+        deliveryDate,
+        originCity,
+        originState,
+        originZip,
+        destCity,
+        destState,
+        destZip,
+        equipmentType,
+        weightLbs,
+        rateTotalUSD,
+        ratePerMileUSD,
+        lengthFt,
+        widthFt,
+        heightFt,
+        latOrigin,
+        lngOrigin,
+        latDest,
+        lngDest,
+        contactName,
+        contactPhone,
+        contactEmail: contactPhone, // Using phone as email for now
         createdAt: serverTimestamp(),
-        status: 'OPEN'
+        updatedAt: serverTimestamp(),
+        createdBy: userId || 'anonymous'
       };
       
       console.log('Posting load with payload:', payload);
       
-      // Post to Firestore
-      const { db } = getFirebase();
-      const ref = await addDoc(collection(db, LOADS_COLLECTION), payload);
-      
-      // Success actions
-      toast.show('Load posted: ' + ref.id, 'success');
-      
-      // Trigger loads reload
-      await refreshLoads();
-      
-      // Navigate to loads page
-      router.replace('/(tabs)/loads');
+      try {
+        // Post to Firestore
+        const { db } = getFirebase();
+        const ref = await addDoc(collection(db, LOADS_COLLECTION), payload);
+        
+        // Optimistically add to local loads store
+        if (pickupDate && deliveryDate) {
+          const localLoad = {
+            id: ref.id,
+            shipperId: userId || 'current-shipper',
+            shipperName: 'You',
+            origin: {
+              address: '',
+              city: originCity,
+              state: originState,
+              zipCode: originZip,
+              lat: latOrigin,
+              lng: lngOrigin,
+            },
+            destination: {
+              address: '',
+              city: destCity,
+              state: destState,
+              zipCode: destZip,
+              lat: latDest,
+              lng: lngDest,
+            },
+            distance: 0,
+            weight: weightLbs,
+            vehicleType: equipmentType as any,
+            rate: rateTotalUSD,
+            ratePerMile: ratePerMileUSD,
+            pickupDate,
+            deliveryDate,
+            status: 'available' as const,
+            description: str(draft.description),
+            special_requirements: draft.requirements ? [draft.requirements] : undefined,
+            isBackhaul: false,
+          };
+          
+          await addLoad(localLoad);
+        }
+        
+        // Success actions
+        toast.show('Load posted successfully', 'success');
+        
+        // Navigate to loads page
+        router.replace('/(tabs)/loads');
+        
+      } catch (firestoreError: any) {
+        console.error('Firestore write failed:', firestoreError);
+        
+        if (firestoreError?.code === 'permission-denied') {
+          toast.show('Post failed — please sign in', 'error');
+        } else {
+          toast.show('Post failed — please try again', 'error');
+        }
+        
+        setField('isPosting', false);
+      }
       
     } catch (err) {
       console.error('POST_LOAD_ERROR', err);
-      toast.show('Post failed', 'error');
+      toast.show('Post failed — please try again', 'error');
       setField('isPosting', false);
     }
-  }, [router, setField, draft, uploadsInProgress, toast, str, contact, userId, refreshLoads]);
+  }, [router, setField, draft, uploadsInProgress, toast, str, contact, userId, addLoad]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
