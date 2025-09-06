@@ -117,49 +117,64 @@ const normalizedLoads = useMemo(() => {
               <Text style={styles.emptySubtitle}>Try adjusting your filters or check back later</Text>
             </View>
           ) : (
-            loads.map((load) => (
-              <TouchableOpacity
-                key={load.id}
-                style={styles.loadCard}
-                onPress={() => handleLoadPress(load.id)}
-                testID={`load-${load.id}`}
-              >
-                <View style={styles.loadHeader}>
-                  <Text style={styles.loadTitle} numberOfLines={1}>
-                    {load.origin?.city}, {load.origin?.state} → {load.destination?.city}, {load.destination?.state}
-                  </Text>
-                  <View style={styles.rateChip}>
-                    <DollarSign size={16} color={theme.colors.white} />
-                    <Text style={styles.rateText}>${load.rate?.toLocaleString() || '0'}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.loadDetails}>
-                  <View style={styles.detailRow}>
-                    <MapPin size={16} color={theme.colors.gray} />
-                    <Text style={styles.detailText}>{load.distance || 0} miles</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Calendar size={16} color={theme.colors.gray} />
-                    <Text style={styles.detailText}>
-                      Pickup: {new Date(load.pickupDate || new Date()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            loads.map((load) => {
+              const originText =
+                typeof load.origin === 'string'
+                  ? load.origin
+                  : `${load.origin?.city ?? ''}, ${load.origin?.state ?? ''}`;
+
+              const destText =
+                typeof load.destination === 'string'
+                  ? load.destination
+                  : `${load.destination?.city ?? ''}, ${load.destination?.state ?? ''}`;
+
+              const rateVal = load.rate ?? load.rateAmount ?? 0;
+              const weightVal = load.weight ?? load.weightLbs ?? 0;
+
+              return (
+                <TouchableOpacity
+                  key={load.id}
+                  style={styles.loadCard}
+                  onPress={() => handleLoadPress(load.id)}
+                  testID={`load-${load.id}`}
+                >
+                  <View style={styles.loadHeader}>
+                    <Text style={styles.loadTitle} numberOfLines={1}>
+                      {originText} → {destText}
                     </Text>
+                    <View style={styles.rateChip}>
+                      <DollarSign size={16} color={theme.colors.white} />
+                      <Text style={styles.rateText}>${rateVal.toLocaleString()}</Text>
+                    </View>
                   </View>
                   
-                  <View style={styles.detailRow}>
-                    <Package size={16} color={theme.colors.gray} />
-                    <Text style={styles.detailText}>{load.weight?.toLocaleString() || '0'} lbs</Text>
+                  <View style={styles.loadDetails}>
+                    <View style={styles.detailRow}>
+                      <MapPin size={16} color={theme.colors.gray} />
+                      <Text style={styles.detailText}>{load.distance || 0} miles</Text>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <Calendar size={16} color={theme.colors.gray} />
+                      <Text style={styles.detailText}>
+                        Pickup: {new Date(load.pickupDate || new Date()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <Package size={16} color={theme.colors.gray} />
+                      <Text style={styles.detailText}>{weightVal.toLocaleString()} lbs</Text>
+                    </View>
                   </View>
-                </View>
-                
-                {load.description && (
-                  <Text style={styles.loadDescription} numberOfLines={2}>
-                    {load.description}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ))
+                  
+                  {load.description && (
+                    <Text style={styles.loadDescription} numberOfLines={2}>
+                      {load.description}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })
           )}
         </ScrollView>
       </View>
