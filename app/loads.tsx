@@ -1,13 +1,39 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { mockLoads } from '@/mocks/loads';
 import { MapPin, Calendar, Package, DollarSign } from 'lucide-react-native';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; // use your actual path to the Firestore instance
 
 export default function LoadsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
+const [items, setItems] = useState<any[]>([]);
+
+useEffect(() => {
+  console.log('[Loads] temp query: createdAt desc');
+
+  const q = query(
+    collection(db, 'loads'),
+    orderBy('createdAt', 'desc'),
+    limit(25)
+  );
+
+  const unsub = onSnapshot(
+    q,
+    (snap) => {
+      const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      setItems(arr);
+    },
+    (err) => {
+      console.error('[Loads] snapshot error', err.code, err.message);
+    }
+  );
+
+  return () => unsub();
+}, []);
   
   const loads = useMemo(() => {
     let filtered = mockLoads;
