@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-native';
 import { mockLoads } from '@/mocks/loads';
+import { useLoads } from '@/hooks/useLoads';
 import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
 import { SortDropdown } from '@/components/SortDropdown';
 import { useSettings, type SortOrder } from '@/hooks/useSettings';
@@ -62,6 +63,7 @@ const RecentLoadRow = memo<RecentLoadProps & { distanceMiles?: number }>(({ id, 
 export default function DashboardScreen() {
   console.log('[Dashboard] rendering');
   const { user, isLoading } = useAuth();
+  const { loads: actualLoads, filteredLoads } = useLoads();
   const router = useRouter();
   const [backhaulOn, setBackhaulOn] = useState<boolean>(false);
   const [origin, setOrigin] = useState<string>('');
@@ -91,7 +93,7 @@ export default function DashboardScreen() {
 
   console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
 
-  const recentLoads = useMemo(() => mockLoads?.slice(0, 3) ?? [], []);
+  const recentLoads = useMemo(() => actualLoads?.slice(0, 3) ?? [], [actualLoads]);
   const lastDelivery = useMemo(() => recentLoads[0]?.destination, [recentLoads]);
 
   const haversineMiles = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
@@ -356,7 +358,7 @@ export default function DashboardScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard} testID="stat-available-loads">
             <Truck size={moderateScale(20)} color={theme.colors.primary} />
-            <Text style={styles.statValue} allowFontScaling={false}>{mockLoads?.length ?? 0}</Text>
+            <Text style={styles.statValue} allowFontScaling={false}>{actualLoads?.length ?? 0}</Text>
             <Text style={styles.statLabel} allowFontScaling={false}>Available Loads</Text>
           </View>
           <View style={styles.statCard} testID="stat-rating">
