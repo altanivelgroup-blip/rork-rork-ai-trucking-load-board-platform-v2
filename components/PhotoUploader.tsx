@@ -307,31 +307,60 @@ export function PhotoUploader({
 
 
 
-  // Update Firestore with new photo arrays
-  const updateFirestorePhotos = useCallback(async (photos: string[], primaryPhoto: string) => {
+  // Serialize and coalesce Firestore writes to avoid "queued writes" exhaustion
+  const writeInFlightRef = React.useRef<boolean>(false);
+  const pendingWriteRef = React.useRef<{ photos: string[]; primaryPhoto: string } | null>(null);
+
+  const processPendingWrites = useCallback(async () => {
+    if (writeInFlightRef.current) return;
+    writeInFlightRef.current = true;
     try {
       const { db } = getFirebase();
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
       const docRef = doc(db, collectionName, entityId);
-      await setDoc(
-        docRef,
-        {
-          photos,
-          primaryPhoto,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      setTimeout(() => {
-        const uploadsInProgress = state.photos.filter(p => p.uploading).length;
-        onChange?.(photos, primaryPhoto, uploadsInProgress);
-      }, 0);
-      console.log('[PhotoUploader] Firestore upserted with', photos.length, 'photos');
+
+      // Drain queue, always writing only the latest snapshot
+      // This collapses bursts of updates into minimal writes
+      // and guarantees a single active write at any time
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const next = pendingWriteRef.current;
+        if (!next) break;
+        pendingWriteRef.current = null;
+        await setDoc(
+          docRef,
+          {
+            photos: next.photos,
+            primaryPhoto: next.primaryPhoto,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        console.log('[PhotoUploader] Firestore upserted (coalesced) with', next.photos.length, 'photos');
+      }
     } catch (error) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
       toast.show('Failed to save photos', 'error');
+    } finally {
+      writeInFlightRef.current = false;
+      // If something was queued while writing, process again
+      if (pendingWriteRef.current) {
+        // microtask to yield back to event loop
+        setTimeout(() => {
+          processPendingWrites().catch((e) => console.error('[PhotoUploader] processPendingWrites retry error:', e));
+        }, 0);
+      }
     }
-  }, [onChange, toast, state.photos, entityId, entityType]);
+  }, [entityId, entityType, toast]);
+
+  const updateFirestorePhotos = useCallback(async (photos: string[], primaryPhoto: string) => {
+    pendingWriteRef.current = { photos, primaryPhoto };
+    setTimeout(() => {
+      const uploadsInProgress = state.photos.filter(p => p.uploading).length;
+      onChange?.(photos, primaryPhoto, uploadsInProgress);
+    }, 0);
+    processPendingWrites().catch((e) => console.error('[PhotoUploader] processPendingWrites error:', e));
+  }, [onChange, state.photos, processPendingWrites]);
 
   // Upload single file with new smart upload logic
   const uploadFile = useCallback(async (input: AnyImage) => {
