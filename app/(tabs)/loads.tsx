@@ -16,7 +16,11 @@ export default function LoadsScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [selectedQuickFilters, setSelectedQuickFilters] = useState<string[]>([]);
   
-  const quickFilters = ['High Pay', 'Near Me', 'Light Weight', 'Today', 'Backhaul'];
+  const equipmentTypes = ['Backhaul', 'Flatbed', 'Reefer', 'Box Truck', 'Car Hauler', 'Enclosed Trailer'];
+  const sortingOptions = ['Highest $/mi', 'Near me', 'Lightest', 'New Today', 'AI for Loads', 'AI Backhaul'];
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string>('Backhaul');
+  const [selectedSortOptions, setSelectedSortOptions] = useState<string[]>(['Near me', 'New Today', 'AI for Loads', 'AI Backhaul']);
+  const [sortBy, setSortBy] = useState<string>('Best');
   
   const loads = filteredLoads;
   
@@ -32,13 +36,17 @@ export default function LoadsScreen() {
     setFilters(newFilters);
   }, [setFilters]);
   
-  const handleQuickFilter = useCallback((filter: string) => {
-    if (selectedQuickFilters.includes(filter)) {
-      setSelectedQuickFilters(prev => prev.filter(f => f !== filter));
+  const handleEquipmentTypeSelect = useCallback((type: string) => {
+    setSelectedEquipmentType(type);
+  }, []);
+  
+  const handleSortOptionToggle = useCallback((option: string) => {
+    if (selectedSortOptions.includes(option)) {
+      setSelectedSortOptions(prev => prev.filter(o => o !== option));
     } else {
-      setSelectedQuickFilters(prev => [...prev, filter]);
+      setSelectedSortOptions(prev => [...prev, option]);
     }
-  }, [selectedQuickFilters]);
+  }, [selectedSortOptions]);
   
   const handlePostLoad = useCallback(() => {
     router.push('/post-load');
@@ -83,27 +91,35 @@ export default function LoadsScreen() {
       <View style={styles.container}>
         {/* Header Controls */}
         <View style={styles.headerControls}>
-          {/* Quick Filters */}
-          <View style={styles.quickFilters}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFiltersContent}>
-              {quickFilters.map((filter) => {
-                const isSelected = selectedQuickFilters.includes(filter);
-                const isBackhaul = filter === 'Backhaul';
+          {/* Filters Button */}
+          <View style={styles.filtersRow}>
+            <TouchableOpacity style={styles.filtersButton} onPress={handleOpenFilters}>
+              <Filter size={16} color={theme.colors.primary} />
+              <Text style={styles.filtersButtonText}>Filters</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Equipment Type Filters */}
+          <View style={styles.equipmentFilters}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.equipmentFiltersContent}>
+              {equipmentTypes.map((type) => {
+                const isSelected = selectedEquipmentType === type;
+                const isBackhaul = type === 'Backhaul';
                 return (
                   <TouchableOpacity
-                    key={filter}
+                    key={type}
                     style={[
-                      styles.quickFilterChip,
-                      isSelected && styles.quickFilterChipActive,
+                      styles.equipmentFilterChip,
+                      isSelected && styles.equipmentFilterChipActive,
                       isBackhaul && isSelected && { backgroundColor: '#FF6B35' }
                     ]}
-                    onPress={() => handleQuickFilter(filter)}
+                    onPress={() => handleEquipmentTypeSelect(type)}
                   >
                     <Text style={[
-                      styles.quickFilterText,
-                      isSelected && styles.quickFilterTextActive
+                      styles.equipmentFilterText,
+                      isSelected && styles.equipmentFilterTextActive
                     ]}>
-                      {filter}
+                      {type}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -111,17 +127,37 @@ export default function LoadsScreen() {
             </ScrollView>
           </View>
           
-          {/* Header Actions */}
-          <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.filterButton} onPress={handleOpenFilters}>
-              <Filter size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.aiButton} onPress={handleOpenAiLoads}>
-              <Text style={styles.aiButtonText}>AI Loads</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.postButton} onPress={handlePostLoad}>
-              <Plus size={16} color={theme.colors.white} />
-              <Text style={styles.postButtonText}>Post</Text>
+          {/* Sorting Options */}
+          <View style={styles.sortingSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortingContent}>
+              {sortingOptions.map((option) => {
+                const isSelected = selectedSortOptions.includes(option);
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    style={[
+                      styles.sortingChip,
+                      isSelected && styles.sortingChipActive
+                    ]}
+                    onPress={() => handleSortOptionToggle(option)}
+                  >
+                    <Text style={[
+                      styles.sortingText,
+                      isSelected && styles.sortingTextActive
+                    ]}>
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+          
+          {/* Sort Dropdown */}
+          <View style={styles.sortDropdownRow}>
+            <TouchableOpacity style={styles.sortDropdown}>
+              <Text style={styles.sortDropdownText}>Sort: {sortBy}</Text>
+              <Text style={styles.sortDropdownArrow}>▼</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -238,14 +274,34 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
   },
-  quickFilters: {
-    marginBottom: theme.spacing.sm,
+  filtersRow: {
+    marginBottom: theme.spacing.md,
   },
-  quickFiltersContent: {
+  filtersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: 20,
+    backgroundColor: theme.colors.white,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    alignSelf: 'flex-start',
+  },
+  filtersButtonText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  equipmentFilters: {
+    marginBottom: theme.spacing.md,
+  },
+  equipmentFiltersContent: {
     gap: theme.spacing.sm,
     paddingRight: theme.spacing.lg,
   },
-  quickFilterChip: {
+  equipmentFilterChip: {
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: 20,
@@ -253,39 +309,70 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.lightGray,
   },
-  quickFilterChipActive: {
+  equipmentFilterChipActive: {
     backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary,
   },
-  quickFilterText: {
+  equipmentFilterText: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
     color: theme.colors.dark,
   },
-  quickFilterTextActive: {
+  equipmentFilterTextActive: {
     color: theme.colors.white,
   },
-  headerActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+  sortingSection: {
+    marginBottom: theme.spacing.md,
+  },
+  sortingContent: {
     gap: theme.spacing.sm,
+    paddingRight: theme.spacing.lg,
   },
-  filterButton: {
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.lightGray,
-  },
-  aiButton: {
+  sortingChip: {
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: 20,
+    backgroundColor: theme.colors.lightGray,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
   },
-  aiButtonText: {
-    color: theme.colors.white,
+  sortingChipActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  sortingText: {
     fontSize: theme.fontSize.sm,
-    fontWeight: '700',
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  sortingTextActive: {
+    color: theme.colors.white,
+  },
+  sortDropdownRow: {
+    marginBottom: theme.spacing.sm,
+  },
+  sortDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    alignSelf: 'flex-start',
+    minWidth: 120,
+  },
+  sortDropdownText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  sortDropdownArrow: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginLeft: theme.spacing.sm,
   },
   debugBanner: {
     fontSize: theme.fontSize.sm,
