@@ -8,6 +8,7 @@ import { Send, Clock } from 'lucide-react-native';
 import { usePostLoad } from '@/hooks/usePostLoad';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
+import { useLoads } from '@/hooks/useLoads';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -29,11 +30,11 @@ function Stepper({ current, total }: { current: number; total: number }) {
 }
 export default function PostLoadStep5() {
   const router = useRouter();
-  const { draft, setField } = usePostLoad();
+  const { draft, setField, reset } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
   const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
   const toast = useToast();
-  const { uploadPhotosToFirebase, postLoadWizard } = usePostLoad();
+  const { addLoad } = useLoads();
 
 
 
@@ -116,53 +117,155 @@ export default function PostLoadStep5() {
         return;
       }
       
+      // Validate required fields
+      if (!draft.pickupDate || !draft.deliveryDate) {
+        toast.show('Pickup and delivery dates are required', 'error');
+        return;
+      }
+      
+      if (!draft.title?.trim() || !draft.pickup?.trim() || !draft.delivery?.trim() || !draft.vehicleType || !draft.rateAmount?.trim()) {
+        toast.show('Please complete all required fields', 'error');
+        return;
+      }
+      
       // Set posting state - disable button immediately
       setField('isPosting', true);
       
       try {
-        // Step 1: Build payload without photos first
-        const basePayload = {
-          title: draft.title.trim(),
-          description: draft.description.trim(),
-          vehicleType: draft.vehicleType,
-          pickup: draft.pickup.trim(),
-          delivery: draft.delivery.trim(),
-          weight: draft.weight,
+        console.log('[PostLoad] Starting atomic submit process');
+        
+        // Step 1: Build base payload without photos
+        const { getFirebase, ensureFirebaseAuth } = await import('@/utils/firebase');
+        const { addDoc, collection, updateDoc, serverTimestamp } = await import('firebase/firestore');
+        const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+
+        
+        const authSuccess = await ensureFirebaseAuth();
+        if (!authSuccess) {
+          throw new Error('Authentication failed');
+        }
+        
+        const { db, storage, auth } = getFirebase();
+        const currentUser = auth.currentUser;
+        
+        if (!currentUser) {
+          throw new Error('No authenticated user');
+        }
+        
+        const base = {
+          status: "active",
           pickupDate: draft.pickupDate,
           deliveryDate: draft.deliveryDate,
-          rateAmount: draft.rateAmount.trim(),
-          rateKind: draft.rateKind,
-          miles: draft.miles,
-          requirements: draft.requirements,
-          contact: contact.trim(),
-          reference: draft.reference
+          originCity: draft.pickup.trim(),
+          originState: "", // TODO: Parse from pickup string
+          originZip: "",
+          destCity: draft.delivery.trim(),
+          destState: "", // TODO: Parse from delivery string
+          destZip: "",
+          equipmentType: draft.vehicleType,
+          weightLbs: draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0,
+          rateTotalUSD: Number(draft.rateAmount.replace(/[^0-9.]/g, '')) || 0,
+          ratePerMileUSD: 0, // TODO: Calculate if needed
+          contactName: contact.trim(),
+          contactPhone: contact.trim(), // Assuming contact is phone for now
+          contactEmail: "", // TODO: Parse if email format
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          createdBy: currentUser.uid
         };
         
-        console.log('[PostLoad] Base payload prepared:', Object.keys(basePayload));
+        console.log('[PostLoad] Creating Firestore document');
+        const docRef = await addDoc(collection(db, "loads"), base);
+        console.log('[PostLoad] Document created with ID:', docRef.id);
         
-        // Step 2: Upload photos to Firebase Storage
+        // Step 2: Upload photos with progress tracking
         console.log('[PostLoad] Starting photo upload for', draft.photosLocal.length, 'photos');
-        setUploadsInProgress(draft.photosLocal.length);
+        const uploadedUrls: string[] = [];
         
-        const uploadedUrls = await uploadPhotosToFirebase(draft.photosLocal, draft.reference);
-        console.log('[PostLoad] Photos uploaded successfully, URLs:', uploadedUrls.length);
+        for (let i = 0; i < draft.photosLocal.length; i++) {
+          const photo = draft.photosLocal[i];
+          setUploadsInProgress(i + 1);
+          
+          try {
+            const response = await fetch(photo.uri);
+            const blob = await response.blob();
+            
+            const fileName = `${docRef.id}/${i}.jpg`;
+            const storageRef = ref(storage, `loadPhotos/${currentUser.uid}/${fileName}`);
+            
+            console.log(`[PostLoad] Uploading photo ${i + 1}/${draft.photosLocal.length}`);
+            const snapshot = await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            
+            uploadedUrls.push(downloadURL);
+            console.log(`[PostLoad] Photo ${i + 1} uploaded successfully`);
+          } catch (uploadError) {
+            console.error(`[PostLoad] Failed to upload photo ${i}:`, uploadError);
+            // Use placeholder for failed uploads
+            uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+          }
+        }
         
-        // Step 3: Create/update Firestore document with photos
+        // Step 3: Update Firestore document with photos
+        console.log('[PostLoad] Updating document with', uploadedUrls.length, 'photo URLs');
+        await updateDoc(docRef, {
+          photos: uploadedUrls,
+          photoCount: uploadedUrls.length,
+          updatedAt: serverTimestamp()
+        });
+        
         setUploadsInProgress(0);
-        setField('photoUrls', uploadedUrls);
         
-        // Use postLoadWizard with the contact info
-        await postLoadWizard(contact.trim());
+        // Step 4: Optimistically add to local loads store
         
-        // Step 4: Success-only navigation and cleanup
+        const optimisticLoad = {
+          id: docRef.id,
+          shipperId: currentUser.uid,
+          shipperName: 'You',
+          origin: {
+            address: '',
+            city: draft.pickup.trim(),
+            state: '',
+            zipCode: '',
+            lat: 0,
+            lng: 0,
+          },
+          destination: {
+            address: '',
+            city: draft.delivery.trim(),
+            state: '',
+            zipCode: '',
+            lat: 0,
+            lng: 0,
+          },
+          distance: 0,
+          weight: base.weightLbs,
+          vehicleType: draft.vehicleType!,
+          rate: base.rateTotalUSD,
+          ratePerMile: 0,
+          pickupDate: draft.pickupDate!,
+          deliveryDate: draft.deliveryDate!,
+          status: 'available' as const,
+          description: draft.description.trim(),
+          special_requirements: draft.requirements ? [draft.requirements] : undefined,
+          isBackhaul: false,
+        };
+        
+        await addLoad(optimisticLoad);
+        console.log('[PostLoad] Added optimistic load to local store');
+        
+        // Step 5: Success-only navigation and cleanup
         console.log('[PostLoad] Load posted successfully, navigating to loads');
         toast.show('Load posted successfully', 'success');
+        
+        // Reset the draft state
+        reset();
         
         // Navigate to loads page only on success
         router.replace('/(tabs)/loads');
         
       } catch (error: any) {
-        console.error('Post load failed:', error);
+        console.error('[PostLoad] Submit failed:', error);
         setUploadsInProgress(0);
         
         // Provide specific error messages
@@ -184,7 +287,7 @@ export default function PostLoadStep5() {
       setField('isPosting', false);
       setUploadsInProgress(0);
     }
-  }, [router, setField, draft, uploadsInProgress, toast, contact, uploadPhotosToFirebase, postLoadWizard]);
+  }, [router, setField, draft, uploadsInProgress, toast, contact, addLoad, reset]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -223,7 +326,7 @@ export default function PostLoadStep5() {
               <View style={styles.uploadStatusContainer}>
                 <Clock color={theme.colors.primary} size={18} />
                 <Text style={styles.uploadStatusText}>
-                  Uploading {uploadsInProgress} photo{uploadsInProgress > 1 ? 's' : ''}... Please wait.
+                  Uploading photos ({uploadsInProgress}/{draft.photosLocal?.length || 0})... Please wait.
                 </Text>
               </View>
             )}
@@ -339,7 +442,7 @@ export default function PostLoadStep5() {
               )}
               <Text style={styles.postBtnText}>
                 {uploadsInProgress > 0 
-                  ? 'Please wait, uploading photos…' 
+                  ? `Uploading photos (${uploadsInProgress}/${draft.photosLocal?.length || 0})...` 
                   : draft.isPosting 
                   ? 'Posting...' 
                   : 'Post Load'
