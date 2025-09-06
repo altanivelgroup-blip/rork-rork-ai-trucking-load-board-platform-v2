@@ -2,37 +2,26 @@ import React, { useEffect } from 'react';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
   const router = useRouter();
-  const { isLoading, isAuthenticated } = useAuth();
 
   useEffect(() => {
+    console.log('[Index] Forcing redirect to login on refresh/navigation');
     const timer = setTimeout(() => {
-      if (!isLoading) {
-        console.log('[Index] Auth loaded, isAuthenticated:', isAuthenticated);
-        if (isAuthenticated) {
-          console.log('[Index] User authenticated, navigating to tabs');
-          router.replace('/(tabs)/dashboard');
-        } else {
-          console.log('[Index] User not authenticated, navigating to login');
-          router.replace('/(auth)/login');
-        }
-      }
-    }, 500);
-    
+      router.replace('/(auth)/login');
+    }, 100);
     return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, router]);
+  }, [router]);
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.white }}>
       <ActivityIndicator size="large" color={theme.colors.primary} />
-      <Text style={{ marginTop: 20, color: theme.colors.gray, textAlign: 'center', fontSize: 18, fontWeight: '600' }}>
+      <Text style={{ marginTop: 20, color: theme.colors.gray, textAlign: 'center', fontSize: 18, fontWeight: '600' }} testID="splashTitle">
         LoadBoard AI
       </Text>
-      <Text style={{ marginTop: 10, color: theme.colors.gray, textAlign: 'center', fontSize: 14 }}>
-        {isLoading ? 'Loading...' : isAuthenticated ? 'Authenticated' : 'Not authenticated'}
+      <Text style={{ marginTop: 10, color: theme.colors.gray, textAlign: 'center', fontSize: 14 }} testID="splashSubtitle">
+        Redirecting to sign in...
       </Text>
     </View>
   );
