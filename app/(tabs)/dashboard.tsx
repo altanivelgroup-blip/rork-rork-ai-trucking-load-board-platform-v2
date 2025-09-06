@@ -475,7 +475,7 @@ export default function DashboardScreen() {
 
         <View style={styles.backhaulCard} testID="backhaul-toggle-card">
           <View style={styles.backhaulRow}>
-            <MapPin size={moderateScale(22)} color="#1D4ED8" />
+            <MapPin size={moderateScale(18)} color="#1D4ED8" />
             <Text style={styles.backhaulTitle} allowFontScaling={false}>Backhaul near delivery (50mi)</Text>
           </View>
           <Text style={styles.backhaulSub} numberOfLines={2}>
@@ -750,43 +750,43 @@ const styles = StyleSheet.create({
   backhaulCard: {
     backgroundColor: '#EA580C',
     marginHorizontal: moderateScale(theme.spacing.lg),
-    marginTop: moderateScale(theme.spacing.xl),
-    padding: moderateScale(theme.spacing.lg),
-    borderRadius: moderateScale(theme.borderRadius.lg),
+    marginTop: moderateScale(theme.spacing.sm),
+    padding: moderateScale(theme.spacing.sm),
+    borderRadius: moderateScale(theme.borderRadius.md),
     borderWidth: 1,
     borderColor: '#C2410C',
     shadowColor: '#9A3412',
-    shadowOpacity: 0.2,
-    shadowRadius: moderateScale(10),
-    shadowOffset: { width: 0, height: moderateScale(6) },
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: moderateScale(6),
+    shadowOffset: { width: 0, height: moderateScale(3) },
+    elevation: 2,
   },
   backhaulRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: moderateScale(8),
+    gap: moderateScale(6),
   },
   backhaulTitle: {
-    marginLeft: moderateScale(6),
-    fontSize: font(16),
+    marginLeft: moderateScale(4),
+    fontSize: font(14),
     fontWeight: '700',
     color: theme.colors.white,
   },
   backhaulSub: {
-    marginTop: moderateScale(4),
-    fontSize: font(14),
+    marginTop: moderateScale(2),
+    fontSize: font(12),
     color: theme.colors.white,
     opacity: 0.9,
   },
   toggleRow: {
-    marginTop: moderateScale(theme.spacing.md),
+    marginTop: moderateScale(theme.spacing.sm),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 44,
+    minHeight: 36,
   },
   toggleLabel: {
-    fontSize: font(14),
+    fontSize: font(12),
     color: theme.colors.white,
   },
   sortChip: {
