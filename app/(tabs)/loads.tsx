@@ -35,7 +35,8 @@ const normalizedLoads = useMemo(() => {
   const [geoFencingActive, setGeoFencingActive] = useState<boolean>(false);
   
   const loads = useMemo(() => {
-    let filtered = mockLoads;
+  let filtered = normalizedLoads;
+
     
 
     // Apply vehicle type filter
