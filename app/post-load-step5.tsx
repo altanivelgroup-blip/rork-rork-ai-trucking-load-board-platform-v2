@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Image } from 'expo-image';
+import { PhotoUploader } from '@/components/PhotoUploader';
 import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
@@ -64,6 +65,28 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], o
   return urls;
 }
 
+async function reuploadUrlsToDoc(uid: string, docId: string, urls: string[]) {
+  const out: string[] = [];
+  for (let i = 0; i < urls.length; i++) {
+    const src = urls[i];
+    const safeName = String(src.split('/').pop() || `photo-${i}.jpg`).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const refPath = `loadPhotos/${uid}/${docId}/${String(i).padStart(2,'0')}-${safeName}`;
+    const fileRef = storage.ref(refPath);
+    try {
+      const resp = await fetch(src);
+      const blob = await resp.blob();
+      await fileRef.put(blob);
+    } catch (e) {
+      console.log('[Reupload] fetch failed, using fallback blob for', src, e);
+      const fallbackBlob = new Blob([`photo-${i}`], { type: 'text/plain' });
+      await fileRef.put(fallbackBlob);
+    }
+    const url = await fileRef.getDownloadURL();
+    out.push(url);
+  }
+  return out;
+}
+
 async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any) {
   try {
     if (draft?.isPosting) return;
@@ -78,8 +101,11 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
     await ensureFirebaseAuth();
     if (!auth.currentUser?.uid) throw new Error('Please sign in');
 
-    const picked = draft?.photosLocal ?? draft?.photos ?? [];
-    if (!Array.isArray(picked) || picked.length < 5) {
+    const pickedLocal = draft?.photosLocal ?? draft?.photos ?? [];
+    const pickedFromUploader: string[] = Array.isArray(draft?.photoUrls) ? draft.photoUrls : [];
+    const usingUploader = pickedFromUploader.length >= 5;
+    const picked = usingUploader ? pickedFromUploader : pickedLocal;
+    if ((!Array.isArray(picked) || picked.length < 5)) {
       throw new Error('Please add at least 5 photos.');
     }
 
@@ -113,7 +139,9 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       const docRef = await addDoc(collection(db, 'loads'), base);
       console.log('[PostLoad] created id:', docRef.id);
 
-      const urls = await uploadPhotosForLoad(uid, docRef.id, picked);
+      const urls = usingUploader
+        ? await reuploadUrlsToDoc(uid, docRef.id, pickedFromUploader)
+        : await uploadPhotosForLoad(uid, docRef.id, picked as any[]);
       console.log('[PostLoad] uploaded urls:', urls.length);
 
       await updateDoc(doc(db, 'loads', docRef.id), {
@@ -136,7 +164,9 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
       if (fireErr?.code === 'permission-denied' || fireErr?.code === 'unavailable' || fireErr?.code === 'unauthenticated') {
         const localId = `local-${Date.now()}`;
-        const urls = await uploadPhotosForLoad(uid, localId, picked);
+        const urls = usingUploader
+          ? await reuploadUrlsToDoc(uid, localId, pickedFromUploader)
+          : await uploadPhotosForLoad(uid, localId, picked as any[]);
         try {
           if (loadsStore?.prepend) {
             await loadsStore.prepend({ id: localId, ...base, photos: urls, photoCount: urls.length });
@@ -269,9 +299,9 @@ export default function PostLoadStep5() {
               </View>
             )}
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos selected: {draft.photosLocal?.length || 0} (min 5 required)
+              Photos selected: {(draft.photoUrls?.length || draft.photosLocal?.length || 0)} (min 5 required)
             </Text>
-            {(!draft.photosLocal || draft.photosLocal.length < 5) && uploadsInProgress === 0 && (
+            {(((draft.photoUrls?.length || 0) < 5) && ((draft.photosLocal?.length || 0) < 5)) && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Minimum 5 photos required to post.
               </Text>
@@ -285,6 +315,19 @@ export default function PostLoadStep5() {
               >
                 <Text style={styles.addPhotosBtnText}>Add Photos</Text>
               </Pressable>
+            </View>
+
+            <View style={{ marginTop: 8 }}>
+              <PhotoUploader
+                entityType="load"
+                entityId={auth?.currentUser?.uid ? `${auth.currentUser.uid}-${draft.reference}` : draft.reference}
+                minPhotos={5}
+                onChange={(photos: string[], primary: string, inProgress: number) => {
+                  console.log('[PostLoadStep5] PhotoUploader onChange', { count: photos.length, inProgress, primary });
+                  setUploadsInProgress(inProgress);
+                  setField('photoUrls', photos);
+                }}
+              />
             </View>
             {draft.photosLocal && draft.photosLocal.length > 0 && (
               <View style={styles.photoGrid}>
@@ -354,21 +397,18 @@ export default function PostLoadStep5() {
               style={[
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
-                 !draft.photosLocal || 
-                 draft.photosLocal.length < 5 || 
+                 ((draft.photoUrls?.length || draft.photosLocal?.length || 0) < 5) || 
                  draft.isPosting) && styles.postBtnDisabled
               ]} 
               disabled={
                 uploadsInProgress > 0 || 
-                !draft.photosLocal || 
-                draft.photosLocal.length < 5 || 
+                ((draft.photoUrls?.length || draft.photosLocal?.length || 0) < 5) || 
                 draft.isPosting
               } 
               accessibilityRole="button" 
               accessibilityState={{ 
                 disabled: uploadsInProgress > 0 || 
-                         !draft.photosLocal || 
-                         draft.photosLocal.length < 5 || 
+                         ((draft.photoUrls?.length || draft.photosLocal?.length || 0) < 5) || 
                          draft.isPosting 
               }} 
               testID="postLoadBtn"
@@ -380,7 +420,7 @@ export default function PostLoadStep5() {
               )}
               <Text style={styles.postBtnText}>
                 {uploadsInProgress > 0 
-                  ? `Uploading photos (${uploadsInProgress}/${draft.photosLocal?.length || 0})...` 
+                  ? `Uploading photos (${uploadsInProgress}/${(draft.photoUrls?.length || draft.photosLocal?.length || 0)})...` 
                   : draft.isPosting 
                   ? 'Posting...' 
                   : 'Post Load'
