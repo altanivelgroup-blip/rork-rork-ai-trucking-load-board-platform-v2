@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 
@@ -13,11 +13,79 @@ interface LoadDoc {
   status?: string;
 }
 
+interface DiagnosticsInfo {
+  projectId?: string;
+  authDomain?: string;
+  storageBucket?: string;
+  userUID?: string;
+  rawTestError?: string;
+  publicReadCount?: number;
+  orderedReadCount?: number;
+  orderedReadError?: string;
+}
+
 export default function DevFirestoreTest() {
   const [loads, setLoads] = useState<LoadDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [count, setCount] = useState(0);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticsInfo>({});
+  const [testLoading, setTestLoading] = useState(false);
+
+  const loadDiagnostics = async () => {
+    try {
+      console.log('Loading diagnostics...');
+      const user = await ensureFirebaseAuth();
+      const firebase = getFirebase();
+      
+      const newDiagnostics: DiagnosticsInfo = {
+        projectId: firebase.app.options.projectId,
+        authDomain: firebase.app.options.authDomain,
+        storageBucket: firebase.app.options.storageBucket,
+        userUID: user?.uid || 'Anonymous',
+      };
+      
+      // Raw test
+      try {
+        await getDocs(collection(firebase.db, 'loads'));
+        newDiagnostics.rawTestError = 'Success';
+      } catch (err: any) {
+        newDiagnostics.rawTestError = err.message;
+      }
+      
+      setDiagnostics(newDiagnostics);
+    } catch (err: any) {
+      console.error('Diagnostics error:', err);
+      setDiagnostics({ rawTestError: `Diagnostics failed: ${err.message}` });
+    }
+  };
+
+  const testPublicRead = async () => {
+    setTestLoading(true);
+    try {
+      const { db } = getFirebase();
+      const querySnapshot = await getDocs(collection(db, 'loads'));
+      setDiagnostics(prev => ({ ...prev, publicReadCount: querySnapshot.size }));
+    } catch (err: any) {
+      setDiagnostics(prev => ({ ...prev, publicReadCount: -1, rawTestError: err.message }));
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const testOrderedRead = async () => {
+    setTestLoading(true);
+    try {
+      const { db } = getFirebase();
+      const q = query(collection(db, 'loads'), orderBy('createdAt', 'desc'), limit(20));
+      const querySnapshot = await getDocs(q);
+      setDiagnostics(prev => ({ ...prev, orderedReadCount: querySnapshot.size, orderedReadError: undefined }));
+    } catch (err: any) {
+      setDiagnostics(prev => ({ ...prev, orderedReadCount: -1, orderedReadError: err.message }));
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   const fetchLoads = async () => {
     try {
@@ -57,6 +125,7 @@ export default function DevFirestoreTest() {
   };
 
   useEffect(() => {
+    loadDiagnostics();
     fetchLoads();
   }, []);
 
@@ -69,6 +138,44 @@ export default function DevFirestoreTest() {
         }} 
       />
       <View style={styles.container}>
+        {/* Diagnostics Panel */}
+        <View style={styles.diagnosticsPanel}>
+          <Text style={styles.diagnosticsTitle}>Firebase Diagnostics</Text>
+          <Text style={styles.diagnosticsText}>Project ID: {diagnostics.projectId || 'Loading...'}</Text>
+          <Text style={styles.diagnosticsText}>Auth Domain: {diagnostics.authDomain || 'Loading...'}</Text>
+          <Text style={styles.diagnosticsText}>Storage Bucket: {diagnostics.storageBucket || 'Loading...'}</Text>
+          <Text style={styles.diagnosticsText}>User UID: {diagnostics.userUID || 'Loading...'}</Text>
+          <Text style={styles.diagnosticsText}>Raw Test: {diagnostics.rawTestError || 'Loading...'}</Text>
+          
+          <View style={styles.testButtons}>
+            <TouchableOpacity 
+              style={[styles.testButton, testLoading && styles.testButtonDisabled]} 
+              onPress={testPublicRead}
+              disabled={testLoading}
+            >
+              <Text style={styles.testButtonText}>
+                Try public read (no orderBy)
+                {diagnostics.publicReadCount !== undefined && ` (${diagnostics.publicReadCount})`}
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.testButton, testLoading && styles.testButtonDisabled]} 
+              onPress={testOrderedRead}
+              disabled={testLoading}
+            >
+              <Text style={styles.testButtonText}>
+                Try ordered read
+                {diagnostics.orderedReadCount !== undefined && ` (${diagnostics.orderedReadCount})`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          {diagnostics.orderedReadError && (
+            <Text style={styles.errorText}>Ordered read error: {diagnostics.orderedReadError}</Text>
+          )}
+        </View>
+
         <View style={styles.header}>
           <Text style={styles.countText}>Found {count} loads</Text>
           <TouchableOpacity 
@@ -216,5 +323,46 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#666',
+  },
+  diagnosticsPanel: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  diagnosticsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  diagnosticsText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    fontFamily: 'monospace',
+  },
+  testButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  testButton: {
+    backgroundColor: '#28a745',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    flex: 1,
+    minWidth: 120,
+  },
+  testButtonDisabled: {
+    backgroundColor: '#6c757d',
+  },
+  testButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
