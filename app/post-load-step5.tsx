@@ -10,6 +10,121 @@ import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Image } from 'expo-image';
+import { db } from '@/lib/firebase'; // adjust path if different
+import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+type NormAsset =
+  | { kind:'file'; file: File; name: string; mime?: string }
+  | { kind:'uri';  uri: string; name: string; mime?: string };
+
+function normalizeAssets(input: any[]): NormAsset[] {
+  if (!Array.isArray(input)) return [];
+  return input.map((a: any, i) => {
+    // Web File
+    if (typeof File !== 'undefined' && a instanceof File) {
+      return { kind:'file', file:a, name:a.name || `photo-${i}.jpg`, mime:a.type || 'image/jpeg' };
+    }
+    // Expo ImagePicker: asset.uri (and maybe fileName)
+    const uri = a?.uri || (typeof a === 'string' ? a : '');
+    const last = String(a?.fileName || uri.split(/[/?#]/).pop() || `photo-${i}.jpg`);
+    return { kind:'uri', uri, name:last, mime:'image/jpeg' };
+  });
+}
+
+async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[]) {
+  const assets = normalizeAssets(picked).filter(a => (a as any).file || (a as any).uri);
+  console.log('[Upload] normalized:', assets.length);
+async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any) {
+  try {
+    if (draft?.isPosting) return;
+    if (!auth.currentUser?.uid) throw new Error('Please sign in');
+
+    // ✅ Require 5 photos before posting (your rule)
+    const picked = draft?.photosLocal ?? draft?.photos ?? [];
+    if (!Array.isArray(picked) || picked.length < 5) {
+      throw new Error('Please add at least 5 photos.');
+    }
+
+    draft.isPosting = true;
+    const uid = auth.currentUser.uid;
+
+    // Base payload (adjust field names if yours differ)
+    const base = {
+      status: 'active',
+      pickupDate: draft?.pickupDate || '',
+      deliveryDate: draft?.deliveryDate || '',
+      originCity: draft?.originCity || '',
+      originState: draft?.originState || '',
+      originZip:   draft?.originZip   || '',
+      destCity:    draft?.destCity    || '',
+      destState:   draft?.destState   || '',
+      destZip:     draft?.destZip     || '',
+      equipmentType: draft?.equipmentType || '',
+      weightLbs: Number(draft?.weightLbs || 0),
+      rateTotalUSD: Number(draft?.rateTotalUSD || 0),
+      ratePerMileUSD: Number(draft?.ratePerMileUSD || 0),
+      contactName:  draft?.contactName  || '',
+      contactPhone: draft?.contactPhone || '',
+      contactEmail: draft?.contactEmail || '',
+      photos: [], photoCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      createdBy: uid,
+    };
+
+    // 1) Create doc first (get stable id)
+    const docRef = await addDoc(collection(db, 'loads'), base);
+    console.log('[PostLoad] created id:', docRef.id);
+
+    // 2) Upload photos (works for Expo + Web)
+    const urls = await uploadPhotosForLoad(uid, docRef.id, picked);
+    console.log('[PostLoad] uploaded urls:', urls.length);
+
+    // 3) Update doc with photo URLs
+    await updateDoc(doc(db, 'loads', docRef.id), {
+      photos: urls,
+      photoCount: urls.length,
+      updatedAt: serverTimestamp(),
+    });
+
+    // 4) Optional optimistic insert if you keep a store
+    loadsStore?.prepend?.({ id: docRef.id, ...base, photos: urls, photoCount: urls.length });
+
+    toast?.success?.('Load posted successfully');
+    router?.replace?.('/loads');
+  } catch (err: any) {
+    console.error('[PostLoad] failed:', err?.code || '', err?.message || err);
+    toast?.error?.(err?.message || 'Post failed — please try again');
+  } finally {
+    if (draft) draft.isPosting = false;
+  }
+}
+
+  const urls: string[] = [];
+  for (let i = 0; i < assets.length; i++) {
+    const a = assets[i];
+    const ext = (a.name?.split('.').pop() || 'jpg').toLowerCase();
+    const safeName = a.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileRef = ref(storage, `loadPhotos/${uid}/${loadId}/${String(i).padStart(2,'0')}-${safeName}`);
+    console.log('[Upload] ->', fileRef.fullPath);
+
+    if (a.kind === 'file') {
+      await uploadBytesResumable(fileRef, a.file, { contentType: a.mime || 'image/jpeg' });
+    } else {
+      // Expo RN: fetch file:///… to Blob
+      const resp = await fetch(a.uri);
+      const blob = await resp.blob();
+      await uploadBytesResumable(fileRef, blob, { contentType: blob.type || 'image/jpeg' });
+    }
+    const url = await getDownloadURL(fileRef);
+    urls.push(url);
+  }
+  return urls;
+}
+
+const auth = getAuth();
+const storage = getStorage();
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
