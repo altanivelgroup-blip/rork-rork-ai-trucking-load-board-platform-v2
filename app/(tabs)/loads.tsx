@@ -10,7 +10,22 @@ import { useLoads } from '@/hooks/useLoads';
 export default function LoadsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  
+  // Read live loads and normalize field names so filters/UI work
+const rawLoads = useLoads();
+
+const normalizedLoads = useMemo(() => {
+  return (rawLoads ?? []).map((l: any) => ({
+    ...l,
+    // Your docs use 'pickup' / 'delivery' strings
+    origin: typeof l.origin !== 'undefined' ? l.origin : l.pickup,
+    destination: typeof l.destination !== 'undefined' ? l.destination : l.delivery,
+    // Your docs use 'rateAmount' and 'weight'
+    rate: typeof l.rate !== 'undefined' ? l.rate : l.rateAmount,
+    weightLbs: typeof l.weightLbs !== 'undefined' ? l.weightLbs : l.weight,
+    photos: l.photos ?? l.photoUrls,
+  }));
+}, [rawLoads]);
+
   // Filter states
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleType | undefined>();
   const [showBackhaul, setShowBackhaul] = useState<boolean>(false);
