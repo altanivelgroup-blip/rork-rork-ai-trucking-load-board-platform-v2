@@ -12,6 +12,7 @@ import { useLoads } from '@/hooks/useLoads';
 import { Image } from 'expo-image';
 import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 type NormAsset =
   | { kind:'file'; file: File; name: string; mime?: string }
@@ -66,6 +67,14 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], o
 async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any) {
   try {
     if (draft?.isPosting) return;
+    if (!auth.currentUser) {
+      try {
+        await signInAnonymously(auth);
+        console.log('[Auth] Signed in anonymously');
+      } catch (e) {
+        console.log('[Auth] Anonymous sign-in failed', e);
+      }
+    }
     await ensureFirebaseAuth();
     if (!auth.currentUser?.uid) throw new Error('Please sign in');
 
