@@ -59,6 +59,72 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[]) {
   return urls;
 }
 
+async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any) {
+  try {
+    if (draft?.isPosting) return;
+    if (!auth.currentUser?.uid) throw new Error('Please sign in');
+
+    const picked = draft?.photosLocal ?? draft?.photos ?? [];
+    if (!Array.isArray(picked) || picked.length < 5) {
+      throw new Error('Please add at least 5 photos.');
+    }
+
+    draft.isPosting = true;
+    const uid = auth.currentUser.uid;
+
+    const base = {
+      status: 'active',
+      pickupDate: draft?.pickupDate || '',
+      deliveryDate: draft?.deliveryDate || '',
+      originCity: draft?.originCity || draft?.pickup || '',
+      originState: draft?.originState || '',
+      originZip:   draft?.originZip   || '',
+      destCity:    draft?.destCity    || draft?.delivery || '',
+      destState:   draft?.destState   || '',
+      destZip:     draft?.destZip     || '',
+      equipmentType: draft?.equipmentType || draft?.vehicleType || '',
+      weightLbs: Number((draft?.weightLbs ?? (draft?.weight ? String(draft?.weight).replace(/[^0-9.]/g,'') : 0)) || 0),
+      rateTotalUSD: Number((draft?.rateTotalUSD ?? (draft?.rateAmount ? String(draft?.rateAmount).replace(/[^0-9.]/g,'') : 0)) || 0),
+      ratePerMileUSD: Number(draft?.ratePerMileUSD || 0),
+      contactName:  draft?.contactName  || draft?.contact || '',
+      contactPhone: draft?.contactPhone || draft?.contact || '',
+      contactEmail: draft?.contactEmail || '',
+      photos: [], photoCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      createdBy: uid,
+    } as const;
+
+    const docRef = await addDoc(collection(db, 'loads'), base);
+    console.log('[PostLoad] created id:', docRef.id);
+
+    const urls = await uploadPhotosForLoad(uid, docRef.id, picked);
+    console.log('[PostLoad] uploaded urls:', urls.length);
+
+    await updateDoc(doc(db, 'loads', docRef.id), {
+      photos: urls,
+      photoCount: urls.length,
+      updatedAt: serverTimestamp(),
+    });
+
+    try {
+      if (loadsStore?.prepend) {
+        await loadsStore.prepend({ id: docRef.id, ...base, photos: urls, photoCount: urls.length });
+      }
+    } catch (e) {
+      console.log('[PostLoad] optional prepend failed', e);
+    }
+
+    toast?.success?.('Load posted successfully');
+    router?.replace?.('/loads');
+  } catch (err: any) {
+    console.error('[PostLoad] failed:', err?.code || '', err?.message || err);
+    toast?.error?.(err?.message || 'Post failed — please try again');
+  } finally {
+    if (draft) draft.isPosting = false;
+  }
+}
+
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
   return (
@@ -131,144 +197,19 @@ export default function PostLoadStep5() {
 
   const onSubmit = useCallback(async () => {
     console.log('POST BTN FIRED - onSubmit called');
-
     try {
       if (uploadsInProgress > 0) {
         toast.show('Please wait, uploading photos…', 'warning');
         return;
       }
-
-      if (draft.isPosting) {
-        console.log('Already posting, aborting duplicate submit');
-        return;
-      }
-
-      if (!draft.photosLocal || draft.photosLocal.length < 5) {
-        toast.show('At least 5 photos are required', 'error');
-        return;
-      }
-
-      if (!contact.trim()) {
-        toast.show('Contact information is required', 'error');
-        return;
-      }
-
-      if (!draft.pickupDate || !draft.deliveryDate) {
-        toast.show('Pickup and delivery dates are required', 'error');
-        return;
-      }
-
-      if (!draft.title?.trim() || !draft.pickup?.trim() || !draft.delivery?.trim() || !draft.vehicleType || !draft.rateAmount?.trim()) {
-        toast.show('Please complete all required fields', 'error');
-        return;
-      }
-
-      setField('isPosting', true);
-
-      try {
-        if (!auth.currentUser?.uid) throw new Error('Please sign in');
-        const uid = auth.currentUser.uid;
-
-        const base = {
-          status: 'active',
-          pickupDate: draft.pickupDate,
-          deliveryDate: draft.deliveryDate,
-          originCity: draft.pickup.trim(),
-          originState: '',
-          originZip: '',
-          destCity: draft.delivery.trim(),
-          destState: '',
-          destZip: '',
-          equipmentType: draft.vehicleType,
-          weightLbs: draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0,
-          rateTotalUSD: Number(draft.rateAmount.replace(/[^0-9.]/g, '')) || 0,
-          ratePerMileUSD: 0,
-          contactName: contact.trim(),
-          contactPhone: contact.trim(),
-          contactEmail: '',
-          photos: [],
-          photoCount: 0,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          createdBy: uid,
-        };
-
-        console.log('[PostLoad] Creating Firestore document');
-        const docRef = await addDoc(collection(db, 'loads'), base);
-        console.log('[PostLoad] Document created with ID:', docRef.id);
-
-        console.log('[PostLoad] Starting photo upload for', draft.photosLocal.length, 'photos');
-        setUploadsInProgress(1);
-        const urls = await uploadPhotosForLoad(uid, docRef.id, draft.photosLocal);
-        setUploadsInProgress(0);
-        console.log('[PostLoad] uploaded urls:', urls.length);
-
-        await updateDoc(doc(db, 'loads', docRef.id), {
-          photos: urls,
-          photoCount: urls.length,
-          updatedAt: serverTimestamp(),
-        });
-
-        const optimisticLoad = {
-          id: docRef.id,
-          shipperId: uid,
-          shipperName: 'You',
-          origin: {
-            address: '',
-            city: draft.pickup.trim(),
-            state: '',
-            zipCode: '',
-            lat: 0,
-            lng: 0,
-          },
-          destination: {
-            address: '',
-            city: draft.delivery.trim(),
-            state: '',
-            zipCode: '',
-            lat: 0,
-            lng: 0,
-          },
-          distance: 0,
-          weight: base.weightLbs,
-          vehicleType: draft.vehicleType!,
-          rate: base.rateTotalUSD,
-          ratePerMile: 0,
-          pickupDate: draft.pickupDate!,
-          deliveryDate: draft.deliveryDate!,
-          status: 'available' as const,
-          description: draft.description?.trim?.() ?? '',
-          special_requirements: draft.requirements ? [draft.requirements] : undefined,
-          isBackhaul: false,
-        };
-
-        await addLoad(optimisticLoad);
-        console.log('[PostLoad] Added optimistic load to local store');
-
-        console.log('[PostLoad] Load posted successfully, navigating to loads');
-        toast.show('Load posted successfully', 'success');
-        reset();
-        router.replace('/loads');
-      } catch (error: any) {
-        console.error('[PostLoad] Submit failed:', error?.code || '', error?.message || error);
-        setUploadsInProgress(0);
-        if (error?.message?.includes('permission') || error?.code === 'permission-denied') {
-          toast.show('Post failed — please sign in', 'error');
-        } else if (error?.message?.includes('network') || error?.code === 'unavailable') {
-          toast.show('Post failed — check your connection', 'error');
-        } else {
-          toast.show('Post failed — please try again', 'error');
-        }
-        setField('isPosting', false);
-        return;
-      }
-    } catch (err) {
-      console.error('POST_LOAD_CRITICAL_ERROR', err);
-      toast.show('Post failed — please try again', 'error');
-      setField('isPosting', false);
-      setUploadsInProgress(0);
+      await submitLoadWithPhotos(draft, {
+        success: (m: string) => toast.show(m, 'success'),
+        error: (m: string) => toast.show(m, 'error'),
+      }, router, { prepend: async (l: any) => { try { await addLoad(l); } catch (e) { console.log('prepend failed', e); } } });
+    } catch (e) {
+      console.log('submit error', e);
     }
-  }, [router, setField, draft, uploadsInProgress, toast, contact, addLoad, reset]);
+  }, [uploadsInProgress, toast, draft, router, addLoad]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
