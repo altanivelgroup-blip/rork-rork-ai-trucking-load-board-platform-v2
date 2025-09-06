@@ -5,6 +5,7 @@ import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-native';
+import { VoiceCapture } from '@/components/VoiceCapture';
 import { mockLoads } from '@/mocks/loads';
 import { useLoads } from '@/hooks/useLoads';
 import { SORT_DROPDOWN_ENABLED, GEO_SORT_ENABLED, AI_RERANK_ENABLED, AI_COPILOT_CHIPS_ENABLED } from '@/constants/flags';
@@ -305,6 +306,10 @@ export default function DashboardScreen() {
     setNlQuery(text);
   }, []);
 
+  const handleVoiceTranscribed = useCallback((text: string) => {
+    setNlQuery(text);
+  }, []);
+
   const handleViewAll = useCallback(() => {
     const params: Record<string, string> = {};
     if (origin) params.origin = origin;
@@ -384,6 +389,11 @@ export default function DashboardScreen() {
             onSubmitEditing={onSubmitNlSearch}
             style={styles.describeInput}
             accessibilityLabel="Natural language search"
+          />
+          <VoiceCapture
+            onTranscribed={handleVoiceTranscribed}
+            size="sm"
+            testID="describe-load-voice-capture"
           />
           <TouchableOpacity
             onPress={onSubmitNlSearch}
