@@ -391,7 +391,7 @@ export default function DashboardScreen() {
             style={styles.applyButton}
           >
             <Text style={styles.applyButtonText} allowFontScaling={false}>
-              AI INTELLIGENCE
+              AI LOADS
             </Text>
           </TouchableOpacity>
         </View>
