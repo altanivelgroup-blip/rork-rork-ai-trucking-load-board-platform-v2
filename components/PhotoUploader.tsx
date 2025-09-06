@@ -313,16 +313,20 @@ export function PhotoUploader({
       const { db } = getFirebase();
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
       const docRef = doc(db, collectionName, entityId);
-      await updateDoc(docRef, {
-        photos,
-        primaryPhoto,
-        updatedAt: serverTimestamp(),
-      });
+      await setDoc(
+        docRef,
+        {
+          photos,
+          primaryPhoto,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
       setTimeout(() => {
         const uploadsInProgress = state.photos.filter(p => p.uploading).length;
         onChange?.(photos, primaryPhoto, uploadsInProgress);
       }, 0);
-      console.log('[PhotoUploader] Firestore updated with', photos.length, 'photos');
+      console.log('[PhotoUploader] Firestore upserted with', photos.length, 'photos');
     } catch (error) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
       toast.show('Failed to save photos', 'error');
