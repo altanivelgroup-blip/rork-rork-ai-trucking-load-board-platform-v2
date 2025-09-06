@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { DollarSign, Filter, Phone, Mail, Search } from 'lucide-react-native';
+import { DollarSign, Filter, Phone, Mail, Plus } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
 import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
@@ -14,10 +14,9 @@ export default function LoadsScreen() {
   
   const [showFiltersModal, setShowFiltersModal] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [searchText, setSearchText] = useState<string>('');
-  const [selectedEquipmentTypes, setSelectedEquipmentTypes] = useState<string[]>([]);
+  const [selectedQuickFilters, setSelectedQuickFilters] = useState<string[]>([]);
   
-  const equipmentTypes = ['Backhaul', 'Flatbed', 'Reefer', 'Box Truck', 'Car Hauler', 'Enclosed Trailer'];
+  const quickFilters = ['High Pay', 'Near Me', 'Light Weight', 'Today', 'Backhaul'];
   
   const loads = filteredLoads;
   
@@ -32,6 +31,18 @@ export default function LoadsScreen() {
   const handleApplyFilters = useCallback((newFilters: any) => {
     setFilters(newFilters);
   }, [setFilters]);
+  
+  const handleQuickFilter = useCallback((filter: string) => {
+    if (selectedQuickFilters.includes(filter)) {
+      setSelectedQuickFilters(prev => prev.filter(f => f !== filter));
+    } else {
+      setSelectedQuickFilters(prev => [...prev, filter]);
+    }
+  }, [selectedQuickFilters]);
+  
+  const handlePostLoad = useCallback(() => {
+    router.push('/post-load');
+  }, [router]);
   
   const handleCall = useCallback((phone: string) => {
     if (phone) {
@@ -72,39 +83,27 @@ export default function LoadsScreen() {
       <View style={styles.container}>
         {/* Header Controls */}
         <View style={styles.headerControls}>
-          {/* Equipment Type Filters */}
-          <View style={styles.equipmentFilters}>
-            <TouchableOpacity style={styles.filtersButton} onPress={handleOpenFilters}>
-              <Filter size={16} color={theme.colors.primary} />
-              <Text style={styles.filtersButtonText}>Filters</Text>
-            </TouchableOpacity>
-            
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.equipmentScrollContent}>
-              {equipmentTypes.map((type) => {
-                const isSelected = selectedEquipmentTypes.includes(type);
-                const isBackhaul = type === 'Backhaul';
+          {/* Quick Filters */}
+          <View style={styles.quickFilters}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFiltersContent}>
+              {quickFilters.map((filter) => {
+                const isSelected = selectedQuickFilters.includes(filter);
+                const isBackhaul = filter === 'Backhaul';
                 return (
                   <TouchableOpacity
-                    key={type}
+                    key={filter}
                     style={[
-                      styles.equipmentChip,
-                      isSelected && styles.equipmentChipActive,
-                      isBackhaul && styles.backhaulChip
+                      styles.quickFilterChip,
+                      isSelected && styles.quickFilterChipActive,
+                      isBackhaul && isSelected && { backgroundColor: '#FF6B35' }
                     ]}
-                    onPress={() => {
-                      if (isSelected) {
-                        setSelectedEquipmentTypes(prev => prev.filter(t => t !== type));
-                      } else {
-                        setSelectedEquipmentTypes(prev => [...prev, type]);
-                      }
-                    }}
+                    onPress={() => handleQuickFilter(filter)}
                   >
                     <Text style={[
-                      styles.equipmentChipText,
-                      isSelected && styles.equipmentChipTextActive,
-                      isBackhaul && styles.backhaulChipText
+                      styles.quickFilterText,
+                      isSelected && styles.quickFilterTextActive
                     ]}>
-                      {type}
+                      {filter}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -112,41 +111,18 @@ export default function LoadsScreen() {
             </ScrollView>
           </View>
           
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <View style={styles.searchInputContainer}>
-              <Search size={16} color={theme.colors.gray} style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Describe your load (e.g., 'Dallas to ATL, ≥$800, 48k lbs')"
-                value={searchText}
-                onChangeText={setSearchText}
-                placeholderTextColor={theme.colors.gray}
-              />
-            </View>
-            <TouchableOpacity style={styles.applyButton} onPress={() => {
-              // Apply search filter logic here
-              console.log('Search applied:', searchText);
-            }}>
-              <Text style={styles.applyButtonText}>Apply</Text>
+          {/* Header Actions */}
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.filterButton} onPress={handleOpenFilters}>
+              <Filter size={20} color={theme.colors.primary} />
             </TouchableOpacity>
-          </View>
-          
-          {/* Sort and AI Loads */}
-          <View style={styles.bottomControls}>
-            <View style={styles.sortControls}>
-              <Text style={styles.sortLabel}>Highest $/mi</Text>
-              <Text style={styles.sortLabel}>Near me</Text>
-              <Text style={styles.sortLabel}>Lightest</Text>
-              <Text style={styles.sortLabel}>New Today</Text>
-              <TouchableOpacity style={styles.aiLoadsButton} onPress={handleOpenAiLoads}>
-                <Text style={styles.aiLoadsButtonText}>AI for Loads</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.aiBackhaulButton}>
-                <Text style={styles.aiBackhaulButtonText}>AI Backhaul</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.sortByText}>Sort: Best</Text>
+            <TouchableOpacity style={styles.aiButton} onPress={handleOpenAiLoads}>
+              <Text style={styles.aiButtonText}>AI Loads</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.postButton} onPress={handlePostLoad}>
+              <Plus size={16} color={theme.colors.white} />
+              <Text style={styles.postButtonText}>Post</Text>
+            </TouchableOpacity>
           </View>
         </View>
         
@@ -425,133 +401,19 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
   },
 
-  // New styles for the restored UI
-  equipmentFilters: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  filtersButton: {
+  postButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.lightGray,
-    borderRadius: theme.borderRadius.md,
-    marginRight: theme.spacing.sm,
-  },
-  filtersButtonText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
-    color: theme.colors.primary,
-  },
-  equipmentScrollContent: {
-    gap: theme.spacing.sm,
-    paddingRight: theme.spacing.lg,
-  },
-  equipmentChip: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: 20,
-    backgroundColor: theme.colors.lightGray,
-    borderWidth: 1,
-    borderColor: theme.colors.lightGray,
-  },
-  equipmentChipActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  backhaulChip: {
-    backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
-  },
-  equipmentChipText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
-    color: theme.colors.dark,
-  },
-  equipmentChipTextActive: {
-    color: theme.colors.white,
-  },
-  backhaulChipText: {
-    color: theme.colors.white,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.lightGray,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing.md,
-  },
-  searchIcon: {
-    marginRight: theme.spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: theme.spacing.sm,
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.dark,
-  },
-  applyButton: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
     backgroundColor: theme.colors.primary,
     borderRadius: theme.borderRadius.md,
   },
-  applyButtonText: {
+  postButtonText: {
     color: theme.colors.white,
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
-  },
-  bottomControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sortControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-  },
-  sortLabel: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  aiLoadsButton: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.sm,
-  },
-  aiLoadsButtonText: {
-    color: theme.colors.white,
-    fontSize: theme.fontSize.xs,
-    fontWeight: '700',
-  },
-  aiBackhaulButton: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    backgroundColor: theme.colors.dark,
-    borderRadius: theme.borderRadius.sm,
-  },
-  aiBackhaulButtonText: {
-    color: theme.colors.white,
-    fontSize: theme.fontSize.xs,
-    fontWeight: '700',
-  },
-  sortByText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    fontWeight: '500',
   },
 
 });
