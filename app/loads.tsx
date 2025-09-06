@@ -2,15 +2,17 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { mockLoads } from '@/mocks/loads';
 import { MapPin, Calendar, Package, DollarSign } from 'lucide-react-native';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase'; // use your actual path to the Firestore instance
+import { db } from '@/utils/firebase';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LoadsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-const [items, setItems] = useState<any[]>([]);
+  const insets = useSafeAreaInsets();
+  const [items, setItems] = useState<any[]>([]);
 
 useEffect(() => {
   console.log('[Loads] temp query: createdAt desc');
@@ -75,41 +77,6 @@ const loads = useMemo(() => {
   return filtered;
 }, [params, items]);
 
-    
-    // Apply filters from params if any
-    if (params.origin && typeof params.origin === 'string') {
-      const originFilter = params.origin.toLowerCase();
-      filtered = filtered.filter(load => 
-        load.origin?.city?.toLowerCase().includes(originFilter) ||
-        load.origin?.state?.toLowerCase().includes(originFilter)
-      );
-    }
-    
-    if (params.destination && typeof params.destination === 'string') {
-      const destinationFilter = params.destination.toLowerCase();
-      filtered = filtered.filter(load => 
-        load.destination?.city?.toLowerCase().includes(destinationFilter) ||
-        load.destination?.state?.toLowerCase().includes(destinationFilter)
-      );
-    }
-    
-    if (params.minWeight && typeof params.minWeight === 'string') {
-      const minWeight = parseInt(params.minWeight);
-      if (!isNaN(minWeight)) {
-        filtered = filtered.filter(load => (load.weight || 0) >= minWeight);
-      }
-    }
-    
-    if (params.minPrice && typeof params.minPrice === 'string') {
-      const minPrice = parseInt(params.minPrice);
-      if (!isNaN(minPrice)) {
-        filtered = filtered.filter(load => (load.rate || 0) >= minPrice);
-      }
-    }
-    
-    return filtered;
-  }, [params]);
-  
   const handleLoadPress = (loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
   };
@@ -117,7 +84,7 @@ const loads = useMemo(() => {
   return (
     <>
       <Stack.Screen options={{ title: 'Available Loads' }} />
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}> 
         <ScrollView contentContainerStyle={styles.content}>
           {loads.length === 0 ? (
             <View style={styles.emptyState}>
