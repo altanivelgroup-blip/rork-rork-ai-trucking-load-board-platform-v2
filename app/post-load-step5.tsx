@@ -138,7 +138,6 @@ export default function PostLoadStep5() {
         // Step 1: Build base payload without photos
         const { getFirebase, ensureFirebaseAuth } = await import('@/utils/firebase');
         const { addDoc, collection, updateDoc, serverTimestamp } = await import('firebase/firestore');
-        const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
 
         
         const authSuccess = await ensureFirebaseAuth();
@@ -192,11 +191,13 @@ export default function PostLoadStep5() {
             const blob = await response.blob();
             
             const fileName = `${docRef.id}/${i}.jpg`;
-            const storageRef = ref(storage, `loadPhotos/${currentUser.uid}/${fileName}`);
+            const path = `loadPhotos/${currentUser.uid}/${fileName}`;
             
-            console.log(`[PostLoad] Uploading photo ${i + 1}/${draft.photosLocal.length}`);
-            const snapshot = await uploadBytes(storageRef, blob);
-            const downloadURL = await getDownloadURL(snapshot.ref);
+            console.log(`[PostLoad] Uploading photo ${i + 1}/${draft.photosLocal.length} to`, path);
+            // Use mock-compatible storage API
+            const storageRef: any = (storage as any).ref(path);
+            const snapshot = await storageRef.put(blob);
+            const downloadURL: string = await snapshot.ref.getDownloadURL();
             
             uploadedUrls.push(downloadURL);
             console.log(`[PostLoad] Photo ${i + 1} uploaded successfully`);
