@@ -35,14 +35,14 @@ export default function DevFirestoreTest() {
   const loadDiagnostics = async () => {
     try {
       console.log('Loading diagnostics...');
-      const user = await ensureFirebaseAuth();
+      const authSuccess = await ensureFirebaseAuth();
       const firebase = getFirebase();
       
       const newDiagnostics: DiagnosticsInfo = {
         projectId: firebase.app.options.projectId,
         authDomain: firebase.app.options.authDomain,
         storageBucket: firebase.app.options.storageBucket,
-        userUID: user?.uid || 'Anonymous',
+        userUID: firebase.auth.currentUser?.uid || 'Anonymous',
       };
       
       // Raw test
