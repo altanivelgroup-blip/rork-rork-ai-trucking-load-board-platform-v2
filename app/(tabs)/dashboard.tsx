@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
     paddingBottom: moderateScale(theme.spacing.xl),
   },
   hero: {
-    height: moderateScale(160),
+    height: moderateScale(220),
     justifyContent: 'flex-end',
     padding: moderateScale(theme.spacing.lg),
     backgroundColor: theme.colors.primary,
