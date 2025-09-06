@@ -9,6 +9,7 @@ import { usePostLoad } from '@/hooks/usePostLoad';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
+import { Load, VehicleType } from '@/types';
 import { Image } from 'expo-image';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
@@ -87,6 +88,48 @@ async function reuploadUrlsToDoc(uid: string, docId: string, urls: string[]) {
   return out;
 }
 
+function mapDraftToLoad(id: string, uid: string, draft: any, photos: string[]): Load {
+  const vehicleType = (draft?.vehicleType || draft?.equipmentType || 'truck') as VehicleType;
+  const pickupDate = draft?.pickupDate ? new Date(draft.pickupDate) : new Date();
+  const deliveryDate = draft?.deliveryDate ? new Date(draft.deliveryDate) : new Date();
+  const distance = Number(draft?.miles ?? 0);
+  const weight = Number(draft?.weightLbs ?? (draft?.weight ? String(draft.weight).replace(/[^0-9.]/g, '') : 0));
+  const rate = Number(draft?.rateTotalUSD ?? (draft?.rateAmount ? String(draft.rateAmount).replace(/[^0-9.]/g, '') : 0));
+  const ratePerMile = Number(draft?.ratePerMileUSD ?? 0);
+  const originCity = draft?.originCity || draft?.pickup || '';
+  const destCity = draft?.destCity || draft?.delivery || '';
+  return {
+    id,
+    shipperId: uid,
+    shipperName: draft?.contactName || 'You',
+    origin: {
+      address: draft?.originAddress || originCity,
+      city: originCity,
+      state: draft?.originState || '',
+      zipCode: draft?.originZip || '',
+      lat: Number(draft?.originLat ?? 0),
+      lng: Number(draft?.originLng ?? 0),
+    },
+    destination: {
+      address: draft?.destAddress || destCity,
+      city: destCity,
+      state: draft?.destState || '',
+      zipCode: draft?.destZip || '',
+      lat: Number(draft?.destLat ?? 0),
+      lng: Number(draft?.destLng ?? 0),
+    },
+    distance,
+    weight,
+    vehicleType,
+    rate,
+    ratePerMile,
+    pickupDate,
+    deliveryDate,
+    status: 'available',
+    description: draft?.title || draft?.notes || '',
+  };
+}
+
 async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any) {
   try {
     if (draft?.isPosting) return;
@@ -151,11 +194,12 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       });
 
       try {
-        if (loadsStore?.prepend) {
-          await loadsStore.prepend({ id: docRef.id, ...base, photos: urls, photoCount: urls.length });
+        if (loadsStore?.addLoad) {
+          const loadObj = mapDraftToLoad(docRef.id, uid, draft, urls);
+          await loadsStore.addLoad(loadObj);
         }
       } catch (e) {
-        console.log('[PostLoad] optional prepend failed', e);
+        console.log('[PostLoad] optional addLoad failed', e);
       }
 
       toast?.success?.('Load posted successfully');
@@ -168,11 +212,12 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
           ? await reuploadUrlsToDoc(uid, localId, pickedFromUploader)
           : await uploadPhotosForLoad(uid, localId, picked as any[]);
         try {
-          if (loadsStore?.prepend) {
-            await loadsStore.prepend({ id: localId, ...base, photos: urls, photoCount: urls.length });
+          if (loadsStore?.addLoad) {
+            const loadObj = mapDraftToLoad(localId, uid, draft, urls);
+            await loadsStore.addLoad(loadObj);
           }
         } catch (e) {
-          console.log('[PostLoad] local prepend failed', e);
+          console.log('[PostLoad] local addLoad failed', e);
         }
         toast?.show?.('Posted locally. Sync will resume when permissions are fixed.', 'warning', 2800);
         router?.replace?.('/loads');
