@@ -321,64 +321,66 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
   const uploadPhotosToFirebase = useCallback(async (photosLocal: { uri: string; name?: string; type?: string }[], reference: string): Promise<string[]> => {
     try {
       if (!user?.id || photosLocal.length === 0) return [];
-      
-      // Try Firebase authentication, but continue with placeholders if it fails
-      const firebaseAvailable = await ensureFirebaseAuth();
-      
-      if (firebaseAvailable) {
+
+      const authed = await ensureFirebaseAuth();
+      if (!authed) {
+        console.warn('[PostLoad] Firebase auth not available, falling back to placeholders');
+        return photosLocal.map((_, i) => `https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+      }
+
+      const { storage, auth } = getFirebase();
+      const uid = auth?.currentUser?.uid ?? user.id;
+      const basePath = `loadPhotos/${uid}/${String(reference).trim()}`;
+
+      const uploadedUrls: string[] = [];
+
+      for (let i = 0; i < photosLocal.length; i++) {
+        const photo = photosLocal[i];
         try {
-          const { storage } = getFirebase();
-          
-          const uploadedUrls: string[] = [];
-          
-          for (let i = 0; i < photosLocal.length; i++) {
-            const photo = photosLocal[i];
+          const response = await fetch(photo.uri);
+          const blob = await response.blob();
+
+          const extFromType = (photo.type?.split('/')[1] || '').toLowerCase();
+          const nameExt = (photo.name || '').split('.').pop()?.toLowerCase();
+          const ext = (nameExt || extFromType || 'jpg').replace('jpeg', 'jpg');
+          const indexStr = String(i).padStart(2, '0');
+          const fileName = `${indexStr}-${Date.now()}.${ext}`;
+          const fullPath = `${basePath}/${fileName}`;
+
+          console.log('[PostLoad] Uploading to storage path:', fullPath);
+
+          // Use our MockStorage-compatible API
+          const storageRefAny: any = (storage as any).ref ? (storage as any).ref(fullPath) : null;
+
+          if (storageRefAny && typeof storageRefAny.put === 'function') {
+            const putResult = await storageRefAny.put(blob);
+            const url = await putResult.ref.getDownloadURL();
+            uploadedUrls.push(url);
+            console.log(`[PostLoad] uploaded photo ${i + 1}/${photosLocal.length}`);
+          } else {
+            // Fallback to modular API if available in runtime
             try {
-              const response = await fetch(photo.uri);
-              const blob = await response.blob();
-              
-              // Use timestamp and index for unique filename
-              const timestamp = Date.now();
-              const fileName = `${reference}-${timestamp}-${i}.jpg`;
-              const storageRef = ref(storage, `loadPhotos/${user.id}/${fileName}`);
-              
-              console.log(`[PostLoad] uploading photo ${i + 1}/${photosLocal.length} to:`, storageRef.fullPath);
-              
-              const snapshot = await uploadBytes(storageRef, blob);
-              const downloadURL = await getDownloadURL(snapshot.ref);
-              
-              uploadedUrls.push(downloadURL);
-              console.log(`[PostLoad] uploaded photo ${i + 1}/${photosLocal.length} successfully`);
-            } catch (uploadError) {
-              console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
-              // Use placeholder for failed uploads
+              const storageRefMod: any = ref as unknown as (s: any, p: string) => any;
+              const sref = storageRefMod(storage, fullPath);
+              const snap = await uploadBytes(sref, blob);
+              const url = await getDownloadURL(snap.ref);
+              uploadedUrls.push(url);
+              console.log(`[PostLoad] uploaded (mod) photo ${i + 1}/${photosLocal.length}`);
+            } catch (modErr) {
+              console.warn('[PostLoad] modular upload failed, using placeholder', modErr);
               uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
             }
           }
-          
-          return uploadedUrls;
-          
-        } catch (firebaseError) {
-          console.warn('[PostLoad] Firebase storage error, using placeholder images:', firebaseError);
-          // If Firebase storage fails, use all placeholders
-          return photosLocal.map((_, i) => 
-            `https://picsum.photos/400/300?random=${Date.now()}-${i}`
-          );
+        } catch (uploadError) {
+          console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
+          uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
         }
-      } else {
-        console.warn('[PostLoad] Firebase unavailable, using placeholder images');
-        // If Firebase is completely unavailable, use all placeholders
-        return photosLocal.map((_, i) => 
-          `https://picsum.photos/400/300?random=${Date.now()}-${i}`
-        );
       }
-      
+
+      return uploadedUrls;
     } catch (error) {
       console.error('[PostLoad] uploadPhotosToFirebase error:', error);
-      // Final fallback to placeholder images
-      return photosLocal.map((_, i) => 
-        `https://picsum.photos/400/300?random=${Date.now()}-${i}`
-      );
+      return photosLocal.map((_, i) => `https://picsum.photos/400/300?random=${Date.now()}-${i}`);
     }
   }, [user?.id]);
 
