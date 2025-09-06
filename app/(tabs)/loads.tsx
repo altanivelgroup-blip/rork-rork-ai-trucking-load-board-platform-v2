@@ -11,10 +11,10 @@ export default function LoadsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   // Read live loads and normalize field names so filters/UI work
-const rawLoads = useLoads();
+const loadsState = useLoads();
 
 const normalizedLoads = useMemo(() => {
-  return (rawLoads ?? []).map((l: any) => ({
+  return (loadsState.loads ?? []).map((l: any) => ({
     ...l,
     // Your docs use 'pickup' / 'delivery' strings
     origin: typeof l.origin !== 'undefined' ? l.origin : l.pickup,
@@ -24,7 +24,7 @@ const normalizedLoads = useMemo(() => {
     weightLbs: typeof l.weightLbs !== 'undefined' ? l.weightLbs : l.weight,
     photos: l.photos ?? l.photoUrls,
   }));
-}, [rawLoads]);
+}, [loadsState.loads]);
 
   // Filter states
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleType | undefined>();
@@ -34,63 +34,7 @@ const normalizedLoads = useMemo(() => {
   const [radiusMiles, setRadiusMiles] = useState<number>(50);
   const [geoFencingActive, setGeoFencingActive] = useState<boolean>(false);
   
-  const loads = useMemo(() => {
-  let filtered = normalizedLoads;
-
-    
-
-    // Apply vehicle type filter
-    if (selectedVehicle) {
-      filtered = filtered.filter(load => load.vehicleType === selectedVehicle);
-    }
-    
-    // Apply backhaul filter
-    if (showBackhaul) {
-      filtered = filtered.filter(load => load.isBackhaul === true);
-    }
-    
-    // Apply params filters
-    if (params.origin && typeof params.origin === 'string') {
-      const originFilter = params.origin.toLowerCase();
-      filtered = filtered.filter(load => 
-        load.origin?.city?.toLowerCase().includes(originFilter) ||
-        load.origin?.state?.toLowerCase().includes(originFilter)
-      );
-    }
-    
-    if (params.destination && typeof params.destination === 'string') {
-      const destinationFilter = params.destination.toLowerCase();
-      filtered = filtered.filter(load => 
-        load.destination?.city?.toLowerCase().includes(destinationFilter) ||
-        load.destination?.state?.toLowerCase().includes(destinationFilter)
-      );
-    }
-    
-    if (params.minWeight && typeof params.minWeight === 'string') {
-      const minWeight = parseInt(params.minWeight);
-      if (!isNaN(minWeight)) {
-        filtered = filtered.filter(load => (load.weight || 0) >= minWeight);
-      }
-    }
-    
-    if (params.minPrice && typeof params.minPrice === 'string') {
-      const minPrice = parseInt(params.minPrice);
-      if (!isNaN(minPrice)) {
-        filtered = filtered.filter(load => (load.rate || 0) >= minPrice);
-      }
-    }
-    
-    // Apply sorting
-    if (currentSort === 'Highest $') {
-      filtered = filtered.sort((a, b) => (b.rate || 0) - (a.rate || 0));
-    } else if (currentSort === 'Lightest') {
-      filtered = filtered.sort((a, b) => (a.weight || 0) - (b.weight || 0));
-    } else if (currentSort === 'Nearest') {
-      filtered = filtered.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-    }
-    
-    return filtered;
-  }, [params, selectedVehicle, showBackhaul, currentSort]);
+  const loads = normalizedLoads;
   
   const handleLoadPress = (loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
@@ -163,6 +107,8 @@ const normalizedLoads = useMemo(() => {
           onOpenGeoFencing={handleOpenGeoFencing}
           geoFencingActive={geoFencingActive}
         />
+        
+        <Text style={styles.debugBanner}>debug: {loads.length} loads</Text>
         
         <ScrollView contentContainerStyle={styles.content}>
           {loads.length === 0 ? (
@@ -305,5 +251,12 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.dark,
     lineHeight: 20,
+  },
+  debugBanner: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    paddingVertical: theme.spacing.xs,
+    backgroundColor: theme.colors.lightGray,
   },
 });
