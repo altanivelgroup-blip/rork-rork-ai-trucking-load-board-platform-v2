@@ -2,10 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { mockLoads } from '@/mocks/loads';
 import { MapPin, Calendar, Package, DollarSign } from 'lucide-react-native';
 import { FilterBar } from '@/components/FilterBar';
 import { VehicleType } from '@/types';
+import { useLoads } from '@/hooks/useLoads';
 
 export default function LoadsScreen() {
   const params = useLocalSearchParams();
