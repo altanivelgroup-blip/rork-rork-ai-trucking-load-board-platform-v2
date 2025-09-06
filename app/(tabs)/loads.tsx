@@ -20,7 +20,7 @@ export default function LoadsScreen() {
   const sortingOptions = ['Highest $/mi', 'Near me', 'Lightest', 'New Today', 'AI for Loads', 'AI Backhaul'];
   const [selectedEquipmentType, setSelectedEquipmentType] = useState<string>('Backhaul');
   const [selectedSortOptions, setSelectedSortOptions] = useState<string[]>(['Near me', 'New Today', 'AI for Loads', 'AI Backhaul']);
-  const [sortBy, setSortBy] = useState<string>('Best');
+
   
   const loads = filteredLoads;
   
@@ -153,13 +153,7 @@ export default function LoadsScreen() {
             </ScrollView>
           </View>
           
-          {/* Sort Dropdown */}
-          <View style={styles.sortDropdownRow}>
-            <TouchableOpacity style={styles.sortDropdown}>
-              <Text style={styles.sortDropdownText}>Sort: {sortBy}</Text>
-              <Text style={styles.sortDropdownArrow}>▼</Text>
-            </TouchableOpacity>
-          </View>
+
         </View>
         
         <Text style={styles.debugBanner}>debug: {loads.length} loads</Text>
@@ -348,32 +342,7 @@ const styles = StyleSheet.create({
   sortingTextActive: {
     color: theme.colors.white,
   },
-  sortDropdownRow: {
-    marginBottom: theme.spacing.sm,
-  },
-  sortDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.lightGray,
-    alignSelf: 'flex-start',
-    minWidth: 120,
-  },
-  sortDropdownText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
-    color: theme.colors.dark,
-  },
-  sortDropdownArrow: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.gray,
-    marginLeft: theme.spacing.sm,
-  },
+
   debugBanner: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
