@@ -2,7 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Crown, PlusCircle, Shield, TrendingUp, Bot, BarChart3, Upload } from 'lucide-react-native';
+import { Crown, PlusCircle, Shield, TrendingUp, Bot, BarChart3, Upload, ImagePlus } from 'lucide-react-native';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
   return (
@@ -60,6 +60,11 @@ export default function ShipperHome() {
     router.push('/csv-bulk-upload');
   }, [router]);
 
+  const goAddPhotoTest = useCallback(() => {
+    console.log('shipper.goAddPhotoTest');
+    router.push('/add-photo-test');
+  }, [router]);
+
   return (
     <View style={styles.container} testID="shipper-home-container">
       <Stack.Screen options={{ title: 'Shipper' }} />
@@ -70,6 +75,7 @@ export default function ShipperHome() {
         <Tile title="Shipper Dashboard" subtitle="View your loads and analytics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
         <Tile title="Post a Load" subtitle="Create a new shipment" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
         <Tile title="CSV Bulk Upload" subtitle="Upload loads from CSV file" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
+        <Tile title="Add Photo Test" subtitle="Quick test for photo upload" onPress={goAddPhotoTest} Icon={ImagePlus} testID="tile-add-photo-test" />
         <Tile title="AI Tools" subtitle="Draft posts, quotes and more" onPress={goAiTools} Icon={Bot} testID="tile-ai-tools" />
         <Tile title="Increase Revenue" subtitle="Tips and premium placement" onPress={goIncreaseRevenue} Icon={TrendingUp} testID="tile-increase-revenue" />
         <Tile title="Advanced Security" subtitle="Protect posts and payments" onPress={goAdvancedSecurity} Icon={Shield} testID="tile-advanced-security" />
