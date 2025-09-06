@@ -1,13 +1,13 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { MapPin, Calendar, Package, DollarSign, RotateCcw, Filter } from 'lucide-react-native';
-import { Load } from '@/types';
+import { DollarSign, RotateCcw, Filter, Phone, Mail } from 'lucide-react-native';
 import { collection, query, where, orderBy, limit, onSnapshot, startAfter, DocumentSnapshot, Timestamp } from 'firebase/firestore';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
+import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import { useToast } from '@/components/Toast';
+import { LoadsFiltersModal, loadFiltersFromStorage } from '@/components/LoadsFiltersModal';
 
 interface LoadFilters {
   equipmentTypes: string[];
@@ -16,13 +16,28 @@ interface LoadFilters {
   sortBy: 'createdAt' | 'pickupDate';
 }
 
+interface NormalizedLoad {
+  id: string;
+  originCity: string;
+  originState: string;
+  destCity: string;
+  destState: string;
+  pickupDate: string; // YYYY-MM-DD format or 'ASAP'
+  equipmentType: string;
+  weightLbs: number;
+  rateTotalUSD: number;
+  contactPhone?: string;
+  contactEmail?: string;
+  createdAt: Date;
+}
+
 export default function LoadsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const { show } = useToast();
   
   // Firestore state
-  const [items, setItems] = useState<Load[]>([]);
+  const [items, setItems] = useState<NormalizedLoad[]>([]);
   const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
@@ -35,7 +50,13 @@ export default function LoadsScreen() {
     equipmentTypes: [],
     sortBy: 'createdAt'
   });
+  const [showFiltersModal, setShowFiltersModal] = useState<boolean>(false);
   
+  // Load filters from storage on mount
+  useEffect(() => {
+    loadFiltersFromStorage().then(setFilters);
+  }, []);
+
   // Check for optimistic load from navigation or temp store
   useEffect(() => {
     const tempLoad = params.tempLoad ? JSON.parse(params.tempLoad as string) : null;
@@ -44,32 +65,36 @@ export default function LoadsScreen() {
     }
   }, [params.tempLoad]);
   
-  // Normalize Firestore document to Load interface
-  const normalizeFirestoreLoad = useCallback((doc: any): Load => {
+  // Normalize Firestore document to NormalizedLoad interface
+  const normalizeFirestoreLoad = useCallback((doc: any): NormalizedLoad => {
     const data = doc.data();
+    
+    // Handle pickup date formatting
+    let pickupDateStr = 'ASAP';
+    if (data.pickupDate) {
+      try {
+        const date = data.pickupDate instanceof Timestamp ? data.pickupDate.toDate() : new Date(data.pickupDate);
+        if (!isNaN(date.getTime())) {
+          pickupDateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+        }
+      } catch (e) {
+        console.warn('Failed to parse pickup date:', e);
+      }
+    }
+    
     return {
       id: doc.id,
-      shipperId: data.createdBy || '',
-      shipperName: data.shipperName || 'Unknown Shipper',
-      origin: typeof data.origin === 'string' 
-        ? { address: data.origin, city: data.originCity || '', state: data.originState || '', zipCode: data.originZip || '', lat: data.latOrigin || 0, lng: data.lngOrigin || 0 }
-        : data.origin || { address: '', city: '', state: '', zipCode: '', lat: 0, lng: 0 },
-      destination: typeof data.destination === 'string'
-        ? { address: data.destination, city: data.destCity || '', state: data.destState || '', zipCode: data.destZip || '', lat: data.latDest || 0, lng: data.lngDest || 0 }
-        : data.destination || { address: '', city: '', state: '', zipCode: '', lat: 0, lng: 0 },
-      distance: data.distance || 0,
-      weight: Number(data.weightLbs || data.weight || 0),
-      vehicleType: data.vehicleType || data.equipmentType || 'truck',
-      rate: Number(data.rate || data.rateTotalUSD || data.rateAmount || 0),
-      ratePerMile: Number(data.ratePerMileUSD || data.ratePerMile || 0),
-      pickupDate: data.pickupDate instanceof Timestamp ? data.pickupDate.toDate() : new Date(data.pickupDate || Date.now()),
-      deliveryDate: data.deliveryDate instanceof Timestamp ? data.deliveryDate.toDate() : new Date(data.deliveryDate || Date.now()),
-      status: data.status || 'OPEN',
-      description: data.description || data.title || '',
-      special_requirements: data.special_requirements || [],
-      assignedDriverId: data.assignedDriverId,
-      isBackhaul: data.isBackhaul || false,
-      aiScore: data.aiScore
+      originCity: data.originCity || data.origin?.city || '',
+      originState: data.originState || data.origin?.state || '',
+      destCity: data.destCity || data.destination?.city || '',
+      destState: data.destState || data.destination?.state || '',
+      pickupDate: pickupDateStr,
+      equipmentType: data.equipmentType || data.vehicleType || 'truck',
+      weightLbs: Number(data.weightLbs || data.weight || 0),
+      rateTotalUSD: Number(data.rateTotalUSD || data.rate || data.rateAmount || 0),
+      contactPhone: data.contactPhone || '',
+      contactEmail: data.contactEmail || '',
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.clientCreatedAt || Date.now())
     };
   }, []);
   
@@ -89,7 +114,7 @@ export default function LoadsScreen() {
       
       const q = query(
         collection(db, LOADS_COLLECTION),
-        where('status', '==', LOAD_STATUS.OPEN),
+        where('status', '==', 'active'),
         orderBy(orderField, 'desc'),
         limit(25)
       );
@@ -97,11 +122,8 @@ export default function LoadsScreen() {
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const loads = snapshot.docs.map(normalizeFirestoreLoad);
         
-        // Dedupe against any optimistic items
-        const deduped = loads.filter(load => !items.some(item => item.id === load.id));
-        const combined = [...items.filter(item => item.status !== 'OPEN'), ...deduped];
-        
-        setItems(combined);
+        // Set the loaded items directly (no deduplication needed for fresh queries)
+        setItems(loads);
         setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
         setIsEnd(snapshot.docs.length < 25);
         setIsLoading(false);
@@ -119,7 +141,7 @@ export default function LoadsScreen() {
       setIsLoading(false);
       show('Failed to connect to database', 'error');
     }
-  }, [filters.sortBy, normalizeFirestoreLoad, show, items]);
+  }, [filters.sortBy, normalizeFirestoreLoad, show]);
   
   // Load more data for pagination
   const loadMoreData = useCallback(async () => {
@@ -133,7 +155,7 @@ export default function LoadsScreen() {
       
       const q = query(
         collection(db, LOADS_COLLECTION),
-        where('status', '==', LOAD_STATUS.OPEN),
+        where('status', '==', 'active'),
         orderBy(orderField, 'desc'),
         startAfter(lastDoc),
         limit(25)
@@ -175,23 +197,46 @@ export default function LoadsScreen() {
         unsubscribe();
       }
     };
-  }, [loadInitialData]);
+  }, []);
+  
+  // Reload data when filters change
+  useEffect(() => {
+    // Reset and reload when sort changes
+    setItems([]);
+    setLastDoc(null);
+    setIsEnd(false);
+    loadInitialData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.sortBy]);
   
   // Apply client-side filters
   const filteredLoads = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
     return items.filter(load => {
-      if (filters.equipmentTypes.length > 0 && !filters.equipmentTypes.includes(load.vehicleType)) {
+      // Equipment type filter
+      if (filters.equipmentTypes.length > 0 && !filters.equipmentTypes.includes(load.equipmentType)) {
         return false;
       }
-      if (filters.maxWeightLbs && load.weight > filters.maxWeightLbs) {
+      
+      // Max weight filter
+      if (filters.maxWeightLbs && load.weightLbs > filters.maxWeightLbs) {
         return false;
       }
+      
+      // Pickup location filter
       if (filters.pickupFrom) {
-        const originText = typeof load.origin === 'string' ? load.origin : `${load.origin.city}, ${load.origin.state}`;
-        if (!originText.toLowerCase().includes(filters.pickupFrom.toLowerCase())) {
+        const originText = `${load.originCity}, ${load.originState}`.toLowerCase();
+        if (!originText.includes(filters.pickupFrom.toLowerCase())) {
           return false;
         }
       }
+      
+      // Pickup date >= today filter (skip 'ASAP' loads)
+      if (load.pickupDate !== 'ASAP' && load.pickupDate < today) {
+        return false;
+      }
+      
       return true;
     });
   }, [items, filters]);
@@ -212,10 +257,6 @@ export default function LoadsScreen() {
       ...prev,
       sortBy: prev.sortBy === 'createdAt' ? 'pickupDate' : 'createdAt'
     }));
-    // Reset pagination when sort changes
-    setItems([]);
-    setLastDoc(null);
-    setIsEnd(false);
   }, []);
   
   const loads = filteredLoads;
@@ -224,10 +265,31 @@ export default function LoadsScreen() {
     router.push({ pathname: '/load-details', params: { loadId } });
   };
   
-  const handleOpenFilters = () => {
-    // TODO: Implement filters modal
-    console.log('Open filters modal');
-  };
+  const handleOpenFilters = useCallback(() => {
+    setShowFiltersModal(true);
+  }, []);
+  
+  const handleApplyFilters = useCallback((newFilters: LoadFilters) => {
+    setFilters(newFilters);
+  }, []);
+  
+  const handleCall = useCallback((phone: string) => {
+    if (phone) {
+      const phoneUrl = `tel:${phone}`;
+      Linking.openURL(phoneUrl).catch(err => {
+        console.warn('Failed to open phone app:', err);
+      });
+    }
+  }, []);
+  
+  const handleEmail = useCallback((email: string) => {
+    if (email) {
+      const emailUrl = `mailto:${email}`;
+      Linking.openURL(emailUrl).catch(err => {
+        console.warn('Failed to open email app:', err);
+      });
+    }
+  }, []);
   
   const handleOpenAiLoads = () => {
     router.push('/ai-loads');
@@ -286,67 +348,63 @@ export default function LoadsScreen() {
             </View>
           ) : loads.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No loads found</Text>
+              <Text style={styles.emptyTitle}>No active loads match your filters</Text>
               <Text style={styles.emptySubtitle}>Try adjusting your filters or check back later</Text>
             </View>
           ) : (
             <>
               {loads.map((load) => {
-                const originText =
-                  typeof load.origin === 'string'
-                    ? load.origin
-                    : `${load.origin?.city ?? ''}, ${load.origin?.state ?? ''}`;
-
-                const destText =
-                  typeof load.destination === 'string'
-                    ? load.destination
-                    : `${load.destination?.city ?? ''}, ${load.destination?.state ?? ''}`;
-
-                const rateVal = load.rate ?? 0;
-                const weightVal = load.weight ?? 0;
-
                 return (
-                  <TouchableOpacity
+                  <View
                     key={load.id}
                     style={styles.loadCard}
-                    onPress={() => handleLoadPress(load.id)}
                     testID={`load-${load.id}`}
                   >
-                    <View style={styles.loadHeader}>
-                      <Text style={styles.loadTitle} numberOfLines={1}>
-                        {originText} → {destText}
-                      </Text>
-                      <View style={styles.rateChip}>
-                        <DollarSign size={16} color={theme.colors.white} />
-                        <Text style={styles.rateText}>${rateVal.toLocaleString()}</Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.loadDetails}>
-                      <View style={styles.detailRow}>
-                        <MapPin size={16} color={theme.colors.gray} />
-                        <Text style={styles.detailText}>{load.distance || 0} miles</Text>
+                    <TouchableOpacity
+                      style={styles.loadContent}
+                      onPress={() => handleLoadPress(load.id)}
+                    >
+                      <View style={styles.loadHeader}>
+                        <Text style={styles.loadTitle} numberOfLines={1}>
+                          {load.originCity}, {load.originState} → {load.destCity}, {load.destState}
+                        </Text>
+                        <View style={styles.rateChip}>
+                          <DollarSign size={16} color={theme.colors.white} />
+                          <Text style={styles.rateText}>${load.rateTotalUSD.toLocaleString()}</Text>
+                        </View>
                       </View>
                       
-                      <View style={styles.detailRow}>
-                        <Calendar size={16} color={theme.colors.gray} />
-                        <Text style={styles.detailText}>
-                          Pickup: {load.pickupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      <View style={styles.loadSubtitle}>
+                        <Text style={styles.subtitleText}>
+                          {load.pickupDate} • {load.equipmentType} • {load.weightLbs.toLocaleString()} lbs
                         </Text>
                       </View>
-                      
-                      <View style={styles.detailRow}>
-                        <Package size={16} color={theme.colors.gray} />
-                        <Text style={styles.detailText}>{weightVal.toLocaleString()} lbs</Text>
-                      </View>
-                    </View>
+                    </TouchableOpacity>
                     
-                    {load.description && (
-                      <Text style={styles.loadDescription} numberOfLines={2}>
-                        {load.description}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                    {/* Action buttons */}
+                    <View style={styles.loadActions}>
+                      {load.contactPhone && (
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={() => handleCall(load.contactPhone!)}
+                          testID={`call-${load.id}`}
+                        >
+                          <Phone size={16} color={theme.colors.primary} />
+                          <Text style={styles.actionButtonText}>Call</Text>
+                        </TouchableOpacity>
+                      )}
+                      {load.contactEmail && (
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={() => handleEmail(load.contactEmail!)}
+                          testID={`email-${load.id}`}
+                        >
+                          <Mail size={16} color={theme.colors.primary} />
+                          <Text style={styles.actionButtonText}>Email</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
                 );
               })}
               
@@ -365,6 +423,13 @@ export default function LoadsScreen() {
             </>
           )}
         </ScrollView>
+        
+        <LoadsFiltersModal
+          visible={showFiltersModal}
+          onClose={() => setShowFiltersModal(false)}
+          filters={filters}
+          onApplyFilters={handleApplyFilters}
+        />
       </View>
     </>
   );
@@ -472,13 +537,15 @@ const styles = StyleSheet.create({
   loadCard: {
     backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  loadContent: {
+    padding: theme.spacing.lg,
   },
   loadHeader: {
     flexDirection: 'row',
@@ -507,25 +574,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: theme.fontSize.sm,
   },
-  loadDetails: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
+  loadSubtitle: {
+    marginTop: theme.spacing.sm,
   },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  detailText: {
+  subtitleText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
+    fontWeight: '500',
   },
-  loadDescription: {
+  loadActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.lightGray,
+    paddingTop: theme.spacing.sm,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.lightGray,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  actionButtonText: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.dark,
-    lineHeight: 20,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
   loadingMore: {
     flexDirection: 'row',
