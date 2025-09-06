@@ -1,18 +1,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Send, Clock } from 'lucide-react-native';
 
 import { usePostLoad } from '@/hooks/usePostLoad';
-import { PhotoUploader } from '@/components/PhotoUploader';
+import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
-import { getFirebase } from '@/utils/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useAuth } from '@/hooks/useAuth';
-import { useLoads } from '@/hooks/useLoads';
-import { LOADS_COLLECTION } from '@/lib/loadSchema';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -36,11 +31,9 @@ export default function PostLoadStep5() {
   const router = useRouter();
   const { draft, setField } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
-  const [, setPhotoUploadStatus] = useState<{ uploading: boolean; completedCount: number; totalCount: number }>({ uploading: false, completedCount: 0, totalCount: 0 });
   const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
   const toast = useToast();
-  const { userId } = useAuth();
-  const { addLoad } = useLoads();
+  const { uploadPhotosToFirebase, postLoadWizard } = usePostLoad();
 
 
 
@@ -50,8 +43,43 @@ export default function PostLoadStep5() {
 
 
 
-  // Helper functions
-  const str = useCallback((v: any) => typeof v === 'string' ? v.trim() : '', []);
+
+
+  const handleAddPhotos = useCallback(async () => {
+    try {
+      // Clear existing photos when starting fresh
+      if (draft.photosLocal.length === 0) {
+        setField('photoUrls', []);
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        allowsEditing: false,
+      });
+      
+      if (!result.canceled && result.assets) {
+        const newPhotos = result.assets.map(asset => ({
+          uri: asset.uri,
+          name: asset.fileName || `photo-${Date.now()}.jpg`,
+          type: asset.type || 'image/jpeg',
+        }));
+        
+        setField('photosLocal', [...draft.photosLocal, ...newPhotos]);
+        console.log('[PostLoad] Added photos to photosLocal:', newPhotos.length);
+      }
+    } catch (error) {
+      console.error('[PostLoad] Error selecting photos:', error);
+      toast.show('Failed to select photos', 'error');
+    }
+  }, [draft.photosLocal, setField, toast]);
+  
+  const handleRemovePhoto = useCallback((index: number) => {
+    const updatedPhotos = draft.photosLocal.filter((_, i) => i !== index);
+    setField('photosLocal', updatedPhotos);
+    console.log('[PostLoad] Removed photo at index:', index);
+  }, [draft.photosLocal, setField]);
 
   const onSubmit = useCallback(async () => {
     console.log('POST BTN FIRED - onSubmit called');
@@ -68,146 +96,29 @@ export default function PostLoadStep5() {
         return;
       }
       
+      // Validate minimum photos from photosLocal
+      if (!draft.photosLocal || draft.photosLocal.length < 5) {
+        toast.show('At least 5 photos are required', 'error');
+        return;
+      }
+      
       // Set posting state
       setField('isPosting', true);
-      
-      // Validate required fields
-      const pickupDate = draft.pickupDate;
-      const deliveryDate = draft.deliveryDate;
-      const originCity = str(draft.pickup);
-      const originState = ''; // Not collected in current form
-      const originZip = ''; // Not collected in current form
-      const destCity = str(draft.delivery);
-      const destState = ''; // Not collected in current form
-      const destZip = ''; // Not collected in current form
-      const equipmentType = str(draft.vehicleType || 'truck');
-      const contactName = str(contact || draft.contact);
-      const contactPhone = str(contact || draft.contact);
-      
-      // Validate required fields
-      if (!pickupDate || !(pickupDate instanceof Date) || isNaN(pickupDate.getTime())) {
-        toast.show('Valid pickup date is required', 'error');
-        setField('isPosting', false);
-        return;
-      }
-      
-      if (!originCity) {
-        toast.show('Origin city is required', 'error');
-        setField('isPosting', false);
-        return;
-      }
-      
-      if (!destCity) {
-        toast.show('Destination city is required', 'error');
-        setField('isPosting', false);
-        return;
-      }
-      
-      if (!equipmentType) {
-        toast.show('Equipment type is required', 'error');
-        setField('isPosting', false);
-        return;
-      }
-      
-      if (!contactName) {
-        toast.show('Contact name is required', 'error');
-        setField('isPosting', false);
-        return;
-      }
-      
-      if (!contactPhone) {
-        toast.show('Contact phone is required', 'error');
-        setField('isPosting', false);
-        return;
-      }
-      
-      // Convert numbers properly
-      const weightLbs = draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
-      const rateTotalUSD = Number(draft.rateAmount || 0);
-      const ratePerMileUSD = draft.rateKind === 'per_mile' && draft.miles ? 
-        rateTotalUSD / (Number(draft.miles.replace(/[^0-9.]/g, '')) || 1) : 0;
-      const lengthFt = 0; // Not collected in current form
-      const widthFt = 0; // Not collected in current form
-      const heightFt = 0; // Not collected in current form
-      const latOrigin = 0; // Not collected in current form
-      const lngOrigin = 0; // Not collected in current form
-      const latDest = 0; // Not collected in current form
-      const lngDest = 0; // Not collected in current form
-      
-      // Build payload for Firestore
-      const payload = {
-        status: 'active',
-        pickupDate,
-        deliveryDate,
-        originCity,
-        originState,
-        originZip,
-        destCity,
-        destState,
-        destZip,
-        equipmentType,
-        weightLbs,
-        rateTotalUSD,
-        ratePerMileUSD,
-        lengthFt,
-        widthFt,
-        heightFt,
-        latOrigin,
-        lngOrigin,
-        latDest,
-        lngDest,
-        contactName,
-        contactPhone,
-        contactEmail: contactPhone, // Using phone as email for now
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: userId || 'anonymous'
-      };
-      
-      console.log('Posting load with payload:', payload);
+      setUploadsInProgress(draft.photosLocal.length);
       
       try {
-        // Post to Firestore
-        const { db } = getFirebase();
-        const ref = await addDoc(collection(db, LOADS_COLLECTION), payload);
+        // Upload photos to Firebase Storage and get download URLs
+        console.log('[PostLoad] Starting photo upload for', draft.photosLocal.length, 'photos');
+        const uploadedUrls = await uploadPhotosToFirebase(draft.photosLocal, draft.reference);
         
-        // Optimistically add to local loads store
-        if (pickupDate && deliveryDate) {
-          const localLoad = {
-            id: ref.id,
-            shipperId: userId || 'current-shipper',
-            shipperName: 'You',
-            origin: {
-              address: '',
-              city: originCity,
-              state: originState,
-              zipCode: originZip,
-              lat: latOrigin,
-              lng: lngOrigin,
-            },
-            destination: {
-              address: '',
-              city: destCity,
-              state: destState,
-              zipCode: destZip,
-              lat: latDest,
-              lng: lngDest,
-            },
-            distance: 0,
-            weight: weightLbs,
-            vehicleType: equipmentType as any,
-            rate: rateTotalUSD,
-            ratePerMile: ratePerMileUSD,
-            pickupDate,
-            deliveryDate,
-            status: 'available' as const,
-            description: str(draft.description),
-            special_requirements: draft.requirements ? [draft.requirements] : undefined,
-            isBackhaul: false,
-          };
-          
-          await addLoad(localLoad);
-        }
+        // Update draft with uploaded URLs
+        setField('photoUrls', uploadedUrls);
+        setUploadsInProgress(0);
+        
+        console.log('[PostLoad] Photos uploaded successfully, URLs:', uploadedUrls.length);
+        
+        // Now proceed with posting the load using postLoadWizard
+        await postLoadWizard(contact);
         
         // Success actions
         toast.show('Load posted successfully', 'success');
@@ -215,10 +126,11 @@ export default function PostLoadStep5() {
         // Navigate to loads page
         router.replace('/(tabs)/loads');
         
-      } catch (firestoreError: any) {
-        console.error('Firestore write failed:', firestoreError);
+      } catch (uploadError: any) {
+        console.error('Photo upload or load posting failed:', uploadError);
+        setUploadsInProgress(0);
         
-        if (firestoreError?.code === 'permission-denied') {
+        if (uploadError?.message?.includes('permission')) {
           toast.show('Post failed — please sign in', 'error');
         } else {
           toast.show('Post failed — please try again', 'error');
@@ -231,8 +143,9 @@ export default function PostLoadStep5() {
       console.error('POST_LOAD_ERROR', err);
       toast.show('Post failed — please try again', 'error');
       setField('isPosting', false);
+      setUploadsInProgress(0);
     }
-  }, [router, setField, draft, uploadsInProgress, toast, str, contact, userId, addLoad]);
+  }, [router, setField, draft, uploadsInProgress, toast, contact, uploadPhotosToFirebase, postLoadWizard]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -277,34 +190,48 @@ export default function PostLoadStep5() {
             )}
             
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos completed: {draft.photoUrls?.length || 0} (min 5 required)
+              Photos selected: {draft.photosLocal?.length || 0} (min 5 required)
             </Text>
             
-            {(!draft.photoUrls || draft.photoUrls.length < 5) && uploadsInProgress === 0 && (
+            {(!draft.photosLocal || draft.photosLocal.length < 5) && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Minimum 5 photos required to post.
               </Text>
             )}
             
-            {/* Use PhotoUploader component */}
-            <PhotoUploader
-              entityType="load"
-              entityId={draft.reference}
-              minPhotos={5}
-              maxPhotos={20}
-              onChange={(photos, primaryPhoto, newUploadsInProgress) => {
-                console.log('PhotoUploader onChange:', { photos: photos.length, primaryPhoto, uploadsInProgress: newUploadsInProgress });
-                setUploadsInProgress(newUploadsInProgress);
-                // Update photo upload status for UI
-                setPhotoUploadStatus({
-                  uploading: newUploadsInProgress > 0,
-                  completedCount: photos.length,
-                  totalCount: photos.length + newUploadsInProgress
-                });
-                // Update draft with photo URLs
-                setField('photoUrls', photos);
-              }}
-            />
+            {/* Photo selection and preview */}
+            <View style={styles.photoActions}>
+              <Pressable
+                onPress={handleAddPhotos}
+                style={styles.addPhotosBtn}
+                accessibilityRole="button"
+                testID="addPhotosBtn"
+              >
+                <Text style={styles.addPhotosBtnText}>Add Photos</Text>
+              </Pressable>
+            </View>
+            
+            {/* Photo previews */}
+            {draft.photosLocal && draft.photosLocal.length > 0 && (
+              <View style={styles.photoGrid}>
+                {draft.photosLocal.map((photo, index) => (
+                  <View key={index} style={styles.photoPreview}>
+                    <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+                    <Text style={styles.photoCaption}>
+                      {photo.name || `photo-${index + 1}.jpg`}
+                    </Text>
+                    <Pressable
+                      onPress={() => handleRemovePhoto(index)}
+                      style={styles.removePhotoBtn}
+                      accessibilityRole="button"
+                      testID={`removePhoto-${index}`}
+                    >
+                      <Text style={styles.removePhotoBtnText}>×</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.summaryCard}>
@@ -342,24 +269,21 @@ export default function PostLoadStep5() {
               style={[
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
-                 !draft.photoUrls || 
-                 draft.photoUrls.length < 5 || 
-                 !draft.photoUrls[0] || 
+                 !draft.photosLocal || 
+                 draft.photosLocal.length < 5 || 
                  draft.isPosting) && styles.postBtnDisabled
               ]} 
               disabled={
                 uploadsInProgress > 0 || 
-                !draft.photoUrls || 
-                draft.photoUrls.length < 5 || 
-                !draft.photoUrls[0] || 
+                !draft.photosLocal || 
+                draft.photosLocal.length < 5 || 
                 draft.isPosting
               } 
               accessibilityRole="button" 
               accessibilityState={{ 
                 disabled: uploadsInProgress > 0 || 
-                         !draft.photoUrls || 
-                         draft.photoUrls.length < 5 || 
-                         !draft.photoUrls[0] || 
+                         !draft.photosLocal || 
+                         draft.photosLocal.length < 5 || 
                          draft.isPosting 
               }} 
               testID="postLoadBtn"
@@ -443,6 +367,15 @@ const styles = StyleSheet.create({
   attachBtnText: { color: theme.colors.white, fontSize: theme.fontSize.md, fontWeight: '800' },
   attachBtnAlt: { flex: 1, backgroundColor: '#e2e8f0', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   attachBtnAltText: { color: theme.colors.dark, fontSize: theme.fontSize.md, fontWeight: '800' },
+  photoActions: { marginBottom: 12 },
+  addPhotosBtn: { backgroundColor: theme.colors.primary, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center' },
+  addPhotosBtnText: { color: theme.colors.white, fontSize: theme.fontSize.md, fontWeight: '800' },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  photoPreview: { width: '30%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', position: 'relative', backgroundColor: theme.colors.lightGray },
+  photoImage: { width: '100%', height: '70%', resizeMode: 'cover' },
+  photoCaption: { fontSize: theme.fontSize.xs, color: theme.colors.gray, textAlign: 'center', padding: 4, backgroundColor: theme.colors.white },
+  removePhotoBtn: { position: 'absolute', right: 4, top: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(255,0,0,0.8)', alignItems: 'center', justifyContent: 'center' },
+  removePhotoBtnText: { color: theme.colors.white, fontSize: 14, fontWeight: 'bold' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   thumbWrap: { width: '23%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', position: 'relative' },
   thumb: { width: '100%', height: '100%' },

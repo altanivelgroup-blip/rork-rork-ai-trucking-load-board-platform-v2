@@ -28,6 +28,7 @@ interface PostLoadDraft {
   requirements: string;
   contact: string;
   attachments: { uri: string; name?: string; type?: string }[];
+  photosLocal: { uri: string; name?: string; type?: string }[];
   photoUrls: string[];
   reference: string;
   isPosting: boolean;
@@ -43,6 +44,7 @@ interface PostLoadState {
   canPost: boolean;
   submit: () => Promise<Load | null>;
   uploadPhotos: () => Promise<void>;
+  uploadPhotosToFirebase: (photosLocal: { uri: string; name?: string; type?: string }[], reference: string) => Promise<string[]>;
   postLoadWizard: (contactInfo?: string) => Promise<void>;
 }
 
@@ -62,6 +64,7 @@ const initialDraft: PostLoadDraft = {
   requirements: '',
   contact: '',
   attachments: [],
+  photosLocal: [],
   photoUrls: [],
   reference: `LOAD-${Date.now()}`,
   isPosting: false,
@@ -98,7 +101,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       !isNaN(draft.deliveryDate.getTime())
     );
     
-    const hasMinPhotos = (draft.attachments?.length ?? 0) >= 5;
+    const hasMinPhotos = (draft.photosLocal?.length ?? 0) >= 5;
     
     console.log('[PostLoad] canSubmit check:', {
       hasBasicFields,
@@ -108,7 +111,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       deliveryDate: draft.deliveryDate,
       pickupDateType: typeof draft.pickupDate,
       deliveryDateType: typeof draft.deliveryDate,
-      attachmentsCount: draft.attachments?.length ?? 0
+      attachmentsCount: draft.photosLocal?.length ?? 0
     });
     
     return hasBasicFields && hasValidDates && hasMinPhotos;
@@ -116,9 +119,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
 
   const canPost = useMemo(() => {
     if (!user?.id) return false;
-    // For canPost, we check if we have enough attachments selected (not necessarily uploaded yet)
+    // For canPost, we check if we have enough photosLocal selected (not necessarily uploaded yet)
     // The actual validation will happen during postLoadWizard after photos are uploaded
-    const hasMinPhotos = (draft.attachments?.length ?? 0) >= 5;
+    const hasMinPhotos = (draft.photosLocal?.length ?? 0) >= 5;
     const hasRequiredFields = (
       draft.title.trim().length > 0 &&
       draft.description.trim().length > 0 &&
@@ -137,6 +140,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     setDraft({
       ...initialDraft,
       reference: `LOAD-${Date.now()}`,
+      photosLocal: [], // Clear photos when starting a new load
+      photoUrls: [], // Clear uploaded URLs
     });
   }, []);
 
@@ -207,8 +212,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         throw new Error('Contact information is required');
       }
       
-      if ((draft.attachments?.length ?? 0) < 5) {
-        console.error('[PostLoad] submit failed: insufficient photos', draft.attachments?.length ?? 0);
+      if ((draft.photosLocal?.length ?? 0) < 5) {
+        console.error('[PostLoad] submit failed: insufficient photos', draft.photosLocal?.length ?? 0);
         throw new Error('At least 5 photos are required');
       }
       
@@ -307,9 +312,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     }
   }, [user?.id, user?.name, addLoad, showToast]);
 
-  const uploadPhotos = useCallback(async (): Promise<void> => {
+  const uploadPhotosToFirebase = useCallback(async (photosLocal: { uri: string; name?: string; type?: string }[], reference: string): Promise<string[]> => {
     try {
-      if (!user?.id || draft.attachments.length === 0) return;
+      if (!user?.id || photosLocal.length === 0) return [];
       
       // Try Firebase authentication, but continue with placeholders if it fails
       const firebaseAvailable = await ensureFirebaseAuth();
@@ -320,23 +325,24 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           const uploadedUrls: string[] = [];
           
-          for (let i = 0; i < draft.attachments.length; i++) {
-            const attachment = draft.attachments[i];
+          for (let i = 0; i < photosLocal.length; i++) {
+            const photo = photosLocal[i];
             try {
-              const response = await fetch(attachment.uri);
+              const response = await fetch(photo.uri);
               const blob = await response.blob();
               
-              // Use a simple path structure that works with default Firebase rules
-              const fileName = `${draft.reference}-photo-${i}-${Date.now()}.jpg`;
-              const storageRef = ref(storage, `images/${fileName}`);
+              // Use timestamp and index for unique filename
+              const timestamp = Date.now();
+              const fileName = `${reference}-${timestamp}-${i}.jpg`;
+              const storageRef = ref(storage, `loadPhotos/${user.id}/${fileName}`);
               
-              console.log(`[PostLoad] uploading photo ${i + 1}/${draft.attachments.length} to:`, storageRef.fullPath);
+              console.log(`[PostLoad] uploading photo ${i + 1}/${photosLocal.length} to:`, storageRef.fullPath);
               
               const snapshot = await uploadBytes(storageRef, blob);
               const downloadURL = await getDownloadURL(snapshot.ref);
               
               uploadedUrls.push(downloadURL);
-              console.log(`[PostLoad] uploaded photo ${i + 1}/${draft.attachments.length} successfully`);
+              console.log(`[PostLoad] uploaded photo ${i + 1}/${photosLocal.length} successfully`);
             } catch (uploadError) {
               console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
               // Use placeholder for failed uploads
@@ -344,35 +350,49 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             }
           }
           
-          setDraft(prev => ({ ...prev, photoUrls: uploadedUrls }));
+          return uploadedUrls;
           
         } catch (firebaseError) {
           console.warn('[PostLoad] Firebase storage error, using placeholder images:', firebaseError);
           // If Firebase storage fails, use all placeholders
-          const placeholderUrls = draft.attachments.map((_, i) => 
+          return photosLocal.map((_, i) => 
             `https://picsum.photos/400/300?random=${Date.now()}-${i}`
           );
-          setDraft(prev => ({ ...prev, photoUrls: placeholderUrls }));
         }
       } else {
         console.warn('[PostLoad] Firebase unavailable, using placeholder images');
         // If Firebase is completely unavailable, use all placeholders
-        const placeholderUrls = draft.attachments.map((_, i) => 
+        return photosLocal.map((_, i) => 
           `https://picsum.photos/400/300?random=${Date.now()}-${i}`
         );
-        setDraft(prev => ({ ...prev, photoUrls: placeholderUrls }));
       }
+      
+    } catch (error) {
+      console.error('[PostLoad] uploadPhotosToFirebase error:', error);
+      // Final fallback to placeholder images
+      return photosLocal.map((_, i) => 
+        `https://picsum.photos/400/300?random=${Date.now()}-${i}`
+      );
+    }
+  }, [user?.id]);
+
+  const uploadPhotos = useCallback(async (): Promise<void> => {
+    try {
+      if (!user?.id || draft.photosLocal.length === 0) return;
+      
+      const uploadedUrls = await uploadPhotosToFirebase(draft.photosLocal, draft.reference);
+      setDraft(prev => ({ ...prev, photoUrls: uploadedUrls }));
       
     } catch (error) {
       console.error('[PostLoad] uploadPhotos error:', error);
       // Final fallback to placeholder images
-      const placeholderUrls = draft.attachments.map((_, i) => 
+      const placeholderUrls = draft.photosLocal.map((_, i) => 
         `https://picsum.photos/400/300?random=${Date.now()}-${i}`
       );
       setDraft(prev => ({ ...prev, photoUrls: placeholderUrls }));
       console.warn('[PostLoad] using all placeholder images due to upload failure');
     }
-  }, [draft.attachments, draft.reference, user?.id]);
+  }, [draft.photosLocal, draft.reference, user?.id, uploadPhotosToFirebase]);
 
   const postLoadWizard = useCallback(async (contactInfo?: string): Promise<void> => {
     try {
@@ -426,7 +446,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       if (!currentDraft.rateAmount?.trim()) {
         throw new Error('Rate amount is required');
       }
-      if ((currentDraft.attachments?.length ?? 0) < 5) {
+      if ((currentDraft.photosLocal?.length ?? 0) < 5) {
         throw new Error('At least 5 photos are required');
       }
       
@@ -456,12 +476,10 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       // Ensure we have photos uploaded or use placeholders
       let finalPhotoUrls = currentDraft.photoUrls || [];
       
-      // If we don't have uploaded photos but have attachments, create placeholders
-      if (finalPhotoUrls.length === 0 && (currentDraft.attachments?.length ?? 0) > 0) {
-        console.log('[PostLoad] creating placeholder photo URLs');
-        finalPhotoUrls = currentDraft.attachments.map((_, i) => 
-          `https://picsum.photos/400/300?random=${Date.now()}-${i}`
-        );
+      // If we don't have uploaded photos but have photosLocal, upload them now
+      if (finalPhotoUrls.length === 0 && (currentDraft.photosLocal?.length ?? 0) > 0) {
+        console.log('[PostLoad] uploading photos from photosLocal');
+        finalPhotoUrls = await uploadPhotosToFirebase(currentDraft.photosLocal, currentDraft.reference);
       }
       
       // Ensure we have at least 5 photos
@@ -539,7 +557,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.error('[PostLoad] postLoadWizard error:', error);
       throw error;
     }
-  }, [draft, user?.id, reset, showToast, createLocalLoad]);
+  }, [draft, user?.id, reset, showToast, createLocalLoad, uploadPhotosToFirebase]);
 
 
 
@@ -551,6 +569,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     canPost, 
     submit, 
     uploadPhotos, 
+    uploadPhotosToFirebase,
     postLoadWizard 
-  }), [draft, setField, reset, canSubmit, canPost, submit, uploadPhotos, postLoadWizard]);
+  }), [draft, setField, reset, canSubmit, canPost, submit, uploadPhotos, uploadPhotosToFirebase, postLoadWizard]);
 });
