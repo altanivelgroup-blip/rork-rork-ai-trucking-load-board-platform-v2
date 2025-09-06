@@ -7,6 +7,7 @@ export default function DebugNavScreen() {
   const router = useRouter();
 
   const testRoutes = [
+    { name: 'Add Photo Test', path: '/add-photo-test' },
     { name: 'Settings', path: '/settings' },
     { name: 'Post Load', path: '/post-load' },
     { name: 'Contact', path: '/contact' },
@@ -36,6 +37,8 @@ export default function DebugNavScreen() {
             key={route.path}
             style={styles.button}
             onPress={() => testNavigation(route.path, route.name)}
+            testID={`debug-nav-${route.name.replace(/\s+/g, '-').toLowerCase()}`}
+            accessibilityRole="button"
           >
             <Text style={styles.buttonText}>{route.name}</Text>
             <Text style={styles.buttonPath}>{route.path}</Text>
