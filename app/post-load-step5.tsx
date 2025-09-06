@@ -47,9 +47,10 @@ export default function PostLoadStep5() {
 
   const handleAddPhotos = useCallback(async () => {
     try {
-      // Clear existing photos when starting fresh
+      // Clear draft.photos first when starting a new load (only if no photos selected yet)
       if (draft.photosLocal.length === 0) {
         setField('photoUrls', []);
+        console.log('[PostLoad] Cleared previous photos for new load');
       }
       
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -60,14 +61,21 @@ export default function PostLoadStep5() {
       });
       
       if (!result.canceled && result.assets) {
-        const newPhotos = result.assets.map(asset => ({
-          uri: asset.uri,
-          name: asset.fileName || `photo-${Date.now()}.jpg`,
-          type: asset.type || 'image/jpeg',
-        }));
+        const newPhotos = result.assets.map((asset, index) => {
+          // Extract filename from URI for better captions
+          const uriParts = asset.uri.split('/');
+          const fileName = asset.fileName || uriParts[uriParts.length - 1] || `photo-${Date.now()}-${index}.jpg`;
+          
+          return {
+            uri: asset.uri,
+            name: fileName,
+            type: asset.type || 'image/jpeg',
+          };
+        });
         
+        // Add to existing photosLocal array
         setField('photosLocal', [...draft.photosLocal, ...newPhotos]);
-        console.log('[PostLoad] Added photos to photosLocal:', newPhotos.length);
+        console.log('[PostLoad] Added photos to photosLocal:', newPhotos.length, 'total:', draft.photosLocal.length + newPhotos.length);
       }
     } catch (error) {
       console.error('[PostLoad] Error selecting photos:', error);
@@ -102,45 +110,76 @@ export default function PostLoadStep5() {
         return;
       }
       
-      // Set posting state
+      // Validate contact info
+      if (!contact.trim()) {
+        toast.show('Contact information is required', 'error');
+        return;
+      }
+      
+      // Set posting state - disable button immediately
       setField('isPosting', true);
-      setUploadsInProgress(draft.photosLocal.length);
       
       try {
-        // Upload photos to Firebase Storage and get download URLs
+        // Step 1: Build payload without photos first
+        const basePayload = {
+          title: draft.title.trim(),
+          description: draft.description.trim(),
+          vehicleType: draft.vehicleType,
+          pickup: draft.pickup.trim(),
+          delivery: draft.delivery.trim(),
+          weight: draft.weight,
+          pickupDate: draft.pickupDate,
+          deliveryDate: draft.deliveryDate,
+          rateAmount: draft.rateAmount.trim(),
+          rateKind: draft.rateKind,
+          miles: draft.miles,
+          requirements: draft.requirements,
+          contact: contact.trim(),
+          reference: draft.reference
+        };
+        
+        console.log('[PostLoad] Base payload prepared:', Object.keys(basePayload));
+        
+        // Step 2: Upload photos to Firebase Storage
         console.log('[PostLoad] Starting photo upload for', draft.photosLocal.length, 'photos');
+        setUploadsInProgress(draft.photosLocal.length);
+        
         const uploadedUrls = await uploadPhotosToFirebase(draft.photosLocal, draft.reference);
-        
-        // Update draft with uploaded URLs
-        setField('photoUrls', uploadedUrls);
-        setUploadsInProgress(0);
-        
         console.log('[PostLoad] Photos uploaded successfully, URLs:', uploadedUrls.length);
         
-        // Now proceed with posting the load using postLoadWizard
-        await postLoadWizard(contact);
+        // Step 3: Create/update Firestore document with photos
+        setUploadsInProgress(0);
+        setField('photoUrls', uploadedUrls);
         
-        // Success actions
+        // Use postLoadWizard with the contact info
+        await postLoadWizard(contact.trim());
+        
+        // Step 4: Success-only navigation and cleanup
+        console.log('[PostLoad] Load posted successfully, navigating to loads');
         toast.show('Load posted successfully', 'success');
         
-        // Navigate to loads page
+        // Navigate to loads page only on success
         router.replace('/(tabs)/loads');
         
-      } catch (uploadError: any) {
-        console.error('Photo upload or load posting failed:', uploadError);
+      } catch (error: any) {
+        console.error('Post load failed:', error);
         setUploadsInProgress(0);
         
-        if (uploadError?.message?.includes('permission')) {
+        // Provide specific error messages
+        if (error?.message?.includes('permission') || error?.code === 'permission-denied') {
           toast.show('Post failed — please sign in', 'error');
+        } else if (error?.message?.includes('network') || error?.code === 'unavailable') {
+          toast.show('Post failed — check your connection', 'error');
         } else {
           toast.show('Post failed — please try again', 'error');
         }
         
+        // Reset posting state on error
         setField('isPosting', false);
       }
       
     } catch (err) {
-      console.error('POST_LOAD_ERROR', err);
+      console.error('POST_LOAD_CRITICAL_ERROR', err);
       toast.show('Post failed — please try again', 'error');
       setField('isPosting', false);
       setUploadsInProgress(0);
@@ -211,25 +250,30 @@ export default function PostLoadStep5() {
               </Pressable>
             </View>
             
-            {/* Photo previews */}
+            {/* Photo previews - always render from draft.photosLocal */}
             {draft.photosLocal && draft.photosLocal.length > 0 && (
               <View style={styles.photoGrid}>
-                {draft.photosLocal.map((photo, index) => (
-                  <View key={index} style={styles.photoPreview}>
-                    <Image source={{ uri: photo.uri }} style={styles.photoImage} />
-                    <Text style={styles.photoCaption}>
-                      {photo.name || `photo-${index + 1}.jpg`}
-                    </Text>
-                    <Pressable
-                      onPress={() => handleRemovePhoto(index)}
-                      style={styles.removePhotoBtn}
-                      accessibilityRole="button"
-                      testID={`removePhoto-${index}`}
-                    >
-                      <Text style={styles.removePhotoBtnText}>×</Text>
-                    </Pressable>
-                  </View>
-                ))}
+                {draft.photosLocal.map((photo, index) => {
+                  // Extract just the filename for caption display
+                  const displayName = photo.name ? photo.name.split('/').pop() || photo.name : `photo-${index + 1}.jpg`;
+                  
+                  return (
+                    <View key={`${photo.uri}-${index}`} style={styles.photoPreview}>
+                      <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+                      <Text style={styles.photoCaption} numberOfLines={1}>
+                        {displayName}
+                      </Text>
+                      <Pressable
+                        onPress={() => handleRemovePhoto(index)}
+                        style={styles.removePhotoBtn}
+                        accessibilityRole="button"
+                        testID={`removePhoto-${index}`}
+                      >
+                        <Text style={styles.removePhotoBtnText}>×</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </View>
             )}
           </View>

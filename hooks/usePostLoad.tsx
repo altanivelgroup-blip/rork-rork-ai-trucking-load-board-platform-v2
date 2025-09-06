@@ -7,7 +7,7 @@ import { toNumber } from '@/utils/loadValidation';
 import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
 import { postLoad } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { useToast } from '@/components/Toast';
+// import { useToast } from '@/components/Toast'; // Removed unused import
 
 
 export type RateKind = 'flat' | 'per_mile';
@@ -75,7 +75,7 @@ const initialDraft: PostLoadDraft = {
 export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(() => {
   const { addLoad } = useLoads();
   const { user } = useAuth();
-  const { show: showToast } = useToast();
+  // const { show: showToast } = useToast(); // Removed unused variable
   const [draft, setDraft] = useState<PostLoadDraft>(initialDraft);
   const setField = useCallback(<K extends keyof PostLoadDraft>(key: K, value: PostLoadDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -137,11 +137,13 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
   }, [draft, user?.id]);
 
   const reset = useCallback(() => {
+    console.log('[PostLoad] Resetting draft state');
     setDraft({
       ...initialDraft,
       reference: `LOAD-${Date.now()}`,
       photosLocal: [], // Clear photos when starting a new load
       photoUrls: [], // Clear uploaded URLs
+      isPosting: false, // Reset posting state
     });
   }, []);
 
@@ -263,11 +265,16 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     }
   }, [addLoad, canSubmit, draft, user]);
 
-  const createLocalLoad = useCallback(async (currentDraft: PostLoadDraft, pickupDate: Date, deliveryDate: Date, finalPhotoUrls: string[]) => {
+  const createLocalLoad = useCallback(async (currentDraft: PostLoadDraft, pickupDate: Date, deliveryDate: Date, finalPhotoUrls: string[], contactInfo?: string) => {
     try {
       const now = Date.now();
       const rateNum = Number(currentDraft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
       const weightNum = currentDraft.weight ? Number(currentDraft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
+
+      // Include contact info in description
+      const loadDescription = contactInfo 
+        ? `${currentDraft.description.trim()}\n\nContact: ${contactInfo.trim()}`
+        : currentDraft.description.trim();
 
       const load: Load = {
         id: String(now),
@@ -275,7 +282,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         shipperName: user?.name || 'You',
         origin: {
           address: '',
-          city: currentDraft.pickup,
+          city: currentDraft.pickup.trim(),
           state: '',
           zipCode: '',
           lat: 0,
@@ -283,7 +290,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         },
         destination: {
           address: '',
-          city: currentDraft.delivery,
+          city: currentDraft.delivery.trim(),
           state: '',
           zipCode: '',
           lat: 0,
@@ -297,7 +304,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         pickupDate: pickupDate,
         deliveryDate: deliveryDate,
         status: 'available',
-        description: currentDraft.description,
+        description: loadDescription,
         special_requirements: currentDraft.requirements ? [currentDraft.requirements] : undefined,
         isBackhaul: false,
       };
@@ -305,12 +312,11 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.log('[PostLoad] creating load for local storage', load);
       await addLoad(load);
       console.log('[PostLoad] load posted successfully to local storage:', load.id);
-      showToast('Load posted successfully!');
     } catch (localStorageError) {
       console.error('[PostLoad] local storage fallback failed:', localStorageError);
       throw new Error(`Failed to post load: ${localStorageError instanceof Error ? localStorageError.message : 'Unknown error'}`);
     }
-  }, [user?.id, user?.name, addLoad, showToast]);
+  }, [user?.id, user?.name, addLoad]);
 
   const uploadPhotosToFirebase = useCallback(async (photosLocal: { uri: string; name?: string; type?: string }[], reference: string): Promise<string[]> => {
     try {
@@ -422,7 +428,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         rateKind: currentDraft.rateKind,
         miles: currentDraft.miles,
         photoUrls: currentDraft.photoUrls?.length,
-        attachments: currentDraft.attachments?.length,
+        photosLocal: currentDraft.photosLocal?.length,
         contact: currentDraft.contact,
         isPosting: currentDraft.isPosting
       });
@@ -446,6 +452,11 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       if (!currentDraft.rateAmount?.trim()) {
         throw new Error('Rate amount is required');
       }
+      if (!contactInfo?.trim()) {
+        throw new Error('Contact information is required');
+      }
+      
+      // Validate photos from photosLocal (not photoUrls)
       if ((currentDraft.photosLocal?.length ?? 0) < 5) {
         throw new Error('At least 5 photos are required');
       }
@@ -473,18 +484,19 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         throw new Error('Valid delivery date is required');
       }
       
-      // Ensure we have photos uploaded or use placeholders
+      // Use the uploaded photo URLs (should already be set by the caller)
       let finalPhotoUrls = currentDraft.photoUrls || [];
       
-      // If we don't have uploaded photos but have photosLocal, upload them now
+      // Fallback: if no photoUrls but we have photosLocal, this shouldn't happen
+      // but we'll handle it gracefully
       if (finalPhotoUrls.length === 0 && (currentDraft.photosLocal?.length ?? 0) > 0) {
-        console.log('[PostLoad] uploading photos from photosLocal');
+        console.warn('[PostLoad] No photoUrls found, uploading photosLocal as fallback');
         finalPhotoUrls = await uploadPhotosToFirebase(currentDraft.photosLocal, currentDraft.reference);
       }
       
-      // Ensure we have at least 5 photos
+      // Ensure we have at least 5 photos (use placeholders if needed)
       if (finalPhotoUrls.length < 5) {
-        console.log('[PostLoad] ensuring minimum 5 photos');
+        console.log('[PostLoad] ensuring minimum 5 photos with placeholders');
         const needed = 5 - finalPhotoUrls.length;
         for (let i = 0; i < needed; i++) {
           finalPhotoUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${finalPhotoUrls.length + i}`);
@@ -518,7 +530,45 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           });
           
           console.log('[PostLoad] load posted successfully to Firebase:', loadId);
-          showToast('Load posted successfully to Firebase!');
+          
+          // Add contact info to the load description for now
+          const loadDescription = `${currentDraft.description.trim()}\n\nContact: ${contactInfo.trim()}`;
+          
+          // Add to local loads for immediate display
+          await addLoad({
+            id: loadId,
+            shipperId: user.id,
+            shipperName: user.name || 'You',
+            origin: {
+              address: '',
+              city: currentDraft.pickup.trim(),
+              state: '',
+              zipCode: '',
+              lat: 0,
+              lng: 0,
+            },
+            destination: {
+              address: '',
+              city: currentDraft.delivery.trim(),
+              state: '',
+              zipCode: '',
+              lat: 0,
+              lng: 0,
+            },
+            distance: 0,
+            weight: currentDraft.weight ? toNumber(currentDraft.weight) : 0,
+            vehicleType: currentDraft.vehicleType!,
+            rate: rateNum,
+            ratePerMile: 0,
+            pickupDate,
+            deliveryDate,
+            status: 'available',
+            description: loadDescription,
+            special_requirements: currentDraft.requirements ? [currentDraft.requirements] : undefined,
+            isBackhaul: false,
+          });
+          
+          console.log('[PostLoad] Added optimistic load to local storage');
           
         } catch (firebaseError: any) {
           console.warn('[PostLoad] Firebase write failed despite permissions check:', {
@@ -530,34 +580,26 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           // Provide user-friendly error context
           if (firebaseError?.code === 'permission-denied') {
             console.log('[PostLoad] Permission denied - this is expected in development mode with anonymous users');
-            showToast('Development mode: saving locally');
           } else {
             console.warn('[PostLoad] Firebase error, using local storage fallback');
-            showToast('Firebase unavailable, saving locally');
           }
           
-          await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls);
+          await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, contactInfo.trim());
         }
       } else {
         console.warn('[PostLoad] Firebase write not available:', permissions.error || 'Unknown reason');
         
-        if (permissions.error?.includes('Anonymous')) {
-          showToast('Development mode: saving locally');
-        } else {
-          showToast('Firebase unavailable, saving locally');
-        }
-        
-        await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls);
+        await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, contactInfo?.trim());
       }
       
-      // Reset state
+      // Reset state after successful posting
       reset();
       
     } catch (error) {
       console.error('[PostLoad] postLoadWizard error:', error);
       throw error;
     }
-  }, [draft, user?.id, reset, showToast, createLocalLoad, uploadPhotosToFirebase]);
+  }, [draft, user?.id, user?.name, reset, createLocalLoad, uploadPhotosToFirebase, addLoad]);
 
 
 
