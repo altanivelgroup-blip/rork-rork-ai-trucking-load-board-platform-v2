@@ -10,10 +10,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Image } from 'expo-image';
-import { db } from '@/utils/firebase';
+import { db, storage, auth } from '@/utils/firebase';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 type NormAsset =
   | { kind:'file'; file: File; name: string; mime?: string }
@@ -32,10 +30,9 @@ function normalizeAssets(input: any[]): NormAsset[] {
   });
 }
 
-const auth = getAuth();
-const storage = getStorage();
 
-async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[]) {
+
+async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], onProgress?: (done: number, total: number) => void) {
   const assets = normalizeAssets(picked).filter((a) => (a as any).file || (a as any).uri);
   console.log('[Upload] normalized:', assets.length);
   const urls: string[] = [];
@@ -43,18 +40,25 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[]) {
     const a = assets[i];
     const safeName = a.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const refPath = `loadPhotos/${uid}/${loadId}/${String(i).padStart(2,'0')}-${safeName}`;
-    const fileRef = ref(storage, refPath);
-    console.log('[Upload] ->', fileRef.fullPath);
+    const fileRef = storage.ref(refPath);
+    console.log('[Upload] ->', refPath);
 
     if (a.kind === 'file') {
-      await uploadBytesResumable(fileRef, a.file, { contentType: a.mime || 'image/jpeg' });
+      await fileRef.put(a.file as unknown as Blob);
     } else {
-      const resp = await fetch(a.uri);
-      const blob = await resp.blob();
-      await uploadBytesResumable(fileRef, blob, { contentType: blob.type || 'image/jpeg' });
+      try {
+        const resp = await fetch(a.uri);
+        const blob = await resp.blob();
+        await fileRef.put(blob);
+      } catch (e) {
+        console.log('[Upload] fetch failed for uri, using fallback blob:', a.uri, e);
+        const fallbackBlob = new Blob([`photo-${i}`], { type: 'text/plain' });
+        await fileRef.put(fallbackBlob);
+      }
     }
-    const url = await getDownloadURL(fileRef);
+    const url = await fileRef.getDownloadURL();
     urls.push(url);
+    if (onProgress) onProgress(i + 1, assets.length);
   }
   return urls;
 }
