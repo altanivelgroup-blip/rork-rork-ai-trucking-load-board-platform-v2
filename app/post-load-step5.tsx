@@ -130,9 +130,11 @@ function mapDraftToLoad(id: string, uid: string, draft: any, photos: string[]): 
   };
 }
 
-async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any) {
+async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any, setField?: (k: string, v: any) => void) {
   try {
     if (draft?.isPosting) return;
+    // Mark UI as posting (stateful)
+    try { setField && setField('isPosting', true); } catch {}
     if (!auth.currentUser) {
       try {
         await signInAnonymously(auth);
@@ -152,7 +154,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       throw new Error('Please add at least 5 photos.');
     }
 
-    draft.isPosting = true;
+    try { setField && setField('isPosting', true); } catch {}
     const uid = auth.currentUser.uid;
 
     const base = {
@@ -204,6 +206,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
 
       toast?.success?.('Load posted successfully');
       router?.replace?.('/loads');
+      try { setField && setField('isPosting', false); } catch {}
     } catch (fireErr: any) {
       console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
       if (fireErr?.code === 'permission-denied' || fireErr?.code === 'unavailable' || fireErr?.code === 'unauthenticated') {
@@ -221,6 +224,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
         }
         toast?.show?.('Posted locally. Sync will resume when permissions are fixed.', 'warning', 2800);
         router?.replace?.('/loads');
+        try { setField && setField('isPosting', false); } catch {}
       } else {
         throw fireErr;
       }
@@ -229,7 +233,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
     console.error('[PostLoad] failed:', err?.code || '', err?.message || err);
     toast?.error?.(err?.message || 'Post failed — please try again');
   } finally {
-    if (draft) draft.isPosting = false;
+    try { setField && setField('isPosting', false); } catch {}
   }
 }
 
@@ -361,7 +365,7 @@ export default function PostLoadStep5() {
               <Text style={styles.secondaryBtnText}>Previous</Text>
             </Pressable>
             <Pressable 
-              onPress={() => submitLoadWithPhotos(draft, toast, router, loadsStore)} 
+              onPress={() => submitLoadWithPhotos(draft, toast, router, loadsStore, (k: string, v: any) => setField(k as any, v))} 
               style={[
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
