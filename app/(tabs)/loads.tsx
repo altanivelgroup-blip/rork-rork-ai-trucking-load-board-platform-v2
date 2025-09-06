@@ -91,13 +91,7 @@ export default function LoadsScreen() {
       <View style={styles.container}>
         {/* Header Controls */}
         <View style={styles.headerControls}>
-          {/* Filters Button */}
-          <View style={styles.filtersRow}>
-            <TouchableOpacity style={styles.filtersButton} onPress={handleOpenFilters}>
-              <Filter size={16} color={theme.colors.primary} />
-              <Text style={styles.filtersButtonText}>Filters</Text>
-            </TouchableOpacity>
-          </View>
+
           
           {/* Equipment Type Filters */}
           <View style={styles.equipmentFilters}>
@@ -268,26 +262,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
   },
-  filtersRow: {
-    marginBottom: theme.spacing.md,
-  },
-  filtersButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: 20,
-    backgroundColor: theme.colors.white,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    alignSelf: 'flex-start',
-  },
-  filtersButtonText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
-    color: theme.colors.primary,
-  },
+
   equipmentFilters: {
     marginBottom: theme.spacing.md,
   },
