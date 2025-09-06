@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { Send, Clock } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import { usePostLoad } from '@/hooks/usePostLoad';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
+import { Image } from 'expo-image';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -362,7 +363,15 @@ export default function PostLoadStep5() {
                   
                   return (
                     <View key={`${photo.uri}-${index}`} style={styles.photoPreview}>
-                      <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+                      <Image
+                        source={{ uri: photo.uri }}
+                        style={styles.photoImage}
+                        contentFit="cover"
+                        transition={100}
+                        onError={(e: unknown) => {
+                          console.log('[PostLoad] preview image error', e);
+                        }}
+                      />
                       <Text style={styles.photoCaption} numberOfLines={1}>
                         {displayName}
                       </Text>
