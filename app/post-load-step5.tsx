@@ -149,7 +149,7 @@ export default function PostLoadStep5() {
   const [contact, setContact] = useState<string>(draft.contact || '');
   const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
   const toast = useToast();
-  const { addLoad } = useLoads();
+  const loadsStore = useLoads();
 
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
@@ -195,21 +195,6 @@ export default function PostLoadStep5() {
     console.log('[PostLoad] Removed photo at index:', index);
   }, [draft.photosLocal, setField]);
 
-  const onSubmit = useCallback(async () => {
-    console.log('POST BTN FIRED - onSubmit called');
-    try {
-      if (uploadsInProgress > 0) {
-        toast.show('Please wait, uploading photos…', 'warning');
-        return;
-      }
-      await submitLoadWithPhotos(draft, {
-        success: (m: string) => toast.show(m, 'success'),
-        error: (m: string) => toast.show(m, 'error'),
-      }, router, { prepend: async (l: any) => { try { await addLoad(l); } catch (e) { console.log('prepend failed', e); } } });
-    } catch (e) {
-      console.log('submit error', e);
-    }
-  }, [uploadsInProgress, toast, draft, router, addLoad]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -332,7 +317,7 @@ export default function PostLoadStep5() {
               <Text style={styles.secondaryBtnText}>Previous</Text>
             </Pressable>
             <Pressable 
-              onPress={onSubmit} 
+              onPress={() => submitLoadWithPhotos(draft, toast, router, loadsStore)} 
               style={[
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
