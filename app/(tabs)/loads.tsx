@@ -2,17 +2,15 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { useLoads } from '@/hooks/useLoads';
+import { mockLoads } from '@/mocks/loads';
 import { MapPin, Calendar, Package, DollarSign } from 'lucide-react-native';
 
 export default function LoadsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   
-  const { filteredLoads } = useLoads();
-  
   const loads = useMemo(() => {
-    let filtered = filteredLoads;
+    let filtered = mockLoads;
     
     // Apply filters from params if any
     if (params.origin && typeof params.origin === 'string') {
@@ -46,7 +44,7 @@ export default function LoadsScreen() {
     }
     
     return filtered;
-  }, [params, filteredLoads]);
+  }, [params]);
   
   const handleLoadPress = (loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
