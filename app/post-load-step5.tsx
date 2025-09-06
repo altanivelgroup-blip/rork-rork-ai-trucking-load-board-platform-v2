@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Image } from 'expo-image';
-import { db, storage, auth } from '@/utils/firebase';
+import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 type NormAsset =
@@ -66,6 +66,7 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], o
 async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any) {
   try {
     if (draft?.isPosting) return;
+    await ensureFirebaseAuth();
     if (!auth.currentUser?.uid) throw new Error('Please sign in');
 
     const picked = draft?.photosLocal ?? draft?.photos ?? [];
@@ -99,28 +100,47 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       createdBy: uid,
     } as const;
 
-    const docRef = await addDoc(collection(db, 'loads'), base);
-    console.log('[PostLoad] created id:', docRef.id);
-
-    const urls = await uploadPhotosForLoad(uid, docRef.id, picked);
-    console.log('[PostLoad] uploaded urls:', urls.length);
-
-    await updateDoc(doc(db, 'loads', docRef.id), {
-      photos: urls,
-      photoCount: urls.length,
-      updatedAt: serverTimestamp(),
-    });
-
     try {
-      if (loadsStore?.prepend) {
-        await loadsStore.prepend({ id: docRef.id, ...base, photos: urls, photoCount: urls.length });
-      }
-    } catch (e) {
-      console.log('[PostLoad] optional prepend failed', e);
-    }
+      const docRef = await addDoc(collection(db, 'loads'), base);
+      console.log('[PostLoad] created id:', docRef.id);
 
-    toast?.success?.('Load posted successfully');
-    router?.replace?.('/loads');
+      const urls = await uploadPhotosForLoad(uid, docRef.id, picked);
+      console.log('[PostLoad] uploaded urls:', urls.length);
+
+      await updateDoc(doc(db, 'loads', docRef.id), {
+        photos: urls,
+        photoCount: urls.length,
+        updatedAt: serverTimestamp(),
+      });
+
+      try {
+        if (loadsStore?.prepend) {
+          await loadsStore.prepend({ id: docRef.id, ...base, photos: urls, photoCount: urls.length });
+        }
+      } catch (e) {
+        console.log('[PostLoad] optional prepend failed', e);
+      }
+
+      toast?.success?.('Load posted successfully');
+      router?.replace?.('/loads');
+    } catch (fireErr: any) {
+      console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
+      if (fireErr?.code === 'permission-denied' || fireErr?.code === 'unavailable' || fireErr?.code === 'unauthenticated') {
+        const localId = `local-${Date.now()}`;
+        const urls = await uploadPhotosForLoad(uid, localId, picked);
+        try {
+          if (loadsStore?.prepend) {
+            await loadsStore.prepend({ id: localId, ...base, photos: urls, photoCount: urls.length });
+          }
+        } catch (e) {
+          console.log('[PostLoad] local prepend failed', e);
+        }
+        toast?.show?.('Posted locally. Sync will resume when permissions are fixed.', 'warning', 2800);
+        router?.replace?.('/loads');
+      } else {
+        throw fireErr;
+      }
+    }
   } catch (err: any) {
     console.error('[PostLoad] failed:', err?.code || '', err?.message || err);
     toast?.error?.(err?.message || 'Post failed — please try again');
