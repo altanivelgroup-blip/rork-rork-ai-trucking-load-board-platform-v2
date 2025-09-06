@@ -218,45 +218,9 @@ export default function PostLoadStep5() {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
   }, [router]);
 
-  const handleAddPhotos = useCallback(async () => {
-    try {
-      if (draft.photosLocal.length === 0) {
-        setField('photoUrls', []);
-        console.log('[PostLoad] Cleared previous photos for new load');
-      }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        quality: 0.8,
-        allowsEditing: false,
-      });
 
-      if (!result.canceled && result.assets) {
-        const newPhotos = result.assets.map((asset, index) => {
-          const uriParts = asset.uri.split('/');
-          const fileName = (asset as any).fileName || uriParts[uriParts.length - 1] || `photo-${Date.now()}-${index}.jpg`;
-          return {
-            uri: asset.uri,
-            name: fileName,
-            type: (asset as any).mimeType || 'image/jpeg',
-          } as const;
-        });
 
-        setField('photosLocal', [...draft.photosLocal, ...newPhotos]);
-        console.log('[PostLoad] Added photos to photosLocal:', newPhotos.length, 'total:', draft.photosLocal.length + newPhotos.length);
-      }
-    } catch (error) {
-      console.error('[PostLoad] Error selecting photos:', error);
-      toast.show('Failed to select photos', 'error');
-    }
-  }, [draft.photosLocal, setField, toast]);
-
-  const handleRemovePhoto = useCallback((index: number) => {
-    const updatedPhotos = draft.photosLocal.filter((_, i) => i !== index);
-    setField('photosLocal', updatedPhotos);
-    console.log('[PostLoad] Removed photo at index:', index);
-  }, [draft.photosLocal, setField]);
 
 
   return (
@@ -294,28 +258,18 @@ export default function PostLoadStep5() {
               <View style={styles.uploadStatusContainer}>
                 <Clock color={theme.colors.primary} size={18} />
                 <Text style={styles.uploadStatusText}>
-                  Uploading photos ({uploadsInProgress}/{draft.photosLocal?.length || 0})... Please wait.
+                  Uploading photos ({uploadsInProgress}/{draft.photoUrls?.length || 0})... Please wait.
                 </Text>
               </View>
             )}
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos selected: {(draft.photoUrls?.length || draft.photosLocal?.length || 0)} (min 5 required)
+              Photos selected: {(draft.photoUrls?.length || 0)} (min 5 required)
             </Text>
-            {(((draft.photoUrls?.length || 0) < 5) && ((draft.photosLocal?.length || 0) < 5)) && uploadsInProgress === 0 && (
+            {((draft.photoUrls?.length || 0) < 5) && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Minimum 5 photos required to post.
               </Text>
             )}
-            <View style={styles.photoActions}>
-              <Pressable
-                onPress={handleAddPhotos}
-                style={styles.addPhotosBtn}
-                accessibilityRole="button"
-                testID="addPhotosBtn"
-              >
-                <Text style={styles.addPhotosBtnText}>Add Photos</Text>
-              </Pressable>
-            </View>
 
             <View style={{ marginTop: 8 }}>
               <PhotoUploader
@@ -329,37 +283,6 @@ export default function PostLoadStep5() {
                 }}
               />
             </View>
-            {draft.photosLocal && draft.photosLocal.length > 0 && (
-              <View style={styles.photoGrid}>
-                {draft.photosLocal.map((photo: any, index: number) => {
-                  const displayName = (photo.name ? String(photo.name).split('/').pop() : undefined) || `photo-${index + 1}.jpg`;
-                  return (
-                    <View key={`${photo.uri}-${index}`} style={styles.photoPreview}>
-                      <Image
-                        source={{ uri: photo.uri }}
-                        style={styles.photoImage}
-                        contentFit="cover"
-                        transition={100}
-                        onError={(e: unknown) => {
-                          console.log('[PostLoad] preview image error', e);
-                        }}
-                      />
-                      <Text style={styles.photoCaption} numberOfLines={1}>
-                        {displayName}
-                      </Text>
-                      <Pressable
-                        onPress={() => handleRemovePhoto(index)}
-                        style={styles.removePhotoBtn}
-                        accessibilityRole="button"
-                        testID={`removePhoto-${index}`}
-                      >
-                        <Text style={styles.removePhotoBtnText}>×</Text>
-                      </Pressable>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
           </View>
 
           <View style={styles.summaryCard}>
@@ -397,18 +320,18 @@ export default function PostLoadStep5() {
               style={[
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
-                 ((draft.photoUrls?.length || draft.photosLocal?.length || 0) < 5) || 
+                 ((draft.photoUrls?.length || 0) < 5) || 
                  draft.isPosting) && styles.postBtnDisabled
               ]} 
               disabled={
                 uploadsInProgress > 0 || 
-                ((draft.photoUrls?.length || draft.photosLocal?.length || 0) < 5) || 
+                ((draft.photoUrls?.length || 0) < 5) || 
                 draft.isPosting
               } 
               accessibilityRole="button" 
               accessibilityState={{ 
                 disabled: uploadsInProgress > 0 || 
-                         ((draft.photoUrls?.length || draft.photosLocal?.length || 0) < 5) || 
+                         ((draft.photoUrls?.length || 0) < 5) || 
                          draft.isPosting 
               }} 
               testID="postLoadBtn"
