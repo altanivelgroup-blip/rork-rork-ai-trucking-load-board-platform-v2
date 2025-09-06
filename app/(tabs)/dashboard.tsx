@@ -387,11 +387,11 @@ export default function DashboardScreen() {
           />
           <TouchableOpacity
             onPress={onSubmitNlSearch}
-            testID="describe-load-apply"
+            testID="describe-load-ai-intelligence"
             style={styles.applyButton}
           >
             <Text style={styles.applyButtonText} allowFontScaling={false}>
-              Apply
+              AI INTELLIGENCE
             </Text>
           </TouchableOpacity>
         </View>
