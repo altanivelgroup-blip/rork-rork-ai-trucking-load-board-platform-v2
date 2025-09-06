@@ -259,17 +259,24 @@ export function PhotoUploader({
   const loadPhotos = useCallback(async () => {
     try {
       console.log('[PhotoUploader] Loading photos for', entityType, entityId);
-      
-      console.log('[PhotoUploader] Mock mode - skipping Firestore load');
-      setState(prev => ({ ...prev, loading: false }));
-      
-      // For demo purposes, you could load some mock photos here
-      // const mockPhotos = [
-      //   { url: 'https://picsum.photos/800/600?random=1', id: uuid.v4() as string },
-      //   { url: 'https://picsum.photos/800/600?random=2', id: uuid.v4() as string },
-      // ];
-      // setState(prev => ({ ...prev, photos: mockPhotos, loading: false }));
-      
+      const { db } = getFirebase();
+      const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
+      const docRef = doc(db, collectionName, entityId);
+      const snap = await getDoc(docRef);
+
+      if (snap.exists()) {
+        const data = snap.data() as { photos?: string[]; primaryPhoto?: string };
+        const photos = (data.photos ?? []).map((url) => ({
+          id: uuid.v4() as string,
+          url,
+          uploading: false,
+          progress: 100,
+        }));
+        const primaryPhoto = data.primaryPhoto ?? (photos[0]?.url ?? '');
+        setState((prev) => ({ ...prev, photos, primaryPhoto, loading: false }));
+      } else {
+        setState((prev) => ({ ...prev, loading: false }));
+      }
     } catch (error) {
       console.error('[PhotoUploader] Error loading photos:', error);
       toast.show('Failed to load photos', 'error');
@@ -303,23 +310,24 @@ export function PhotoUploader({
   // Update Firestore with new photo arrays
   const updateFirestorePhotos = useCallback(async (photos: string[], primaryPhoto: string) => {
     try {
-      console.log('[PhotoUploader] Mock mode - skipping Firestore update');
-      console.log('[PhotoUploader] Would update with', photos.length, 'photos');
-      
-      // In mock mode, we don't actually update Firestore
-      // Just simulate the update for development
-      
-      // Schedule onChange callback after state update to avoid setState in render
+      const { db } = getFirebase();
+      const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
+      const docRef = doc(db, collectionName, entityId);
+      await updateDoc(docRef, {
+        photos,
+        primaryPhoto,
+        updatedAt: serverTimestamp(),
+      });
       setTimeout(() => {
         const uploadsInProgress = state.photos.filter(p => p.uploading).length;
         onChange?.(photos, primaryPhoto, uploadsInProgress);
       }, 0);
-      console.log('[PhotoUploader] Mock Firestore updated with', photos.length, 'photos');
+      console.log('[PhotoUploader] Firestore updated with', photos.length, 'photos');
     } catch (error) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
       toast.show('Failed to save photos', 'error');
     }
-  }, [onChange, toast, state.photos]);
+  }, [onChange, toast, state.photos, entityId, entityType]);
 
   // Upload single file with new smart upload logic
   const uploadFile = useCallback(async (input: AnyImage) => {
@@ -516,6 +524,11 @@ export function PhotoUploader({
         return;
       }
       
+      const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!camPerm.granted) {
+        toast.show('Camera permission is required', 'error');
+        return;
+      }
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
