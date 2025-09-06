@@ -360,10 +360,11 @@ export function PhotoUploader({
         photos: [...prev.photos, photoItem],
       }));
       
-      // Build the base path safely (NO leading slash)
-      const folder = entityType === 'load' ? 'loads' : 'vehicles';
+      // Build the storage base path to match security rules
+      const { auth } = getFirebase();
+      const uid = auth?.currentUser?.uid ?? 'NOAUTH';
       const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
-      const basePath = `${folder}/${safeId}/original`;
+      const basePath = `loadPhotos/${uid}/${safeId}`;
       
       // QA: Simulate slow network if enabled
       if (qaState.qaSlowNetwork) {
