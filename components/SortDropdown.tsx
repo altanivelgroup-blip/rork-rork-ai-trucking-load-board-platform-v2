@@ -123,7 +123,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
         accessibilityRole="button"
         accessibilityLabel="Open sort menu"
         onLayout={onButtonLayout}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
         <Text style={styles.sortChipText}>{label}</Text>
         <Text style={styles.sortChevron}>▾</Text>
@@ -193,25 +193,26 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, options, onCh
 const styles = StyleSheet.create({
   sortChip: {
     backgroundColor: theme.colors.white,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 44,
-    minWidth: 44,
-    borderRadius: 9999,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 48,
+    minWidth: 48,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: theme.colors.lightGray,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 8,
   },
   sortChipText: {
     color: theme.colors.dark,
-    fontWeight: '600',
-    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    fontSize: 14,
   },
   sortChevron: {
     color: theme.colors.gray,
-    fontSize: theme.fontSize.sm,
+    fontSize: 16,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -230,11 +231,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   menuItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   menuItemText: {
-    fontSize: theme.fontSize.sm,
+    fontSize: 16,
     color: theme.colors.dark,
   },
   menuItemTextActive: {
@@ -260,11 +263,13 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   sheetItem: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    minHeight: 56,
+    justifyContent: 'center',
   },
   sheetItemText: {
-    fontSize: theme.fontSize.md,
+    fontSize: 18,
     color: theme.colors.dark,
   },
   sheetItemTextActive: {

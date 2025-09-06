@@ -155,21 +155,24 @@ export const FilterBar = React.memo<React.FC<FilterBarProps>>(FilterBarComponent
 const styles = StyleSheet.create({
   topTabContainer: {
     backgroundColor: theme.colors.white,
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
   },
   topTabScroll: {
     paddingHorizontal: theme.spacing.md,
-    gap: 6,
+    gap: 8,
   },
   topTab: {
     backgroundColor: theme.colors.white,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 44,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.lightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   topTabActive: {
     backgroundColor: theme.colors.primary,
@@ -196,8 +199,8 @@ const styles = StyleSheet.create({
   },
   topTabText: {
     color: theme.colors.dark,
-    fontSize: theme.fontSize.sm,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
     textAlign: 'center',
   },
   topTabTextActive: {
@@ -217,7 +220,7 @@ const styles = StyleSheet.create({
   },
   container: {
     backgroundColor: theme.colors.white,
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
   },
@@ -228,18 +231,20 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.lg,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
+    borderRadius: 22,
     backgroundColor: theme.colors.lightGray,
-    marginRight: theme.spacing.sm,
+    marginRight: 10,
   },
   chipActive: {
     backgroundColor: theme.colors.primary,
   },
   chipText: {
-    fontSize: theme.fontSize.sm,
+    fontSize: 14,
+    fontWeight: '600',
     color: theme.colors.dark,
     textTransform: 'capitalize',
   },
