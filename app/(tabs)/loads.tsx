@@ -68,6 +68,43 @@ export default function LoadsScreen() {
       <View style={styles.container}>
         {/* Header Controls */}
         <View style={styles.headerControls}>
+          {/* Quick Filters Row */}
+          <View style={styles.quickFilters}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFiltersContent}>
+              {/* Equipment Type Quick Filter */}
+              <TouchableOpacity 
+                style={[styles.quickFilterChip, filters.vehicleType && styles.quickFilterChipActive]}
+                onPress={() => {
+                  const hasVehicleType = filters.vehicleType;
+                  setFilters({
+                    ...filters,
+                    vehicleType: hasVehicleType ? undefined : 'truck'
+                  });
+                }}
+              >
+                <Text style={[styles.quickFilterText, filters.vehicleType && styles.quickFilterTextActive]}>
+                  {filters.vehicleType ? filters.vehicleType : 'Hotshot'}
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Rate Quick Filter */}
+              <TouchableOpacity 
+                style={[styles.quickFilterChip, filters.minRate && styles.quickFilterChipActive]}
+                onPress={() => {
+                  const hasMinRate = filters.minRate;
+                  setFilters({
+                    ...filters,
+                    minRate: hasMinRate ? undefined : 1000
+                  });
+                }}
+              >
+                <Text style={[styles.quickFilterText, filters.minRate && styles.quickFilterTextActive]}>
+                  {filters.minRate ? `≥${filters.minRate.toLocaleString()}` : '≥$1K'}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+          
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.filterButton} onPress={handleOpenFilters}>
               <Filter size={16} color={theme.colors.primary} />
@@ -185,17 +222,42 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.lightGray,
   },
   headerControls: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     backgroundColor: theme.colors.white,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
   },
+  quickFilters: {
+    marginBottom: theme.spacing.sm,
+  },
+  quickFiltersContent: {
+    gap: theme.spacing.sm,
+    paddingRight: theme.spacing.lg,
+  },
+  quickFilterChip: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: 20,
+    backgroundColor: theme.colors.lightGray,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+  },
+  quickFilterChipActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  quickFilterText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  quickFilterTextActive: {
+    color: theme.colors.white,
+  },
   headerActions: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     gap: theme.spacing.sm,
   },
