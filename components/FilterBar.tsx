@@ -124,14 +124,7 @@ const FilterBarComponent: React.FC<FilterBarProps> = ({
             <Text style={[styles.topTabText, styles.topTabGeoText, geoFencingActive && styles.topTabTextActive]}>Location</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={[styles.topTab, styles.topTabAi]} 
-            onPress={onOpenAiBackhaul}
-            testID="open-ai-backhaul"
-          >
-            <Text style={[styles.topTabText, styles.topTabAiText]}>AI Backhaul</Text>
-          </TouchableOpacity>
-          
+
           {hasLocationPerm && currentSort === 'Nearest' && [25,50,100,250].map((r) => (
             <TouchableOpacity
               key={r}
