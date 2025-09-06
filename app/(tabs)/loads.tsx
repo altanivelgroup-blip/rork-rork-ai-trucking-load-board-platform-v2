@@ -1,18 +1,51 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { mockLoads } from '@/mocks/loads';
-import { MapPin, Calendar, Package, DollarSign } from 'lucide-react-native';
+import { MapPin, Calendar, Package, DollarSign, Filter, Search } from 'lucide-react-native';
+import { FilterBar } from '@/components/FilterBar';
+import { VehicleType } from '@/types';
 
 export default function LoadsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   
+  // Filter states
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleType | undefined>();
+  const [showBackhaul, setShowBackhaul] = useState<boolean>(false);
+  const [currentSort, setCurrentSort] = useState<string>('Best');
+  const [searchText, setSearchText] = useState<string>('');
+  const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
+  const [radiusMiles, setRadiusMiles] = useState<number>(50);
+  const [geoFencingActive, setGeoFencingActive] = useState<boolean>(false);
+  
   const loads = useMemo(() => {
     let filtered = mockLoads;
     
-    // Apply filters from params if any
+    // Apply search text filter
+    if (searchText.trim()) {
+      const search = searchText.toLowerCase();
+      filtered = filtered.filter(load => 
+        load.origin?.city?.toLowerCase().includes(search) ||
+        load.origin?.state?.toLowerCase().includes(search) ||
+        load.destination?.city?.toLowerCase().includes(search) ||
+        load.destination?.state?.toLowerCase().includes(search) ||
+        load.description?.toLowerCase().includes(search)
+      );
+    }
+    
+    // Apply vehicle type filter
+    if (selectedVehicle) {
+      filtered = filtered.filter(load => load.vehicleType === selectedVehicle);
+    }
+    
+    // Apply backhaul filter
+    if (showBackhaul) {
+      filtered = filtered.filter(load => load.isBackhaul === true);
+    }
+    
+    // Apply params filters
     if (params.origin && typeof params.origin === 'string') {
       const originFilter = params.origin.toLowerCase();
       filtered = filtered.filter(load => 
@@ -43,17 +76,113 @@ export default function LoadsScreen() {
       }
     }
     
+    // Apply sorting
+    if (currentSort === 'Highest $') {
+      filtered = filtered.sort((a, b) => (b.rate || 0) - (a.rate || 0));
+    } else if (currentSort === 'Lightest') {
+      filtered = filtered.sort((a, b) => (a.weight || 0) - (b.weight || 0));
+    } else if (currentSort === 'Nearest') {
+      filtered = filtered.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+    }
+    
     return filtered;
-  }, [params]);
+  }, [params, selectedVehicle, showBackhaul, currentSort, searchText]);
   
   const handleLoadPress = (loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
+  };
+  
+  const handleVehicleSelect = (vehicle?: VehicleType) => {
+    setSelectedVehicle(vehicle);
+  };
+  
+  const handleBackhaulToggle = () => {
+    setShowBackhaul(!showBackhaul);
+  };
+  
+  const handleOpenFilters = () => {
+    // TODO: Open filters modal
+    console.log('Open filters modal');
+  };
+  
+  const handleApplyChip = (chip: 'highest' | 'near' | 'lightest' | 'new') => {
+    switch (chip) {
+      case 'highest':
+        setCurrentSort('Highest $');
+        break;
+      case 'near':
+        setCurrentSort('Nearest');
+        break;
+      case 'lightest':
+        setCurrentSort('Lightest');
+        break;
+      case 'new':
+        setCurrentSort('New Today');
+        break;
+    }
+  };
+  
+  const handleOpenAiLoads = () => {
+    router.push('/ai-loads');
+  };
+  
+  const handleOpenAiBackhaul = () => {
+    console.log('Open AI Backhaul');
+  };
+  
+  const handleSetRadius = (radius: number) => {
+    setRadiusMiles(radius);
+  };
+  
+  const handleOpenGeoFencing = () => {
+    setGeoFencingActive(!geoFencingActive);
   };
   
   return (
     <>
       <Stack.Screen options={{ title: 'Available Loads' }} />
       <View style={styles.container}>
+        {/* Filters Button and Search Bar */}
+        <View style={styles.searchContainer}>
+          <TouchableOpacity style={styles.filtersButton} onPress={handleOpenFilters}>
+            <Filter size={20} color={theme.colors.primary} />
+            <Text style={styles.filtersText}>Filters</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.searchInputContainer}>
+            <Search size={16} color={theme.colors.gray} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Describe your load (e.g., 'Dallas to ATL, +$800, <8k lbs')"
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholderTextColor={theme.colors.gray}
+            />
+          </View>
+          
+          <TouchableOpacity style={styles.applyButton}>
+            <Text style={styles.applyText}>Apply</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Filter Bars */}
+        <FilterBar
+          selectedVehicle={selectedVehicle}
+          showBackhaul={showBackhaul}
+          onVehicleSelect={handleVehicleSelect}
+          onBackhaulToggle={handleBackhaulToggle}
+          onOpenFilters={handleOpenFilters}
+          onApplyChip={handleApplyChip}
+          onOpenAiLoads={handleOpenAiLoads}
+          onOpenAiBackhaul={handleOpenAiBackhaul}
+          currentSort={currentSort}
+          hasLocationPerm={hasLocationPerm}
+          radiusMiles={radiusMiles}
+          onSetRadius={handleSetRadius}
+          onOpenGeoFencing={handleOpenGeoFencing}
+          geoFencingActive={geoFencingActive}
+        />
+        
         <ScrollView contentContainerStyle={styles.content}>
           {loads.length === 0 ? (
             <View style={styles.emptyState}>
@@ -115,6 +244,57 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.lightGray,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+    gap: theme.spacing.sm,
+  },
+  filtersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+  },
+  filtersText: {
+    color: theme.colors.primary,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.dark,
+  },
+  applyButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+  },
+  applyText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
   },
   content: {
     padding: theme.spacing.lg,
