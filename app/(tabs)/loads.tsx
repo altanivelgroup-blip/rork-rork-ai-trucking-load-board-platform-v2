@@ -1,263 +1,19 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { DollarSign, RotateCcw, Filter, Phone, Mail } from 'lucide-react-native';
-import { collection, query, where, orderBy, limit, onSnapshot, startAfter, DocumentSnapshot, Timestamp } from 'firebase/firestore';
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { LOADS_COLLECTION } from '@/lib/loadSchema';
+import { DollarSign, Filter, Phone, Mail } from 'lucide-react-native';
+import { useLoads } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
-import { LoadsFiltersModal, loadFiltersFromStorage } from '@/components/LoadsFiltersModal';
-
-interface LoadFilters {
-  equipmentTypes: string[];
-  maxWeightLbs?: number;
-  pickupFrom?: string;
-  sortBy: 'createdAt' | 'pickupDate';
-}
-
-interface NormalizedLoad {
-  id: string;
-  originCity: string;
-  originState: string;
-  destCity: string;
-  destState: string;
-  pickupDate: string; // YYYY-MM-DD format or 'ASAP'
-  equipmentType: string;
-  weightLbs: number;
-  rateTotalUSD: number;
-  contactPhone?: string;
-  contactEmail?: string;
-  createdAt: Date;
-}
+import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
 
 export default function LoadsScreen() {
-  const params = useLocalSearchParams();
   const router = useRouter();
   const { show } = useToast();
+  const { filteredLoads, isLoading, refreshLoads, filters, setFilters } = useLoads();
   
-  // Firestore state
-  const [items, setItems] = useState<NormalizedLoad[]>([]);
-  const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
-  const [isEnd, setIsEnd] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-  
-  // Filter states
-  const [filters, setFilters] = useState<LoadFilters>({
-    equipmentTypes: [],
-    sortBy: 'createdAt'
-  });
   const [showFiltersModal, setShowFiltersModal] = useState<boolean>(false);
-  
-  // Load filters from storage on mount
-  useEffect(() => {
-    loadFiltersFromStorage().then(setFilters);
-  }, []);
-
-  // Check for optimistic load from navigation or temp store
-  useEffect(() => {
-    const tempLoad = params.tempLoad ? JSON.parse(params.tempLoad as string) : null;
-    if (tempLoad) {
-      setItems(prev => [tempLoad, ...prev.filter(l => l.id !== tempLoad.id)]);
-    }
-  }, [params.tempLoad]);
-  
-  // Normalize Firestore document to NormalizedLoad interface
-  const normalizeFirestoreLoad = useCallback((doc: any): NormalizedLoad => {
-    const data = doc.data();
-    
-    // Handle pickup date formatting
-    let pickupDateStr = 'ASAP';
-    if (data.pickupDate) {
-      try {
-        const date = data.pickupDate instanceof Timestamp ? data.pickupDate.toDate() : new Date(data.pickupDate);
-        if (!isNaN(date.getTime())) {
-          pickupDateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
-        }
-      } catch (e) {
-        console.warn('Failed to parse pickup date:', e);
-      }
-    }
-    
-    return {
-      id: doc.id,
-      originCity: data.originCity || data.origin?.city || '',
-      originState: data.originState || data.origin?.state || '',
-      destCity: data.destCity || data.destination?.city || '',
-      destState: data.destState || data.destination?.state || '',
-      pickupDate: pickupDateStr,
-      equipmentType: data.equipmentType || data.vehicleType || 'truck',
-      weightLbs: Number(data.weightLbs || data.weight || 0),
-      rateTotalUSD: Number(data.rateTotalUSD || data.rate || data.rateAmount || 0),
-      contactPhone: data.contactPhone || '',
-      contactEmail: data.contactEmail || '',
-      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.clientCreatedAt || Date.now())
-    };
-  }, []);
-  
-  // Load initial data
-  const loadInitialData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const authSuccess = await ensureFirebaseAuth();
-      if (!authSuccess) {
-        throw new Error('Authentication failed');
-      }
-      
-      const { db } = getFirebase();
-      const orderField = filters.sortBy === 'pickupDate' ? 'pickupDate' : 'createdAt';
-      
-      const q = query(
-        collection(db, LOADS_COLLECTION),
-        where('status', '==', 'active'),
-        orderBy(orderField, 'desc'),
-        limit(25)
-      );
-      
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const loads = snapshot.docs.map(normalizeFirestoreLoad);
-        
-        // Set the loaded items directly (no deduplication needed for fresh queries)
-        setItems(loads);
-        setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-        setIsEnd(snapshot.docs.length < 25);
-        setIsLoading(false);
-      }, (err) => {
-        console.error('Firestore subscription error:', err);
-        setError('Failed to load data');
-        setIsLoading(false);
-        show('Failed to load loads', 'error');
-      });
-      
-      return unsubscribe;
-    } catch (err: any) {
-      console.error('Load initial data error:', err);
-      setError(err.message || 'Failed to load data');
-      setIsLoading(false);
-      show('Failed to connect to database', 'error');
-    }
-  }, [filters.sortBy, normalizeFirestoreLoad, show]);
-  
-  // Load more data for pagination
-  const loadMoreData = useCallback(async () => {
-    if (isLoadingMore || isEnd || !lastDoc) return;
-    
-    try {
-      setIsLoadingMore(true);
-      
-      const { db } = getFirebase();
-      const orderField = filters.sortBy === 'pickupDate' ? 'pickupDate' : 'createdAt';
-      
-      const q = query(
-        collection(db, LOADS_COLLECTION),
-        where('status', '==', 'active'),
-        orderBy(orderField, 'desc'),
-        startAfter(lastDoc),
-        limit(25)
-      );
-      
-      onSnapshot(q, (snapshot) => {
-        const newLoads = snapshot.docs.map(normalizeFirestoreLoad);
-        
-        if (newLoads.length > 0) {
-          setItems(prev => [...prev, ...newLoads]);
-          setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
-        }
-        
-        setIsEnd(snapshot.docs.length < 25);
-        setIsLoadingMore(false);
-      }, (err) => {
-        console.error('Load more error:', err);
-        setIsLoadingMore(false);
-        show('Failed to load more', 'error');
-      });
-      
-    } catch (err: any) {
-      console.error('Load more data error:', err);
-      setIsLoadingMore(false);
-      show('Failed to load more data', 'error');
-    }
-  }, [isLoadingMore, isEnd, lastDoc, filters.sortBy, normalizeFirestoreLoad, show]);
-  
-  // Initialize data loading
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    
-    loadInitialData().then((unsub) => {
-      unsubscribe = unsub;
-    });
-    
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, []);
-  
-  // Reload data when filters change
-  useEffect(() => {
-    // Reset and reload when sort changes
-    setItems([]);
-    setLastDoc(null);
-    setIsEnd(false);
-    loadInitialData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.sortBy]);
-  
-  // Apply client-side filters
-  const filteredLoads = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    
-    return items.filter(load => {
-      // Equipment type filter
-      if (filters.equipmentTypes.length > 0 && !filters.equipmentTypes.includes(load.equipmentType)) {
-        return false;
-      }
-      
-      // Max weight filter
-      if (filters.maxWeightLbs && load.weightLbs > filters.maxWeightLbs) {
-        return false;
-      }
-      
-      // Pickup location filter
-      if (filters.pickupFrom) {
-        const originText = `${load.originCity}, ${load.originState}`.toLowerCase();
-        if (!originText.includes(filters.pickupFrom.toLowerCase())) {
-          return false;
-        }
-      }
-      
-      // Pickup date >= today filter (skip 'ASAP' loads)
-      if (load.pickupDate !== 'ASAP' && load.pickupDate < today) {
-        return false;
-      }
-      
-      return true;
-    });
-  }, [items, filters]);
-  
-  // Refresh data
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    setItems([]);
-    setLastDoc(null);
-    setIsEnd(false);
-    await loadInitialData();
-    setRefreshing(false);
-  }, [loadInitialData]);
-  
-  // Toggle sort
-  const toggleSort = useCallback(() => {
-    setFilters(prev => ({
-      ...prev,
-      sortBy: prev.sortBy === 'createdAt' ? 'pickupDate' : 'createdAt'
-    }));
-  }, []);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   
   const loads = filteredLoads;
   
@@ -269,9 +25,9 @@ export default function LoadsScreen() {
     setShowFiltersModal(true);
   }, []);
   
-  const handleApplyFilters = useCallback((newFilters: LoadFilters) => {
+  const handleApplyFilters = useCallback((newFilters: any) => {
     setFilters(newFilters);
-  }, []);
+  }, [setFilters]);
   
   const handleCall = useCallback((phone: string) => {
     if (phone) {
@@ -291,6 +47,17 @@ export default function LoadsScreen() {
     }
   }, []);
   
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshLoads();
+    } catch {
+      show('Failed to refresh loads', 'error');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshLoads, show]);
+  
   const handleOpenAiLoads = () => {
     router.push('/ai-loads');
   };
@@ -301,13 +68,6 @@ export default function LoadsScreen() {
       <View style={styles.container}>
         {/* Header Controls */}
         <View style={styles.headerControls}>
-          <TouchableOpacity style={styles.sortButton} onPress={toggleSort}>
-            <RotateCcw size={16} color={theme.colors.primary} />
-            <Text style={styles.sortButtonText}>
-              Sort: {filters.sortBy === 'createdAt' ? 'Latest' : 'Pickup Date'}
-            </Text>
-          </TouchableOpacity>
-          
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.filterButton} onPress={handleOpenFilters}>
               <Filter size={16} color={theme.colors.primary} />
@@ -321,27 +81,13 @@ export default function LoadsScreen() {
         
         <Text style={styles.debugBanner}>debug: {loads.length} loads</Text>
         
-        {error && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-        
         <ScrollView 
           contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
-          onScroll={({ nativeEvent }) => {
-            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-            const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 200;
-            if (isCloseToBottom && !isLoadingMore && !isEnd) {
-              loadMoreData();
-            }
-          }}
-          scrollEventThrottle={400}
         >
-          {isLoading && items.length === 0 ? (
+          {isLoading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
               <Text style={styles.loadingText}>Loading loads...</Text>
@@ -352,84 +98,82 @@ export default function LoadsScreen() {
               <Text style={styles.emptySubtitle}>Try adjusting your filters or check back later</Text>
             </View>
           ) : (
-            <>
-              {loads.map((load) => {
-                return (
-                  <View
-                    key={load.id}
-                    style={styles.loadCard}
-                    testID={`load-${load.id}`}
+            loads.map((load) => {
+              const originText = typeof load.origin === 'string'
+                ? load.origin
+                : `${load.origin?.city ?? ''}, ${load.origin?.state ?? ''}`;
+              
+              const destText = typeof load.destination === 'string'
+                ? load.destination
+                : `${load.destination?.city ?? ''}, ${load.destination?.state ?? ''}`;
+              
+              const rateVal = load.rate ?? 0;
+              const weightVal = load.weight ?? 0;
+              
+              return (
+                <View
+                  key={load.id}
+                  style={styles.loadCard}
+                  testID={`load-${load.id}`}
+                >
+                  <TouchableOpacity
+                    style={styles.loadContent}
+                    onPress={() => handleLoadPress(load.id)}
                   >
-                    <TouchableOpacity
-                      style={styles.loadContent}
-                      onPress={() => handleLoadPress(load.id)}
-                    >
-                      <View style={styles.loadHeader}>
-                        <Text style={styles.loadTitle} numberOfLines={1}>
-                          {load.originCity}, {load.originState} → {load.destCity}, {load.destState}
-                        </Text>
-                        <View style={styles.rateChip}>
-                          <DollarSign size={16} color={theme.colors.white} />
-                          <Text style={styles.rateText}>${load.rateTotalUSD.toLocaleString()}</Text>
-                        </View>
+                    <View style={styles.loadHeader}>
+                      <Text style={styles.loadTitle} numberOfLines={1}>
+                        {originText} → {destText}
+                      </Text>
+                      <View style={styles.rateChip}>
+                        <DollarSign size={16} color={theme.colors.white} />
+                        <Text style={styles.rateText}>${rateVal.toLocaleString()}</Text>
                       </View>
-                      
-                      <View style={styles.loadSubtitle}>
-                        <Text style={styles.subtitleText}>
-                          {load.pickupDate} • {load.equipmentType} • {load.weightLbs.toLocaleString()} lbs
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                    
-                    {/* Action buttons */}
-                    <View style={styles.loadActions}>
-                      {load.contactPhone && (
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleCall(load.contactPhone!)}
-                          testID={`call-${load.id}`}
-                        >
-                          <Phone size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Call</Text>
-                        </TouchableOpacity>
-                      )}
-                      {load.contactEmail && (
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleEmail(load.contactEmail!)}
-                          testID={`email-${load.id}`}
-                        >
-                          <Mail size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Email</Text>
-                        </TouchableOpacity>
-                      )}
                     </View>
+                    
+                    <View style={styles.loadSubtitle}>
+                      <Text style={styles.subtitleText}>
+                        {load.pickupDate ? new Date(load.pickupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'ASAP'} • {load.vehicleType || 'truck'} • {weightVal.toLocaleString()} lbs
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  
+                  {/* Action buttons */}
+                  <View style={styles.loadActions}>
+                    {load.shipperName && (
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleCall('555-0123')}
+                        testID={`call-${load.id}`}
+                      >
+                        <Phone size={16} color={theme.colors.primary} />
+                        <Text style={styles.actionButtonText}>Call</Text>
+                      </TouchableOpacity>
+                    )}
+                    {load.shipperName && (
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleEmail('contact@example.com')}
+                        testID={`email-${load.id}`}
+                      >
+                        <Mail size={16} color={theme.colors.primary} />
+                        <Text style={styles.actionButtonText}>Email</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
-                );
-              })}
-              
-              {isLoadingMore && (
-                <View style={styles.loadingMore}>
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                  <Text style={styles.loadingMoreText}>Loading more...</Text>
                 </View>
-              )}
-              
-              {isEnd && loads.length > 0 && (
-                <View style={styles.endMessage}>
-                  <Text style={styles.endMessageText}>No more loads to show</Text>
-                </View>
-              )}
-            </>
+              );
+            })
           )}
         </ScrollView>
         
-        <LoadsFiltersModal
-          visible={showFiltersModal}
-          onClose={() => setShowFiltersModal(false)}
-          filters={filters}
-          onApplyFilters={handleApplyFilters}
-        />
+        {showFiltersModal && (
+          <LoadsFiltersModal
+            visible={showFiltersModal}
+            onClose={() => setShowFiltersModal(false)}
+            filters={filters as any}
+            onApplyFilters={handleApplyFilters}
+          />
+        )}
       </View>
     </>
   );
@@ -442,27 +186,13 @@ const styles = StyleSheet.create({
   },
   headerControls: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     backgroundColor: theme.colors.white,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
-  },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.lightGray,
-  },
-  sortButtonText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.primary,
-    fontWeight: '600',
   },
   headerActions: {
     flexDirection: 'row',
@@ -492,16 +222,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.xs,
     backgroundColor: theme.colors.lightGray,
   },
-  errorBanner: {
-    backgroundColor: '#fee',
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  errorText: {
-    color: '#c33',
-    fontSize: theme.fontSize.sm,
-    textAlign: 'center',
-  },
+
   content: {
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
@@ -607,24 +328,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.primary,
   },
-  loadingMore: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  loadingMoreText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-  },
-  endMessage: {
-    paddingVertical: theme.spacing.lg,
-    alignItems: 'center',
-  },
-  endMessageText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    fontStyle: 'italic',
-  },
+
 });
