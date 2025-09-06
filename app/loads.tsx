@@ -35,8 +35,45 @@ useEffect(() => {
   return () => unsub();
 }, []);
   
-  const loads = useMemo(() => {
-    let filtered = items ?? [];
+  
+const loads = useMemo(() => {
+  let filtered = items ?? [];
+
+  // Apply filters from params if any (safe against missing fields)
+  if (params.origin && typeof params.origin === 'string' && params.origin.trim() !== '') {
+    const originFilter = params.origin.toLowerCase();
+    filtered = filtered.filter(load => {
+      const originCity  = (load.originCity ?? load.origin?.city ?? '').toLowerCase();
+      const originState = (load.originState ?? load.origin?.state ?? '').toLowerCase();
+      return originCity.includes(originFilter) || originState.includes(originFilter);
+    });
+  }
+
+  if (params.destination && typeof params.destination === 'string' && params.destination.trim() !== '') {
+    const destinationFilter = params.destination.toLowerCase();
+    filtered = filtered.filter(load => {
+      const destCity  = (load.destCity ?? load.destination?.city ?? '').toLowerCase();
+      const destState = (load.destState ?? load.destination?.state ?? '').toLowerCase();
+      return destCity.includes(destinationFilter) || destState.includes(destinationFilter);
+    });
+  }
+
+  if (params.minWeight && typeof params.minWeight === 'string') {
+    const minWeight = parseInt(params.minWeight, 10);
+    if (!Number.isNaN(minWeight)) {
+      filtered = filtered.filter(load => (Number(load.weightLbs ?? load.weight ?? 0)) >= minWeight);
+    }
+  }
+
+  if (params.minPrice && typeof params.minPrice === 'string') {
+    const minPrice = parseInt(params.minPrice, 10);
+    if (!Number.isNaN(minPrice)) {
+      filtered = filtered.filter(load => (Number(load.rateTotalUSD ?? load.rate ?? 0)) >= minPrice);
+    }
+  }
+
+  return filtered;
+}, [params, items]);
 
     
     // Apply filters from params if any
