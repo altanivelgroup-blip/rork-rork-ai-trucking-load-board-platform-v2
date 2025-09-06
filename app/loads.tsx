@@ -27,6 +27,7 @@ useEffect(() => {
     q,
     (snap) => {
       const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      console.log('[Loads] fetched', arr.length);
       setItems(arr);
     },
     (err) => {
