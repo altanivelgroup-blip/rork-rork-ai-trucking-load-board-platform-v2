@@ -74,7 +74,7 @@ export default function LoadsScreen() {
         <View style={styles.headerControls}>
           {/* Equipment Type Filters */}
           <View style={styles.equipmentFilters}>
-            <TouchableOpacity style={styles.filtersButton}>
+            <TouchableOpacity style={styles.filtersButton} onPress={handleOpenFilters}>
               <Filter size={16} color={theme.colors.primary} />
               <Text style={styles.filtersButtonText}>Filters</Text>
             </TouchableOpacity>
@@ -124,7 +124,10 @@ export default function LoadsScreen() {
                 placeholderTextColor={theme.colors.gray}
               />
             </View>
-            <TouchableOpacity style={styles.applyButton}>
+            <TouchableOpacity style={styles.applyButton} onPress={() => {
+              // Apply search filter logic here
+              console.log('Search applied:', searchText);
+            }}>
               <Text style={styles.applyButtonText}>Apply</Text>
             </TouchableOpacity>
           </View>
