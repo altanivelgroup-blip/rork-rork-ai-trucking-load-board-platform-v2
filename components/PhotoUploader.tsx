@@ -311,6 +311,10 @@ export function PhotoUploader({
   const writeInFlightRef = React.useRef<boolean>(false);
   const pendingWriteRef = React.useRef<{ photos: string[]; primaryPhoto: string } | null>(null);
 
+  const isRemoteUrl = useCallback((u: string) => {
+    return typeof u === 'string' && /^https?:\/\//i.test(u) && u.length <= 2048;
+  }, []);
+
   const processPendingWrites = useCallback(async () => {
     if (writeInFlightRef.current) return;
     writeInFlightRef.current = true;
@@ -327,16 +331,20 @@ export function PhotoUploader({
         const next = pendingWriteRef.current;
         if (!next) break;
         pendingWriteRef.current = null;
+
+        const safePhotos = next.photos.filter(isRemoteUrl);
+        const safePrimary = isRemoteUrl(next.primaryPhoto) ? next.primaryPhoto : (safePhotos[0] ?? '');
+
         await setDoc(
           docRef,
           {
-            photos: next.photos,
-            primaryPhoto: next.primaryPhoto,
+            photos: safePhotos,
+            primaryPhoto: safePrimary,
             updatedAt: serverTimestamp(),
           },
           { merge: true }
         );
-        console.log('[PhotoUploader] Firestore upserted (coalesced) with', next.photos.length, 'photos');
+        console.log('[PhotoUploader] Firestore upserted (coalesced) with', safePhotos.length, 'photos');
       }
     } catch (error) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
@@ -351,13 +359,15 @@ export function PhotoUploader({
         }, 0);
       }
     }
-  }, [entityId, entityType, toast]);
+  }, [entityId, entityType, toast, isRemoteUrl]);
 
   const updateFirestorePhotos = useCallback(async (photos: string[], primaryPhoto: string) => {
-    pendingWriteRef.current = { photos, primaryPhoto };
+    const filtered = photos.filter((u) => /^https?:\/\//i.test(u));
+    const safePrimary = /^https?:\/\//i.test(primaryPhoto) ? primaryPhoto : (filtered[0] ?? '');
+    pendingWriteRef.current = { photos: filtered, primaryPhoto: safePrimary };
     setTimeout(() => {
       const uploadsInProgress = state.photos.filter(p => p.uploading).length;
-      onChange?.(photos, primaryPhoto, uploadsInProgress);
+      onChange?.(filtered, safePrimary, uploadsInProgress);
     }, 0);
     processPendingWrites().catch((e) => console.error('[PhotoUploader] processPendingWrites error:', e));
   }, [onChange, state.photos, processPendingWrites]);
