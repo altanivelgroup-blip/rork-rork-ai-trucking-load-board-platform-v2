@@ -52,16 +52,18 @@ function LoadRow({ id, title, originCity, destinationCity, rate, status, onView,
 export default function ShipperDashboard() {
   const router = useRouter();
   const { loads } = useLoads();
-  const { user } = useAuth();
+  const { user, userId } = useAuth();
   
   const shipperLoads = useMemo(() => {
-    const uid = user?.id;
-    return loads.filter(load => (uid ? load.shipperId === uid : load.shipperId === 'current-shipper'));
-  }, [loads, user?.id]);
+    const uid = userId || user?.id || null;
+    console.log('[ShipperDashboard] filter by uid:', uid);
+    if (!uid) return [];
+    return loads.filter(load => load.shipperId === uid);
+  }, [loads, user?.id, userId]);
   
   const stats = useMemo(() => {
     const totalLoads = shipperLoads.length;
-    const activeLoads = shipperLoads.filter(l => l.status === 'OPEN').length;
+    const activeLoads = shipperLoads.filter(l => l.status === 'available' || l.status === 'in-transit').length;
     const totalRevenue = shipperLoads.reduce((sum, l) => sum + (l.rate || 0), 0);
     const avgRate = totalLoads > 0 ? totalRevenue / totalLoads : 0;
     
