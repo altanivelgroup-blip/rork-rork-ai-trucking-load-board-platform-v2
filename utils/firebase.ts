@@ -97,36 +97,47 @@ export function getFirebase() {
 // Ensure we have an authenticated user
 export async function ensureFirebaseAuth(): Promise<boolean> {
   try {
-    // Check if we already have a user
-    if (auth.currentUser) {
+    if (auth?.currentUser) {
       console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
       return true;
     }
-    
+
     console.log("[AUTH] Attempting anonymous sign-in...");
-    
-    // Wait a bit to ensure Firebase is fully initialized
+
     await new Promise(resolve => setTimeout(resolve, 100));
-    
-    const result = await signInAnonymously(auth);
-    console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
-    console.log("[AUTH] Note: Anonymous users may have limited permissions in production");
-    return true;
+
+    const timeoutMs = 6000;
+    const timer = new Promise<never>((_, reject) => setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout' }), timeoutMs));
+
+    const result = await Promise.race([
+      signInAnonymously(auth),
+      timer,
+    ]) as any;
+
+    if (result?.user?.uid) {
+      console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
+      return true;
+    }
+
+    console.warn('[AUTH] Anonymous sign-in did not return a user');
+    return false;
   } catch (error: any) {
+    const code = error?.code ?? 'unknown';
     console.error("[AUTH ERROR] Sign-in failed:", {
-      code: error.code,
-      message: error.message,
+      code,
+      message: error?.message,
       projectId: firebaseConfig.projectId,
       apiKey: firebaseConfig.apiKey ? 'present' : 'missing'
     });
-    
-    // If it's an API key error, provide more specific guidance
-    if (error.code === 'auth/api-key-not-valid') {
+
+    if (code === 'auth/api-key-not-valid') {
       console.error("[AUTH ERROR] Invalid API key. Please check Firebase project configuration.");
-    } else if (error.code === 'auth/operation-not-allowed') {
+    } else if (code === 'auth/operation-not-allowed') {
       console.error("[AUTH ERROR] Anonymous authentication is not enabled in Firebase Console.");
+    } else if (code === 'timeout' || code === 'unavailable') {
+      console.warn('[AUTH] Network unavailable or timed out. Proceeding without Firebase auth.');
     }
-    
+
     return false;
   }
 }

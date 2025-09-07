@@ -407,6 +407,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       if (!user?.id) {
         throw new Error('User not authenticated');
       }
+
+      setDraft(prev => ({ ...prev, isPosting: true }));
       
       // Get the current draft state - use the draft from closure
       // If contactInfo is provided, use it to update the draft
@@ -432,7 +434,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         photoUrls: currentDraft.photoUrls?.length,
         photosLocal: currentDraft.photosLocal?.length,
         contact: currentDraft.contact,
-        isPosting: currentDraft.isPosting
+        isPosting: true
       });
       
       // Basic validation before proceeding
@@ -600,6 +602,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     } catch (error) {
       console.error('[PostLoad] postLoadWizard error:', error);
       throw error;
+    } finally {
+      setDraft(prev => ({ ...prev, isPosting: false }));
     }
   }, [draft, user?.id, user?.name, reset, createLocalLoad, uploadPhotosToFirebase, addLoad]);
 
