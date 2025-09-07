@@ -5,6 +5,7 @@ import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
 import { Truck, DollarSign, Package, TrendingUp, Eye, Edit, Trash2 } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
+import { useAuth } from '@/hooks/useAuth';
 
 interface LoadRowProps {
   id: string;
@@ -51,10 +52,12 @@ function LoadRow({ id, title, originCity, destinationCity, rate, status, onView,
 export default function ShipperDashboard() {
   const router = useRouter();
   const { loads } = useLoads();
+  const { user } = useAuth();
   
   const shipperLoads = useMemo(() => {
-    return loads.filter(load => load.shipperId === 'current-shipper');
-  }, [loads]);
+    const uid = user?.id;
+    return loads.filter(load => (uid ? load.shipperId === uid : load.shipperId === 'current-shipper'));
+  }, [loads, user?.id]);
   
   const stats = useMemo(() => {
     const totalLoads = shipperLoads.length;

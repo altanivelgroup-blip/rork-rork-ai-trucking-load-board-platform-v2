@@ -219,7 +219,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       }
 
       toast?.success?.('Load posted successfully');
-      router?.replace?.({ pathname: '/load-details', params: { loadId: docRef.id } });
+      router?.replace?.('/(tabs)/loads');
       try { setField && setField('isPosting', false); } catch {}
     } catch (fireErr: any) {
       console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
