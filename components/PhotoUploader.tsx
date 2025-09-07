@@ -283,9 +283,9 @@ export function PhotoUploader({
   }, [loadPhotos]);
 
   const validateFile = useCallback((file: { type?: string; size?: number; uri: string }) => {
-    if (file.size && file.size > 10 * 1024 * 1024) {
-      toast.show('File too large (max 10MB).', 'error');
-      return `File size too large (${humanSize(file.size)}). Maximum 10MB allowed.`;
+    if (file.size && file.size > 5 * 1024 * 1024) {
+      toast.show('File too large (max 5MB).', 'error');
+      return `File size too large (${humanSize(file.size)}). Maximum 5MB allowed.`;
     }
     const { mime } = inferMimeAndExt(file);
     if (!isImageMime(mime)) {
@@ -423,7 +423,7 @@ export function PhotoUploader({
         } else if (code.includes('retry-limit-exceeded')) {
           errorMessage = 'Network is slow — please retry this photo.';
         } else if (code.includes('File too large')) {
-          errorMessage = 'Photo too large. Keep under 10MB.';
+          errorMessage = 'Photo too large. Keep under 5MB.';
         } else if (code.includes('api-key-not-valid')) {
           errorMessage = 'Configuration error. Please contact support.';
         }
