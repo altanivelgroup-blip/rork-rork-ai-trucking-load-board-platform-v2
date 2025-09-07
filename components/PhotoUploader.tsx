@@ -230,7 +230,7 @@ export function PhotoUploader({
   entityType,
   entityId,
   minPhotos = entityType === 'load' ? 2 : 5,
-  maxPhotos = 20,
+  maxPhotos = entityType === 'load' ? 2 : 20,
   onChange,
 }: PhotoUploaderProps) {
   const [state, setState] = useState<PhotoUploadState>({
