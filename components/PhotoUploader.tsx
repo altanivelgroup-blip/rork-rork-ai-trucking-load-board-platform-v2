@@ -59,9 +59,9 @@ interface PhotoItem {
   progress?: number;
   error?: string;
   id: string;
-  originalFile?: AnyImage; // Store original input for retry
+  originalFile?: AnyImage;
 }
-// ✅ Helper to upsert photo into Firestore
+
 async function upsertLoadPhoto(loadId: string, url: string, makePrimary = false) {
   const { db } = getFirebase();
   const ref = doc(db, LOADS_COLLECTION, loadId);
@@ -95,12 +95,18 @@ interface QAState {
   showQAPanel: boolean;
 }
 
-// QA Helper functions
+type ResizePreset = 'small' | 'medium' | 'large';
+
+function presetToOptions(preset: ResizePreset) {
+  if (preset === 'small') return { maxWidth: 1280, maxHeight: 960, baseQuality: 0.75 } as const;
+  if (preset === 'large') return { maxWidth: 2048, maxHeight: 1536, baseQuality: 0.85 } as const;
+  return { maxWidth: 1600, maxHeight: 1200, baseQuality: 0.8 } as const;
+}
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const random = (min: number, max: number) => Math.random() * (max - min) + min;
-const shouldFailRandomly = () => Math.random() < 0.1; // 10% chance
+const shouldFailRandomly = () => Math.random() < 0.1;
 
-// Helper to infer file extension from MIME type and filename
 function inferExtension(mime?: string, filename?: string): string {
   if (mime?.includes("jpeg") || filename?.toLowerCase().endsWith(".jpg") || filename?.toLowerCase().endsWith(".jpeg") || filename?.toLowerCase().endsWith(".jfif")) {
     return "jpg";
@@ -114,16 +120,13 @@ function inferExtension(mime?: string, filename?: string): string {
   if (mime?.includes("heic") || filename?.toLowerCase().endsWith(".heic") || filename?.toLowerCase().endsWith(".heif")) {
     return "heic";
   }
-  return "jpg"; // Default fallback
+  return "jpg";
 }
 
-// File type inference helper
 const inferMimeAndExt = (file: any) => {
   let mime = (file?.type || "").toLowerCase();
   let name = (file?.name || file?.filename || "");
   let ext = inferExtension(mime, name);
-  
-  // Try to infer from extension if mime is missing or not image
   if (!mime.startsWith("image/")) {
     if (["jpg", "jpeg", "jfif"].includes(ext)) {
       mime = "image/jpeg";
@@ -135,17 +138,13 @@ const inferMimeAndExt = (file: any) => {
       mime = "image/heic";
     }
   }
-  
-  // Default fallback
   if (!mime.startsWith("image/")) {
     mime = "image/jpeg";
     ext = "jpg";
   }
-  
   return { mime, ext };
 };
 
-// Map Firebase Storage errors to user-friendly messages
 const mapStorageError = (error: any): string => {
   const code = error?.code;
   if (code === "storage/unauthorized" || code === "storage/unauthenticated") {
@@ -160,7 +159,6 @@ const mapStorageError = (error: any): string => {
   return error?.message || "Upload failed. Please try again.";
 };
 
-// Concurrency control for uploads
 const MAX_CONCURRENCY = 2;
 let activeUploads = 0;
 const uploadQueue: (() => Promise<void>)[] = [];
@@ -182,21 +180,15 @@ function enqueueUpload(job: () => Promise<void>) {
   runNextUpload();
 }
 
-// Smart upload function with fallback
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
   const { storage } = getFirebase();
-  
   console.log('[PhotoUploader] Mock upload to path:', path);
-  
   try {
-    // Simulate upload progress
     const steps = [10, 25, 50, 75, 90, 100];
     for (const progress of steps) {
       updateProgress?.(progress);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    
-    // Use storage.ref mock method
     const storageRef = storage.ref(path);
     const result = await storageRef.put(blob);
     return await result.ref.getDownloadURL();
@@ -206,9 +198,14 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
   }
 }
 
-async function uploadWithFallback(basePath: string, input: any, updateProgress?: (progress: number) => void): Promise<string> {
+async function uploadWithFallback(
+  basePath: string,
+  input: any,
+  updateProgress?: (progress: number) => void,
+  resizeOpts?: { maxWidth?: number; maxHeight?: number; baseQuality?: number }
+): Promise<string> {
   try {
-    const { blob, mime, ext } = await prepareForUpload(input);
+    const { blob, mime, ext } = await prepareForUpload(input, resizeOpts);
     const key = uuid.v4() as string;
     const path = `${basePath}/${key}.${ext}`;
 
@@ -217,8 +214,6 @@ async function uploadWithFallback(basePath: string, input: any, updateProgress?:
     } catch (err: any) {
       const code = String(err?.code || err?.message || "");
       console.log('[PhotoUploader] Upload failed, attempting fallback:', code);
-      
-      // For mock implementation, just return a different mock URL
       const fallbackKey = uuid.v4() as string;
       updateProgress?.(100);
       return `https://picsum.photos/800/600?random=${fallbackKey}`;
@@ -229,9 +224,7 @@ async function uploadWithFallback(basePath: string, input: any, updateProgress?:
   }
 }
 
-
-
-const THUMBNAIL_SIZE = (screenWidth - 48) / 3; // 3 columns with padding
+const THUMBNAIL_SIZE = (screenWidth - 48) / 3;
 
 export function PhotoUploader({
   entityType,
@@ -252,10 +245,11 @@ export function PhotoUploader({
     showQAPanel: false,
   });
 
+  const [resizePreset, setResizePreset] = useState<ResizePreset>('medium');
+
   const [showImageModal, setShowImageModal] = useState<string | null>(null);
   const toast = useToast();
 
-  // Load existing photos from Firestore
   const loadPhotos = useCallback(async () => {
     try {
       console.log('[PhotoUploader] Loading photos for', entityType, entityId);
@@ -288,26 +282,18 @@ export function PhotoUploader({
     loadPhotos();
   }, [loadPhotos]);
 
-  // Validate file - reject files > 10MB BEFORE processing
   const validateFile = useCallback((file: { type?: string; size?: number; uri: string }) => {
-    // Check file size - reject files > 10MB BEFORE upload
     if (file.size && file.size > 10 * 1024 * 1024) {
       toast.show('File too large (max 10MB).', 'error');
       return `File size too large (${humanSize(file.size)}). Maximum 10MB allowed.`;
     }
-    
-    // Infer mime type and validate
     const { mime } = inferMimeAndExt(file);
     if (!isImageMime(mime)) {
       return 'File must be an image (JPG, PNG, WebP, HEIC)';
     }
-    
     return null;
   }, [toast]);
 
-
-
-  // Serialize and coalesce Firestore writes to avoid "queued writes" exhaustion
   const writeInFlightRef = React.useRef<boolean>(false);
   const pendingWriteRef = React.useRef<{ photos: string[]; primaryPhoto: string } | null>(null);
 
@@ -322,19 +308,12 @@ export function PhotoUploader({
       const { db } = getFirebase();
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
       const docRef = doc(db, collectionName, entityId);
-
-      // Drain queue, always writing only the latest snapshot
-      // This collapses bursts of updates into minimal writes
-      // and guarantees a single active write at any time
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const next = pendingWriteRef.current;
         if (!next) break;
         pendingWriteRef.current = null;
-
         const safePhotos = next.photos.filter(isRemoteUrl);
         const safePrimary = isRemoteUrl(next.primaryPhoto) ? next.primaryPhoto : (safePhotos[0] ?? '');
-
         await setDoc(
           docRef,
           {
@@ -351,9 +330,7 @@ export function PhotoUploader({
       toast.show('Failed to save photos', 'error');
     } finally {
       writeInFlightRef.current = false;
-      // If something was queued while writing, process again
       if (pendingWriteRef.current) {
-        // microtask to yield back to event loop
         setTimeout(() => {
           processPendingWrites().catch((e) => console.error('[PhotoUploader] processPendingWrites retry error:', e));
         }, 0);
@@ -372,94 +349,75 @@ export function PhotoUploader({
     processPendingWrites().catch((e) => console.error('[PhotoUploader] processPendingWrites error:', e));
   }, [onChange, state.photos, processPendingWrites]);
 
-  // Upload single file with new smart upload logic
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
-      // Try to ensure Firebase auth, but continue even if it fails for development
       const authSuccess = await ensureFirebaseAuth();
       if (!authSuccess) {
         console.warn('[PhotoUploader] Authentication failed, but continuing for development');
       }
-      
       const fileId = uuid.v4() as string;
-      
       console.log('[UPLOAD_START] Processing image before upload...', input);
-      
-      // Create photo item with uploading state
       const photoItem: PhotoItem = {
-        url: typeof input === 'string' ? input : (input as any)?.uri || 'processing...', // Temporary local URI
+        url: typeof input === 'string' ? input : (input as any)?.uri || 'processing...',
         uploading: true,
         progress: 0,
         id: fileId,
-        originalFile: input, // Store original input for retry
+        originalFile: input,
       };
-      
       setState(prev => ({
         ...prev,
         photos: [...prev.photos, photoItem],
       }));
-      
-      // Build the storage base path to match security rules
       const { auth } = getFirebase();
       const uid = auth?.currentUser?.uid ?? 'NOAUTH';
       const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
       const basePath = `loadPhotos/${uid}/${safeId}`;
-      
-      // QA: Simulate slow network if enabled
       if (qaState.qaSlowNetwork) {
         const delay = random(300, 1200);
         console.log('[QA] Simulating network delay:', delay + 'ms');
         await sleep(delay);
       }
-      
-      // QA: Randomly fail upload if enabled
       if (qaState.qaFailRandomly && shouldFailRandomly()) {
         console.log('[QA] Simulating random upload failure');
         throw new Error('QA: Random failure simulation');
       }
-      
       try {
-        const url = await uploadWithFallback(basePath, input, (progress) => {
-          setState(prev => ({
-            ...prev,
-            photos: prev.photos.map(p => 
-              p.id === fileId ? { ...p, progress } : p
-            ),
-          }));
-        });
-        
+        const url = await uploadWithFallback(
+          basePath,
+          input,
+          (progress) => {
+            setState(prev => ({
+              ...prev,
+              photos: prev.photos.map(p =>
+                p.id === fileId ? { ...p, progress } : p
+              ),
+            }));
+          },
+          presetToOptions(resizePreset)
+        );
         console.log('[UPLOAD_DONE]', basePath);
-        
-        // On success: Add url to Firestore photos[], set primaryPhoto if empty
         setState(prev => {
-          const updatedPhotos = prev.photos.map(p => 
+          const updatedPhotos = prev.photos.map(p =>
             p.id === fileId ? { ...p, url, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
           );
-          
           const newPrimaryPhoto = prev.primaryPhoto || url;
-          
-          // Schedule Firestore update and onChange callback after state update
           setTimeout(() => {
             updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
             const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
             onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
           }, 0);
-          
           return {
             ...prev,
             photos: updatedPhotos,
             primaryPhoto: newPrimaryPhoto,
           };
         });
-        
         toast.show('Photo uploaded successfully', 'success');
       } catch (error: any) {
         console.log('[UPLOAD_FAIL]', basePath, error?.code || 'unknown-error');
         console.error('[PhotoUploader] Upload error:', error);
-        
         const code = (error && (error.code || error.message)) || '';
         let errorMessage = 'Upload failed. Tap Retry.';
-        
         if (code.includes('unauthorized') || code.includes('permission') || code.includes('unauthenticated')) {
           errorMessage = 'Authentication error. Check connection and retry.';
         } else if (code.includes('retry-limit-exceeded')) {
@@ -469,42 +427,32 @@ export function PhotoUploader({
         } else if (code.includes('api-key-not-valid')) {
           errorMessage = 'Configuration error. Please contact support.';
         }
-        
         setState(prev => ({
           ...prev,
-          photos: prev.photos.map(p => 
+          photos: prev.photos.map(p =>
             p.id === fileId ? { ...p, uploading: false, error: errorMessage, originalFile: input } : p
           ),
         }));
-        
         toast.show(errorMessage, 'error');
       }
-      
     } catch (error: any) {
       console.log('[UPLOAD_FAIL]', 'general-error', error?.code || 'unknown-error');
       console.error('[PhotoUploader] Upload error:', error);
       const errorMessage = mapStorageError(error);
       toast.show('Upload failed: ' + errorMessage, 'error');
     }
-  }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly]);
+  }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly, resizePreset]);
 
-  // 7. Retry button: Calls same upload() function for the failed file with concurrency control
   const handleRetryUpload = useCallback(async (photo: PhotoItem) => {
     if (!photo.originalFile) {
-      // If no original file stored, prompt user to re-select
       toast.show('Please re-select the photo to retry upload', 'warning');
       return;
     }
-
     console.log('[RETRY_UPLOAD] Retrying upload for photo:', photo.id);
-    
-    // Remove the failed photo from state first
     setState(prev => ({
       ...prev,
       photos: prev.photos.filter(p => p.id !== photo.id),
     }));
-
-    // Enqueue retry with concurrency control
     enqueueUpload(async () => {
       try {
         await uploadFile(photo.originalFile!);
@@ -514,42 +462,35 @@ export function PhotoUploader({
     });
   }, [uploadFile, toast]);
 
-  // Handle photo selection with concurrency control
   const handleAddPhotos = useCallback(async () => {
     try {
       if (state.photos.length >= maxPhotos) {
         toast.show(`Maximum ${maxPhotos} photos allowed`, 'warning');
         return;
       }
-      
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         quality: 0.8,
         allowsEditing: false,
       });
-      
       if (!result.canceled && result.assets) {
         const remainingSlots = maxPhotos - state.photos.length;
         const filesToUpload = result.assets.slice(0, remainingSlots);
-        
-        // Enqueue all uploads with concurrency control
         filesToUpload.forEach((asset) => {
-          const validationError = validateFile(asset);
+          const validationError = validateFile(asset as any);
           if (validationError) {
             toast.show(validationError, 'error');
             return;
           }
-          
           enqueueUpload(async () => {
             try {
-              await uploadFile(asset);
+              await uploadFile(asset as any);
             } catch (error) {
               console.error('[PhotoUploader] Upload failed in queue:', error);
             }
           });
         });
-        
         if (result.assets.length > remainingSlots) {
           toast.show(`Only ${remainingSlots} photos could be added`, 'warning');
         }
@@ -560,14 +501,12 @@ export function PhotoUploader({
     }
   }, [state.photos.length, maxPhotos, validateFile, uploadFile, toast]);
 
-  // Handle camera capture with concurrency control
   const handleTakePhoto = useCallback(async () => {
     try {
       if (state.photos.length >= maxPhotos) {
         toast.show(`Maximum ${maxPhotos} photos allowed`, 'warning');
         return;
       }
-      
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
       if (!camPerm.granted) {
         toast.show('Camera permission is required', 'error');
@@ -578,18 +517,16 @@ export function PhotoUploader({
         quality: 0.8,
         allowsEditing: false,
       });
-      
       if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
-        const validationError = validateFile(asset);
+        const validationError = validateFile(asset as any);
         if (validationError) {
           toast.show(validationError, 'error');
           return;
         }
-        
         enqueueUpload(async () => {
           try {
-            await uploadFile(asset);
+            await uploadFile(asset as any);
           } catch (error) {
             console.error('[PhotoUploader] Upload failed in queue:', error);
           }
@@ -601,19 +538,15 @@ export function PhotoUploader({
     }
   }, [state.photos.length, maxPhotos, validateFile, uploadFile, toast]);
 
-  // Set primary photo
   const handleSetPrimary = useCallback(async (url: string) => {
     try {
       const newPrimaryPhoto = url;
       setState(prev => ({ ...prev, primaryPhoto: newPrimaryPhoto }));
       await updateFirestorePhotos(state.photos.map(p => p.url), newPrimaryPhoto);
-      
-      // Schedule onChange callback after state update
       setTimeout(() => {
         const uploadsInProgress = state.photos.filter(p => p.uploading).length;
         onChange?.(state.photos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
       }, 0);
-      
       toast.show('Cover photo updated', 'success');
     } catch (error) {
       console.error('[PhotoUploader] Error setting primary photo:', error);
@@ -621,7 +554,6 @@ export function PhotoUploader({
     }
   }, [state.photos, updateFirestorePhotos, toast, onChange]);
 
-  // Delete photo
   const handleDeletePhoto = useCallback(async (photoToDelete: PhotoItem) => {
     Alert.alert(
       'Delete Photo',
@@ -633,39 +565,27 @@ export function PhotoUploader({
           style: 'destructive',
           onPress: async () => {
             try {
-              // Remove from state first
               const updatedPhotos = state.photos.filter(p => p.id !== photoToDelete.id);
               let newPrimaryPhoto = state.primaryPhoto;
-              
-              // If deleted photo was primary, set new primary
               if (state.primaryPhoto === photoToDelete.url) {
                 newPrimaryPhoto = updatedPhotos.length > 0 ? updatedPhotos[0].url : '';
               }
-              
               setState(prev => ({
                 ...prev,
                 photos: updatedPhotos,
                 primaryPhoto: newPrimaryPhoto,
               }));
-              
-              // Update Firestore
               await updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
-              
-              // Schedule onChange callback after state update
               setTimeout(() => {
                 const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
                 onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
               }, 0);
-              
-              // Try to delete from Storage (best effort)
               try {
                 console.log('[PhotoUploader] Mock mode - skipping storage deletion');
                 console.log('[PhotoUploader] Would delete:', photoToDelete.url);
               } catch (storageError) {
                 console.warn('[PhotoUploader] Could not delete from storage:', storageError);
-                // Don't show error to user as the photo is already removed from Firestore
               }
-              
               toast.show('Photo deleted', 'success');
             } catch (error) {
               console.error('[PhotoUploader] Error deleting photo:', error);
@@ -677,9 +597,6 @@ export function PhotoUploader({
     );
   }, [state.photos, state.primaryPhoto, updateFirestorePhotos, toast, onChange]);
 
-
-
-  // Check upload status
   const uploadsInProgress = useMemo(() => {
     return state.photos.filter(p => p.uploading).length;
   }, [state.photos]);
@@ -692,30 +609,23 @@ export function PhotoUploader({
     return completedPhotos >= minPhotos && uploadsInProgress === 0;
   }, [completedPhotos, uploadsInProgress, minPhotos]);
 
-
-
-  // Render photo thumbnail
   const renderPhotoThumbnail = useCallback((photo: PhotoItem, index: number) => {
     const isPrimary = photo.url === state.primaryPhoto;
-    
     return (
       <View key={photo.id} style={styles.thumbnailContainer}>
         <TouchableOpacity
           style={[styles.thumbnail, isPrimary && styles.primaryThumbnail]}
           onPress={() => setShowImageModal(photo.url)}
           disabled={photo.uploading}
+          testID={`thumb-${index}`}
         >
           <Image source={{ uri: photo.url }} style={styles.thumbnailImage} />
-          
-          {/* Upload progress overlay */}
           {photo.uploading && (
             <View style={styles.uploadOverlay}>
               <ActivityIndicator color={theme.colors.white} size="small" />
               <Text style={styles.progressText}>{Math.round(photo.progress || 0)}%</Text>
             </View>
           )}
-          
-          {/* Error overlay with retry button */}
           {photo.error && (
             <View style={styles.errorOverlay}>
               <AlertCircle color={theme.colors.white} size={20} />
@@ -723,26 +633,24 @@ export function PhotoUploader({
               <TouchableOpacity
                 style={styles.retryButton}
                 onPress={() => handleRetryUpload(photo)}
+                testID={`retry-${photo.id}`}
               >
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
             </View>
           )}
-          
-          {/* Primary indicator */}
           {isPrimary && !photo.uploading && !photo.error && (
             <View style={styles.primaryIndicator}>
               <Star color={theme.colors.warning} size={16} fill={theme.colors.warning} />
             </View>
           )}
         </TouchableOpacity>
-        
-        {/* Action buttons */}
         {!photo.uploading && !photo.error && (
           <View style={styles.thumbnailActions}>
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => handleSetPrimary(photo.url)}
+              testID={`make-primary-${photo.id}`}
             >
               <Star 
                 color={isPrimary ? theme.colors.warning : theme.colors.gray} 
@@ -750,29 +658,28 @@ export function PhotoUploader({
                 fill={isPrimary ? theme.colors.warning : 'none'}
               />
             </TouchableOpacity>
-            
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => handleDeletePhoto(photo)}
+              testID={`delete-${photo.id}`}
             >
               <Trash2 color={theme.colors.danger} size={16} />
             </TouchableOpacity>
           </View>
         )}
-        
-        {/* Error state actions */}
         {photo.error && (
           <View style={styles.thumbnailActions}>
             <TouchableOpacity
               style={[styles.actionButton, styles.retryActionButton]}
               onPress={() => handleRetryUpload(photo)}
+              testID={`retry2-${photo.id}`}
             >
               <Upload color={theme.colors.primary} size={16} />
             </TouchableOpacity>
-            
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => handleDeletePhoto(photo)}
+              testID={`delete2-${photo.id}`}
             >
               <Trash2 color={theme.colors.danger} size={16} />
             </TouchableOpacity>
@@ -793,7 +700,6 @@ export function PhotoUploader({
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Photos</Text>
         <View style={styles.headerRight}>
@@ -803,17 +709,35 @@ export function PhotoUploader({
           <TouchableOpacity
             style={styles.qaButton}
             onPress={() => setQAState(prev => ({ ...prev, showQAPanel: !prev.showQAPanel }))}
+            testID="toggle-qa"
           >
             <Settings color={theme.colors.gray} size={20} />
           </TouchableOpacity>
         </View>
       </View>
-      
-      {/* QA Panel */}
+
       {qaState.showQAPanel && (
         <View style={styles.qaPanel}>
           <Text style={styles.qaPanelTitle}>Dev/QA Controls</Text>
-          
+
+          <View style={styles.qaControl}>
+            <Text style={styles.qaControlLabel}>Photo Size</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {(['small','medium','large'] as ResizePreset[]).map(p => (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => setResizePreset(p)}
+                  style={[styles.sizePill, resizePreset === p ? styles.sizePillActive : undefined]}
+                  testID={`size-${p}`}
+                >
+                  <Text style={[styles.sizePillText, resizePreset === p ? styles.sizePillTextActive : undefined]}>
+                    {p === 'small' ? 'Small' : p === 'medium' ? 'Medium' : 'Large'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           <View style={styles.qaControl}>
             <Text style={styles.qaControlLabel}>Slow Network Simulation</Text>
             <Switch
@@ -823,7 +747,7 @@ export function PhotoUploader({
               thumbColor={qaState.qaSlowNetwork ? theme.colors.white : theme.colors.gray}
             />
           </View>
-          
+
           <View style={styles.qaControl}>
             <Text style={styles.qaControlLabel}>Random Failures (10%)</Text>
             <Switch
@@ -833,39 +757,41 @@ export function PhotoUploader({
               thumbColor={qaState.qaFailRandomly ? theme.colors.white : theme.colors.gray}
             />
           </View>
-          
+
           <Text style={styles.qaNote}>
-            • Slow Network: 300-1200ms delay + throttled progress{"\n"}
-            • Random Failures: 10% chance to fail uploads{"\n"}
-            • Check console for verbose upload logs
+            • Size preset affects max resolution and compression before upload{'
+'}
+            • Slow Network: 300-1200ms delay + throttled progress{'
+'}
+            • Random Failures: 10% chance to fail uploads
           </Text>
         </View>
       )}
-      
-      {/* Action buttons */}
+
       <View style={styles.actionButtons}>
         <TouchableOpacity
           style={[styles.button, styles.primaryButton]}
           onPress={handleAddPhotos}
           disabled={state.photos.length >= maxPhotos}
+          testID="add-photos"
         >
           <Upload color={theme.colors.white} size={20} />
           <Text style={styles.buttonText}>Add Photos</Text>
         </TouchableOpacity>
-        
+
         {Platform.OS !== 'web' && (
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
             onPress={handleTakePhoto}
             disabled={state.photos.length >= maxPhotos}
+            testID="take-photo"
           >
             <Camera color={theme.colors.primary} size={20} />
             <Text style={[styles.buttonText, styles.secondaryButtonText]}>Take Photo</Text>
           </TouchableOpacity>
         )}
       </View>
-      
-      {/* Photo grid */}
+
       {state.photos.length > 0 && (
         <ScrollView style={styles.photoGrid} showsVerticalScrollIndicator={false}>
           <View style={styles.gridContainer}>
@@ -873,8 +799,7 @@ export function PhotoUploader({
           </View>
         </ScrollView>
       )}
-      
-      {/* Upload status and warnings */}
+
       {uploadsInProgress > 0 && (
         <View style={styles.uploadingContainer}>
           <ActivityIndicator color={theme.colors.primary} size="small" />
@@ -888,17 +813,16 @@ export function PhotoUploader({
           )}
         </View>
       )}
-      
-      {/* Failed uploads warning */}
+
       {state.photos.some(p => p.error) && (
         <View style={styles.errorContainer}>
           <AlertCircle color={theme.colors.danger} size={20} />
           <Text style={styles.errorContainerText}>
-            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap &quot;Retry&quot; to try again.
+            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap "Retry" to try again.
           </Text>
         </View>
       )}
-      
+
       {!canPublish && uploadsInProgress === 0 && (
         <View style={styles.warningContainer}>
           <AlertCircle color={theme.colors.warning} size={20} />
@@ -907,8 +831,7 @@ export function PhotoUploader({
           </Text>
         </View>
       )}
-      
-      {/* Image modal */}
+
       <Modal
         visible={showImageModal !== null}
         transparent
@@ -924,6 +847,7 @@ export function PhotoUploader({
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setShowImageModal(null)}
+              testID="close-modal"
             >
               <X color={theme.colors.white} size={24} />
             </TouchableOpacity>
@@ -1180,6 +1104,23 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
     lineHeight: 18,
   },
+  sizePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: theme.colors.lightGray,
+  },
+  sizePillActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  sizePillText: {
+    color: theme.colors.dark,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600' as const,
+  },
+  sizePillTextActive: {
+    color: theme.colors.white,
+  },
   retryButton: {
     backgroundColor: theme.colors.primary,
     paddingHorizontal: theme.spacing.sm,
@@ -1211,7 +1152,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// Export helper function to check if entity can be published
 export function useCanPublish(entityType: 'load' | 'vehicle', photos: string[], minPhotos?: number) {
   const defaultMinPhotos = entityType === 'load' ? 2 : 5;
   const requiredPhotos = minPhotos ?? defaultMinPhotos;
