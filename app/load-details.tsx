@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ export default function LoadDetailsScreen() {
   const params = useLocalSearchParams();
 const loadId = typeof params.loadId === 'string' ? params.loadId : Array.isArray(params.loadId) ? params.loadId[0] : undefined;
   const router = useRouter();
-  const { acceptLoad, setFilters } = useLoads();
+  const { acceptLoad, setFilters, loads } = useLoads();
   const { user } = useAuth();
   const [isAccepting, setIsAccepting] = useState(false);
 const [load, setLoad] = useState<any | null>(null);
@@ -39,6 +39,30 @@ const [loading, setLoading] = useState<boolean>(true);
         setLoad(null);
         return;
       }
+
+      const localMatch = Array.isArray(loads) ? loads.find(l => String(l.id) === String(loadId)) : undefined;
+      if (localMatch) {
+        const toMillisLocal = (v: any): number => {
+          try {
+            if (typeof v === 'number') return v;
+            if (v instanceof Date) return v.getTime();
+            if (typeof v?.toDate === 'function') return v.toDate().getTime();
+            if (typeof v === 'string') return new Date(v).getTime();
+            return Date.now();
+          } catch {
+            return Date.now();
+          }
+        };
+        const normalizedLocal = {
+          ...localMatch,
+          pickupDate: toMillisLocal((localMatch as any).pickupDate),
+          deliveryDate: toMillisLocal((localMatch as any).deliveryDate),
+        } as any;
+        setLoad(normalizedLocal);
+        setLoading(false);
+        return;
+      }
+
       const ref = doc(db, 'loads', loadId);
       const snap = await getDoc(ref);
       if (!cancelled) {
@@ -48,6 +72,7 @@ const [loading, setLoading] = useState<boolean>(true);
             try {
               if (!v) return undefined;
               if (typeof v === 'number') return v;
+              if (v instanceof Date) return v.getTime();
               if (typeof v === 'string') return new Date(v).getTime();
               if (typeof v?.toDate === 'function') return v.toDate().getTime();
               return undefined;
