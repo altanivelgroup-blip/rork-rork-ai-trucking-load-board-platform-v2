@@ -189,10 +189,24 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
         : await uploadPhotosForLoad(uid, docRef.id, picked as any[]);
       console.log('[PostLoad] uploaded urls:', urls.length);
 
+      const loadObj = mapDraftToLoad(docRef.id, uid, draft, urls);
       await updateDoc(doc(db, 'loads', docRef.id), {
         photos: urls,
         photoCount: urls.length,
         updatedAt: serverTimestamp(),
+        shipperId: loadObj.shipperId,
+        shipperName: loadObj.shipperName,
+        origin: loadObj.origin,
+        destination: loadObj.destination,
+        distance: loadObj.distance,
+        weight: loadObj.weight,
+        vehicleType: loadObj.vehicleType,
+        rate: loadObj.rate,
+        ratePerMile: loadObj.ratePerMile,
+        pickupDate: loadObj.pickupDate,
+        deliveryDate: loadObj.deliveryDate,
+        status: loadObj.status,
+        description: loadObj.description,
       });
 
       try {
@@ -205,7 +219,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       }
 
       toast?.success?.('Load posted successfully');
-      router?.replace?.('/loads');
+      router?.replace?.({ pathname: '/load-details', params: { loadId: docRef.id } });
       try { setField && setField('isPosting', false); } catch {}
     } catch (fireErr: any) {
       console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
@@ -223,7 +237,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
           console.log('[PostLoad] local addLoad failed', e);
         }
         toast?.show?.('Posted locally. Sync will resume when permissions are fixed.', 'warning', 2800);
-        router?.replace?.('/loads');
+        router?.replace?.('/(tabs)/loads');
         try { setField && setField('isPosting', false); } catch {}
       } else {
         throw fireErr;

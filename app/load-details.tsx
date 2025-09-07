@@ -43,7 +43,25 @@ const [loading, setLoading] = useState<boolean>(true);
       const snap = await getDoc(ref);
       if (!cancelled) {
         if (snap.exists()) {
-          setLoad({ id: snap.id, ...(snap.data() as any) });
+          const raw = snap.data() as any;
+          const toMillis = (v: any): number | undefined => {
+            try {
+              if (!v) return undefined;
+              if (typeof v === 'number') return v;
+              if (typeof v === 'string') return new Date(v).getTime();
+              if (typeof v?.toDate === 'function') return v.toDate().getTime();
+              return undefined;
+            } catch {
+              return undefined;
+            }
+          };
+          const normalized = {
+            id: snap.id,
+            ...raw,
+            pickupDate: toMillis(raw.pickupDate) ?? Date.now(),
+            deliveryDate: toMillis(raw.deliveryDate) ?? Date.now(),
+          };
+          setLoad(normalized);
         } else {
           setLoad(null);
         }
