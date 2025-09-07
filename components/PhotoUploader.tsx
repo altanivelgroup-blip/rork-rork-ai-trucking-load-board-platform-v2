@@ -229,8 +229,8 @@ const THUMBNAIL_SIZE = (screenWidth - 48) / 3;
 export function PhotoUploader({
   entityType,
   entityId,
-  minPhotos = entityType === 'load' ? 2 : 5,
-  maxPhotos = entityType === 'load' ? 2 : 20,
+  minPhotos = entityType === 'load' ? 5 : 5,
+  maxPhotos = entityType === 'load' ? 20 : 20,
   onChange,
 }: PhotoUploaderProps) {
   const [state, setState] = useState<PhotoUploadState>({
@@ -1157,7 +1157,7 @@ const styles = StyleSheet.create({
 });
 
 export function useCanPublish(entityType: 'load' | 'vehicle', photos: string[], minPhotos?: number) {
-  const defaultMinPhotos = entityType === 'load' ? 2 : 5;
+  const defaultMinPhotos = entityType === 'load' ? 5 : 5;
   const requiredPhotos = minPhotos ?? defaultMinPhotos;
   return photos.length >= requiredPhotos;
 }
