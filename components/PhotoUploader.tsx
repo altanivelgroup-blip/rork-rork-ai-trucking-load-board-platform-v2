@@ -759,10 +759,8 @@ export function PhotoUploader({
           </View>
 
           <Text style={styles.qaNote}>
-            • Size preset affects max resolution and compression before upload{'
-'}
-            • Slow Network: 300-1200ms delay + throttled progress{'
-'}
+            • Size preset affects max resolution and compression before upload{'\n'}
+            • Slow Network: 300-1200ms delay + throttled progress{'\n'}
             • Random Failures: 10% chance to fail uploads
           </Text>
         </View>
