@@ -476,7 +476,8 @@ export function PhotoUploader({
       });
       if (!result.canceled && result.assets) {
         const remainingSlots = maxPhotos - state.photos.length;
-        const filesToUpload = result.assets.slice(0, remainingSlots);
+        const perPickLimit = Math.min(2, remainingSlots);
+        const filesToUpload = result.assets.slice(0, perPickLimit);
         filesToUpload.forEach((asset) => {
           const validationError = validateFile(asset as any);
           if (validationError) {
@@ -491,8 +492,11 @@ export function PhotoUploader({
             }
           });
         });
-        if (result.assets.length > remainingSlots) {
-          toast.show(`Only ${remainingSlots} photos could be added`, 'warning');
+        if (result.assets.length > perPickLimit) {
+          toast.show(`Only ${perPickLimit} photos can be added at a time`, 'warning');
+        }
+        if (perPickLimit < remainingSlots && result.assets.length > perPickLimit) {
+          // No-op, message above already covers pick limit
         }
       }
     } catch (error: any) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,18 +12,75 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useLoads } from '@/hooks/useLoads';
-import { mockLoads } from '@/mocks/loads';
+//
 import { useAuth } from '@/hooks/useAuth';
 import { estimateFuelForLoad, formatCurrency } from '@/utils/fuel';
 
+import { db } from '@/utils/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+
 export default function LoadDetailsScreen() {
-  const { loadId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+const loadId = typeof params.loadId === 'string' ? params.loadId : Array.isArray(params.loadId) ? params.loadId[0] : undefined;
   const router = useRouter();
   const { acceptLoad, setFilters } = useLoads();
   const { user } = useAuth();
   const [isAccepting, setIsAccepting] = useState(false);
+const [load, setLoad] = useState<any | null>(null);
+const [loading, setLoading] = useState<boolean>(true);
   
-  const load = mockLoads.find(l => l.id === loadId);
+  useEffect(() => {
+  let cancelled = false;
+  async function fetchLoad() {
+    try {
+      console.log('[LoadDetails] fetching load', loadId);
+      if (!loadId) {
+        setLoading(false);
+        setLoad(null);
+        return;
+      }
+      const ref = doc(db, 'loads', loadId);
+      const snap = await getDoc(ref);
+      if (!cancelled) {
+        if (snap.exists()) {
+          setLoad({ id: snap.id, ...(snap.data() as any) });
+        } else {
+          setLoad(null);
+        }
+        setLoading(false);
+      }
+    } catch (e) {
+      console.error('[LoadDetails] fetch error', e);
+      if (!cancelled) {
+        setLoad(null);
+        setLoading(false);
+      }
+    }
+  }
+  fetchLoad();
+  return () => {
+    cancelled = true;
+  };
+}, [loadId]);
+
+  if (loading) {
+    return (
+      <Modal animationType="slide" transparent={false} visible={true} onRequestClose={() => router.back()}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+              <X size={24} color={theme.colors.dark} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Load Details</Text>
+            <View style={{ width: 24 }} />
+          </View>
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
   if (!load) {
     return (
@@ -58,7 +115,7 @@ export default function LoadDetailsScreen() {
         backhaulCenter: { lat: load.destination.lat, lng: load.destination.lng },
         backhaulRadiusMiles: 50,
       });
-      router.push('/(tabs)/(loads)');
+      router.push('/(tabs)/loads');
     } catch (error) {
       console.error('Failed to accept load:', error);
     } finally {
@@ -66,7 +123,7 @@ export default function LoadDetailsScreen() {
     }
   };
 
-  const vehicleColor = theme.colors[load.vehicleType as keyof typeof theme.colors] || theme.colors.primary;
+  const vehicleColor = theme.colors[(load?.vehicleType as keyof typeof theme.colors) ?? 'primary'] ?? theme.colors.primary;
 
   return (
     <Modal
@@ -90,7 +147,7 @@ export default function LoadDetailsScreen() {
               <View style={[styles.vehicleTag, { backgroundColor: vehicleColor }]}>
                 <Truck size={16} color={theme.colors.white} />
                 <Text style={styles.vehicleText}>
-                  {load.vehicleType.replace('-', ' ').toUpperCase()}
+                  {String(load.vehicleType ?? '').replace('-', ' ').toUpperCase()}
                 </Text>
               </View>
               {load.isBackhaul && (
@@ -101,12 +158,14 @@ export default function LoadDetailsScreen() {
             </View>
 
             <Text style={styles.shipperName}>{load.shipperName}</Text>
-            <Text style={styles.description}>{load.description}</Text>
+            {load.description ? <Text style={styles.description}>{load.description}</Text> : null}
 
             <View style={styles.rateContainer}>
               <Text style={styles.rateLabel}>Total Rate</Text>
-              <Text style={styles.rateAmount}>${load.rate.toLocaleString()}</Text>
-              <Text style={styles.ratePerMile}>${load.ratePerMile.toFixed(2)} per mile</Text>
+              <Text style={styles.rateAmount}>${Number(load.rate ?? 0).toLocaleString()}</Text>
+              {typeof load.ratePerMile === 'number' ? (
+                <Text style={styles.ratePerMile}>${load.ratePerMile.toFixed(2)} per mile</Text>
+              ) : null}
             </View>
           </View>
 
@@ -118,14 +177,16 @@ export default function LoadDetailsScreen() {
                 <MapPin size={20} color={theme.colors.success} />
                 <Text style={styles.locationLabel}>Pickup Location</Text>
               </View>
-              <Text style={styles.locationAddress}>{load.origin.address}</Text>
+              {load.origin?.address ? (
+                <Text style={styles.locationAddress}>{load.origin.address}</Text>
+              ) : null}
               <Text style={styles.locationCity}>
-                {load.origin.city}, {load.origin.state} {load.origin.zipCode}
+                {load.origin?.city}, {load.origin?.state} {load.origin?.zipCode}
               </Text>
               <View style={styles.dateRow}>
                 <Calendar size={16} color={theme.colors.gray} />
                 <Text style={styles.dateText}>
-                  {new Date(load.pickupDate).toLocaleDateString('en-US', {
+                  {new Date(load.pickupDate ?? Date.now()).toLocaleDateString('en-US', {
                     weekday: 'short',
                     month: 'short',
                     day: 'numeric',
@@ -145,14 +206,16 @@ export default function LoadDetailsScreen() {
                 <MapPin size={20} color={theme.colors.danger} />
                 <Text style={styles.locationLabel}>Delivery Location</Text>
               </View>
-              <Text style={styles.locationAddress}>{load.destination.address}</Text>
+              {load.destination?.address ? (
+                <Text style={styles.locationAddress}>{load.destination.address}</Text>
+              ) : null}
               <Text style={styles.locationCity}>
-                {load.destination.city}, {load.destination.state} {load.destination.zipCode}
+                {load.destination?.city}, {load.destination?.state} {load.destination?.zipCode}
               </Text>
               <View style={styles.dateRow}>
                 <Calendar size={16} color={theme.colors.gray} />
                 <Text style={styles.dateText}>
-                  {new Date(load.deliveryDate).toLocaleDateString('en-US', {
+                  {new Date(load.deliveryDate ?? Date.now()).toLocaleDateString('en-US', {
                     weekday: 'short',
                     month: 'short',
                     day: 'numeric',
@@ -168,7 +231,7 @@ export default function LoadDetailsScreen() {
             <View style={styles.detailRow}>
               <Package size={20} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Weight</Text>
-              <Text style={styles.detailValue}>{(load.weight / 1000).toFixed(1)}k lbs</Text>
+              <Text style={styles.detailValue}>{(Number(load.weight ?? 0) / 1000).toFixed(1)}k lbs</Text>
             </View>
 
             <View style={styles.detailRow}>
@@ -184,7 +247,7 @@ export default function LoadDetailsScreen() {
               })()}
             </View>
 
-            {load.special_requirements && load.special_requirements.length > 0 && (
+            {Array.isArray(load.special_requirements) && load.special_requirements.length > 0 && (
               <View style={styles.requirementsContainer}>
                 <View style={styles.requirementsHeader}>
                   <AlertCircle size={20} color={theme.colors.warning} />
@@ -197,7 +260,7 @@ export default function LoadDetailsScreen() {
             )}
           </View>
 
-          {load.aiScore && (
+          {typeof load.aiScore === 'number' && (
             <View style={styles.aiScoreCard}>
               <Text style={styles.aiScoreLabel}>AI Match Score</Text>
               <View style={styles.aiScoreBar}>
