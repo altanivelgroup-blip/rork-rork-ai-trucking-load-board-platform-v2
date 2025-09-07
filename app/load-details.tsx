@@ -253,7 +253,7 @@ const [loading, setLoading] = useState<boolean>(true);
                   <AlertCircle size={20} color={theme.colors.warning} />
                   <Text style={styles.requirementsTitle}>Special Requirements</Text>
                 </View>
-                {load.special_requirements.map((req, index) => (
+                {load.special_requirements.map((req: string, index: number) => (
                   <Text key={index} style={styles.requirementItem}>• {req}</Text>
                 ))}
               </View>
