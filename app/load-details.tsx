@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { estimateFuelForLoad, formatCurrency } from '@/utils/fuel';
 
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { Image } from 'expo-image';
 
 export default function LoadDetailsScreen() {
   const params = useLocalSearchParams();
@@ -28,6 +29,17 @@ const loadId = typeof params.loadId === 'string' ? params.loadId : Array.isArray
   const [isAccepting, setIsAccepting] = useState(false);
 const [load, setLoad] = useState<any | null>(null);
 const [loading, setLoading] = useState<boolean>(true);
+  const photos: string[] = useMemo(() => {
+    try {
+      const p = (load as any)?.photos;
+      if (Array.isArray(p)) return p.filter((u) => typeof u === 'string' && u.length > 0);
+      return [];
+    } catch {
+      return [];
+    }
+  }, [load]);
+  const [viewerOpen, setViewerOpen] = useState<boolean>(false);
+  const [viewerIndex, setViewerIndex] = useState<number>(0);
   
   useEffect(() => {
   let cancelled = false;
@@ -185,6 +197,23 @@ const [loading, setLoading] = useState<boolean>(true);
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {photos.length > 0 && (
+            <View style={styles.photoStrip}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoStripContent}>
+                {photos.map((uri, idx) => (
+                  <TouchableOpacity key={`${uri}-${idx}`} onPress={() => { setViewerIndex(idx); setViewerOpen(true); }} accessibilityRole="button" testID={`photoThumb-${idx}`}>
+                    <Image
+                      source={{ uri }}
+                      style={styles.photoThumb}
+                      contentFit="cover"
+                      transition={100}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           <View style={styles.mainInfo}>
             <View style={styles.tags}>
               <View style={[styles.vehicleTag, { backgroundColor: vehicleColor }]}>
@@ -316,6 +345,32 @@ const [loading, setLoading] = useState<boolean>(true);
           )}
         </ScrollView>
 
+        {/* Fullscreen viewer */}
+        <Modal visible={viewerOpen} transparent animationType="fade" onRequestClose={() => setViewerOpen(false)}>
+          <View style={styles.viewerBackdrop}>
+            <View style={styles.viewerHeader}>
+              <TouchableOpacity onPress={() => setViewerOpen(false)} style={styles.viewerCloseBtn} testID="viewerClose">
+                <X size={22} color={theme.colors.white} />
+              </TouchableOpacity>
+              <Text style={styles.viewerIndex}>{photos.length ? `${viewerIndex + 1}/${photos.length}` : ''}</Text>
+              <View style={{ width: 32 }} />
+            </View>
+            <View style={styles.viewerBody}>
+              {photos[viewerIndex] ? (
+                <Image source={{ uri: photos[viewerIndex] }} style={styles.viewerImage} contentFit="contain" />
+              ) : null}
+            </View>
+            <View style={styles.viewerFooter}>
+              <TouchableOpacity disabled={viewerIndex <= 0} onPress={() => setViewerIndex((i) => Math.max(0, i - 1))} style={[styles.navBtn, viewerIndex <= 0 && styles.navBtnDisabled]} testID="viewerPrev">
+                <Text style={styles.navBtnText}>Prev</Text>
+              </TouchableOpacity>
+              <TouchableOpacity disabled={viewerIndex >= photos.length - 1} onPress={() => setViewerIndex((i) => Math.min(photos.length - 1, i + 1))} style={[styles.navBtn, viewerIndex >= photos.length - 1 && styles.navBtnDisabled]} testID="viewerNext">
+                <Text style={styles.navBtnText}>Next</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.secondaryButton}
@@ -374,6 +429,22 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  photoStrip: {
+    backgroundColor: theme.colors.white,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  photoStripContent: {
+    gap: theme.spacing.sm,
+  },
+  photoThumb: {
+    width: 110,
+    height: 80,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.lightGray,
   },
   mainInfo: {
     backgroundColor: theme.colors.white,
@@ -580,6 +651,26 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.lightGray,
     gap: theme.spacing.sm,
   },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    paddingTop: 48,
+  },
+  viewerHeader: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  viewerCloseBtn: { padding: 6 },
+  viewerIndex: { color: theme.colors.white, fontWeight: '600', fontSize: theme.fontSize.md },
+  viewerBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  viewerImage: { width: '100%', height: '100%' },
+  viewerFooter: { flexDirection: 'row', justifyContent: 'space-between', padding: theme.spacing.lg, gap: theme.spacing.md },
+  navBtn: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: theme.borderRadius.md },
+  navBtnDisabled: { opacity: 0.4 },
+  navBtnText: { color: theme.colors.white, fontWeight: '700' },
   acceptButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: theme.spacing.md,
