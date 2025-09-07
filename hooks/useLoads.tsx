@@ -78,6 +78,16 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
+  const USER_POSTED_LOADS_KEY = 'userPostedLoads';
+
+  const mergeUniqueById = useCallback((primary: Load[], extras: Load[]): Load[] => {
+    const map = new Map<string, Load>();
+    // extras first so new posts appear on top
+    for (const l of extras) map.set(l.id, l);
+    for (const l of primary) if (!map.has(l.id)) map.set(l.id, l);
+    return Array.from(map.values());
+  }, []);
+
   // Always define memoized values in the same order
   const FAVORITES_KEY = useMemo(() => {
     return user ? `favorites:${user.id}` : 'favorites:guest';
@@ -147,41 +157,50 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     try {
       if (!online) {
         console.log('[Loads] Offline: showing cached loads');
-        setLoads([...mockLoads]);
+        const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+        const persisted: Load[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+        setLoads(prev => mergeUniqueById(mockLoads, persisted));
         return;
       }
       
       // Temporarily disable Firebase integration to fix bundling
       console.log('[Loads] Using mock data (Firebase temporarily disabled)');
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setLoads([...mockLoads]);
+      const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+      const persisted: Load[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+      setLoads(mergeUniqueById(mockLoads, persisted));
     } catch (error) {
       console.error('Failed to refresh loads:', error);
-      // Fallback to mock data
-      setLoads([...mockLoads]);
+      // Fallback to mock data + persisted
+      try {
+        const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+        const persisted: Load[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+        setLoads(mergeUniqueById(mockLoads, persisted));
+      } catch (inner) {
+        setLoads([...mockLoads]);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [online]);
+  }, [online, mergeUniqueById]);
 
   const addLoad = useCallback(async (load: Load) => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 600));
       
-      // Update in-memory state
-      setLoads(prev => [load, ...prev]);
+      // Update in-memory state (keep unique)
+      setLoads(prev => mergeUniqueById([load, ...prev], []));
       
       // Persist to AsyncStorage
       try {
-        const existingLoads = await AsyncStorage.getItem('userPostedLoads');
-        const parsed = existingLoads ? JSON.parse(existingLoads) : [];
-        const updated = [load, ...parsed];
-        await AsyncStorage.setItem('userPostedLoads', JSON.stringify(updated));
+        const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+        const parsed: Load[] = existingLoads ? JSON.parse(existingLoads) : [];
+        const updated = mergeUniqueById([], [load, ...parsed]);
+        await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
         console.log('[Loads] Load posted and saved to AsyncStorage');
       } catch (storageError) {
         console.warn('[Loads] Failed to save to AsyncStorage, but load added to memory:', storageError);
-        // Don't throw here - the load is still added to memory state
       }
       
     } catch (error) {
@@ -190,13 +209,24 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [mergeUniqueById]);
 
   const addLoadsBulk = useCallback(async (incoming: Load[]) => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 800));
-      setLoads(prev => [...incoming, ...prev]);
+      setLoads(prev => mergeUniqueById([...incoming, ...prev], []));
+
+      try {
+        const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+        const parsed: Load[] = existingLoads ? JSON.parse(existingLoads) : [];
+        const updated = mergeUniqueById([], [...incoming, ...parsed]);
+        await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
+        console.log('[Loads] Imported loads saved to AsyncStorage');
+      } catch (storageError) {
+        console.warn('[Loads] Failed to persist imported loads:', storageError);
+      }
+
       console.log('[Loads] Imported loads');
     } catch (error) {
       console.error('Failed to add loads bulk:', error);
@@ -204,7 +234,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [mergeUniqueById]);
 
   const setFiltersCallback = useCallback((newFilters: LoadFilters) => {
     setFilters(newFilters);
@@ -252,6 +282,25 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       unsubscribeRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const bootstrap = async () => {
+      try {
+        const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+        const persisted: Load[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+        if (!mounted) return;
+        if (persisted.length) {
+          console.log(`[Loads] Restoring ${persisted.length} posted load(s) from storage`);
+          setLoads(prev => mergeUniqueById(prev, persisted));
+        }
+      } catch (e) {
+        console.warn('[Loads] Failed to restore posted loads', e);
+      }
+    };
+    bootstrap();
+    return () => { mounted = false; };
+  }, [mergeUniqueById]);
 
   useEffect(() => {
     if (isLoading) {
