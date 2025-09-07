@@ -107,14 +107,13 @@ export async function postLoad(args: {
       rate: rateNum
     });
 
-    const loadData = {
+    const baseData = {
       title: String(args.title).trim(),
       origin: String(args.origin).trim(),
       destination: String(args.destination).trim(),
       vehicleType: String(args.vehicleType),
       rate: rateNum,
-      status: LOAD_STATUS.OPEN, // EXACT value your list should filter on
-      createdBy: uid,
+      status: LOAD_STATUS.OPEN,
       pickupDate: Timestamp.fromDate(new Date(args.pickupDate)),
       deliveryDate: Timestamp.fromDate(new Date(args.deliveryDate)),
       attachments: (args.finalPhotos ?? []).map((p) => ({
@@ -122,16 +121,21 @@ export async function postLoad(args: {
         path: p.path ?? null,
       })),
       createdAt: serverTimestamp(),
-      clientCreatedAt: Date.now(), // lets UI sort immediately
+      clientCreatedAt: Date.now(),
+    } as const;
+
+    const refDoc = doc(db, LOADS_COLLECTION, args.id);
+    const existing = await (await import('firebase/firestore')).getDoc(refDoc);
+    const createOnly = existing.exists() ? {} : {
+      createdBy: uid,
+      clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2",
     };
+
+    const loadData = { ...baseData, ...createOnly };
 
     console.log("[POST_LOAD] Attempting to write to Firestore...");
     
-    await setDoc(
-      doc(db, LOADS_COLLECTION, args.id),
-      loadData,
-      { merge: true }
-    );
+    await setDoc(refDoc, loadData, { merge: true });
 
     console.log("[POST_LOAD] Successfully wrote to Firestore:", `${LOADS_COLLECTION}/${args.id}`);
     

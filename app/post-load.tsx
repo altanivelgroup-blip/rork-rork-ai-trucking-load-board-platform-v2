@@ -64,20 +64,22 @@ const onNext = useCallback(async () => {
       await ensureFirebaseAuth();
       const { db, auth } = getFirebase();
 
-      await setDoc(
-        doc(db, LOADS_COLLECTION, loadId),
-        {
-          id: loadId,
-          title: (draft.title || '').trim(),
-          description: (draft.description || '').trim(),
-          vehicleType: draft.vehicleType || null,
-          status: 'DRAFT',
-          createdBy: auth.currentUser?.uid ?? 'anon',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      const ref = doc(db, LOADS_COLLECTION, loadId);
+      const existing = await (await import('firebase/firestore')).getDoc(ref);
+      const baseData = {
+        id: loadId,
+        title: (draft.title || '').trim(),
+        description: (draft.description || '').trim(),
+        vehicleType: draft.vehicleType || null,
+        status: 'DRAFT' as const,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      const createOnly = existing.exists() ? {} : { 
+        createdBy: auth.currentUser!.uid,
+        clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2",
+      };
+      await setDoc(ref, { ...baseData, ...createOnly }, { merge: true });
       
       console.log('[PostLoad] Successfully saved to Firebase');
     } catch (firebaseError: any) {
