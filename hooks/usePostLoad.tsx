@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useMemo, useState } from 'react';
 import { Load, VehicleType } from '@/types';
+import { estimateMileageFromZips } from '@/utils/distance';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { toNumber } from '@/utils/loadValidation';
@@ -223,6 +224,12 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       const rateNum = Number(draft.rateAmount.replace(/[^0-9.]/g, '')) || 0;
       const weightNum = draft.weight ? Number(draft.weight.replace(/[^0-9.]/g, '')) || 0 : 0;
 
+      const pickupZip = (draft.pickup.match(/\b\d{5}\b/) || [''])[0];
+      const deliveryZip = (draft.delivery.match(/\b\d{5}\b/) || [''])[0];
+      const estMiles = await estimateMileageFromZips(pickupZip, deliveryZip);
+      const milesVal = estMiles ?? 0;
+      const rpm = milesVal > 0 ? rateNum / milesVal : 0;
+
       const load: Load = {
         id: String(now),
         shipperId: user?.id || 'current-shipper',
@@ -231,7 +238,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           address: '',
           city: draft.pickup,
           state: '',
-          zipCode: '',
+          zipCode: pickupZip,
           lat: 0,
           lng: 0,
         },
@@ -239,15 +246,15 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           address: '',
           city: draft.delivery,
           state: '',
-          zipCode: '',
+          zipCode: deliveryZip,
           lat: 0,
           lng: 0,
         },
-        distance: 0,
+        distance: milesVal,
         weight: weightNum,
         vehicleType: draft.vehicleType,
         rate: rateNum,
-        ratePerMile: 0,
+        ratePerMile: rpm,
         pickupDate: draft.pickupDate,
         deliveryDate: draft.deliveryDate,
         status: 'available',
@@ -276,6 +283,12 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         ? `${currentDraft.description.trim()}\n\nContact: ${contactInfo.trim()}`
         : currentDraft.description.trim();
 
+      const pickupZip = (currentDraft.pickup.match(/\b\d{5}\b/) || [''])[0];
+      const deliveryZip = (currentDraft.delivery.match(/\b\d{5}\b/) || [''])[0];
+      const estMiles = await estimateMileageFromZips(pickupZip, deliveryZip);
+      const milesVal = estMiles ?? 0;
+      const rpm = milesVal > 0 ? rateNum / milesVal : 0;
+
       const load: Load = {
         id: String(now),
         shipperId: user?.id || 'current-shipper',
@@ -284,7 +297,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           address: '',
           city: currentDraft.pickup.trim(),
           state: '',
-          zipCode: '',
+          zipCode: pickupZip,
           lat: 0,
           lng: 0,
         },
@@ -292,15 +305,15 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           address: '',
           city: currentDraft.delivery.trim(),
           state: '',
-          zipCode: '',
+          zipCode: deliveryZip,
           lat: 0,
           lng: 0,
         },
-        distance: 0,
+        distance: milesVal,
         weight: weightNum,
         vehicleType: currentDraft.vehicleType!,
         rate: rateNum,
-        ratePerMile: 0,
+        ratePerMile: rpm,
         pickupDate: pickupDate,
         deliveryDate: deliveryDate,
         status: 'available',
@@ -535,10 +548,14 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           console.log('[PostLoad] load posted successfully to Firebase:', loadId);
           
-          // Add contact info to the load description for now
           const loadDescription = `${currentDraft.description.trim()}\n\nContact: ${contactInfo.trim()}`;
+
+          const pickupZip = (currentDraft.pickup.match(/\b\d{5}\b/) || [''])[0];
+          const deliveryZip = (currentDraft.delivery.match(/\b\d{5}\b/) || [''])[0];
+          const estMiles = await estimateMileageFromZips(pickupZip, deliveryZip);
+          const milesVal = estMiles ?? 0;
+          const rpm = milesVal > 0 ? rateNum / milesVal : 0;
           
-          // Add to local loads for immediate display
           await addLoad({
             id: loadId,
             shipperId: user.id,
@@ -547,7 +564,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
               address: '',
               city: currentDraft.pickup.trim(),
               state: '',
-              zipCode: '',
+              zipCode: pickupZip,
               lat: 0,
               lng: 0,
             },
@@ -555,15 +572,15 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
               address: '',
               city: currentDraft.delivery.trim(),
               state: '',
-              zipCode: '',
+              zipCode: deliveryZip,
               lat: 0,
               lng: 0,
             },
-            distance: 0,
+            distance: milesVal,
             weight: currentDraft.weight ? toNumber(currentDraft.weight) : 0,
             vehicleType: currentDraft.vehicleType!,
             rate: rateNum,
-            ratePerMile: 0,
+            ratePerMile: rpm,
             pickupDate,
             deliveryDate,
             status: 'available',

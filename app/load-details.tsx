@@ -15,6 +15,7 @@ import { useLoads } from '@/hooks/useLoads';
 //
 import { useAuth } from '@/hooks/useAuth';
 import { estimateFuelForLoad, formatCurrency } from '@/utils/fuel';
+import { estimateMileageFromZips } from '@/utils/distance';
 
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -117,6 +118,34 @@ const [loading, setLoading] = useState<boolean>(true);
     cancelled = true;
   };
 }, [loadId]);
+
+// Estimate mileage via ZIPs if distance is missing
+useEffect(() => {
+  let active = true;
+  const run = async () => {
+    try {
+      const originZip = String(load?.origin?.zipCode ?? '').slice(0, 5);
+      const destZip = String(load?.destination?.zipCode ?? '').slice(0, 5);
+      const currentDistance = Number((load as any)?.distance ?? 0);
+      if (!load || !originZip || !destZip) return;
+      if (Number.isFinite(currentDistance) && currentDistance > 0) return;
+      console.log('[LoadDetails] estimating mileage from zips', { originZip, destZip });
+      const miles = await estimateMileageFromZips(originZip, destZip);
+      if (!active) return;
+      if (miles && miles > 0) {
+        const rate = Number(load.rate ?? 0);
+        const rpm = miles > 0 ? rate / miles : 0;
+        setLoad((prev: any) => (prev ? { ...prev, distance: miles, ratePerMile: rpm } : prev));
+      }
+    } catch (e) {
+      console.warn('[LoadDetails] mileage estimate failed', e);
+    }
+  };
+  run();
+  return () => {
+    active = false;
+  };
+}, [load?.origin?.zipCode, load?.destination?.zipCode, load?.rate]);
 
   if (loading) {
     return (
@@ -269,7 +298,7 @@ const [loading, setLoading] = useState<boolean>(true);
 
             <View style={styles.distanceIndicator}>
               <View style={styles.distanceLine} />
-              <Text style={styles.distanceText}>{load.distance} miles</Text>
+              <Text style={styles.distanceText} testID="miles-display">{Number(load.distance) > 0 ? `${Math.round(Number(load.distance))} miles` : 'calculating…'}</Text>
               <View style={styles.distanceLine} />
             </View>
 
