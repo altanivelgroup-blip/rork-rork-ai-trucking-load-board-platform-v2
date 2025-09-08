@@ -16,7 +16,8 @@ import {
   Crown,
   FileText,
   ChevronRight,
-  Truck
+  Truck,
+  Wallet,
 } from 'lucide-react-native';
 
 type ProfileOption = {
@@ -75,6 +76,14 @@ export default function ProfileScreen() {
       subtitle: 'Manage your subscription',
       icon: <Crown size={20} color={theme.colors.warning} />,
       route: '/membership',
+      showChevron: true
+    },
+    {
+      id: 'wallet',
+      title: 'Wallet',
+      subtitle: 'Balance and payouts',
+      icon: <Wallet size={20} color={theme.colors.success} />,
+      route: '/wallet',
       showChevron: true
     },
     {
