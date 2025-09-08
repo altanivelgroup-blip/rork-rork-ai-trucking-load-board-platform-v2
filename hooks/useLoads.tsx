@@ -7,9 +7,6 @@ import { mockLoads } from '@/mocks/loads';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
-// Firebase imports temporarily disabled for bundling fix
-// import { collection, query, where, orderBy, limit, onSnapshot, Unsubscribe } from 'firebase/firestore';
-// import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
 
 interface GeoPoint { lat: number; lng: number }
@@ -63,16 +60,10 @@ function haversineMiles(a: GeoPoint, b: GeoPoint): number {
 }
 
 export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
-  // Always call hooks in the same order - no conditional hooks
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
-  // Firebase state temporarily disabled
-  // const [, setFirebaseLoads] = useState<any[]>([]);
-  // const [useFirebase, setUseFirebase] = useState<boolean>(false);
-  
-  // Always call these hooks in the same order
   const { online } = useOnlineStatus();
   const { user } = useAuth();
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,7 +73,6 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
 
   const mergeUniqueById = useCallback((primary: Load[], extras: Load[]): Load[] => {
     const map = new Map<string, Load>();
-    // extras first so new posts appear on top
     for (const l of extras) map.set(l.id, l);
     for (const l of primary) if (!map.has(l.id)) map.set(l.id, l);
     return Array.from(map.values());
@@ -152,81 +142,131 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     }
   }, [online]);
 
+  const reviveLoad = useCallback((raw: any): Load => {
+    const pickupDate = new Date(raw.pickupDate);
+    const deliveryDate = new Date(raw.deliveryDate);
+    return {
+      id: String(raw.id),
+      shipperId: String(raw.shipperId),
+      shipperName: String(raw.shipperName ?? ''),
+      origin: {
+        address: String(raw.origin?.address ?? ''),
+        city: String(raw.origin?.city ?? ''),
+        state: String(raw.origin?.state ?? ''),
+        zipCode: String(raw.origin?.zipCode ?? ''),
+        lat: Number(raw.origin?.lat ?? 0),
+        lng: Number(raw.origin?.lng ?? 0),
+      },
+      destination: {
+        address: String(raw.destination?.address ?? ''),
+        city: String(raw.destination?.city ?? ''),
+        state: String(raw.destination?.state ?? ''),
+        zipCode: String(raw.destination?.zipCode ?? ''),
+        lat: Number(raw.destination?.lat ?? 0),
+        lng: Number(raw.destination?.lng ?? 0),
+      },
+      distance: Number(raw.distance ?? 0),
+      weight: Number(raw.weight ?? 0),
+      vehicleType: raw.vehicleType as any,
+      rate: Number(raw.rate ?? 0),
+      ratePerMile: Number(raw.ratePerMile ?? 0),
+      pickupDate: isNaN(pickupDate.getTime()) ? new Date() : pickupDate,
+      deliveryDate: isNaN(deliveryDate.getTime()) ? new Date() : deliveryDate,
+      status: (raw.status as any) ?? 'available',
+      description: String(raw.description ?? ''),
+      special_requirements: Array.isArray(raw.special_requirements) ? raw.special_requirements.map(String) : undefined,
+      assignedDriverId: raw.assignedDriverId ? String(raw.assignedDriverId) : undefined,
+      isBackhaul: Boolean(raw.isBackhaul),
+      aiScore: typeof raw.aiScore === 'number' ? raw.aiScore : undefined,
+    };
+  }, []);
+
+  const isExpired = useCallback((l: Load) => {
+    const d = l.deliveryDate instanceof Date ? l.deliveryDate : new Date(l.deliveryDate as unknown as string);
+    const ts = d.getTime();
+    if (isNaN(ts)) return false;
+    const expiresAt = ts + 24 * 60 * 60 * 1000;
+    return Date.now() > expiresAt;
+  }, []);
+
+  const readPersisted = useCallback(async () => {
+    const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+    const persistedArr: any[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+    const revived = persistedArr.map(reviveLoad);
+    const kept = revived.filter(l => !isExpired(l));
+    if (kept.length !== revived.length) {
+      try {
+        await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(kept));
+        console.log(`[Loads] Cleaned ${revived.length - kept.length} expired load(s)`);
+      } catch {}
+    }
+    return kept;
+  }, [USER_POSTED_LOADS_KEY, reviveLoad, isExpired]);
+
   const refreshLoads = useCallback(async () => {
     setIsLoading(true);
     try {
       if (!online) {
         console.log('[Loads] Offline: showing cached loads');
-        const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
-        const persisted: Load[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+        const persisted = await readPersisted();
         setLoads(prev => mergeUniqueById(mockLoads, persisted));
         return;
       }
-      
-      // Temporarily disable Firebase integration to fix bundling
       console.log('[Loads] Using mock data (Firebase temporarily disabled)');
       await new Promise(resolve => setTimeout(resolve, 1000));
-      const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
-      const persisted: Load[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+      const persisted = await readPersisted();
       setLoads(mergeUniqueById(mockLoads, persisted));
     } catch (error) {
       console.error('Failed to refresh loads:', error);
-      // Fallback to mock data + persisted
       try {
-        const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
-        const persisted: Load[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+        const persisted = await readPersisted();
         setLoads(mergeUniqueById(mockLoads, persisted));
-      } catch (inner) {
+      } catch {
         setLoads([...mockLoads]);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [online, mergeUniqueById]);
+  }, [online, mergeUniqueById, readPersisted]);
 
   const addLoad = useCallback(async (load: Load) => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 600));
-      
-      // Update in-memory state (keep unique)
       setLoads(prev => mergeUniqueById([load, ...prev], []));
-      
-      // Persist to AsyncStorage
       try {
         const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
-        const parsed: Load[] = existingLoads ? JSON.parse(existingLoads) : [];
+        const parsedRaw: any[] = existingLoads ? JSON.parse(existingLoads) : [];
+        const parsed = parsedRaw.map(reviveLoad).filter(l => !isExpired(l));
         const updated = mergeUniqueById([], [load, ...parsed]);
         await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
         console.log('[Loads] Load posted and saved to AsyncStorage');
       } catch (storageError) {
         console.warn('[Loads] Failed to save to AsyncStorage, but load added to memory:', storageError);
       }
-      
     } catch (error) {
       console.error('Failed to add load:', error);
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [mergeUniqueById]);
+  }, [mergeUniqueById, reviveLoad, isExpired]);
 
   const addLoadsBulk = useCallback(async (incoming: Load[]) => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 800));
       setLoads(prev => mergeUniqueById([...incoming, ...prev], []));
-
       try {
         const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
-        const parsed: Load[] = existingLoads ? JSON.parse(existingLoads) : [];
+        const parsedRaw: any[] = existingLoads ? JSON.parse(existingLoads) : [];
+        const parsed = parsedRaw.map(reviveLoad).filter(l => !isExpired(l));
         const updated = mergeUniqueById([], [...incoming, ...parsed]);
         await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
         console.log('[Loads] Imported loads saved to AsyncStorage');
       } catch (storageError) {
         console.warn('[Loads] Failed to persist imported loads:', storageError);
       }
-
       console.log('[Loads] Imported loads');
     } catch (error) {
       console.error('Failed to add loads bulk:', error);
@@ -234,7 +274,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     } finally {
       setIsLoading(false);
     }
-  }, [mergeUniqueById]);
+  }, [mergeUniqueById, reviveLoad, isExpired]);
 
   const setFiltersCallback = useCallback((newFilters: LoadFilters) => {
     setFilters(newFilters);
@@ -273,10 +313,8 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     return () => { mounted = false; };
   }, [FAVORITES_KEY]);
 
-  // Firebase integration temporarily disabled to fix bundling
   useEffect(() => {
     console.log('[Loads] Firebase integration disabled for bundling fix');
-    // Clean up any existing listeners
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
@@ -287,8 +325,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     let mounted = true;
     const bootstrap = async () => {
       try {
-        const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
-        const persisted: Load[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+        const persisted = await readPersisted();
         if (!mounted) return;
         if (persisted.length) {
           console.log(`[Loads] Restoring ${persisted.length} posted load(s) from storage`);
@@ -300,7 +337,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     };
     bootstrap();
     return () => { mounted = false; };
-  }, [mergeUniqueById]);
+  }, [mergeUniqueById, readPersisted]);
 
   useEffect(() => {
     if (isLoading) {
