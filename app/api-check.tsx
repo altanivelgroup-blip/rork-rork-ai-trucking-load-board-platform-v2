@@ -30,6 +30,23 @@ export default function ApiCheckScreen() {
     setResults((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const runBaseHealth = useCallback(async () => {
+    if (!hasApiBaseUrl) {
+      setOne('base', { ok: false, message: 'Missing EXPO_PUBLIC_RORK_API_BASE_URL' });
+      return;
+    }
+    try {
+      const url = `${API_BASE_URL}/api`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as any;
+      const ok = json?.status === 'ok';
+      setOne('base', { ok, message: ok ? 'API base reachable' : 'API base responded unexpectedly', meta: json });
+    } catch (e: any) {
+      setOne('base', { ok: false, message: e?.message ?? 'Failed to reach base API' });
+    }
+  }, [setOne]);
+
   const runTrpcCheck = useCallback(async () => {
     try {
       const data = await trpcClient.example.hi.mutate({ name: 'LoadRun' });
@@ -101,6 +118,7 @@ export default function ApiCheckScreen() {
     if (running) return;
     setRunning(true);
     setResults({});
+    await runBaseHealth();
     await runTrpcCheck();
     await Promise.all([
       runMapboxCheck(),
@@ -109,7 +127,7 @@ export default function ApiCheckScreen() {
       runWeatherCheck(),
     ]);
     setRunning(false);
-  }, [running, runTrpcCheck, runMapboxCheck, runORSCheck, runEiaCheck, runWeatherCheck]);
+  }, [running, runBaseHealth, runTrpcCheck, runMapboxCheck, runORSCheck, runEiaCheck, runWeatherCheck]);
 
   const envList = useMemo(() => ([
     { key: 'EXPO_PUBLIC_RORK_API_BASE_URL', present: hasApiBaseUrl, sample: API_BASE_URL ?? '' },
@@ -144,6 +162,7 @@ export default function ApiCheckScreen() {
 
         <Text style={styles.title}>Results</Text>
         {[
+          { k: 'base', name: 'API Base Health' },
           { k: 'trpc', name: 'Backend (tRPC)' },
           { k: 'mapbox', name: 'Mapbox Geocode' },
           { k: 'ors', name: 'OpenRouteService' },
