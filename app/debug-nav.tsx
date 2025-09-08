@@ -14,6 +14,7 @@ export default function DebugNavScreen() {
     { name: 'Help Support', path: '/help-support' },
     { name: 'Dashboard', path: '/(tabs)/dashboard' },
     { name: 'Profile', path: '/(tabs)/profile' },
+    ...(typeof __DEV__ !== 'undefined' && __DEV__ ? [{ name: 'Cron Test (Dev)', path: '/dev-cron' }] : [] as { name: string; path: string }[]),
   ];
 
   const testNavigation = (path: string, name: string) => {
