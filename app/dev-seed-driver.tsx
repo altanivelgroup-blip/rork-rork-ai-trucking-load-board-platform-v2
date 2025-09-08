@@ -209,7 +209,7 @@ export default function DevSeedDriverScreen() {
             <CheckCircle size={20} color={theme.colors.success} />
             <Text style={styles.infoTitle}>Driver Stats:</Text>
           </View>
-          <Text style={styles.infoText}>• 4.8⭐ rating, 23 completed loads</Text>
+          <Text style={styles.infoText}>• 4.8★ rating, 23 completed loads</Text>
           <Text style={styles.infoText}>• Verified status</Text>
           <Text style={styles.infoText}>• Available for loads</Text>
         </View>
@@ -230,7 +230,7 @@ export default function DevSeedDriverScreen() {
         </TouchableOpacity>
 
         <Text style={styles.warning}>
-          ⚠️ This is for development testing only. Use existing permission email or sign up with non-permission email.
+          ⚠ This is for development testing only. Use existing permission email or sign up with non-permission email.
         </Text>
       </View>
     </View>
