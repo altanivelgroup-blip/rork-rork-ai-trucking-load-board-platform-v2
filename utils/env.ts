@@ -12,6 +12,8 @@ export const ORS_API_KEY: string | undefined = pick(process.env.EXPO_PUBLIC_ORS_
 export const EIA_API_KEY: string | undefined = pick(process.env.EXPO_PUBLIC_EIA_API_KEY as any);
 export const OPENWEATHER_API_KEY: string | undefined = pick(process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY as any);
 
+export const FORCE_DELIVERY_TZ: string | undefined = pick(process.env.EXPO_PUBLIC_FORCE_DELIVERY_TZ as any);
+
 export const hasApiBaseUrl: boolean = typeof API_BASE_URL === 'string' && !!API_BASE_URL;
 export const hasMapbox: boolean = typeof MAPBOX_TOKEN === 'string' && !!MAPBOX_TOKEN;
 export const hasORS: boolean = typeof ORS_API_KEY === 'string' && !!ORS_API_KEY;

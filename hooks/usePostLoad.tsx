@@ -9,8 +9,7 @@ import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/uti
 import { postLoad } from '@/lib/firebase';
 import { isValidIana } from '@/constants/timezones';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-// import { useToast } from '@/components/Toast'; // Removed unused import
-
+import { FORCE_DELIVERY_TZ } from '@/utils/env';
 
 export type RateKind = 'flat' | 'per_mile';
 
@@ -147,9 +146,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     setDraft({
       ...initialDraft,
       reference: `LOAD-${Date.now()}`,
-      photosLocal: [], // Clear photos when starting a new load
-      photoUrls: [], // Clear uploaded URLs
-      isPosting: false, // Reset posting state
+      photosLocal: [],
+      photoUrls: [],
+      isPosting: false,
     });
   }, []);
 
@@ -487,8 +486,12 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       if (!currentDraft.deliveryDateLocal || typeof currentDraft.deliveryDateLocal !== 'string') {
         throw new Error('Delivery local date/time is required');
       }
-      if (!currentDraft.deliveryTZ || !isValidIana(currentDraft.deliveryTZ)) {
-        throw new Error('Select a valid delivery timezone');
+      if (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) {
+        setField('deliveryTZ', FORCE_DELIVERY_TZ);
+      } else {
+        if (!currentDraft.deliveryTZ || !isValidIana(currentDraft.deliveryTZ)) {
+          throw new Error('Select a valid delivery timezone');
+        }
       }
 
       // Additional validation for dates before proceeding
@@ -547,7 +550,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           console.log('[PostLoad] Attempting Firebase write with permissions:', permissions);
           
-          const tzSelected = currentDraft.deliveryTZ;
+          const tzSelected = (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) ? FORCE_DELIVERY_TZ : currentDraft.deliveryTZ;
           const localStr = currentDraft.deliveryDateLocal;
 
           await postLoad({

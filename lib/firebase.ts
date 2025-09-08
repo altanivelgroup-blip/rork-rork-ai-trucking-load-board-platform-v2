@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
 import { LOADS_COLLECTION, LOAD_STATUS } from "@/lib/loadSchema";
+import { FORCE_DELIVERY_TZ } from '@/utils/env';
 
 // ---- Quick connection test you can call from anywhere ----
 export async function testFirebaseConnection() {
@@ -189,11 +190,11 @@ function toUtcMsForLocalWallTime(
 
 export function computeExpiresAtMsFromLocalTZ(deliveryLocalISO: string, tz: string): number {
   try {
+    const providedTz = (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) ? FORCE_DELIVERY_TZ : tz;
     const safeTz = (() => {
       try {
-        // Validate tz by constructing a formatter
-        new Intl.DateTimeFormat('en-US', { timeZone: tz });
-        return tz;
+        new Intl.DateTimeFormat('en-US', { timeZone: providedTz });
+        return providedTz;
       } catch {
         return 'America/Phoenix';
       }
@@ -218,7 +219,6 @@ export function computeExpiresAtMsFromLocalTZ(deliveryLocalISO: string, tz: stri
     return expires;
   } catch (e) {
     console.log('[computeExpiresAtMsFromLocalTZ] failed', e);
-    // Fallback: 36h from now to keep workflow moving
     return Date.now() + 36 * 60 * 60 * 1000;
   }
 }

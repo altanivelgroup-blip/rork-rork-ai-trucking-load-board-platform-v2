@@ -15,6 +15,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { usePostLoad } from '@/hooks/usePostLoad';
 import { QUICK_TZS, ALL_TZS } from '@/constants/timezones';
+import { FORCE_DELIVERY_TZ } from '@/utils/env';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -205,23 +206,36 @@ function TZSelector() {
   const [opened, setOpened] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!draft.deliveryTZ) {
-      const tz = getDeviceTZ();
-      setField('deliveryTZ', tz);
+    const forced = FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0 ? FORCE_DELIVERY_TZ : undefined;
+    const baseTz = forced ?? draft.deliveryTZ ?? getDeviceTZ();
+    if (!draft.deliveryTZ || forced) {
+      setField('deliveryTZ', baseTz);
     }
     if (!draft.deliveryDateLocal) {
-      const base = draft.deliveryTZ || getDeviceTZ();
-      const local = formatLocalNowForTZ(base);
+      const local = formatLocalNowForTZ(baseTz);
       setField('deliveryDateLocal', local);
     }
   }, [draft.deliveryTZ, draft.deliveryDateLocal, setField]);
 
   const onPick = useCallback((tz: string) => {
+    if (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) return;
     setField('deliveryTZ', tz);
     const local = formatLocalNowForTZ(tz);
     setField('deliveryDateLocal', local);
     setOpened(false);
   }, [setField]);
+
+  if (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) {
+    return (
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>Delivery Timezone</Text>
+        <View style={styles.dateField}>
+          <Text style={styles.dateText}>{FORCE_DELIVERY_TZ}</Text>
+        </View>
+        <Text style={styles.hintText}>Timezone is fixed by organization settings.</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.fieldGroup}>
@@ -446,6 +460,7 @@ const styles = StyleSheet.create({
   tzItem: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: theme.colors.border },
   tzItemText: { color: theme.colors.dark },
   rowGap8: { gap: 8 },
+  hintText: { color: theme.colors.gray, fontSize: theme.fontSize.sm, marginTop: 6 },
   timeRow: { flexDirection: 'row', alignItems: 'flex-start' },
   smallLabel: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginBottom: 6 },
   inputLike: { backgroundColor: theme.colors.white, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.select({ ios: 14, android: 12, default: 12 }) as number },
