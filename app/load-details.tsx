@@ -15,7 +15,8 @@ import { theme } from '@/constants/theme';
 import { useLoads } from '@/hooks/useLoads';
 //
 import { useAuth } from '@/hooks/useAuth';
-import { estimateFuelForLoad, formatCurrency } from '@/utils/fuel';
+import { formatCurrency } from '@/utils/fuel';
+import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips } from '@/utils/distance';
 
 import { db } from '@/utils/firebase';
@@ -42,6 +43,10 @@ const [loading, setLoading] = useState<boolean>(true);
   }, [load]);
   const [viewerOpen, setViewerOpen] = useState<boolean>(false);
   const [viewerIndex, setViewerIndex] = useState<number>(0);
+
+  const [fuelEstimate, setFuelEstimate] = useState<FuelApiResponse | null>(null);
+  const [fuelLoading, setFuelLoading] = useState<boolean>(false);
+  const [fuelError, setFuelError] = useState<string | null>(null);
 
   const selectableVehicles: Array<{ key: string; label: string }> = useMemo(() => ([
     { key: 'car-hauler', label: 'Car Hauler' },
@@ -137,6 +142,41 @@ const [loading, setLoading] = useState<boolean>(true);
     cancelled = true;
   };
 }, [loadId]);
+
+// Compute fuel estimate when we have distance and vehicle info
+useEffect(() => {
+  let active = true;
+  const run = async () => {
+    try {
+      setFuelError(null);
+      if (!load || !user) return;
+      const distanceNum = Number(load.distance ?? 0);
+      if (!Number.isFinite(distanceNum) || distanceNum <= 0) return;
+      setFuelLoading(true);
+      const res = await fetchFuelEstimate({
+        load: {
+          distance: distanceNum,
+          vehicleType: (load.vehicleType as any) ?? (user.fuelProfile?.vehicleType as any),
+          weight: Number(load.weight ?? 0),
+          origin: load.origin,
+          destination: load.destination,
+        },
+        driver: user ? { id: user.id, fuelProfile: user.fuelProfile } : null,
+      });
+      if (!active) return;
+      setFuelEstimate(res);
+    } catch (e) {
+      console.warn('[LoadDetails] fuel estimate failed', e);
+      if (active) setFuelError('Failed to estimate fuel');
+    } finally {
+      if (active) setFuelLoading(false);
+    }
+  };
+  run();
+  return () => {
+    active = false;
+  };
+}, [load?.id, load?.distance, load?.vehicleType, load?.weight, load?.origin?.state, load?.destination?.state, user?.id, user?.fuelProfile?.averageMpg, user?.fuelProfile?.fuelPricePerGallon, user?.fuelProfile?.vehicleType]);
 
 // Estimate mileage via ZIPs if distance is missing
 useEffect(() => {
@@ -357,15 +397,28 @@ useEffect(() => {
             <View style={styles.detailRow}>
               <Fuel size={20} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Estimated Fuel</Text>
-              {(() => {
-                try {
-                  const f = estimateFuelForLoad(load, user);
-                  return <Text style={styles.detailValue}>{f.gallons.toFixed(1)} gal • {formatCurrency(f.cost)} (@ {f.mpg.toFixed(1)} mpg)</Text>;
-                } catch (e) {
-                  return <Text style={styles.detailValue}>N/A</Text>;
-                }
-              })()}
+              {fuelLoading ? (
+                <Text style={styles.detailValue} testID="fuel-estimate-loading">calculating…</Text>
+              ) : fuelError ? (
+                <Text style={styles.detailValue} testID="fuel-estimate-error">N/A</Text>
+              ) : fuelEstimate ? (
+                <Text style={styles.detailValue} testID="fuel-estimate-value">
+                  {fuelEstimate.gallons.toFixed(1)} gal • {formatCurrency(fuelEstimate.cost)} (@ {fuelEstimate.mpg.toFixed(1)} mpg)
+                </Text>
+              ) : (
+                <Text style={styles.detailValue} testID="fuel-estimate-pending">—</Text>
+              )}
             </View>
+            {fuelEstimate?.regionLabel ? (
+              <View style={[styles.detailRow, { marginTop: -8 }]}> 
+                <View style={{ width: 20 }} />
+                <Text style={[styles.detailLabel, { color: theme.colors.gray }]}>Price Source</Text>
+                <Text style={[styles.detailValue, { color: theme.colors.gray }]} testID="fuel-price-source">
+                  {fuelEstimate.regionLabel} • ${fuelEstimate.pricePerGallon.toFixed(2)}/gal
+                </Text>
+              </View>
+            ) : null}
+
 
             <View style={styles.vehicleProfileCard}>
               <Text style={styles.vehicleProfileTitle}>Vehicle Profile</Text>
