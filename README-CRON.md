@@ -20,3 +20,16 @@ Both endpoints must require the header:
 ## Notes
 - Configure Vercel Cron or an external scheduler to invoke the above endpoints on the desired cadence.
 - Ensure all non-production triggers use the Preview environment secret in Vercel to avoid leaking production credentials.
+
+## Manual tests (replace YOUR_DOMAIN with your prod URL)
+
+Archive now:
+curl -X POST "https://YOUR_DOMAIN/api/cron/archive-loads" \
+  -H "x-cron-secret: lrk_prod_cron_secret_6b3a2d1f4e934a9f9a2c8b07f1a6d3f2"
+
+Purge now (3 days):
+curl -X POST "https://YOUR_DOMAIN/api/cron/purge-loads?days=3" \
+  -H "x-cron-secret: lrk_prod_cron_secret_6b3a2d1f4e934a9f9a2c8b07f1a6d3f2"
+
+Expected response shape:
+{ "archived": <number> } or { "purged": <number> }
