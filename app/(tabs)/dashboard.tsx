@@ -291,25 +291,6 @@ export default function DashboardScreen() {
     }
   }, [setSortOrder, radiusMiles, setRadiusMiles, requestPermissionAsync]);
 
-  if (isLoading) {
-    return (
-      <Screen>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading dashboard...</Text>
-        </View>
-      </Screen>
-    );
-  }
-
-  if (!user) {
-    return (
-      <Screen>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Please log in to continue</Text>
-        </View>
-      </Screen>
-    );
-  }
 
   const onSubmitNlSearch = useCallback(async () => {
     const q = nlQuery.trim();
@@ -367,175 +348,183 @@ export default function DashboardScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.container}>
-        <ImageBackground
-          source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/uzyvqegm8riqj7x0yy7p9' }}
-          style={styles.hero}
-          imageStyle={styles.heroImage}
-          resizeMode="cover"
-        >
-          <View style={styles.heroOverlay} />
-          <Text style={styles.heroTitle} testID="dashboard-hero-title" allowFontScaling={false}>LoadRun</Text>
-          <Text style={styles.heroSubtitle} testID="dashboard-hero-subtitle">AI Load Board for Car Haulers</Text>
-          {weather?.tempF != null ? (
-            <View style={styles.weatherPill} testID="dashboard-weather-pill">
-              <WeatherIcon size={moderateScale(16)} color={theme.colors.white} />
-              <Text style={styles.weatherText} allowFontScaling={false}>{Math.round(weather.tempF)}°F</Text>
-              {weather?.description ? (
-                <Text style={[styles.weatherText, { opacity: 0.9 }]} numberOfLines={1} allowFontScaling={false}>{String(weather.description)}</Text>
-              ) : null}
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        </View>
+      ) : !user ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Please log in to continue</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.container}>
+          <ImageBackground
+            source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/uzyvqegm8riqj7x0yy7p9' }}
+            style={styles.hero}
+            imageStyle={styles.heroImage}
+            resizeMode="cover"
+          >
+            <View style={styles.heroOverlay} />
+            <Text style={styles.heroTitle} testID="dashboard-hero-title" allowFontScaling={false}>LoadRun</Text>
+            <Text style={styles.heroSubtitle} testID="dashboard-hero-subtitle">AI Load Board for Car Haulers</Text>
+            {weather?.tempF != null ? (
+              <View style={styles.weatherPill} testID="dashboard-weather-pill">
+                <WeatherIcon size={moderateScale(16)} color={theme.colors.white} />
+                <Text style={styles.weatherText} allowFontScaling={false}>{Math.round(weather.tempF)}°F</Text>
+                {weather?.description ? (
+                  <Text style={[styles.weatherText, { opacity: 0.9 }]} numberOfLines={1} allowFontScaling={false}>{String(weather.description)}</Text>
+                ) : null}
+              </View>
+            ) : null}
+          </ImageBackground>
+
+          <View style={styles.welcomeRow}>
+            <Text style={styles.welcomeText}>Welcome back,</Text>
+            <Text style={styles.welcomeName} allowFontScaling={false}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
+            <TouchableOpacity style={styles.voiceButton} testID="dashboard-voice-capture">
+              <Mic size={moderateScale(20)} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statCard} testID="stat-available-loads">
+              <Truck size={moderateScale(20)} color={theme.colors.primary} />
+              <Text style={styles.statValue} allowFontScaling={false}>{actualLoads?.length ?? 0}</Text>
+              <Text style={styles.statLabel} allowFontScaling={false}>Available Loads</Text>
+            </View>
+            <View style={styles.statCard} testID="stat-rating">
+              <Star size={moderateScale(20)} color={theme.colors.warning} />
+              <Text style={styles.statValue} allowFontScaling={false}>{user?.rating?.toString() ?? '4.8'}</Text>
+              <Text style={styles.statLabel} allowFontScaling={false}>Your Rating</Text>
+            </View>
+            <View style={styles.statCard} testID="stat-completed">
+              <Package size={moderateScale(20)} color={theme.colors.gray} />
+              <Text style={styles.statValue} allowFontScaling={false}>{user?.completedLoads ?? 24}</Text>
+              <Text style={styles.statLabel} allowFontScaling={false}>Completed</Text>
+            </View>
+          </View>
+
+          <View style={styles.describeLoadRow}>
+            <TextInput
+              testID="describe-load-input"
+              value={nlQuery}
+              onChangeText={handleNlQueryChange}
+              placeholder={'Describe your load'}
+              placeholderTextColor={theme.colors.gray}
+              returnKeyType="search"
+              onSubmitEditing={onSubmitNlSearch}
+              style={styles.describeInput}
+              accessibilityLabel="Natural language search"
+            />
+            <VoiceCapture
+              onTranscribed={handleVoiceTranscribed}
+              size="sm"
+              testID="describe-load-voice-capture"
+            />
+            <TouchableOpacity
+              onPress={onSubmitNlSearch}
+              testID="describe-load-ai-intelligence"
+              style={styles.applyButton}
+            >
+              <Text style={styles.applyButtonText} allowFontScaling={false}>
+                AI LOADS
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {AI_COPILOT_CHIPS_ENABLED ? (
+            <View style={styles.filtersRow}>
+              <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
+                <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
+              </Text>
+              <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
+                <Text style={[styles.sortChipText, { color: theme.colors.white }]} allowFontScaling={false}>Near me</Text>
+              </Text>
+              <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
+                <Text style={styles.sortChipText} allowFontScaling={false}>Lightest</Text>
+              </Text>
             </View>
           ) : null}
-        </ImageBackground>
 
-        <View style={styles.welcomeRow}>
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.welcomeName} allowFontScaling={false}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
-          <TouchableOpacity style={styles.voiceButton} testID="dashboard-voice-capture">
-            <Mic size={moderateScale(20)} color={theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.statsRow}>
-          <View style={styles.statCard} testID="stat-available-loads">
-            <Truck size={moderateScale(20)} color={theme.colors.primary} />
-            <Text style={styles.statValue} allowFontScaling={false}>{actualLoads?.length ?? 0}</Text>
-            <Text style={styles.statLabel} allowFontScaling={false}>Available Loads</Text>
-          </View>
-          <View style={styles.statCard} testID="stat-rating">
-            <Star size={moderateScale(20)} color={theme.colors.warning} />
-            <Text style={styles.statValue} allowFontScaling={false}>{user?.rating?.toString() ?? '4.8'}</Text>
-            <Text style={styles.statLabel} allowFontScaling={false}>Your Rating</Text>
-          </View>
-          <View style={styles.statCard} testID="stat-completed">
-            <Package size={moderateScale(20)} color={theme.colors.gray} />
-            <Text style={styles.statValue} allowFontScaling={false}>{user?.completedLoads ?? 24}</Text>
-            <Text style={styles.statLabel} allowFontScaling={false}>Completed</Text>
-          </View>
-        </View>
-
-        <View style={styles.describeLoadRow}>
-          <TextInput
-            testID="describe-load-input"
-            value={nlQuery}
-            onChangeText={handleNlQueryChange}
-            placeholder={'Describe your load'}
-            placeholderTextColor={theme.colors.gray}
-            returnKeyType="search"
-            onSubmitEditing={onSubmitNlSearch}
-            style={styles.describeInput}
-            accessibilityLabel="Natural language search"
-          />
-          <VoiceCapture
-            onTranscribed={handleVoiceTranscribed}
-            size="sm"
-            testID="describe-load-voice-capture"
-          />
-          <TouchableOpacity
-            onPress={onSubmitNlSearch}
-            testID="describe-load-ai-intelligence"
-            style={styles.applyButton}
-          >
-            <Text style={styles.applyButtonText} allowFontScaling={false}>
-              AI LOADS
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {AI_COPILOT_CHIPS_ENABLED ? (
-          <View style={styles.filtersRow}>
-            <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
-              <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
-            </Text>
-            <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
-              <Text style={[styles.sortChipText, { color: theme.colors.white }]} allowFontScaling={false}>Near me</Text>
-            </Text>
-            <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
-              <Text style={styles.sortChipText} allowFontScaling={false}>Lightest</Text>
-            </Text>
-          </View>
-        ) : null}
-
-
-        
-        {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
-          <View style={styles.filtersRow}>
-            {[25, 50, 100, 250].map((r) => (
-              <Text
-                key={r}
-                onPress={() => { void setRadiusMiles(r); }}
-                style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: moderateScale(8) }]}
-                accessibilityRole="button"
-                testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
-              >
-                <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }} allowFontScaling={false}>{r} mi</Text>
-              </Text>
-            ))}
-          </View>
-        )}
-
-        <View style={styles.sectionHeader}>
-          {isHydrating && <Text style={styles.viewAllText}>Loading preferences…</Text>}
-          <Text style={styles.sectionTitle}>Recent Loads</Text>
-          <TouchableOpacity onPress={handleViewAll} accessibilityRole="button">
-            <View style={styles.viewAllRow}>
-              <Text style={styles.viewAllText} allowFontScaling={false}>View All</Text>
-              <ArrowRight size={moderateScale(16)} color={theme.colors.primary} />
+          {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
+            <View style={styles.filtersRow}>
+              {[25, 50, 100, 250].map((r) => (
+                <Text
+                  key={r}
+                  onPress={() => { void setRadiusMiles(r); }}
+                  style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: moderateScale(8) }]}
+                  accessibilityRole="button"
+                  testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
+                >
+                  <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }} allowFontScaling={false}>{r} mi</Text>
+                </Text>
+              ))}
             </View>
-          </TouchableOpacity>
-        </View>
+          )}
 
-        <View>
-          {(aiRecentOrder ? (() => {
-            const map = new Map(recentLoads.map(l => [l.id, l] as const));
-            const ordered = [] as typeof recentLoads;
-            aiRecentOrder.forEach(id => { const it = map.get(id); if (it) ordered.push(it); });
-            recentLoads.forEach(l => { if (aiRecentOrder.indexOf(l.id) === -1) ordered.push(l); });
-            return ordered;
-          })() : recentLoads)?.map((l) => (
-            <RecentLoadRow
-              key={l.id}
-              id={l.id}
-              originCity={l.origin?.city ?? 'Unknown'}
-              originState={l.origin?.state ?? 'Unknown'}
-              destinationCity={l.destination?.city ?? 'Unknown'}
-              destinationState={l.destination?.state ?? 'Unknown'}
-              pickupDate={l.pickupDate ?? new Date()}
-              weight={l.weight ?? 0}
-              rate={l.rate ?? 0}
-              onPress={handleOpenLoad}
-              distanceMiles={distances[l.id]}
-            />
-          )) ?? []}
-        </View>
+          <View style={styles.sectionHeader}>
+            {isHydrating && <Text style={styles.viewAllText}>Loading preferences…</Text>}
+            <Text style={styles.sectionTitle}>Recent Loads</Text>
+            <TouchableOpacity onPress={handleViewAll} accessibilityRole="button">
+              <View style={styles.viewAllRow}>
+                <Text style={styles.viewAllText} allowFontScaling={false}>View All</Text>
+                <ArrowRight size={moderateScale(16)} color={theme.colors.primary} />
+              </View>
+            </TouchableOpacity>
+          </View>
 
-        <View style={styles.backhaulCard} testID="backhaul-toggle-card">
-          <View style={styles.backhaulRow}>
-            <MapPin size={moderateScale(18)} color="#1D4ED8" />
-            <Text style={styles.backhaulTitle} allowFontScaling={false}>Backhaul near delivery (50mi)</Text>
+          <View>
+            {(aiRecentOrder ? (() => {
+              const map = new Map(recentLoads.map(l => [l.id, l] as const));
+              const ordered = [] as typeof recentLoads;
+              aiRecentOrder.forEach(id => { const it = map.get(id); if (it) ordered.push(it); });
+              recentLoads.forEach(l => { if (aiRecentOrder.indexOf(l.id) === -1) ordered.push(l); });
+              return ordered;
+            })() : recentLoads)?.map((l) => (
+              <RecentLoadRow
+                key={l.id}
+                id={l.id}
+                originCity={l.origin?.city ?? 'Unknown'}
+                originState={l.origin?.state ?? 'Unknown'}
+                destinationCity={l.destination?.city ?? 'Unknown'}
+                destinationState={l.destination?.state ?? 'Unknown'}
+                pickupDate={l.pickupDate ?? new Date()}
+                weight={l.weight ?? 0}
+                rate={l.rate ?? 0}
+                onPress={handleOpenLoad}
+                distanceMiles={distances[l.id]}
+              />
+            )) ?? []}
           </View>
-          <Text style={styles.backhaulSub} numberOfLines={2}>
-            {lastDelivery ? `${lastDelivery.city}, ${lastDelivery.state}` : 'No recent delivery found'}
-          </Text>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel} allowFontScaling={false}>Show backhaul loads</Text>
-            <Switch
-              value={backhaulOn}
-              onValueChange={(val) => {
-                if (val && !lastDelivery) {
-                  console.log('Backhaul: cannot enable without a recent delivery');
-                  return;
-                }
-                toggleBackhaul(val);
-              }}
-              trackColor={{ false: theme.colors.gray, true: '#EA580C' }}
-              thumbColor={theme.colors.white}
-              disabled={false}
-              testID="backhaul-switch"
-            />
+
+          <View style={styles.backhaulCard} testID="backhaul-toggle-card">
+            <View style={styles.backhaulRow}>
+              <MapPin size={moderateScale(18)} color="#1D4ED8" />
+              <Text style={styles.backhaulTitle} allowFontScaling={false}>Backhaul near delivery (50mi)</Text>
+            </View>
+            <Text style={styles.backhaulSub} numberOfLines={2}>
+              {lastDelivery ? `${lastDelivery.city}, ${lastDelivery.state}` : 'No recent delivery found'}
+            </Text>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel} allowFontScaling={false}>Show backhaul loads</Text>
+              <Switch
+                value={backhaulOn}
+                onValueChange={(val) => {
+                  if (val && !lastDelivery) {
+                    console.log('Backhaul: cannot enable without a recent delivery');
+                    return;
+                  }
+                  toggleBackhaul(val);
+                }}
+                trackColor={{ false: theme.colors.gray, true: '#EA580C' }}
+                thumbColor={theme.colors.white}
+                disabled={false}
+                testID="backhaul-switch"
+              />
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
     </Screen>
   );
 }
