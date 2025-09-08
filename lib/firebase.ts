@@ -15,7 +15,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
-import { LOADS_COLLECTION, LOAD_STATUS, LoadDoc } from "@/lib/loadSchema";
+import { LOADS_COLLECTION, LOAD_STATUS } from "@/lib/loadSchema";
 
 // ---- Quick connection test you can call from anywhere ----
 export async function testFirebaseConnection() {
@@ -187,6 +187,42 @@ function toUtcMsForLocalWallTime(
   return refined;
 }
 
+export function computeExpiresAtMsFromLocalTZ(deliveryLocalISO: string, tz: string): number {
+  try {
+    const safeTz = (() => {
+      try {
+        // Validate tz by constructing a formatter
+        new Intl.DateTimeFormat('en-US', { timeZone: tz });
+        return tz;
+      } catch {
+        return 'America/Phoenix';
+      }
+    })();
+
+    const raw = String(deliveryLocalISO).trim();
+    const hasTime = /T\d{2}:\d{2}/.test(raw);
+    const normalized = hasTime ? raw : `${raw}T17:00`;
+
+    const m = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?/);
+    if (!m) throw new Error('invalid ISO');
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const hh = Number(m[4]);
+    const mi = Number(m[5]);
+    const ss = Number(m[6] ?? 0);
+    const ms = Number(m[7] ?? 0);
+
+    const utcMs = toUtcMsForLocalWallTime(y, mo, d, hh, mi, ss, ms, safeTz);
+    const expires = utcMs + 36 * 60 * 60 * 1000;
+    return expires;
+  } catch (e) {
+    console.log('[computeExpiresAtMsFromLocalTZ] failed', e);
+    // Fallback: 36h from now to keep workflow moving
+    return Date.now() + 36 * 60 * 60 * 1000;
+  }
+}
+
 export async function postLoad(args: {
   id: string;
   title: string;
@@ -298,7 +334,26 @@ export async function postLoad(args: {
       clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2",
     };
 
-    const loadData = { ...baseData, ...createOnly };
+    const computeExpires = (() => {
+      try {
+        const dl = baseData.deliveryDateLocal ?? null;
+        const tz = baseData.deliveryTZ ?? null;
+        if (dl && tz) {
+          return computeExpiresAtMsFromLocalTZ(dl, tz);
+        }
+        return undefined;
+      } catch (e) {
+        console.log('[POST_LOAD] expiresAtMs compute failed', e);
+        return undefined;
+      }
+    })();
+
+    const loadData = {
+      ...baseData,
+      ...createOnly,
+      ...(computeExpires != null ? { expiresAtMs: computeExpires } : {}),
+      // Never touch isArchived/archivedAt here; cron-only
+    } as const;
 
     console.log("[POST_LOAD] Attempting to write to Firestore...");
     
