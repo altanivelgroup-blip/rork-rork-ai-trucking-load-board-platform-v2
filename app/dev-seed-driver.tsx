@@ -41,32 +41,32 @@ export default function DevSeedDriverScreen() {
       
       // Step 1: Register the account
       await register('robertlv996@gmail.com', '123456', {
-        name: 'Robert Test Driver',
+        name: 'Robert Light Haul Driver',
         phone: '(555) 123-4567',
       });
       
       // Step 2: Update with complete vehicle profile
       await updateProfile({
-        vehicleMake: 'Freightliner',
-        vehicleModel: 'Cascadia',
-        vehicleYear: 2022,
+        vehicleMake: 'RAM',
+        vehicleModel: '3500',
+        vehicleYear: 2024,
         fuelType: 'diesel',
-        mpgRated: 7.2,
-        vin: '1FUJGHDV8NLAA1234',
-        plate: 'TX123ABC',
-        tankGallons: 150,
-        gvwrLbs: 80000,
-        company: 'Test Logistics LLC',
-        mcNumber: 'MC123456',
-        dotNumber: 'DOT0987654',
-        insuranceCarrier: 'Progressive Commercial',
-        insurancePolicy: 'POL-TEST-789456',
-        vehicleInfo: '2022 Freightliner Cascadia VIN: 1FUJGHDV8NLAA1234',
-        trailerInfo: '2021 Great Dane Dry Van VIN: 1GRAA0628MF123456',
+        mpgRated: 12.5,
+        vin: '3C7WRTCL8RG123456',
+        plate: 'TX456DEF',
+        tankGallons: 50,
+        gvwrLbs: 14000,
+        company: 'Light Haul Express LLC',
+        mcNumber: 'MC789012',
+        dotNumber: 'DOT1234567',
+        insuranceCarrier: 'State Farm Commercial',
+        insurancePolicy: 'POL-LIGHT-456789',
+        vehicleInfo: '2024 RAM 3500 Crew Cab Dually VIN: 3C7WRTCL8RG123456',
+        trailerInfo: '2023 16ft Enclosed Utility Trailer VIN: 4YMTU1624PF789012',
         verificationStatus: 'verified',
-        cdlNumber: 'CDL123456789',
-        rating: 4.9,
-        completedLoads: 47,
+        cdlNumber: 'CDL987654321',
+        rating: 4.8,
+        completedLoads: 23,
         isAvailable: true,
       });
       
@@ -157,32 +157,32 @@ export default function DevSeedDriverScreen() {
           <Text style={styles.infoTitle}>Account Details:</Text>
           <Text style={styles.infoText}>• Email: robertlv996@gmail.com</Text>
           <Text style={styles.infoText}>• Password: 123456</Text>
-          <Text style={styles.infoText}>• Name: Robert Test Driver</Text>
+          <Text style={styles.infoText}>• Name: Robert Light Haul Driver</Text>
           <Text style={styles.infoText}>• Phone: (555) 123-4567</Text>
         </View>
 
         <View style={styles.infoCard}>
           <Truck size={20} color={theme.colors.primary} />
           <Text style={styles.infoTitle}>Vehicle Profile:</Text>
-          <Text style={styles.infoText}>• 2022 Freightliner Cascadia</Text>
-          <Text style={styles.infoText}>• Diesel, 7.2 MPG, 150 gal tank</Text>
-          <Text style={styles.infoText}>• VIN: 1FUJGHDV8NLAA1234</Text>
-          <Text style={styles.infoText}>• Plate: TX123ABC</Text>
+          <Text style={styles.infoText}>• 2024 RAM 3500 Crew Cab Dually</Text>
+          <Text style={styles.infoText}>• Diesel, 12.5 MPG, 50 gal tank</Text>
+          <Text style={styles.infoText}>• VIN: 3C7WRTCL8RG123456</Text>
+          <Text style={styles.infoText}>• Plate: TX456DEF</Text>
         </View>
 
         <View style={styles.infoCard}>
           <FileText size={20} color={theme.colors.primary} />
           <Text style={styles.infoTitle}>Company & Documents:</Text>
-          <Text style={styles.infoText}>• Test Logistics LLC</Text>
-          <Text style={styles.infoText}>• MC123456 / DOT0987654</Text>
-          <Text style={styles.infoText}>• Progressive Commercial Insurance</Text>
+          <Text style={styles.infoText}>• Light Haul Express LLC</Text>
+          <Text style={styles.infoText}>• MC789012 / DOT1234567</Text>
+          <Text style={styles.infoText}>• State Farm Commercial Insurance</Text>
           <Text style={styles.infoText}>• CDL, COI, Registration attached</Text>
         </View>
 
         <View style={styles.infoCard}>
           <CheckCircle size={20} color={theme.colors.success} />
           <Text style={styles.infoTitle}>Driver Stats:</Text>
-          <Text style={styles.infoText}>• 4.9⭐ rating, 47 completed loads</Text>
+          <Text style={styles.infoText}>• 4.8⭐ rating, 23 completed loads</Text>
           <Text style={styles.infoText}>• Verified status</Text>
           <Text style={styles.infoText}>• Available for loads</Text>
         </View>
