@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,40 +17,83 @@ export default function DriverProfileScreen() {
   // Form state
   const [formData, setFormData] = useState({
     // Personal Info
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
-    company: user?.company || '',
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
     
     // Vehicle Info
-    vehicleMake: user?.vehicleMake || '',
-    vehicleModel: user?.vehicleModel || '',
-    vehicleYear: user?.vehicleYear?.toString() || '',
-    fuelType: (user?.fuelType || 'diesel') as 'diesel' | 'gasoline',
-    mpgRated: user?.mpgRated?.toString() || '',
-    vin: user?.vin || '',
-    plate: user?.plate || '',
-    tankGallons: user?.tankGallons?.toString() || '50',
-    gvwrLbs: user?.gvwrLbs?.toString() || '',
+    vehicleMake: '',
+    vehicleModel: '',
+    vehicleYear: '',
+    fuelType: 'diesel' as 'diesel' | 'gasoline',
+    mpgRated: '',
+    vin: '',
+    plate: '',
+    tankGallons: '50',
+    gvwrLbs: '',
     
     // Trailer Info
-    trailerMake: user?.trailerMake || '',
-    trailerModel: user?.trailerModel || '',
-    trailerYear: user?.trailerYear?.toString() || '',
-    trailerVin: user?.trailerVin || '',
-    trailerPlate: user?.trailerPlate || '',
-    trailerInsuranceCarrier: user?.trailerInsuranceCarrier || '',
-    trailerPolicyNumber: user?.trailerPolicyNumber || '',
-    trailerGvwrLbs: user?.trailerGvwrLbs?.toString() || '',
-    trailerType: user?.trailerType || 'flatbed',
+    trailerMake: '',
+    trailerModel: '',
+    trailerYear: '',
+    trailerVin: '',
+    trailerPlate: '',
+    trailerInsuranceCarrier: '',
+    trailerPolicyNumber: '',
+    trailerGvwrLbs: '',
+    trailerType: 'flatbed',
     
     // Company Info
-    companyName: user?.companyName || '',
-    mcNumber: user?.mcNumber || '',
-    dotNumber: user?.dotNumber || '',
-    insuranceCarrier: user?.insuranceCarrier || '',
-    policyNumber: user?.policyNumber || '',
+    companyName: '',
+    mcNumber: '',
+    dotNumber: '',
+    insuranceCarrier: '',
+    policyNumber: '',
   });
+
+  // Update form data when user data changes
+  useEffect(() => {
+    if (user) {
+      console.log('[driver-profile] updating form data with user:', user);
+      setFormData({
+        // Personal Info
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        company: user.company || '',
+        
+        // Vehicle Info
+        vehicleMake: user.vehicleMake || '',
+        vehicleModel: user.vehicleModel || '',
+        vehicleYear: user.vehicleYear?.toString() || '',
+        fuelType: (user.fuelType === 'gas' ? 'gasoline' : user.fuelType || 'diesel') as 'diesel' | 'gasoline',
+        mpgRated: user.mpgRated?.toString() || '',
+        vin: user.vin || '',
+        plate: user.plate || '',
+        tankGallons: user.tankGallons?.toString() || '50',
+        gvwrLbs: user.gvwrLbs?.toString() || '',
+        
+        // Trailer Info
+        trailerMake: user.trailerMake || '',
+        trailerModel: user.trailerModel || '',
+        trailerYear: user.trailerYear?.toString() || '',
+        trailerVin: user.trailerVin || '',
+        trailerPlate: user.trailerPlate || '',
+        trailerInsuranceCarrier: user.trailerInsuranceCarrier || '',
+        trailerPolicyNumber: user.trailerPolicyNumber || '',
+        trailerGvwrLbs: user.trailerGvwrLbs?.toString() || '',
+        trailerType: user.trailerType || 'flatbed',
+        
+        // Company Info
+        companyName: user.companyName || '',
+        mcNumber: user.mcNumber || '',
+        dotNumber: user.dotNumber || '',
+        insuranceCarrier: user.insuranceCarrier || '',
+        policyNumber: user.policyNumber || '',
+      });
+    }
+  }, [user]);
 
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -66,7 +109,9 @@ export default function DriverProfileScreen() {
   const onSave = useCallback(async () => {
     try {
       setSubmitting(true);
-      await updateProfile({
+      console.log('[driver-profile] saving profile with data:', formData);
+      
+      const updateData = {
         name: formData.name,
         phone: formData.phone,
         company: formData.company,
@@ -93,7 +138,11 @@ export default function DriverProfileScreen() {
         dotNumber: formData.dotNumber,
         insuranceCarrier: formData.insuranceCarrier,
         policyNumber: formData.policyNumber,
-      });
+      };
+      
+      console.log('[driver-profile] update data:', updateData);
+      await updateProfile(updateData);
+      console.log('[driver-profile] profile updated successfully');
       toast.show('Driver profile saved successfully', 'success');
     } catch (e) {
       console.error('[driver-profile] save error', e);
