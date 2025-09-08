@@ -10,7 +10,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel, Clock } from 'lucide-react-native';
+import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel, Clock, Cloud, CloudRain, CloudSnow, CloudLightning, Sun } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
@@ -51,6 +51,7 @@ export default function LoadDetailsScreen() {
   const mapboxToken = (process.env.EXPO_PUBLIC_MAPBOX_TOKEN as string | undefined) ?? undefined;
   const orsKey = (process.env.EXPO_PUBLIC_ORS_API_KEY as string | undefined) ?? undefined;
   const eiaKey = (process.env.EXPO_PUBLIC_EIA_API_KEY as string | undefined) ?? undefined;
+  const owmKey = (process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY as string | undefined) ?? undefined;
 
   const etaQueryEnabled = useMemo(() => {
     const o: any = (load as any)?.origin;
@@ -124,6 +125,30 @@ export default function LoadDetailsScreen() {
     }
   }, [etaQuery.data?.distanceMeters, etaQuery.data?.durationSec, load?.distance, load?.pickupDate, load?.vehicleType, load?.origin?.state, load?.destination?.state, user?.fuelProfile?.vehicleType]);
 
+  const distanceDisplayMiles = useMemo(() => {
+    const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
+    const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : Number(load?.distance ?? 0);
+    return Number.isFinite(miles) && miles > 0 ? Math.round(miles) : undefined;
+  }, [etaQuery.data?.distanceMeters, load?.distance]);
+
+  const weatherEnabled = useMemo(() => {
+    const d: any = (load as any)?.destination;
+    const hasCoords = typeof d?.lat === 'number' && typeof d?.lng === 'number';
+    return !!etaInfo?.arrivalTs && hasCoords && !!owmKey;
+  }, [etaInfo?.arrivalTs, load?.destination?.lat, load?.destination?.lng, owmKey]);
+
+  const weatherAtEtaQuery = trpc.weather.forecastAt.useQuery(
+    weatherEnabled
+      ? {
+          lat: Number((load as any)?.destination?.lat ?? 0),
+          lon: Number((load as any)?.destination?.lng ?? 0),
+          etaTs: Number(etaInfo?.arrivalTs ?? Date.now()),
+          openWeatherKey: owmKey,
+        }
+      : (undefined as unknown as any),
+    { enabled: weatherEnabled }
+  );
+
   const selectableVehicles: Array<{ key: string; label: string }> = useMemo(() => ([
     { key: 'car-hauler', label: 'Car Hauler' },
     { key: 'flatbed', label: 'Flatbed' },
@@ -141,6 +166,32 @@ export default function LoadDetailsScreen() {
     const val = user?.fuelProfile?.averageMpg ?? undefined;
     return typeof val === 'number' && Number.isFinite(val) ? String(val) : '';
   });
+
+  const [tankInput, setTankInput] = useState<string>(() => {
+    const val = user?.fuelProfile?.tankCapacity ?? undefined;
+    return typeof val === 'number' && Number.isFinite(val) ? String(val) : '';
+  });
+
+  const tankAlert = useMemo(() => {
+    try {
+      const cap = Number(user?.fuelProfile?.tankCapacity ?? 0);
+      const avg = Number(user?.fuelProfile?.averageMpg ?? (fuelEstimate?.mpg ?? 0));
+      const miles = typeof distanceDisplayMiles === 'number' ? distanceDisplayMiles : Number(load?.distance ?? 0);
+      if (!Number.isFinite(cap) || cap <= 0 || !Number.isFinite(avg) || avg <= 0 || !Number.isFinite(miles) || miles <= 0) return null;
+      const range = cap * avg;
+      const margin = range * 0.1;
+      if (miles > range + 1) {
+        return { level: 'critical' as const, message: 'Trip exceeds tank range. Plan refueling.', rangeMiles: range };
+      }
+      if (miles > range - margin) {
+        return { level: 'warning' as const, message: 'Near tank range limit. Consider a fuel stop.', rangeMiles: range };
+      }
+      return null;
+    } catch (e) {
+      console.log('[LoadDetails] tankAlert error', e);
+      return null;
+    }
+  }, [user?.fuelProfile?.tankCapacity, user?.fuelProfile?.averageMpg, fuelEstimate?.mpg, distanceDisplayMiles, load?.distance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -365,11 +416,6 @@ export default function LoadDetailsScreen() {
 
   const vehicleColor = theme.colors[(load?.vehicleType as keyof typeof theme.colors) ?? 'primary'] ?? theme.colors.primary;
 
-  const distanceDisplayMiles = useMemo(() => {
-    const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
-    const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : Number(load.distance ?? 0);
-    return Number.isFinite(miles) && miles > 0 ? Math.round(miles) : undefined;
-  }, [etaQuery.data?.distanceMeters, load?.distance]);
 
   return (
     <Modal
@@ -530,6 +576,47 @@ export default function LoadDetailsScreen() {
               </Text>
             </View>
 
+            {weatherAtEtaQuery.isLoading ? (
+              <View style={styles.detailRow}>
+                <Cloud size={18} color={theme.colors.gray} />
+                <Text style={styles.detailLabel}>Weather @ ETA</Text>
+                <Text style={styles.detailValue} testID="weather-eta-loading">loading…</Text>
+              </View>
+            ) : weatherAtEtaQuery.error ? (
+              <View style={styles.detailRow}>
+                <Cloud size={18} color={theme.colors.gray} />
+                <Text style={styles.detailLabel}>Weather @ ETA</Text>
+                <Text style={styles.detailValue} testID="weather-eta-error">N/A</Text>
+              </View>
+            ) : weatherAtEtaQuery.data ? (
+              <View style={styles.detailRow} testID="weather-eta">
+                {(() => {
+                  const key = (weatherAtEtaQuery.data as any).iconKey as string | undefined;
+                  if (key === 'rain') return <CloudRain size={18} color={theme.colors.gray} />;
+                  if (key === 'snow') return <CloudSnow size={18} color={theme.colors.gray} />;
+                  if (key === 'thunderstorm') return <CloudLightning size={18} color={theme.colors.gray} />;
+                  if (key === 'clear') return <Sun size={18} color={theme.colors.warning} />;
+                  return <Cloud size={18} color={theme.colors.gray} />;
+                })()}
+                <Text style={styles.detailLabel}>Weather @ ETA</Text>
+                <Text style={styles.detailValue}>
+                  {typeof weatherAtEtaQuery.data.tempF === 'number' ? `${Math.round(weatherAtEtaQuery.data.tempF)}°F` : ''}
+                  {weatherAtEtaQuery.data.description ? ` • ${String(weatherAtEtaQuery.data.description)}` : ''}
+                  {typeof weatherAtEtaQuery.data.windMph === 'number' ? ` • ${Math.round(weatherAtEtaQuery.data.windMph)} mph` : ''}
+                </Text>
+              </View>
+            ) : null}
+
+            {tankAlert ? (
+              <View style={[styles.detailRow, tankAlert.level === 'critical' ? styles.alertCritical : styles.alertWarning]} testID="tank-range-alert">
+                <Fuel size={18} color={tankAlert.level === 'critical' ? theme.colors.white : theme.colors.warning} />
+                <Text style={[styles.detailLabel, tankAlert.level === 'critical' ? { color: theme.colors.white } : undefined]}>Tank Range</Text>
+                <Text style={[styles.detailValue, tankAlert.level === 'critical' ? { color: theme.colors.white } : undefined]}>
+                  {tankAlert.message} • Range ~ {Math.round(tankAlert.rangeMiles)} mi
+                </Text>
+              </View>
+            ) : null}
+
             <View style={styles.locationCard}>
               <View style={styles.locationHeader}>
                 <MapPin size={20} color={theme.colors.danger} />
@@ -666,6 +753,7 @@ export default function LoadDetailsScreen() {
                           averageMpg: val,
                           fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
                           fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
+                          tankCapacity: user?.fuelProfile?.tankCapacity ?? (undefined as unknown as number),
                         } as any,
                       });
                     } catch (e) {
@@ -673,6 +761,35 @@ export default function LoadDetailsScreen() {
                     }
                   }}
                   testID="input-mpg"
+                />
+              </View>
+              <View style={[styles.mpgRow, { marginTop: 8 }]}>
+                <Text style={styles.mpgLabel}>Tank capacity (gal)</Text>
+                <TextInput
+                  style={styles.mpgInput}
+                  inputMode="decimal"
+                  keyboardType="numeric"
+                  placeholder="e.g. 150"
+                  value={tankInput}
+                  onChangeText={setTankInput}
+                  onBlur={async () => {
+                    try {
+                      const val = parseFloat(tankInput);
+                      if (!Number.isFinite(val) || val <= 0) return;
+                      await updateProfile({
+                        fuelProfile: {
+                          vehicleType: (selectedVehicleType as any) ?? (load?.vehicleType as any),
+                          averageMpg: user?.fuelProfile?.averageMpg ?? (undefined as unknown as number),
+                          fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
+                          fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
+                          tankCapacity: val,
+                        } as any,
+                      });
+                    } catch (e) {
+                      console.log('[VehicleProfile] failed to update tank capacity', e);
+                    }
+                  }}
+                  testID="input-tank"
                 />
               </View>
             </View>
@@ -990,6 +1107,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     marginBottom: theme.spacing.md,
+  },
+  alertWarning: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  alertCritical: {
+    backgroundColor: '#991B1B',
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#7F1D1D',
   },
   detailLabel: {
     flex: 1,

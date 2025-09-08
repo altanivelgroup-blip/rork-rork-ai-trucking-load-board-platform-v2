@@ -36,6 +36,7 @@ export interface FuelProfile {
   averageMpg: number;
   fuelPricePerGallon: number;
   fuelType: 'diesel' | 'gasoline';
+  tankCapacity?: number;
 }
 
 export interface Driver extends User {
