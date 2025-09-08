@@ -9,7 +9,7 @@ import { useToast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { collection, getDocs, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, getDocs, limit, onSnapshot, orderBy, query, where, QueryConstraint } from 'firebase/firestore';
 
 interface GeoPoint { lat: number; lng: number }
 
@@ -224,14 +224,31 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
         return;
       }
 
-      const q = query(
-        collection(db, LOADS_COLLECTION),
+      const baseConstraints: QueryConstraint[] = [
         where('status', '==', LOAD_STATUS.OPEN),
         where('isArchived', '==', false),
-        orderBy('clientCreatedAt', 'desc'),
-        limit(50)
-      );
-      const snap = await getDocs(q);
+        limit(50),
+      ];
+      let snap;
+      try {
+        const qOrdered = query(
+          collection(db, LOADS_COLLECTION),
+          ...baseConstraints,
+          orderBy('clientCreatedAt', 'desc'),
+        );
+        snap = await getDocs(qOrdered);
+      } catch (e: any) {
+        if (e?.code === 'failed-precondition') {
+          console.warn('[Loads] Missing Firestore index for ordered query. Falling back without orderBy.');
+          const qUnordered = query(
+            collection(db, LOADS_COLLECTION),
+            ...baseConstraints,
+          );
+          snap = await getDocs(qUnordered);
+        } else {
+          throw e;
+        }
+      }
 
       const toLoad = (doc: any): Load | null => {
         const d = doc.data?.() ?? doc.data();
@@ -384,14 +401,21 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
           unsubscribeRef.current();
           unsubscribeRef.current = null;
         }
-        const q = query(
-          collection(db, LOADS_COLLECTION),
+        const baseConstraints: QueryConstraint[] = [
           where('status', '==', LOAD_STATUS.OPEN),
           where('isArchived', '==', false),
+          limit(50),
+        ];
+        const qOrdered = query(
+          collection(db, LOADS_COLLECTION),
+          ...baseConstraints,
           orderBy('clientCreatedAt', 'desc'),
-          limit(50)
         );
-        unsubscribeRef.current = onSnapshot(q, async (snap) => {
+        const qUnordered = query(
+          collection(db, LOADS_COLLECTION),
+          ...baseConstraints,
+        );
+        unsubscribeRef.current = onSnapshot(qOrdered, async (snap) => {
           try {
             const docs = snap.docs.map((doc) => {
               const d: any = doc.data();
@@ -422,6 +446,44 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
             setLoads(mergeUniqueById(docs, persisted));
           } catch (e) {
             console.warn('[Loads] Snapshot mapping failed', e);
+          }
+        }, async (err) => {
+          try {
+            if ((err as any)?.code === 'failed-precondition') {
+              console.warn('[Loads] Missing Firestore index for listener. Switching to non-ordered one-time fetch.');
+              const fallbackSnap = await getDocs(qUnordered);
+              const docs = fallbackSnap.docs.map((doc) => {
+                const d: any = doc.data();
+                if (d?.isArchived === true) return null;
+                const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
+                const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+                const mapped: Load = {
+                  id: String(doc.id),
+                  shipperId: String(d?.createdBy ?? 'unknown'),
+                  shipperName: '',
+                  origin: { address: '', city: String(d?.origin ?? ''), state: '', zipCode: '', lat: 0, lng: 0 },
+                  destination: { address: '', city: String(d?.destination ?? ''), state: '', zipCode: '', lat: 0, lng: 0 },
+                  distance: 0,
+                  weight: 0,
+                  vehicleType: (d?.vehicleType as any) ?? 'van',
+                  rate: Number(d?.rate ?? 0),
+                  ratePerMile: 0,
+                  pickupDate: pickup,
+                  deliveryDate: delivery,
+                  status: 'available',
+                  description: String(d?.title ?? ''),
+                  special_requirements: undefined,
+                  isBackhaul: false,
+                };
+                return mapped;
+              }).filter((x): x is Load => x !== null);
+              const persisted = await readPersisted();
+              setLoads(mergeUniqueById(docs, persisted));
+            } else {
+              console.warn('[Loads] Firestore listener error', err);
+            }
+          } catch (inner) {
+            console.warn('[Loads] Listener fallback failed', inner);
           }
         });
       } catch (e) {
