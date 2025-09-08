@@ -61,9 +61,9 @@ export interface Driver extends User {
   fuelProfile?: FuelProfile;
   vehicleMake?: string;
   vehicleModel?: string;
-  vehicleYear?: number;
+  vehicleYear?: number | null;
   fuelType?: FuelKind;
-  mpgRated?: number;
+  mpgRated?: number | null;
   vin?: string;
   plate?: string;
   tankGallons?: number | null;

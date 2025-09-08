@@ -18,9 +18,9 @@ export default function DriverVehicleSetupScreen() {
       await updateProfile({
         vehicleMake: values.vehicleMake,
         vehicleModel: values.vehicleModel,
-        vehicleYear: values.vehicleYear ?? undefined,
+        vehicleYear: values.vehicleYear ?? null,
         fuelType: values.fuelType,
-        mpgRated: values.mpgRated ?? undefined,
+        mpgRated: values.mpgRated ?? null,
         vin: values.vin,
         plate: values.plate,
         tankGallons: values.tankGallons ?? null,
