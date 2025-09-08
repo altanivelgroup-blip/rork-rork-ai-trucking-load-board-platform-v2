@@ -10,7 +10,7 @@ export default function TestingGuide() {
     console.log('[TestingGuide] Print requested');
     if (Platform.OS === 'web') {
       try {
-        const g = globalThis as { print?: () => void } | undefined;
+        const g = (globalThis as unknown) as { print?: () => void } | undefined;
         g?.print?.();
       } catch (err) {
         console.error('[TestingGuide] Print error', err);
