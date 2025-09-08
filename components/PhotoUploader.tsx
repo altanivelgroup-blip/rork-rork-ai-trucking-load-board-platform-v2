@@ -305,6 +305,10 @@ export function PhotoUploader({
     if (writeInFlightRef.current) return;
     writeInFlightRef.current = true;
     try {
+      const authed = await ensureFirebaseAuth();
+      if (!authed) {
+        throw new Error('auth-missing');
+      }
       const { db } = getFirebase();
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
       const docRef = doc(db, collectionName, entityId);
@@ -325,9 +329,14 @@ export function PhotoUploader({
         );
         console.log('[PhotoUploader] Firestore upserted (coalesced) with', safePhotos.length, 'photos');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
-      toast.show('Failed to save photos', 'error');
+      const msg = String(error?.message || '');
+      if (msg.includes('auth-missing') || msg.includes('permission') || msg.includes('denied')) {
+        toast.show('Authentication required to save photos. Please refresh and try again.', 'error');
+      } else {
+        toast.show('Failed to save photos', 'error');
+      }
     } finally {
       writeInFlightRef.current = false;
       if (pendingWriteRef.current) {
