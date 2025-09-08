@@ -10,8 +10,8 @@ export default function TestingGuide() {
     console.log('[TestingGuide] Print requested');
     if (Platform.OS === 'web') {
       try {
-        // @ts-expect-error window is only on web
-        window.print();
+        const g = globalThis as { print?: () => void } | undefined;
+        g?.print?.();
       } catch (err) {
         console.error('[TestingGuide] Print error', err);
       }
