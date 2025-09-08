@@ -14,6 +14,18 @@ export const OPENWEATHER_API_KEY: string | undefined = pick(process.env.EXPO_PUB
 
 export const FORCE_DELIVERY_TZ: string | undefined = pick(process.env.EXPO_PUBLIC_FORCE_DELIVERY_TZ as any);
 
+export const DEFAULT_DIESEL_PRICE: number = (() => {
+  const raw = pick(process.env.EXPO_PUBLIC_DEFAULT_DIESEL_PRICE as any);
+  const n = raw ? parseFloat(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 4.25;
+})();
+
+export const DEFAULT_GAS_PRICE: number = (() => {
+  const raw = pick(process.env.EXPO_PUBLIC_DEFAULT_GAS_PRICE as any);
+  const n = raw ? parseFloat(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 3.85;
+})();
+
 export const hasApiBaseUrl: boolean = typeof API_BASE_URL === 'string' && !!API_BASE_URL;
 export const hasMapbox: boolean = typeof MAPBOX_TOKEN === 'string' && !!MAPBOX_TOKEN;
 export const hasORS: boolean = typeof ORS_API_KEY === 'string' && !!ORS_API_KEY;

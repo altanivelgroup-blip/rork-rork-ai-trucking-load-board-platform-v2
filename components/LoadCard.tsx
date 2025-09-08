@@ -4,7 +4,7 @@ import { MapPin, DollarSign, Package, TrendingUp, Fuel, Heart } from 'lucide-rea
 import { Load } from '@/types';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { estimateFuelForLoad, formatCurrency } from '@/utils/fuel';
+import { estimateFuelForLoad, formatCurrency, simpleFuelMetrics } from '@/utils/fuel';
 import { useLoads } from '@/hooks/useLoads';
 
 interface LoadCardProps {
@@ -26,6 +26,15 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
       return undefined;
     }
   }, [load, user]);
+
+  const simple = useMemo(() => {
+    try {
+      return simpleFuelMetrics({ rate: load.rate, distance: load.distance, vehicleType: load.vehicleType }, user ?? undefined);
+    } catch (e) {
+      console.log('[LoadCard] simple fuel metrics error', e);
+      return undefined;
+    }
+  }, [load.rate, load.distance, load.vehicleType, user]);
 
   const handleCardPress = useCallback(() => {
     try { onPress(); } catch (err) { console.log('[LoadCard] onPress error', err); }
@@ -110,6 +119,29 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
           <Text style={styles.ratePerMile}>(${load.ratePerMile.toFixed(2)}/mi)</Text>
         </View>
       </View>
+
+      {simple ? (
+        <View style={styles.chipsRow} testID="load-metrics-chips">
+          {typeof simple.rpm === 'number' ? (
+            <View style={styles.chip} testID="chip-rpm">
+              <Text style={styles.chipLabel}>RPM</Text>
+              <Text style={styles.chipValue}>${simple.rpm.toFixed(2)}</Text>
+            </View>
+          ) : null}
+          {typeof simple.mpg === 'number' ? (
+            <View style={styles.chip} testID="chip-mpg">
+              <Text style={styles.chipLabel}>MPG</Text>
+              <Text style={styles.chipValue}>~{simple.mpg.toFixed(1)}</Text>
+            </View>
+          ) : null}
+          {typeof simple.fuelCost === 'number' ? (
+            <View style={styles.chip} testID="chip-fuel">
+              <Text style={styles.chipLabel}>Fuel est</Text>
+              <Text style={styles.chipValue}>{formatCurrency(simple.fuelCost)}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {fuel ? (
         <View style={styles.fuelRow} testID="fuel-estimate-row">
@@ -343,6 +375,32 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
     marginBottom: theme.spacing.sm,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: theme.spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: theme.colors.lightGray,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  chipLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  chipValue: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: theme.colors.dark,
   },
   fuelRow: {
     flexDirection: 'row',
