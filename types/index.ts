@@ -68,6 +68,9 @@ export interface Driver extends User {
   plate?: string;
   tankGallons?: number | null;
   gvwrLbs?: number | null;
+  // Company & Insurance fields
+  companyName?: string;
+  policyNumber?: string;
 }
 
 export interface Document {
