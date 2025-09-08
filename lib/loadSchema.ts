@@ -6,6 +6,13 @@ export const LOAD_STATUS = {
   // other statuses later…
 } as const;
 
+export type Place = {
+  city: string;
+  state: string;
+  lat: number;
+  lng: number;
+};
+
 export type LoadDoc = {
   title: string;
   origin: string;
@@ -26,7 +33,17 @@ export type LoadDoc = {
   // Archival fields
   isArchived?: boolean;
   archivedAt?: any;    // serverTimestamp
-  expiresAtMs?: number; // deliveryDate + 36h (server truth)
+  expiresAtMs?: number; // deliveryDateLocal -> UTC + 36h (server truth)
+  // Timezone-safe delivery fields
+  deliveryDateLocal?: string; // "YYYY-MM-DDTHH:mm"
+  deliveryTZ?: string;        // IANA tz e.g. "America/Phoenix"
+  // Structured geolocation (non-breaking addition)
+  originPlace?: Place;
+  destinationPlace?: Place;
+  // Normalized business metrics
+  revenueUsd?: number;
+  distanceMi?: number;
+  weightLbs?: number;
 };
 
 // Vehicle document type
@@ -46,4 +63,27 @@ export type VehicleDoc = {
   photos?: string[];   // Array of HTTPS URLs
   primaryPhoto?: string; // HTTPS URL of cover photo
   updatedAt?: any;     // serverTimestamp
+};
+
+// Drivers collection
+enum FuelTypeEnum {
+  diesel = 'diesel',
+  gas = 'gas'
+}
+
+export const DRIVERS_COLLECTION = 'drivers';
+
+export type DriverDoc = {
+  displayName: string;
+  email: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleYear: number;
+  fuelType: keyof typeof FuelTypeEnum; // 'diesel' | 'gas'
+  mpgRated: number;                     // driver-stated baseline MPG
+  vin: string;
+  plate: string;
+  tankGallons: number | null;
+  gvwrLbs: number | null;
+  createdAt: any; // serverTimestamp
 };

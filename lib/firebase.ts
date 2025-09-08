@@ -234,6 +234,27 @@ export async function postLoad(args: {
       rate: rateNum
     });
 
+    function formatLocalIso(date: Date, tz?: string | null): string | undefined {
+      try {
+        const fmt = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz || undefined,
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        });
+        const parts = fmt.formatToParts(date);
+        const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+        const yyyy = get('year');
+        const mm = get('month');
+        const dd = get('day');
+        const hh = get('hour');
+        const mi = get('minute');
+        return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+      } catch (e) {
+        console.log('[POST_LOAD] formatLocalIso failed', e);
+        return undefined;
+      }
+    }
+
     const baseData = {
       title: String(args.title).trim(),
       origin: String(args.origin).trim(),
@@ -251,6 +272,18 @@ export async function postLoad(args: {
       clientCreatedAt: Date.now(),
       isArchived: false,
       archivedAt: null,
+      deliveryTZ: args.deliveryTZ ?? null,
+      deliveryDateLocal: (() => {
+        try {
+          const dd = new Date(args.deliveryDate);
+          const isMidnight = dd.getHours() === 0 && dd.getMinutes() === 0 && dd.getSeconds() === 0 && dd.getMilliseconds() === 0;
+          if (isMidnight) dd.setHours(17, 0, 0, 0);
+          return formatLocalIso(dd, args.deliveryTZ ?? undefined);
+        } catch (e) {
+          console.log('[POST_LOAD] deliveryDateLocal compute failed', e);
+          return undefined;
+        }
+      })(),
       expiresAtMs: (() => {
         try {
           const dd = new Date(args.deliveryDate);
@@ -263,9 +296,7 @@ export async function postLoad(args: {
           const targetMin = isMidnight ? 0 : dd.getMinutes();
           const targetSec = isMidnight ? 0 : dd.getSeconds();
           const targetMs = isMidnight ? 0 : dd.getMilliseconds();
-
           const utcMs = toUtcMsForLocalWallTime(
-            // Use calendar fields in the delivery date's calendar, based on UTC components to avoid DST drift here; corrected by tz offset later
             y, m, d,
             targetHour, targetMin, targetSec, targetMs,
             args.deliveryTZ ?? null,
@@ -277,6 +308,7 @@ export async function postLoad(args: {
           return undefined as unknown as number;
         }
       })(),
+      revenueUsd: rateNum,
     } as const;
 
     const refDoc = doc(db, LOADS_COLLECTION, args.id);
