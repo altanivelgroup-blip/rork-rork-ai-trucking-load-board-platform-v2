@@ -23,6 +23,10 @@ export type LoadDoc = {
   photos?: string[];   // Array of HTTPS URLs
   primaryPhoto?: string; // HTTPS URL of cover photo
   updatedAt?: any;     // serverTimestamp
+  // Archival fields
+  isArchived?: boolean;
+  archivedAt?: any;    // serverTimestamp
+  expiresAtMs?: number; // deliveryDate + 36h (server truth)
 };
 
 // Vehicle document type

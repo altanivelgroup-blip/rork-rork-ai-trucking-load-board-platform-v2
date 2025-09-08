@@ -227,13 +227,15 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       const q = query(
         collection(db, LOADS_COLLECTION),
         where('status', '==', LOAD_STATUS.OPEN),
+        where('isArchived', '==', false),
         orderBy('clientCreatedAt', 'desc'),
         limit(50)
       );
       const snap = await getDocs(q);
 
-      const toLoad = (doc: any): Load => {
+      const toLoad = (doc: any): Load | null => {
         const d = doc.data?.() ?? doc.data();
+        if (d?.isArchived === true) return null;
         const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
         const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
         return {
@@ -270,7 +272,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
         };
       };
 
-      const fromFs = snap.docs.map(toLoad);
+      const fromFs = snap.docs.map(toLoad).filter((x): x is Load => x !== null);
       const persisted = await readPersisted();
       setLoads(mergeUniqueById(fromFs.length ? fromFs : mockLoads, persisted));
     } catch (error) {
@@ -385,6 +387,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
         const q = query(
           collection(db, LOADS_COLLECTION),
           where('status', '==', LOAD_STATUS.OPEN),
+          where('isArchived', '==', false),
           orderBy('clientCreatedAt', 'desc'),
           limit(50)
         );
@@ -392,6 +395,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
           try {
             const docs = snap.docs.map((doc) => {
               const d: any = doc.data();
+              if (d?.isArchived === true) return null;
               const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
               const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
               const mapped: Load = {
@@ -413,7 +417,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
                 isBackhaul: false,
               };
               return mapped;
-            });
+            }).filter((x): x is Load => x !== null);
             const persisted = await readPersisted();
             setLoads(mergeUniqueById(docs, persisted));
           } catch (e) {

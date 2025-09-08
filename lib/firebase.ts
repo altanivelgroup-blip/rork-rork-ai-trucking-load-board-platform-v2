@@ -9,6 +9,10 @@ import {
   orderBy,
   limit,
   getDocsFromServer,
+  getDocs,
+  writeBatch,
+  updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
 import { LOADS_COLLECTION, LOAD_STATUS, LoadDoc } from "@/lib/loadSchema";
@@ -57,6 +61,69 @@ export async function testFirebaseConnection() {
       error: error?.message || "Unknown error",
       code: error?.code || "unknown",
     };
+  }
+}
+
+// ---- Archive expired loads (deliveryDate + 36h) ----
+export async function archiveExpiredLoads(): Promise<{ scanned: number; archived: number }> {
+  const { db } = getFirebase();
+  const now = Date.now();
+  let archived = 0;
+  let scanned = 0;
+  try {
+    const q = query(
+      collection(db, LOADS_COLLECTION),
+      where('isArchived', '==', false),
+      where('expiresAtMs', '<=', now),
+      orderBy('expiresAtMs', 'asc'),
+      limit(200)
+    );
+    const snap = await getDocs(q as any);
+    scanned = snap.docs.length;
+    if (scanned === 0) return { scanned, archived };
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => {
+      batch.update(d.ref, { isArchived: true, archivedAt: serverTimestamp() });
+      archived += 1;
+    });
+    await batch.commit();
+    return { scanned, archived };
+  } catch (e) {
+    console.log('[ArchiveExpired] error', e);
+    return { scanned, archived };
+  }
+}
+
+// ---- Purge archived loads older than N days ----
+export async function purgeArchivedLoads(days: number = 14): Promise<{ scanned: number; purged: number }> {
+  const { db } = getFirebase();
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  let purged = 0;
+  let scanned = 0;
+  try {
+    const q = query(
+      collection(db, LOADS_COLLECTION),
+      where('isArchived', '==', true),
+      orderBy('clientCreatedAt', 'asc'),
+      limit(200)
+    );
+    const snap = await getDocs(q as any);
+    const toDelete = snap.docs.filter((d) => {
+      const cc = (d.data() as any)?.clientCreatedAt ?? 0;
+      return typeof cc === 'number' && cc < cutoff;
+    });
+    scanned = toDelete.length;
+    if (scanned === 0) return { scanned, purged };
+    const batch = writeBatch(db);
+    toDelete.forEach((d) => {
+      batch.delete(d.ref);
+      purged += 1;
+    });
+    await batch.commit();
+    return { scanned, purged };
+  } catch (e) {
+    console.log('[PurgeArchived] error', e);
+    return { scanned, purged };
   }
 }
 
@@ -122,6 +189,17 @@ export async function postLoad(args: {
       })),
       createdAt: serverTimestamp(),
       clientCreatedAt: Date.now(),
+      isArchived: false,
+      archivedAt: null,
+      expiresAtMs: (() => {
+        try {
+          const d = Timestamp.fromDate(new Date(args.deliveryDate)).toDate().getTime();
+          const thirtySixHoursMs = 36 * 60 * 60 * 1000;
+          return d + thirtySixHoursMs;
+        } catch {
+          return undefined as unknown as number;
+        }
+      })(),
     } as const;
 
     const refDoc = doc(db, LOADS_COLLECTION, args.id);
