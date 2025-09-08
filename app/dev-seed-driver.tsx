@@ -174,8 +174,10 @@ export default function DevSeedDriverScreen() {
         </View>
 
         <View style={styles.infoCard}>
-          <Truck size={20} color={theme.colors.primary} />
-          <Text style={styles.infoTitle}>Vehicle Profile:</Text>
+          <View style={styles.cardHeader}>
+            <Truck size={20} color={theme.colors.primary} />
+            <Text style={styles.infoTitle}>Vehicle Profile:</Text>
+          </View>
           <Text style={styles.infoText}>• 2024 RAM 3500 DUALLY</Text>
           <Text style={styles.infoText}>• Diesel, 12 MPG, 50 gal tank</Text>
           <Text style={styles.infoText}>• VIN: 3C7WRTCL8RG123456</Text>
@@ -192,8 +194,10 @@ export default function DevSeedDriverScreen() {
         </View>
 
         <View style={styles.infoCard}>
-          <FileText size={20} color={theme.colors.primary} />
-          <Text style={styles.infoTitle}>Company & Documents:</Text>
+          <View style={styles.cardHeader}>
+            <FileText size={20} color={theme.colors.primary} />
+            <Text style={styles.infoTitle}>Company & Documents:</Text>
+          </View>
           <Text style={styles.infoText}>• Light Haul Express LLC</Text>
           <Text style={styles.infoText}>• MC789012 / DOT1234567</Text>
           <Text style={styles.infoText}>• State Farm Commercial Insurance</Text>
@@ -201,8 +205,10 @@ export default function DevSeedDriverScreen() {
         </View>
 
         <View style={styles.infoCard}>
-          <CheckCircle size={20} color={theme.colors.success} />
-          <Text style={styles.infoTitle}>Driver Stats:</Text>
+          <View style={styles.cardHeader}>
+            <CheckCircle size={20} color={theme.colors.success} />
+            <Text style={styles.infoTitle}>Driver Stats:</Text>
+          </View>
           <Text style={styles.infoText}>• 4.8⭐ rating, 23 completed loads</Text>
           <Text style={styles.infoText}>• Verified status</Text>
           <Text style={styles.infoText}>• Available for loads</Text>
@@ -265,11 +271,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
   infoTitle: {
     fontSize: theme.fontSize.md,
     fontWeight: '700',
     color: theme.colors.dark,
-    marginBottom: theme.spacing.xs,
+    marginLeft: theme.spacing.xs,
   },
   infoText: {
     fontSize: theme.fontSize.sm,
