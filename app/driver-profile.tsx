@@ -53,6 +53,18 @@ export default function DriverProfileScreen() {
       <Stack.Screen options={{ title: 'Driver Profile' }} />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <DriverVehicleForm initial={initial} onSubmit={onSubmit} submitting={submitting} mode="edit" />
+
+        <View style={styles.verificationCard} testID="verification-card">
+          <Text style={styles.verificationTitle}>Documents & Verification</Text>
+          <Text style={styles.verificationSub}>
+            Status: {user?.verificationStatus ? String(user.verificationStatus).toUpperCase() : 'UNVERIFIED'}
+          </Text>
+          <Text style={styles.verificationHelp}>Upload CDL, COI, and registration to get verified.</Text>
+          <View style={{ height: 8 }} />
+          <Text onPress={() => router.push('/documents')} style={styles.linkBtn} accessibilityRole="button" testID="go-documents">
+            Manage Documents
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -60,5 +72,10 @@ export default function DriverProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
-  scroll: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
+  scroll: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl, gap: theme.spacing.md },
+  verificationCard: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  verificationTitle: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark },
+  verificationSub: { marginTop: 4, color: theme.colors.gray },
+  verificationHelp: { marginTop: 6, color: theme.colors.gray },
+  linkBtn: { marginTop: 8, color: theme.colors.primary, fontWeight: '700' },
 });

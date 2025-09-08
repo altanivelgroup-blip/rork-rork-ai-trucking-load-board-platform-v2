@@ -443,7 +443,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
               return mapped;
             }).filter((x): x is Load => x !== null);
             const persisted = await readPersisted();
-            setLoads(mergeUniqueById(docs, persisted));
+            setLoads(mergeUniqueById(docs.length ? docs : mockLoads, persisted));
           } catch (e) {
             console.warn('[Loads] Snapshot mapping failed', e);
           }
@@ -478,7 +478,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
                 return mapped;
               }).filter((x): x is Load => x !== null);
               const persisted = await readPersisted();
-              setLoads(mergeUniqueById(docs, persisted));
+              setLoads(mergeUniqueById(docs.length ? docs : mockLoads, persisted));
             } else {
               console.warn('[Loads] Firestore listener error', err);
             }
