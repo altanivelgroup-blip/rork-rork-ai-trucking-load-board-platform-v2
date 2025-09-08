@@ -93,7 +93,7 @@ export default function DriverProfileScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ 
-        title: 'Complete Driver Profile',
+        title: 'Edit Profile',
         headerRight: () => (
           <TouchableOpacity onPress={onSave} disabled={submitting}>
             <Text style={[styles.saveBtn, submitting && styles.saveBtnDisabled]}>Save</Text>

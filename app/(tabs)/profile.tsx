@@ -57,16 +57,8 @@ export default function ProfileScreen() {
     {
       id: 'edit-profile',
       title: 'Edit Profile',
-      subtitle: 'Update your personal information',
+      subtitle: 'Personal info, vehicle, MPG, VIN, plate',
       icon: <Edit3 size={20} color={theme.colors.primary} />,
-      route: '/edit-profile',
-      showChevron: true
-    },
-    {
-      id: 'driver-profile',
-      title: 'Driver Profile',
-      subtitle: 'Vehicle, MPG, VIN, plate',
-      icon: <Truck size={20} color={theme.colors.secondary} />,
       route: '/driver-profile',
       showChevron: true
     },
