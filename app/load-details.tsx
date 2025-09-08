@@ -47,6 +47,23 @@ const [loading, setLoading] = useState<boolean>(true);
   const [fuelEstimate, setFuelEstimate] = useState<FuelApiResponse | null>(null);
   const [fuelLoading, setFuelLoading] = useState<boolean>(false);
   const [fuelError, setFuelError] = useState<string | null>(null);
+  const financials = useMemo(() => {
+    try {
+      const rate = Number((load as any)?.rate ?? 0);
+      const miles = Number((load as any)?.distance ?? 0);
+      const cost = typeof fuelEstimate?.cost === 'number' ? fuelEstimate.cost : undefined;
+      const valid = Number.isFinite(rate) && rate > 0 && Number.isFinite(miles) && miles > 0 && typeof cost === 'number';
+      if (!valid) {
+        return { fuelCost: cost, netAfterFuel: undefined as unknown as number, profitPerMile: undefined as unknown as number };
+      }
+      const net = rate - (cost as number);
+      const ppm = net / miles;
+      return { fuelCost: cost as number, netAfterFuel: net, profitPerMile: ppm };
+    } catch (e) {
+      console.log('[LoadDetails] financials calc error', e);
+      return { fuelCost: undefined as unknown as number, netAfterFuel: undefined as unknown as number, profitPerMile: undefined as unknown as number };
+    }
+  }, [load?.rate, load?.distance, fuelEstimate?.cost]);
 
   const etaInfo = useMemo(() => {
     try {
@@ -346,6 +363,31 @@ useEffect(() => {
               {typeof load.ratePerMile === 'number' ? (
                 <Text style={styles.ratePerMile}>${load.ratePerMile.toFixed(2)} per mile</Text>
               ) : null}
+            </View>
+          </View>
+
+          <View style={styles.financeCard} testID="financials-card">
+            <Text style={styles.sectionTitle}>Financials</Text>
+            <View style={styles.detailRow}>
+              <Fuel size={20} color={theme.colors.gray} />
+              <Text style={styles.detailLabel}>Fuel Cost</Text>
+              <Text style={styles.detailValue} testID="fuel-cost-value">
+                {fuelLoading ? 'calculating…' : fuelError ? 'N/A' : typeof financials.fuelCost === 'number' ? formatCurrency(financials.fuelCost) : '—'}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <DollarSign size={20} color={theme.colors.gray} />
+              <Text style={styles.detailLabel}>Net After Fuel</Text>
+              <Text style={styles.detailValue} testID="net-after-fuel-value">
+                {typeof financials.netAfterFuel === 'number' ? formatCurrency(financials.netAfterFuel) : '—'}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <DollarSign size={20} color={theme.colors.gray} />
+              <Text style={styles.detailLabel}>Profit per Mile</Text>
+              <Text style={styles.detailValue} testID="profit-per-mile-value">
+                {typeof financials.profitPerMile === 'number' ? `${financials.profitPerMile.toFixed(2)}/mi` : '—'}
+              </Text>
             </View>
           </View>
 
@@ -730,6 +772,11 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
   },
   routeSection: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+  },
+  financeCard: {
     backgroundColor: theme.colors.white,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
