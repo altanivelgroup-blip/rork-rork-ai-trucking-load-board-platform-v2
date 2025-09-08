@@ -4,7 +4,7 @@ import Screen from '@/src/ui/Screen';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
-import { Truck, Star, Package, ArrowRight, MapPin, Mic } from 'lucide-react-native';
+import { Truck, Star, Package, ArrowRight, MapPin, Mic, Cloud, Sun, CloudRain, CloudLightning, Snowflake } from 'lucide-react-native';
 import { VoiceCapture } from '@/components/VoiceCapture';
 import { mockLoads } from '@/mocks/loads';
 import { useLoads } from '@/hooks/useLoads';
@@ -13,6 +13,8 @@ import { SortDropdown } from '@/components/SortDropdown';
 import { useSettings, type SortOrder } from '@/hooks/useSettings';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 import { font, moderateScale } from '@/src/ui/scale';
+import { trpcClient } from '@/lib/trpc';
+import { OPENWEATHER_API_KEY, ORS_API_KEY, MAPBOX_TOKEN } from '@/utils/env';
 
 interface RecentLoadProps {
   id: string;
@@ -82,6 +84,7 @@ export default function DashboardScreen() {
   const [hasLocationPerm, setHasLocationPerm] = useState<boolean>(false);
   const [distances, setDistances] = useState<Record<string, number>>({});
   const [aiRecentOrder, setAiRecentOrder] = useState<string[] | null>(null);
+  const [weather, setWeather] = useState<{ tempF?: number; description?: string; main?: string } | null>(null);
 
   const handleSortChange = useCallback((next: string) => {
     const opts: string[] = GEO_SORT_ENABLED && hasLocationPerm ? [...sortOptionsBase, 'Nearest'] : [...sortOptionsBase];
@@ -119,6 +122,20 @@ export default function DashboardScreen() {
       }
     })();
   }, [getForegroundPermissionStatusAsync]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const hasKey: boolean = typeof OPENWEATHER_API_KEY === 'string' && !!OPENWEATHER_API_KEY;
+        if (!currentLoc || !hasKey) { setWeather(null); return; }
+        const res = await trpcClient.weather.current.query({ lat: currentLoc.latitude, lon: currentLoc.longitude, openWeatherKey: OPENWEATHER_API_KEY });
+        setWeather(res ?? null);
+      } catch (e) {
+        console.warn('[Dashboard] weather fetch failed', e);
+        setWeather(null);
+      }
+    })();
+  }, [currentLoc?.latitude, currentLoc?.longitude]);
 
   useEffect(() => {
     if (!GEO_SORT_ENABLED) return;
@@ -338,6 +355,16 @@ export default function DashboardScreen() {
     return base;
   }, [sortOptionsBase, hasLocationPerm]);
 
+  const WeatherIcon = useMemo(() => {
+    const key = String(weather?.main || '').toLowerCase();
+    if (key.includes('thunder')) return CloudLightning;
+    if (key.includes('snow')) return Snowflake;
+    if (key.includes('rain') || key.includes('drizzle')) return CloudRain;
+    if (key.includes('cloud')) return Cloud;
+    if (key.includes('clear')) return Sun;
+    return Cloud;
+  }, [weather?.main]);
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.container}>
@@ -350,6 +377,15 @@ export default function DashboardScreen() {
           <View style={styles.heroOverlay} />
           <Text style={styles.heroTitle} testID="dashboard-hero-title" allowFontScaling={false}>LoadRun</Text>
           <Text style={styles.heroSubtitle} testID="dashboard-hero-subtitle">AI Load Board for Car Haulers</Text>
+          {weather?.tempF != null ? (
+            <View style={styles.weatherPill} testID="dashboard-weather-pill">
+              <WeatherIcon size={moderateScale(16)} color={theme.colors.white} />
+              <Text style={styles.weatherText} allowFontScaling={false}>{Math.round(weather.tempF)}°F</Text>
+              {weather?.description ? (
+                <Text style={[styles.weatherText, { opacity: 0.9 }]} numberOfLines={1} allowFontScaling={false}>{String(weather.description)}</Text>
+              ) : null}
+            </View>
+          ) : null}
         </ImageBackground>
 
         <View style={styles.welcomeRow}>
@@ -540,6 +576,22 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     marginTop: moderateScale(2),
     marginBottom: moderateScale(2),
+  },
+  weatherPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(6),
+    borderRadius: moderateScale(9999),
+    marginTop: moderateScale(6),
+    gap: moderateScale(6),
+  },
+  weatherText: {
+    color: theme.colors.white,
+    fontWeight: '700',
+    fontSize: font(12),
   },
   welcomeRow: {
     flexDirection: 'row',
