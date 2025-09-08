@@ -128,6 +128,65 @@ export async function purgeArchivedLoads(days: number = 14): Promise<{ scanned: 
 }
 
 // ---- MAIN: post a load into /loads/{id} ----
+function parseGmtOffset(value: string): number | null {
+  try {
+    const m = value.match(/GMT([+\-])(\d{1,2})(?::(\d{2}))?/);
+    if (!m) return null;
+    const sign = m[1] === '-' ? -1 : 1;
+    const h = Number(m[2] ?? 0);
+    const mm = Number(m[3] ?? 0);
+    return sign * (h * 60 + mm) * 60 * 1000;
+  } catch {
+    return null;
+  }
+}
+
+function getOffsetMsForTZ(tz: string, atUtcMs: number): number | null {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour12: false,
+      timeZoneName: 'shortOffset',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    const parts = fmt.formatToParts(new Date(atUtcMs));
+    const tzName = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    const off = parseGmtOffset(tzName);
+    return off;
+  } catch (e) {
+    console.log('[POST_LOAD] getOffsetMsForTZ fallback', e);
+    return null;
+  }
+}
+
+function toUtcMsForLocalWallTime(
+  y: number,
+  m: number,
+  d: number,
+  hh: number,
+  mm: number,
+  ss: number,
+  ms: number,
+  tz?: string | null,
+): number {
+  // If no IANA tz provided, interpret wall time in the device's local timezone
+  if (!tz) {
+    const local = new Date(y, m, d, hh, mm, ss, ms).getTime();
+    return local;
+  }
+  // Initial guess assumes provided wall time is in the provided tz
+  const guessUtc = Date.UTC(y, m, d, hh, mm, ss, ms);
+  const off1 = getOffsetMsForTZ(tz, guessUtc);
+  if (off1 == null) return guessUtc;
+  let refined = guessUtc - off1;
+  const off2 = getOffsetMsForTZ(tz, refined);
+  if (off2 != null && off2 !== off1) {
+    refined = guessUtc - off2;
+  }
+  return refined;
+}
+
 export async function postLoad(args: {
   id: string;
   title: string;
@@ -138,6 +197,7 @@ export async function postLoad(args: {
   pickupDate: Date;
   deliveryDate: Date;
   finalPhotos: { url: string; path?: string | null }[];
+  deliveryTZ?: string | null;
 }) {
   try {
     console.log("[POST_LOAD] Starting postLoad with args:", {
@@ -193,10 +253,27 @@ export async function postLoad(args: {
       archivedAt: null,
       expiresAtMs: (() => {
         try {
-          const d = Timestamp.fromDate(new Date(args.deliveryDate)).toDate().getTime();
+          const dd = new Date(args.deliveryDate);
+          if (!(dd instanceof Date) || isNaN(dd.getTime())) return undefined as unknown as number;
+          const y = dd.getUTCFullYear();
+          const m = dd.getUTCMonth();
+          const d = dd.getUTCDate();
+          const isMidnight = dd.getHours() === 0 && dd.getMinutes() === 0 && dd.getSeconds() === 0 && dd.getMilliseconds() === 0;
+          const targetHour = isMidnight ? 17 : dd.getHours();
+          const targetMin = isMidnight ? 0 : dd.getMinutes();
+          const targetSec = isMidnight ? 0 : dd.getSeconds();
+          const targetMs = isMidnight ? 0 : dd.getMilliseconds();
+
+          const utcMs = toUtcMsForLocalWallTime(
+            // Use calendar fields in the delivery date's calendar, based on UTC components to avoid DST drift here; corrected by tz offset later
+            y, m, d,
+            targetHour, targetMin, targetSec, targetMs,
+            args.deliveryTZ ?? null,
+          );
           const thirtySixHoursMs = 36 * 60 * 60 * 1000;
-          return d + thirtySixHoursMs;
-        } catch {
+          return utcMs + thirtySixHoursMs;
+        } catch (e) {
+          console.log('[POST_LOAD] expiresAtMs compute failed', e);
           return undefined as unknown as number;
         }
       })(),

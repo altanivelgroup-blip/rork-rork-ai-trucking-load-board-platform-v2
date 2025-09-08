@@ -544,6 +544,14 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             pickupDate,
             deliveryDate,
             finalPhotos: finalPhotoUrls.map(url => ({ url, path: null })),
+            deliveryTZ: (() => {
+              try {
+                const tz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+                return typeof tz === 'string' && tz ? tz : null;
+              } catch {
+                return null;
+              }
+            })(),
           });
           
           console.log('[PostLoad] load posted successfully to Firebase:', loadId);
