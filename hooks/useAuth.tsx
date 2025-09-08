@@ -174,10 +174,16 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const updateProfile = useCallback(async (updates: Partial<Driver>) => {
-    if (!user) return;
+    if (!user) {
+      console.log('[auth] updateProfile called but no user found');
+      return;
+    }
+    console.log('[auth] updateProfile called with updates:', JSON.stringify(updates, null, 2));
     const updated: Driver = { ...user, ...updates } as Driver;
+    console.log('[auth] updated user object:', JSON.stringify(updated, null, 2));
     setUser(updated);
     await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(updated));
+    console.log('[auth] profile saved to AsyncStorage');
 
     try {
       if (auth?.currentUser?.uid) {

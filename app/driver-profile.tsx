@@ -55,7 +55,7 @@ export default function DriverProfileScreen() {
   // Update form data when user data changes
   useEffect(() => {
     if (user) {
-      console.log('[driver-profile] updating form data with user:', user);
+      console.log('[driver-profile] updating form data with user:', JSON.stringify(user, null, 2));
       setFormData({
         // Personal Info
         name: user.name || '',
@@ -96,6 +96,7 @@ export default function DriverProfileScreen() {
   }, [user]);
 
   const updateField = (field: string, value: string) => {
+    console.log('[driver-profile] updating field:', field, 'with value:', value);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -109,7 +110,7 @@ export default function DriverProfileScreen() {
   const onSave = useCallback(async () => {
     try {
       setSubmitting(true);
-      console.log('[driver-profile] saving profile with data:', formData);
+      console.log('[driver-profile] saving profile with data:', JSON.stringify(formData, null, 2));
       
       const updateData = {
         name: formData.name,
@@ -551,6 +552,62 @@ export default function DriverProfileScreen() {
           </View>
         </View>
 
+        {/* Debug Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Debug Info</Text>
+          <Text style={styles.debugText}>User Email: {user?.email || 'No user'}</Text>
+          <Text style={styles.debugText}>Form Name: {formData.name}</Text>
+          <Text style={styles.debugText}>Form Phone: {formData.phone}</Text>
+          <Text style={styles.debugText}>Form Vehicle Make: {formData.vehicleMake}</Text>
+          
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => {
+              console.log('[debug] Current form data:', JSON.stringify(formData, null, 2));
+              console.log('[debug] Current user:', JSON.stringify(user, null, 2));
+            }}
+          >
+            <Text style={styles.debugButtonText}>Log Current State</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => {
+              setFormData({
+                ...formData,
+                name: 'Robert Lopez',
+                phone: '(555) 123-4567',
+                company: 'Lopez Trucking',
+                vehicleMake: 'Peterbilt',
+                vehicleModel: '579',
+                vehicleYear: '2022',
+                fuelType: 'diesel',
+                mpgRated: '6.5',
+                vin: '1XPWD40X1ED123456',
+                plate: 'TX-ABC123',
+                tankGallons: '150',
+                gvwrLbs: '80000',
+                trailerMake: 'Great Dane',
+                trailerModel: 'Flatbed 53ft',
+                trailerYear: '2021',
+                trailerVin: '1GRAA0621MH123456',
+                trailerPlate: 'TX-TRL456',
+                trailerInsuranceCarrier: 'Progressive Commercial',
+                trailerPolicyNumber: 'TRL-POL-987654321',
+                trailerGvwrLbs: '34000',
+                trailerType: 'flatbed',
+                companyName: 'Lopez Trucking LLC',
+                mcNumber: 'MC123456',
+                dotNumber: 'DOT987654',
+                insuranceCarrier: 'Progressive Commercial',
+                policyNumber: 'POL-123456789',
+              });
+            }}
+          >
+            <Text style={styles.debugButtonText}>Fill Sample Data</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Action Buttons */}
         <View style={styles.actions}>
           <TouchableOpacity 
@@ -712,6 +769,23 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: theme.colors.white,
     fontSize: theme.fontSize.md,
+    fontWeight: '600',
+  },
+  debugText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: theme.spacing.xs,
+  },
+  debugButton: {
+    backgroundColor: theme.colors.secondary,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+    alignItems: 'center',
+  },
+  debugButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
   },
 });
