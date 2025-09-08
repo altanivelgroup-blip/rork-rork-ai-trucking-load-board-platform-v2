@@ -10,6 +10,8 @@ import {
 import { MapPin, Crosshair, Loader } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
+import { trpcClient } from '@/lib/trpc';
+import { MAPBOX_TOKEN } from '@/utils/env';
 
 interface LocationSearchProps {
   onLocationSelect: (location: { address: string; coords: GeoCoords }) => void;
@@ -121,22 +123,16 @@ export const LocationSearch: React.FC<LocationSearchProps> = ({
 
   const geocodeAddress = async (address: string): Promise<GeoCoords | null> => {
     try {
-      // Use a free geocoding service
-      const encodedAddress = encodeURIComponent(address);
-      const response = await fetch(
-        `https://api.opencagedata.com/geocode/v1/json?q=${encodedAddress}&key=demo&limit=1&countrycode=us`
-      );
-      const data = await response.json();
-      
-      if (data.results && data.results.length > 0) {
-        const result = data.results[0];
-        return {
-          latitude: result.geometry.lat,
-          longitude: result.geometry.lng,
-        };
+      const provider = typeof MAPBOX_TOKEN === 'string' && MAPBOX_TOKEN ? 'mapbox' : 'nominatim';
+      const res = await trpcClient.geocode.search.query({ q: address, limit: 1, provider: provider as any, mapboxToken: MAPBOX_TOKEN });
+      if (Array.isArray(res) && res.length > 0) {
+        const it = res[0] as any;
+        const lat = typeof it?.lat === 'number' ? it.lat : (typeof it?.latitude === 'number' ? it.latitude : undefined);
+        const lon = typeof it?.lon === 'number' ? it.lon : (typeof it?.longitude === 'number' ? it.longitude : undefined);
+        if (typeof lat === 'number' && typeof lon === 'number') {
+          return { latitude: lat, longitude: lon };
+        }
       }
-      
-      // Fallback: try to parse coordinates if entered directly
       const coordMatch = address.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/);
       if (coordMatch) {
         return {
@@ -144,7 +140,6 @@ export const LocationSearch: React.FC<LocationSearchProps> = ({
           longitude: parseFloat(coordMatch[2]),
         };
       }
-      
       return null;
     } catch (error) {
       console.error('Geocoding error:', error);
