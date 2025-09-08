@@ -195,6 +195,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           plate: (updates as any).plate ?? updated.plate ?? null,
           tankGallons: (updates as any).tankGallons ?? (updated.tankGallons ?? null),
           gvwrLbs: (updates as any).gvwrLbs ?? (updated.gvwrLbs ?? null),
+          // Trailer fields
+          trailerMake: (updates as any).trailerMake ?? updated.trailerMake ?? null,
+          trailerModel: (updates as any).trailerModel ?? updated.trailerModel ?? null,
+          trailerYear: (updates as any).trailerYear ?? updated.trailerYear ?? null,
+          trailerVin: (updates as any).trailerVin ?? updated.trailerVin ?? null,
+          trailerPlate: (updates as any).trailerPlate ?? updated.trailerPlate ?? null,
+          trailerInsuranceCarrier: (updates as any).trailerInsuranceCarrier ?? updated.trailerInsuranceCarrier ?? null,
+          trailerPolicyNumber: (updates as any).trailerPolicyNumber ?? updated.trailerPolicyNumber ?? null,
+          trailerGvwrLbs: (updates as any).trailerGvwrLbs ?? updated.trailerGvwrLbs ?? null,
+          trailerType: (updates as any).trailerType ?? updated.trailerType ?? null,
+          // Company fields
+          companyName: (updates as any).companyName ?? updated.companyName ?? null,
+          mcNumber: (updates as any).mcNumber ?? updated.mcNumber ?? null,
+          dotNumber: (updates as any).dotNumber ?? updated.dotNumber ?? null,
+          insuranceCarrier: (updates as any).insuranceCarrier ?? updated.insuranceCarrier ?? null,
+          policyNumber: (updates as any).policyNumber ?? updated.policyNumber ?? null,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp(),
         };

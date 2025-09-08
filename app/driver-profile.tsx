@@ -5,8 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
-import { User, Truck, FileText, Shield, Fuel } from 'lucide-react-native';
-import { FuelKind } from '@/types';
+import { User, Truck, FileText, Shield, Fuel, Container } from 'lucide-react-native';
+import { FuelKind, VehicleType } from '@/types';
 
 export default function DriverProfileScreen() {
   const router = useRouter();
@@ -32,6 +32,17 @@ export default function DriverProfileScreen() {
     plate: user?.plate || '',
     tankGallons: user?.tankGallons?.toString() || '50',
     gvwrLbs: user?.gvwrLbs?.toString() || '',
+    
+    // Trailer Info
+    trailerMake: user?.trailerMake || '',
+    trailerModel: user?.trailerModel || '',
+    trailerYear: user?.trailerYear?.toString() || '',
+    trailerVin: user?.trailerVin || '',
+    trailerPlate: user?.trailerPlate || '',
+    trailerInsuranceCarrier: user?.trailerInsuranceCarrier || '',
+    trailerPolicyNumber: user?.trailerPolicyNumber || '',
+    trailerGvwrLbs: user?.trailerGvwrLbs?.toString() || '',
+    trailerType: user?.trailerType || 'flatbed',
     
     // Company Info
     companyName: user?.companyName || '',
@@ -68,6 +79,15 @@ export default function DriverProfileScreen() {
         plate: formData.plate,
         tankGallons: formData.tankGallons ? parseInt(formData.tankGallons) : null,
         gvwrLbs: formData.gvwrLbs ? parseInt(formData.gvwrLbs) : null,
+        trailerMake: formData.trailerMake,
+        trailerModel: formData.trailerModel,
+        trailerYear: formData.trailerYear ? parseInt(formData.trailerYear) : null,
+        trailerVin: formData.trailerVin,
+        trailerPlate: formData.trailerPlate,
+        trailerInsuranceCarrier: formData.trailerInsuranceCarrier,
+        trailerPolicyNumber: formData.trailerPolicyNumber,
+        trailerGvwrLbs: formData.trailerGvwrLbs ? parseInt(formData.trailerGvwrLbs) : null,
+        trailerType: formData.trailerType as VehicleType,
         companyName: formData.companyName,
         mcNumber: formData.mcNumber,
         dotNumber: formData.dotNumber,
@@ -271,6 +291,123 @@ export default function DriverProfileScreen() {
                 testID="plate-input"
               />
             </View>
+          </View>
+        </View>
+
+        {/* Trailer Information */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Container size={20} color={theme.colors.primary} />
+            <Text style={styles.sectionTitle}>Trailer Information</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Year</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.trailerYear}
+                onChangeText={(text) => updateField('trailerYear', text)}
+                placeholder="2024"
+                keyboardType="numeric"
+                testID="trailer-year-input"
+              />
+            </View>
+            <View style={styles.spacer} />
+            <View style={[styles.inputGroup, { flex: 2 }]}>
+              <Text style={styles.label}>Make</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.trailerMake}
+                onChangeText={(text) => updateField('trailerMake', text)}
+                placeholder="Great Dane"
+                testID="trailer-make-input"
+              />
+            </View>
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Model</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.trailerModel}
+              onChangeText={(text) => updateField('trailerModel', text)}
+              placeholder="Flatbed 48ft"
+              testID="trailer-model-input"
+            />
+          </View>
+          
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Type</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.trailerType}
+                onChangeText={(text) => updateField('trailerType', text)}
+                placeholder="flatbed"
+                testID="trailer-type-input"
+              />
+            </View>
+            <View style={styles.spacer} />
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>GVWR (lbs)</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.trailerGvwrLbs}
+                onChangeText={(text) => updateField('trailerGvwrLbs', text)}
+                placeholder="34000"
+                keyboardType="numeric"
+                testID="trailer-gvwr-input"
+              />
+            </View>
+          </View>
+          
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>VIN</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.trailerVin}
+                onChangeText={(text) => updateField('trailerVin', text)}
+                placeholder="Trailer VIN Number"
+                autoCapitalize="characters"
+                testID="trailer-vin-input"
+              />
+            </View>
+            <View style={styles.spacer} />
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>License Plate</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.trailerPlate}
+                onChangeText={(text) => updateField('trailerPlate', text)}
+                placeholder="TRL-1234"
+                autoCapitalize="characters"
+                testID="trailer-plate-input"
+              />
+            </View>
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Insurance Carrier</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.trailerInsuranceCarrier}
+              onChangeText={(text) => updateField('trailerInsuranceCarrier', text)}
+              placeholder="Progressive Commercial"
+              testID="trailer-insurance-input"
+            />
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Policy Number</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.trailerPolicyNumber}
+              onChangeText={(text) => updateField('trailerPolicyNumber', text)}
+              placeholder="TRL-POL-123456789"
+              testID="trailer-policy-input"
+            />
           </View>
         </View>
 

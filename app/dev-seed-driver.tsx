@@ -56,13 +56,25 @@ export default function DevSeedDriverScreen() {
         plate: 'TX456DEF',
         tankGallons: 50,
         gvwrLbs: 14000,
+        // Trailer Information
+        trailerMake: 'Great Dane',
+        trailerModel: 'Flatbed 48ft',
+        trailerYear: 2023,
+        trailerVin: '1GRAA0628P0123456',
+        trailerPlate: 'TX789TRL',
+        trailerInsuranceCarrier: 'State Farm Commercial',
+        trailerPolicyNumber: 'TRL-POL-456789',
+        trailerGvwrLbs: 34000,
+        trailerType: 'flatbed',
+        // Company Info
         company: 'Light Haul Express LLC',
+        companyName: 'Light Haul Express LLC',
         mcNumber: 'MC789012',
         dotNumber: 'DOT1234567',
         insuranceCarrier: 'State Farm Commercial',
-        insurancePolicy: 'POL-LIGHT-456789',
+        policyNumber: 'POL-LIGHT-456789',
         vehicleInfo: '2024 RAM 3500 DUALLY 3C7WRTCL8RG123456',
-        trailerInfo: '',
+        trailerInfo: '2023 Great Dane Flatbed 48ft 1GRAA0628P0123456',
         verificationStatus: 'unverified',
         cdlNumber: 'CDL987654321',
         rating: 4.8,
@@ -168,6 +180,15 @@ export default function DevSeedDriverScreen() {
           <Text style={styles.infoText}>• Diesel, 12 MPG, 50 gal tank</Text>
           <Text style={styles.infoText}>• VIN: 3C7WRTCL8RG123456</Text>
           <Text style={styles.infoText}>• Plate: TX456DEF</Text>
+        </View>
+
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>Trailer Profile:</Text>
+          <Text style={styles.infoText}>• 2023 Great Dane Flatbed 48ft</Text>
+          <Text style={styles.infoText}>• GVWR: 34,000 lbs</Text>
+          <Text style={styles.infoText}>• VIN: 1GRAA0628P0123456</Text>
+          <Text style={styles.infoText}>• Plate: TX789TRL</Text>
+          <Text style={styles.infoText}>• State Farm Commercial Insurance</Text>
         </View>
 
         <View style={styles.infoCard}>

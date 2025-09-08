@@ -71,6 +71,16 @@ export interface Driver extends User {
   // Company & Insurance fields
   companyName?: string;
   policyNumber?: string;
+  // Trailer Information
+  trailerMake?: string;
+  trailerModel?: string;
+  trailerYear?: number | null;
+  trailerVin?: string;
+  trailerPlate?: string;
+  trailerInsuranceCarrier?: string;
+  trailerPolicyNumber?: string;
+  trailerGvwrLbs?: number | null;
+  trailerType?: VehicleType;
 }
 
 export interface Document {
