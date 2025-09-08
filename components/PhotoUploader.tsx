@@ -18,7 +18,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
 import { LOADS_COLLECTION, VEHICLES_COLLECTION } from '@/lib/loadSchema';
 
 import {
@@ -307,7 +307,13 @@ export function PhotoUploader({
     try {
       const authed = await ensureFirebaseAuth();
       if (!authed) {
-        throw new Error('auth-missing');
+        console.warn('[PhotoUploader] Skipping Firestore sync: auth missing');
+        return;
+      }
+      const perms = await checkFirebasePermissions();
+      if (!perms.canWrite) {
+        console.warn('[PhotoUploader] Skipping Firestore sync: insufficient permissions');
+        return;
       }
       const { db } = getFirebase();
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
@@ -332,8 +338,8 @@ export function PhotoUploader({
     } catch (error: any) {
       console.error('[PhotoUploader] Error updating Firestore:', error);
       const msg = String(error?.message || '');
-      if (msg.includes('auth-missing') || msg.includes('permission') || msg.includes('denied')) {
-        toast.show('Authentication required to save photos. Please refresh and try again.', 'error');
+      if (msg.includes('permission-denied')) {
+        toast.show('Saved locally. Sign in to sync photos.', 'warning');
       } else {
         toast.show('Failed to save photos', 'error');
       }
