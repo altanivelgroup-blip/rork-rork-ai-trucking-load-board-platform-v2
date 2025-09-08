@@ -85,14 +85,14 @@ export default function DriverVehicleForm({ initial, onSubmit, submitting = fals
           <Text style={styles.toggleText}>Fuel: {fuelType.toUpperCase()} (tap)</Text>
         </TouchableOpacity>
         <View style={styles.gap} />
-        <LabeledInput icon={<Gauge size={18} color={theme.colors.gray} />} placeholder="Rated MPG (4..30)" value={mpgRated} onChangeText={(t) => setMpgRated(t.replace(/[^0-9.]/g, ''))} keyboardType="numeric" testID="mpg-rated" />
+        <LabeledInput icon={<Gauge size={18} color={theme.colors.gray} />} placeholder="Rated MPG (4..30)" value={mpgRated} onChangeText={(t) => setMpgRated(t.replace(/[^0-9\.]/g, ''))} keyboardType="numeric" testID="mpg-rated" />
       </View>
       <LabeledInput icon={<Badge size={18} color={theme.colors.gray} />} placeholder="VIN (optional)" value={vin} onChangeText={setVin} autoCapitalize="characters" testID="vin" />
       <LabeledInput icon={<ClipboardList size={18} color={theme.colors.gray} />} placeholder="Plate (optional)" value={plate} onChangeText={setPlate} autoCapitalize="characters" testID="plate" />
       <View style={styles.row}>
-        <LabeledInput icon={<Gauge size={18} color={theme.colors.gray} />} placeholder="Tank Gallons (optional)" value={tankGallons} onChangeText={(t) => setTankGallons(t.replace(/[^0-9.]/g, ''))} keyboardType="numeric" testID="tank-gallons" />
+        <LabeledInput icon={<Gauge size={18} color={theme.colors.gray} />} placeholder="Tank Gallons (optional)" value={tankGallons} onChangeText={(t) => setTankGallons(t.replace(/[^0-9\.]/g, ''))} keyboardType="numeric" testID="tank-gallons" />
         <View style={styles.gap} />
-        <LabeledInput icon={<Gauge size={18} color={theme.colors.gray} />} placeholder="GVWR lbs (optional)" value={gvwrLbs} onChangeText={(t) => setGvwrLbs(t.replace(/[^0-9.]/g, ''))} keyboardType="numeric" testID="gvwr-lbs" />
+        <LabeledInput icon={<Gauge size={18} color={theme.colors.gray} />} placeholder="GVWR lbs (optional)" value={gvwrLbs} onChangeText={(t) => setGvwrLbs(t.replace(/[^0-9\.]/g, ''))} keyboardType="numeric" testID="gvwr-lbs" />
       </View>
 
       <TouchableOpacity style={[styles.submit, submitting && styles.submitDisabled]} disabled={submitting} onPress={handleSubmit} testID={mode === 'setup' ? 'submit-vehicle-setup' : 'submit-vehicle-edit'}>
