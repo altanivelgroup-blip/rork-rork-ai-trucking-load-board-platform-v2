@@ -447,6 +447,33 @@ useEffect(() => {
               </View>
             ) : null}
 
+            <View style={styles.driverCard} testID="driver-metrics">
+              <Text style={styles.driverTitle}>Driver Metrics</Text>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Driver ID</Text>
+                <Text style={styles.detailValue} testID="driver-id">{String(user?.id ?? '—')}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Vehicle</Text>
+                <Text style={styles.detailValue} testID="driver-vehicle">{(() => {
+                  const vt = String(selectedVehicleType || '');
+                  const match = selectableVehicles.find(sv => sv.key === vt);
+                  return match ? match.label : (vt ? vt : '—');
+                })()}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Profile MPG</Text>
+                <Text style={styles.detailValue} testID="driver-mpg">{Number(user?.fuelProfile?.averageMpg ?? 0) > 0 ? Number(user?.fuelProfile?.averageMpg ?? 0).toFixed(1) : '—'}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Trip Fuel</Text>
+                <Text style={styles.detailValue} testID="driver-fuel-gallons">{fuelEstimate ? `${fuelEstimate.gallons.toFixed(1)} gal` : '—'}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Trip Fuel Cost</Text>
+                <Text style={styles.detailValue} testID="driver-fuel-cost">{fuelEstimate ? formatCurrency(fuelEstimate.cost) : '—'}</Text>
+              </View>
+            </View>
 
             <View style={styles.vehicleProfileCard}>
               <Text style={styles.vehicleProfileTitle}>Vehicle Profile</Text>
@@ -835,6 +862,18 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     backgroundColor: theme.colors.lightGray,
     borderRadius: theme.borderRadius.md,
+  },
+  driverCard: {
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+  },
+  driverTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
   },
   vehicleProfileTitle: {
     fontSize: theme.fontSize.md,
