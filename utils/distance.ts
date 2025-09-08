@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { VehicleType } from '@/types';
 
 export type ZipLatLng = { lat: number; lng: number };
 
@@ -56,4 +57,40 @@ export async function estimateMileageFromZips(originZip?: string, destZip?: stri
     console.error('[distance] estimateMileageFromZips error', e);
     return null;
   }
+}
+
+export function defaultAvgSpeedForVehicle(v?: VehicleType | string): number {
+  const map: Record<string, number> = {
+    'truck': 57,
+    'box-truck': 55,
+    'cargo-van': 60,
+    'trailer': 55,
+    'car-hauler': 56,
+    'flatbed': 55,
+    'enclosed-trailer': 55,
+    'reefer': 54,
+  };
+  const key = String(v ?? 'truck');
+  const speed = map[key] ?? 55;
+  return Math.max(30, Math.min(70, speed));
+}
+
+export function estimateDurationHours(miles: number, avgSpeedMph?: number): number {
+  const speed = Math.max(1, avgSpeedMph ?? 55);
+  const hours = miles / speed;
+  return Math.max(0, hours);
+}
+
+export function formatDurationHours(hours: number): string {
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h <= 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+export function estimateArrivalTimestamp(departAtMs: number, durationHours: number): number {
+  const ms = Math.max(0, Math.round(durationHours * 3600 * 1000));
+  return departAtMs + ms;
 }

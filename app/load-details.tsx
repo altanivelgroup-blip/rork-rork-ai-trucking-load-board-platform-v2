@@ -10,14 +10,14 @@ import {
   TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel } from 'lucide-react-native';
+import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel, Clock } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useLoads } from '@/hooks/useLoads';
 //
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency } from '@/utils/fuel';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
-import { estimateMileageFromZips } from '@/utils/distance';
+import { estimateMileageFromZips, defaultAvgSpeedForVehicle, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
 
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -47,6 +47,26 @@ const [loading, setLoading] = useState<boolean>(true);
   const [fuelEstimate, setFuelEstimate] = useState<FuelApiResponse | null>(null);
   const [fuelLoading, setFuelLoading] = useState<boolean>(false);
   const [fuelError, setFuelError] = useState<string | null>(null);
+
+  const etaInfo = useMemo(() => {
+    try {
+      const miles = Number((load as any)?.distance ?? 0);
+      if (!Number.isFinite(miles) || miles <= 0) return null;
+      const vt = (user?.fuelProfile?.vehicleType ?? (load as any)?.vehicleType ?? 'truck') as string;
+      const avg = defaultAvgSpeedForVehicle(vt);
+      const hours = estimateDurationHours(miles, avg);
+      const now = Date.now();
+      const pickupMs = Number((load as any)?.pickupDate ?? now);
+      const departAt = Number.isFinite(pickupMs) ? Math.max(now, pickupMs) : now;
+      const arrivalTs = estimateArrivalTimestamp(departAt, hours);
+      const prettyDur = formatDurationHours(hours);
+      const arriveStr = new Date(arrivalTs).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
+      return { durationHours: hours, prettyDur, arrivalTs, arriveStr, avg };
+    } catch (e) {
+      console.log('[LoadDetails] eta calc error', e);
+      return null;
+    }
+  }, [load?.distance, load?.pickupDate, load?.vehicleType, user?.fuelProfile?.vehicleType]);
 
   const selectableVehicles: Array<{ key: string; label: string }> = useMemo(() => ([
     { key: 'car-hauler', label: 'Car Hauler' },
@@ -359,6 +379,14 @@ useEffect(() => {
               <View style={styles.distanceLine} />
               <Text style={styles.distanceText} testID="miles-display">{Number(load.distance) > 0 ? `${Math.round(Number(load.distance))} miles` : 'calculating…'}</Text>
               <View style={styles.distanceLine} />
+            </View>
+
+            <View style={styles.etaRow}>
+              <Clock size={18} color={theme.colors.gray} />
+              <Text style={styles.etaLabel}>ETA</Text>
+              <Text style={styles.etaValue} testID="eta-display">
+                {etaInfo ? `${etaInfo.prettyDur} • Arrive ${etaInfo.arriveStr}` : '—'}
+              </Text>
             </View>
 
             <View style={styles.locationCard}>
@@ -740,6 +768,23 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.white,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
+  },
+  etaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: 10,
+  },
+  etaLabel: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+  },
+  etaValue: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
   },
   detailRow: {
     flexDirection: 'row',
