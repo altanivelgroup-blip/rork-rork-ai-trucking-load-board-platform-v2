@@ -105,7 +105,10 @@ export default function DriverVehicleForm({ initial, onSubmit, submitting = fals
 function LabeledInput({ icon, ...props }: { icon: React.ReactNode } & React.ComponentProps<typeof TextInput>) {
   return (
     <View style={styles.inputContainer}>
-      <View style={styles.inputIcon}>{icon}</View>
+      <View style={styles.inputIcon}>
+        {/* eslint-disable-next-line @rork/linters/general-no-raw-text */}
+        {icon}
+      </View>
       <TextInput {...props} placeholderTextColor={theme.colors.gray} style={styles.input} />
     </View>
   );
