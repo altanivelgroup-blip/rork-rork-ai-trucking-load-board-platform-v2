@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron/archive-loads", "schedule": "5 * * * *" },
+    { "path": "/api/cron/purge-loads?days=14", "schedule": "0 9 * * *" }
+  ]
+}
