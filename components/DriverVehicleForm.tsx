@@ -106,7 +106,6 @@ function LabeledInput({ icon, ...props }: { icon: React.ReactNode } & React.Comp
   return (
     <View style={styles.inputContainer}>
       <View style={styles.inputIcon}>
-        {/* eslint-disable-next-line @rork/linters/general-no-raw-text */}
         {icon}
       </View>
       <TextInput {...props} placeholderTextColor={theme.colors.gray} style={styles.input} />
