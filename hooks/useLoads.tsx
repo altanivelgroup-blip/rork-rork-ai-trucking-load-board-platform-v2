@@ -8,6 +8,8 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { collection, getDocs, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 
 interface GeoPoint { lat: number; lng: number }
 
@@ -185,7 +187,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     const d = l.deliveryDate instanceof Date ? l.deliveryDate : new Date(l.deliveryDate as unknown as string);
     const ts = d.getTime();
     if (isNaN(ts)) return false;
-    const expiresAt = ts + 24 * 60 * 60 * 1000;
+    const expiresAt = ts + 36 * 60 * 60 * 1000;
     return Date.now() > expiresAt;
   }, []);
 
@@ -212,10 +214,65 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
         setLoads(prev => mergeUniqueById(mockLoads, persisted));
         return;
       }
-      console.log('[Loads] Using mock data (Firebase temporarily disabled)');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const authed = await ensureFirebaseAuth();
+      const { db } = getFirebase();
+      if (!authed || !db) {
+        console.log('[Loads] Firebase not available, using mock + persisted');
+        const persisted = await readPersisted();
+        setLoads(mergeUniqueById(mockLoads, persisted));
+        return;
+      }
+
+      const q = query(
+        collection(db, LOADS_COLLECTION),
+        where('status', '==', LOAD_STATUS.OPEN),
+        orderBy('clientCreatedAt', 'desc'),
+        limit(50)
+      );
+      const snap = await getDocs(q);
+
+      const toLoad = (doc: any): Load => {
+        const d = doc.data?.() ?? doc.data();
+        const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
+        const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+        return {
+          id: String(doc.id),
+          shipperId: String(d?.createdBy ?? 'unknown'),
+          shipperName: '',
+          origin: {
+            address: '',
+            city: String(d?.origin ?? ''),
+            state: '',
+            zipCode: '',
+            lat: 0,
+            lng: 0,
+          },
+          destination: {
+            address: '',
+            city: String(d?.destination ?? ''),
+            state: '',
+            zipCode: '',
+            lat: 0,
+            lng: 0,
+          },
+          distance: 0,
+          weight: 0,
+          vehicleType: (d?.vehicleType as any) ?? 'van',
+          rate: Number(d?.rate ?? 0),
+          ratePerMile: 0,
+          pickupDate: pickup,
+          deliveryDate: delivery,
+          status: 'available',
+          description: String(d?.title ?? ''),
+          special_requirements: undefined,
+          isBackhaul: false,
+        };
+      };
+
+      const fromFs = snap.docs.map(toLoad);
       const persisted = await readPersisted();
-      setLoads(mergeUniqueById(mockLoads, persisted));
+      setLoads(mergeUniqueById(fromFs.length ? fromFs : mockLoads, persisted));
     } catch (error) {
       console.error('Failed to refresh loads:', error);
       try {
@@ -314,12 +371,68 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   }, [FAVORITES_KEY]);
 
   useEffect(() => {
-    console.log('[Loads] Firebase integration disabled for bundling fix');
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current();
-      unsubscribeRef.current = null;
-    }
-  }, []);
+    let mounted = true;
+    const start = async () => {
+      try {
+        if (!online) return;
+        const authed = await ensureFirebaseAuth();
+        const { db } = getFirebase();
+        if (!mounted || !authed || !db) return;
+        if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+          unsubscribeRef.current = null;
+        }
+        const q = query(
+          collection(db, LOADS_COLLECTION),
+          where('status', '==', LOAD_STATUS.OPEN),
+          orderBy('clientCreatedAt', 'desc'),
+          limit(50)
+        );
+        unsubscribeRef.current = onSnapshot(q, async (snap) => {
+          try {
+            const docs = snap.docs.map((doc) => {
+              const d: any = doc.data();
+              const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
+              const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+              const mapped: Load = {
+                id: String(doc.id),
+                shipperId: String(d?.createdBy ?? 'unknown'),
+                shipperName: '',
+                origin: { address: '', city: String(d?.origin ?? ''), state: '', zipCode: '', lat: 0, lng: 0 },
+                destination: { address: '', city: String(d?.destination ?? ''), state: '', zipCode: '', lat: 0, lng: 0 },
+                distance: 0,
+                weight: 0,
+                vehicleType: (d?.vehicleType as any) ?? 'van',
+                rate: Number(d?.rate ?? 0),
+                ratePerMile: 0,
+                pickupDate: pickup,
+                deliveryDate: delivery,
+                status: 'available',
+                description: String(d?.title ?? ''),
+                special_requirements: undefined,
+                isBackhaul: false,
+              };
+              return mapped;
+            });
+            const persisted = await readPersisted();
+            setLoads(mergeUniqueById(docs, persisted));
+          } catch (e) {
+            console.warn('[Loads] Snapshot mapping failed', e);
+          }
+        });
+      } catch (e) {
+        console.warn('[Loads] Firestore listener failed', e);
+      }
+    };
+    start();
+    return () => {
+      mounted = false;
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, [online, mergeUniqueById, readPersisted]);
 
   useEffect(() => {
     let mounted = true;
