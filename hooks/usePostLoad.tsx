@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toNumber } from '@/utils/loadValidation';
 import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
 import { postLoad } from '@/lib/firebase';
+import { isValidIana } from '@/constants/timezones';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 // import { useToast } from '@/components/Toast'; // Removed unused import
 
@@ -23,6 +24,8 @@ interface PostLoadDraft {
   dimensions: string;
   pickupDate: Date | null;
   deliveryDate: Date | null;
+  deliveryDateLocal: string; // "YYYY-MM-DDTHH:MM"
+  deliveryTZ: string; // IANA TZ id
   rateAmount: string;
   rateKind: RateKind;
   miles: string;
@@ -59,6 +62,8 @@ const initialDraft: PostLoadDraft = {
   dimensions: '',
   pickupDate: null,
   deliveryDate: null,
+  deliveryDateLocal: '',
+  deliveryTZ: '',
   rateAmount: '',
   rateKind: 'flat',
   miles: '',
@@ -478,6 +483,14 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         throw new Error('At least 5 photos are required');
       }
       
+      // Validate timezone and local datetime for delivery
+      if (!currentDraft.deliveryDateLocal || typeof currentDraft.deliveryDateLocal !== 'string') {
+        throw new Error('Delivery local date/time is required');
+      }
+      if (!currentDraft.deliveryTZ || !isValidIana(currentDraft.deliveryTZ)) {
+        throw new Error('Select a valid delivery timezone');
+      }
+
       // Additional validation for dates before proceeding
       // Handle both Date objects and potential Firestore Timestamp objects
       const toDate = (v: any): Date | null => {
@@ -534,6 +547,9 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           console.log('[PostLoad] Attempting Firebase write with permissions:', permissions);
           
+          const tzSelected = currentDraft.deliveryTZ;
+          const localStr = currentDraft.deliveryDateLocal;
+
           await postLoad({
             id: loadId,
             title: currentDraft.title.trim(),
@@ -544,14 +560,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             pickupDate,
             deliveryDate,
             finalPhotos: finalPhotoUrls.map(url => ({ url, path: null })),
-            deliveryTZ: (() => {
-              try {
-                const tz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
-                return typeof tz === 'string' && tz ? tz : null;
-              } catch {
-                return null;
-              }
-            })(),
+            deliveryTZ: tzSelected,
+            deliveryDateLocal: localStr ?? null,
           });
           
           console.log('[PostLoad] load posted successfully to Firebase:', loadId);

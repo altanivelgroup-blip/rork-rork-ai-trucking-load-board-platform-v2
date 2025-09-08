@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { usePostLoad } from '@/hooks/usePostLoad';
+import { QUICK_TZS, ALL_TZS } from '@/constants/timezones';
 
 function Stepper({ current, total }: { current: number; total: number }) {
   const items = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
@@ -178,6 +179,79 @@ const getDefaultSchedule = () => {
   return { pickup: pickupDate, delivery: deliveryDate };
 };
 
+function getDeviceTZ(): string {
+  try {
+    const tz = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof tz === 'string' && tz ? tz : 'America/Phoenix';
+  } catch {
+    return 'America/Phoenix';
+  }
+}
+
+function formatLocalNowForTZ(tz: string): string {
+  try {
+    const d = new Date();
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+    const parts = fmt.formatToParts(d);
+    const g = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+    return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+  } catch {
+    return '';
+  }
+}
+
+function TZSelector() {
+  const { draft, setField } = usePostLoad();
+  const [opened, setOpened] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!draft.deliveryTZ) {
+      const tz = getDeviceTZ();
+      setField('deliveryTZ', tz);
+    }
+    if (!draft.deliveryDateLocal) {
+      const base = draft.deliveryTZ || getDeviceTZ();
+      const local = formatLocalNowForTZ(base);
+      setField('deliveryDateLocal', local);
+    }
+  }, [draft.deliveryTZ, draft.deliveryDateLocal, setField]);
+
+  const onPick = useCallback((tz: string) => {
+    setField('deliveryTZ', tz);
+    const local = formatLocalNowForTZ(tz);
+    setField('deliveryDateLocal', local);
+    setOpened(false);
+  }, [setField]);
+
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.label}>Delivery Timezone</Text>
+      <Pressable onPress={() => setOpened(!opened)} style={styles.dateField} accessibilityRole="button" testID="deliveryTZBtn">
+        <Text style={styles.dateText}>{draft.deliveryTZ || 'America/Phoenix'}</Text>
+      </Pressable>
+      {opened && (
+        <View style={styles.tzDropdown}>
+          <Text style={styles.tzQuickLabel}>Quick select</Text>
+          <View style={styles.tzQuickRow}>
+            {QUICK_TZS.map((tz: string) => (
+              <Pressable key={tz} onPress={() => onPick(tz)} style={styles.tzPill} accessibilityRole="button" testID={`tz-${tz}`}>
+                <Text style={styles.tzPillText}>{tz.split('/')[1]?.replace('_',' ') || tz}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.tzList}>
+            {ALL_TZS.map((tz: string) => (
+              <Pressable key={tz} onPress={() => onPick(tz)} style={styles.tzItem} accessibilityRole="button">
+                <Text style={styles.tzItemText}>{tz}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function PostLoadStep3() {
   const router = useRouter();
   const { draft, setField } = usePostLoad();
@@ -227,18 +301,18 @@ export default function PostLoadStep3() {
       draftPickupDate: draft.pickupDate, 
       draftDeliveryDate: draft.deliveryDate,
       pickupDateValid: pickupDate instanceof Date && !isNaN(pickupDate.getTime()),
-      deliveryDateValid: deliveryDate instanceof Date && !isNaN(deliveryDate.getTime())
+      deliveryDateValid: deliveryDate instanceof Date && !isNaN(deliveryDate.getTime()),
+      deliveryTZ: draft.deliveryTZ,
+      deliveryDateLocal: draft.deliveryDateLocal,
     }); 
     if (pickupDate && deliveryDate) { 
-      // Ensure dates are saved to draft before navigation
       setField('pickupDate', pickupDate);
       setField('deliveryDate', deliveryDate);
-      // Small delay to ensure state is updated
       setTimeout(() => {
         router.push('/post-load-step4'); 
       }, 100);
     } 
-  }, [pickupDate, deliveryDate, draft.pickupDate, draft.deliveryDate, setField, router]);
+  }, [pickupDate, deliveryDate, draft.pickupDate, draft.deliveryDate, draft.deliveryTZ, draft.deliveryDateLocal, setField, router]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -264,6 +338,36 @@ export default function PostLoadStep3() {
               <Pressable onPress={() => openPicker('delivery')} style={styles.dateField} accessibilityRole="button" testID="deliveryDateBtn">
                 <Text style={styles.dateText}>{formatDateLabel(deliveryDate)}</Text>
               </Pressable>
+            </View>
+
+            <TZSelector />
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Delivery Local Date/Time</Text>
+              <View style={styles.rowGap8}>
+                <Pressable style={styles.dateField} accessibilityRole="button" onPress={() => setField('deliveryDateLocal', formatLocalNowForTZ(draft.deliveryTZ || getDeviceTZ()))} testID="deliveryLocalNow">
+                  <Text style={styles.dateText}>{draft.deliveryDateLocal || 'YYYY-MM-DDTHH:MM'}</Text>
+                </Pressable>
+                <View style={styles.timeRow}>
+                  <View style={styles.flex1}>
+                    <Text style={styles.smallLabel}>Date (YYYY-MM-DD)</Text>
+                    <ScrollView keyboardShouldPersistTaps="handled">
+                      <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => {}}>
+                        <Text style={styles.dateText} selectable testID="deliveryLocalDateText">{(draft.deliveryDateLocal || '').split('T')[0] || 'YYYY-MM-DD'}</Text>
+                      </Pressable>
+                    </ScrollView>
+                  </View>
+                  <View style={styles.spacer12} />
+                  <View style={styles.flex1}>
+                    <Text style={styles.smallLabel}>Time (HH:MM)</Text>
+                    <ScrollView keyboardShouldPersistTaps="handled">
+                      <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => {}}>
+                        <Text style={styles.dateText} selectable testID="deliveryLocalTimeText">{(draft.deliveryDateLocal || '').split('T')[1] || 'HH:MM'}</Text>
+                      </Pressable>
+                    </ScrollView>
+                  </View>
+                </View>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -333,4 +437,18 @@ const styles = StyleSheet.create({
   dayTextMuted: { color: theme.colors.gray },
   dayTextSelected: { color: theme.colors.white },
   modalFooter: { flexDirection: 'row', gap: 12, padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  tzDropdown: { marginTop: 8, backgroundColor: theme.colors.white, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 12, padding: 12 },
+  tzQuickLabel: { fontWeight: '700', color: theme.colors.dark, marginBottom: 8 },
+  tzQuickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  tzPill: { backgroundColor: '#e5e7eb', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9999, borderWidth: 1, borderColor: '#d1d5db' },
+  tzPillText: { color: theme.colors.dark, fontWeight: '700' },
+  tzList: { maxHeight: 220 },
+  tzItem: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  tzItemText: { color: theme.colors.dark },
+  rowGap8: { gap: 8 },
+  timeRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  smallLabel: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginBottom: 6 },
+  inputLike: { backgroundColor: theme.colors.white, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.select({ ios: 14, android: 12, default: 12 }) as number },
+  flex1: { flex: 1 },
+  spacer12: { width: 12 },
 });

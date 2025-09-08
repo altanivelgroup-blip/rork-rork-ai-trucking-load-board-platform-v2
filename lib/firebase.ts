@@ -198,6 +198,7 @@ export async function postLoad(args: {
   deliveryDate: Date;
   finalPhotos: { url: string; path?: string | null }[];
   deliveryTZ?: string | null;
+  deliveryDateLocal?: string | null;
 }) {
   try {
     console.log("[POST_LOAD] Starting postLoad with args:", {
@@ -275,6 +276,9 @@ export async function postLoad(args: {
       deliveryTZ: args.deliveryTZ ?? null,
       deliveryDateLocal: (() => {
         try {
+          if (args.deliveryDateLocal && typeof args.deliveryDateLocal === 'string') {
+            return args.deliveryDateLocal;
+          }
           const dd = new Date(args.deliveryDate);
           const isMidnight = dd.getHours() === 0 && dd.getMinutes() === 0 && dd.getSeconds() === 0 && dd.getMilliseconds() === 0;
           if (isMidnight) dd.setHours(17, 0, 0, 0);
@@ -282,30 +286,6 @@ export async function postLoad(args: {
         } catch (e) {
           console.log('[POST_LOAD] deliveryDateLocal compute failed', e);
           return undefined;
-        }
-      })(),
-      expiresAtMs: (() => {
-        try {
-          const dd = new Date(args.deliveryDate);
-          if (!(dd instanceof Date) || isNaN(dd.getTime())) return undefined as unknown as number;
-          const y = dd.getUTCFullYear();
-          const m = dd.getUTCMonth();
-          const d = dd.getUTCDate();
-          const isMidnight = dd.getHours() === 0 && dd.getMinutes() === 0 && dd.getSeconds() === 0 && dd.getMilliseconds() === 0;
-          const targetHour = isMidnight ? 17 : dd.getHours();
-          const targetMin = isMidnight ? 0 : dd.getMinutes();
-          const targetSec = isMidnight ? 0 : dd.getSeconds();
-          const targetMs = isMidnight ? 0 : dd.getMilliseconds();
-          const utcMs = toUtcMsForLocalWallTime(
-            y, m, d,
-            targetHour, targetMin, targetSec, targetMs,
-            args.deliveryTZ ?? null,
-          );
-          const thirtySixHoursMs = 36 * 60 * 60 * 1000;
-          return utcMs + thirtySixHoursMs;
-        } catch (e) {
-          console.log('[POST_LOAD] expiresAtMs compute failed', e);
-          return undefined as unknown as number;
         }
       })(),
       revenueUsd: rateNum,
