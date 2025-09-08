@@ -3,6 +3,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { cors } from "hono/cors";
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
+import { cron } from "@/src/server/cron";
 
 // app will be mounted at /api
 const app = new Hono();
@@ -19,6 +20,9 @@ app.use(
     createContext,
   })
 );
+
+// Mount cron routes
+app.route("/", cron);
 
 // Simple health check endpoint
 app.get("/", (c) => {

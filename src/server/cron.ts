@@ -1,0 +1,38 @@
+import { Hono } from 'hono';
+import { archiveExpiredLoads, purgeArchivedLoads } from '@/lib/firebase';
+
+export const cron = new Hono<{ Bindings: { CRON_SECRET?: string } }>();
+
+function getSecret(c: any) {
+  return (c.env && c.env.CRON_SECRET) || process.env.CRON_SECRET;
+}
+function auth(c: any) {
+  const ok = c.req.header('x-cron-secret') === getSecret(c);
+  return ok ? null : c.text('forbidden', 403);
+}
+
+cron.post('/cron/archive-loads', async (c) => {
+  const denied = auth(c); if (denied) return denied;
+  try {
+    const res: any = await archiveExpiredLoads();
+    const count = typeof res === 'number' ? res : (res?.archived ?? 0);
+    return c.json({ archived: Number(count) || 0 });
+  } catch (e: any) {
+    return c.json({ error: e?.message ?? 'archive failed' }, 500);
+  }
+});
+
+cron.post('/cron/purge-loads', async (c) => {
+  const denied = auth(c); if (denied) return denied;
+  try {
+    const url = new URL(c.req.url);
+    const days = Number(url.searchParams.get('days') ?? 14);
+    const res: any = await purgeArchivedLoads(days);
+    const count = typeof res === 'number' ? res : (res?.purged ?? 0);
+    return c.json({ purged: Number(count) || 0 });
+  } catch (e: any) {
+    return c.json({ error: e?.message ?? 'purge failed' }, 500);
+  }
+});
+
+export default cron;
