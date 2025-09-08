@@ -363,6 +363,39 @@ useEffect(() => {
               {typeof load.ratePerMile === 'number' ? (
                 <Text style={styles.ratePerMile}>${load.ratePerMile.toFixed(2)} per mile</Text>
               ) : null}
+
+              <View style={styles.topMetricsRow} testID="top-metrics">
+                {fuelEstimate ? (
+                  <View style={styles.pill} testID="pill-mpg">
+                    <Text style={styles.pillLabel}>MPG</Text>
+                    <Text style={styles.pillValue}>{fuelEstimate.mpg.toFixed(1)}</Text>
+                  </View>
+                ) : null}
+                {fuelEstimate ? (
+                  <View style={styles.pill} testID="pill-gallons">
+                    <Text style={styles.pillLabel}>Gallons</Text>
+                    <Text style={styles.pillValue}>{fuelEstimate.gallons.toFixed(1)}</Text>
+                  </View>
+                ) : null}
+                {typeof financials.fuelCost === 'number' ? (
+                  <View style={styles.pill} testID="pill-fuel-cost">
+                    <Text style={styles.pillLabel}>Fuel Cost</Text>
+                    <Text style={styles.pillValue}>{formatCurrency(financials.fuelCost)}</Text>
+                  </View>
+                ) : null}
+                {typeof financials.netAfterFuel === 'number' ? (
+                  <View style={styles.pill} testID="pill-net">
+                    <Text style={styles.pillLabel}>Net</Text>
+                    <Text style={styles.pillValue}>{formatCurrency(financials.netAfterFuel)}</Text>
+                  </View>
+                ) : null}
+                {typeof financials.profitPerMile === 'number' ? (
+                  <View style={styles.pill} testID="pill-ppm">
+                    <Text style={styles.pillLabel}>$/mi</Text>
+                    <Text style={styles.pillValue}>{financials.profitPerMile.toFixed(2)}</Text>
+                  </View>
+                ) : null}
+              </View>
             </View>
           </View>
 
@@ -770,6 +803,33 @@ const styles = StyleSheet.create({
   ratePerMile: {
     fontSize: theme.fontSize.md,
     color: theme.colors.gray,
+  },
+  topMetricsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+    justifyContent: 'center',
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: theme.colors.white,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+  },
+  pillLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+  },
+  pillValue: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: theme.colors.dark,
   },
   routeSection: {
     backgroundColor: theme.colors.white,
