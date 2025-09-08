@@ -48,10 +48,10 @@ export default function LoadDetailsScreen() {
   const [fuelLoading, setFuelLoading] = useState<boolean>(false);
   const [fuelError, setFuelError] = useState<string | null>(null);
 
-  const mapboxToken = (process.env.EXPO_PUBLIC_MAPBOX_TOKEN as string | undefined) ?? undefined;
-  const orsKey = (process.env.EXPO_PUBLIC_ORS_API_KEY as string | undefined) ?? undefined;
-  const eiaKey = (process.env.EXPO_PUBLIC_EIA_API_KEY as string | undefined) ?? undefined;
-  const owmKey = (process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY as string | undefined) ?? undefined;
+  const mapboxToken = (require('@/utils/env').MAPBOX_TOKEN as string | undefined) ?? undefined;
+  const orsKey = (require('@/utils/env').ORS_API_KEY as string | undefined) ?? undefined;
+  const eiaKey = (require('@/utils/env').EIA_API_KEY as string | undefined) ?? undefined;
+  const owmKey = (require('@/utils/env').OPENWEATHER_API_KEY as string | undefined) ?? undefined;
 
   const etaQueryEnabled = useMemo(() => {
     const o: any = (load as any)?.origin;
