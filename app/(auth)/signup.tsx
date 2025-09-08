@@ -33,7 +33,7 @@ export default function SignUpScreen() {
     try {
       console.log('[signup] creating account for', email);
       await register(email, password, { name, phone, company });
-      router.replace('/dashboard');
+      router.replace('/(auth)/driver-vehicle-setup');
     } catch (e) {
       console.error('[signup] error', e);
       Alert.alert('Sign Up Failed', 'Please check your details and try again.');

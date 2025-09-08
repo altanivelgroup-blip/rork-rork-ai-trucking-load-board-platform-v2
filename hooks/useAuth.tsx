@@ -2,9 +2,10 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Driver } from '@/types';
-import { auth, ensureFirebaseAuth } from '@/utils/firebase';
+import { auth, ensureFirebaseAuth, db } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useToast } from '@/components/Toast';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AuthState {
   user: Driver | null;
@@ -174,9 +175,37 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const updateProfile = useCallback(async (updates: Partial<Driver>) => {
     if (!user) return;
-    const updated = { ...user, ...updates };
+    const updated: Driver = { ...user, ...updates } as Driver;
     setUser(updated);
     await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(updated));
+
+    try {
+      if (auth?.currentUser?.uid) {
+        const uid = auth.currentUser.uid;
+        const ref = doc(db, 'drivers', uid);
+        const payload: Record<string, unknown> = {
+          displayName: updated.name ?? '',
+          email: updated.email ?? '',
+          vehicleMake: (updates as any).vehicleMake ?? updated.vehicleMake ?? null,
+          vehicleModel: (updates as any).vehicleModel ?? updated.vehicleModel ?? null,
+          vehicleYear: (updates as any).vehicleYear ?? updated.vehicleYear ?? null,
+          fuelType: (updates as any).fuelType ?? updated.fuelType ?? null,
+          mpgRated: (updates as any).mpgRated ?? updated.mpgRated ?? null,
+          vin: (updates as any).vin ?? updated.vin ?? null,
+          plate: (updates as any).plate ?? updated.plate ?? null,
+          tankGallons: (updates as any).tankGallons ?? (updated.tankGallons ?? null),
+          gvwrLbs: (updates as any).gvwrLbs ?? (updated.gvwrLbs ?? null),
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        };
+        await setDoc(ref, payload, { merge: true });
+        console.log('[auth] driver profile persisted to Firestore');
+      } else {
+        console.log('[auth] no firebase uid, skipped Firestore write');
+      }
+    } catch (err) {
+      console.warn('[auth] Firestore write failed, cached locally only', err);
+    }
   }, [user]);
 
   const value = useMemo(() => ({

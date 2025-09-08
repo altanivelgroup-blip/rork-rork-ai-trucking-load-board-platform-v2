@@ -39,6 +39,8 @@ export interface FuelProfile {
   tankCapacity?: number;
 }
 
+export type FuelKind = 'diesel' | 'gas';
+
 export interface Driver extends User {
   role: 'driver';
   cdlNumber: string;
@@ -57,6 +59,15 @@ export interface Driver extends User {
   trailerInfo?: string;
   verificationStatus?: 'unverified' | 'pending' | 'verified';
   fuelProfile?: FuelProfile;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleYear?: number;
+  fuelType?: FuelKind;
+  mpgRated?: number;
+  vin?: string;
+  plate?: string;
+  tankGallons?: number | null;
+  gvwrLbs?: number | null;
 }
 
 export interface Document {

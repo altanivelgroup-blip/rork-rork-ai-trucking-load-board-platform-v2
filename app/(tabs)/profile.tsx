@@ -63,6 +63,14 @@ export default function ProfileScreen() {
       showChevron: true
     },
     {
+      id: 'driver-profile',
+      title: 'Driver Profile',
+      subtitle: 'Vehicle, MPG, VIN, plate',
+      icon: <Truck size={20} color={theme.colors.secondary} />,
+      route: '/driver-profile',
+      showChevron: true
+    },
+    {
       id: 'add-vehicle',
       title: 'Add Vehicle',
       subtitle: 'Set MPG and details',
