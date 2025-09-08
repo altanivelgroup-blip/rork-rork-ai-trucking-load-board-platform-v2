@@ -30,6 +30,7 @@ interface VehicleData {
   subtype: string;
   vin?: string;
   licensePlate?: string;
+  mpg?: string;
   photos: string[];
   primaryPhoto: string;
   status: 'draft' | 'published';
@@ -88,6 +89,7 @@ export default function VehicleEditScreen() {
       photos: [],
       primaryPhoto: '',
       status: 'draft',
+      mpg: '',
     },
     photos: [],
     primaryPhoto: '',
@@ -303,7 +305,7 @@ export default function VehicleEditScreen() {
                 disabled={!canPublish}
               >
                 {state.saving ? (
-                  <ActivityIndicator size="small" color={theme.colors.white} />
+                  <ActivityIndicator size="small" color={theme.colors.white} testID="vehicle-saving-indicator" />
                 ) : (
                   <>
                     <Save size={16} color={theme.colors.white} />
@@ -444,6 +446,7 @@ export default function VehicleEditScreen() {
               placeholder="Vehicle Identification Number"
               placeholderTextColor={theme.colors.gray}
               autoCapitalize="characters"
+              testID="vehicle-vin-input"
             />
           </View>
           
@@ -456,6 +459,21 @@ export default function VehicleEditScreen() {
               placeholder="ABC-1234"
               placeholderTextColor={theme.colors.gray}
               autoCapitalize="characters"
+              testID="vehicle-license-plate-input"
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Fuel Efficiency (MPG)</Text>
+            <TextInput
+              style={styles.input}
+              value={state.vehicle.mpg ?? ''}
+              onChangeText={(value) => updateField('mpg', value.replace(/[^0-9.]/g, ''))}
+              placeholder="e.g., 10.5"
+              placeholderTextColor={theme.colors.gray}
+              keyboardType="decimal-pad"
+              maxLength={5}
+              testID="vehicle-mpg-input"
             />
           </View>
         </View>

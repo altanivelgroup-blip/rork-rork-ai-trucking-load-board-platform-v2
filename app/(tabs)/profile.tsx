@@ -15,7 +15,8 @@ import {
   Edit3,
   Crown,
   FileText,
-  ChevronRight
+  ChevronRight,
+  Truck
 } from 'lucide-react-native';
 
 type ProfileOption = {
@@ -58,6 +59,14 @@ export default function ProfileScreen() {
       subtitle: 'Update your personal information',
       icon: <Edit3 size={20} color={theme.colors.primary} />,
       route: '/edit-profile',
+      showChevron: true
+    },
+    {
+      id: 'add-vehicle',
+      title: 'Add Vehicle',
+      subtitle: 'Set MPG and details',
+      icon: <Truck size={20} color={theme.colors.secondary} />,
+      route: '/vehicle-edit',
       showChevron: true
     },
     {
