@@ -48,10 +48,10 @@ export default function DevSeedDriverScreen() {
       // Step 2: Update with complete vehicle profile
       await updateProfile({
         vehicleMake: 'RAM',
-        vehicleModel: '3500',
+        vehicleModel: '3500 DUALLY',
         vehicleYear: 2024,
         fuelType: 'diesel',
-        mpgRated: 12.5,
+        mpgRated: 12,
         vin: '3C7WRTCL8RG123456',
         plate: 'TX456DEF',
         tankGallons: 50,
@@ -61,9 +61,9 @@ export default function DevSeedDriverScreen() {
         dotNumber: 'DOT1234567',
         insuranceCarrier: 'State Farm Commercial',
         insurancePolicy: 'POL-LIGHT-456789',
-        vehicleInfo: '2024 RAM 3500 Crew Cab Dually VIN: 3C7WRTCL8RG123456',
-        trailerInfo: '2023 16ft Enclosed Utility Trailer VIN: 4YMTU1624PF789012',
-        verificationStatus: 'verified',
+        vehicleInfo: '2024 RAM 3500 DUALLY 3C7WRTCL8RG123456',
+        trailerInfo: '',
+        verificationStatus: 'unverified',
         cdlNumber: 'CDL987654321',
         rating: 4.8,
         completedLoads: 23,
@@ -164,8 +164,8 @@ export default function DevSeedDriverScreen() {
         <View style={styles.infoCard}>
           <Truck size={20} color={theme.colors.primary} />
           <Text style={styles.infoTitle}>Vehicle Profile:</Text>
-          <Text style={styles.infoText}>• 2024 RAM 3500 Crew Cab Dually</Text>
-          <Text style={styles.infoText}>• Diesel, 12.5 MPG, 50 gal tank</Text>
+          <Text style={styles.infoText}>• 2024 RAM 3500 DUALLY</Text>
+          <Text style={styles.infoText}>• Diesel, 12 MPG, 50 gal tank</Text>
           <Text style={styles.infoText}>• VIN: 3C7WRTCL8RG123456</Text>
           <Text style={styles.infoText}>• Plate: TX456DEF</Text>
         </View>

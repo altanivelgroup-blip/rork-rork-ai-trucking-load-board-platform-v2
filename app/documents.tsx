@@ -82,7 +82,11 @@ export default function DocumentsScreen() {
     dotNumber: user?.dotNumber ?? '',
     insuranceCarrier: user?.insuranceCarrier ?? '',
     insurancePolicy: user?.insurancePolicy ?? '',
-    vehicleInfo: user?.vehicleInfo ?? '',
+    vehicleInfo: user?.vehicleInfo ?? (
+      user?.vehicleYear && user?.vehicleMake && user?.vehicleModel && user?.vin
+        ? `${user.vehicleYear} ${user.vehicleMake} ${user.vehicleModel} ${user.vin}`
+        : ''
+    ),
     trailerInfo: user?.trailerInfo ?? '',
     attachments: [],
     agreed: false,
