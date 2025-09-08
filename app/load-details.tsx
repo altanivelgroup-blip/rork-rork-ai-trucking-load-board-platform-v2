@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel } from 'lucide-react-native';
@@ -26,7 +27,7 @@ export default function LoadDetailsScreen() {
 const loadId = typeof params.loadId === 'string' ? params.loadId : Array.isArray(params.loadId) ? params.loadId[0] : undefined;
   const router = useRouter();
   const { acceptLoad, setFilters, loads } = useLoads();
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [isAccepting, setIsAccepting] = useState(false);
 const [load, setLoad] = useState<any | null>(null);
 const [loading, setLoading] = useState<boolean>(true);
@@ -41,7 +42,25 @@ const [loading, setLoading] = useState<boolean>(true);
   }, [load]);
   const [viewerOpen, setViewerOpen] = useState<boolean>(false);
   const [viewerIndex, setViewerIndex] = useState<number>(0);
-  
+
+  const selectableVehicles: Array<{ key: string; label: string }> = useMemo(() => ([
+    { key: 'car-hauler', label: 'Car Hauler' },
+    { key: 'flatbed', label: 'Flatbed' },
+    { key: 'box-truck', label: 'Box Truck' },
+    { key: 'cargo-van', label: 'Cargo Van' },
+  ]), []);
+
+  const selectedVehicleType = useMemo(() => {
+    const fromUser = (user?.fuelProfile?.vehicleType ?? '') as string;
+    const fromLoad = (load?.vehicleType ?? '') as string;
+    return (fromUser || fromLoad) as any;
+  }, [user?.fuelProfile?.vehicleType, load?.vehicleType]);
+
+  const [mpgInput, setMpgInput] = useState<string>(() => {
+    const val = user?.fuelProfile?.averageMpg ?? undefined;
+    return typeof val === 'number' && Number.isFinite(val) ? String(val) : '';
+  });
+
   useEffect(() => {
   let cancelled = false;
   async function fetchLoad() {
@@ -348,6 +367,67 @@ useEffect(() => {
               })()}
             </View>
 
+            <View style={styles.vehicleProfileCard}>
+              <Text style={styles.vehicleProfileTitle}>Vehicle Profile</Text>
+              <View style={styles.vehicleChipsRow}>
+                {selectableVehicles.map((v) => {
+                  const isActive = String(selectedVehicleType) === v.key;
+                  return (
+                    <TouchableOpacity
+                      key={v.key}
+                      style={[styles.vehicleChip, isActive ? styles.vehicleChipActive : undefined]}
+                      onPress={async () => {
+                        try {
+                          await updateProfile({
+                            fuelProfile: {
+                              vehicleType: v.key as any,
+                              averageMpg: Number(mpgInput) || (undefined as unknown as number),
+                              fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? undefined as unknown as number,
+                              fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
+                            } as any,
+                          });
+                        } catch (e) {
+                          console.log('[VehicleProfile] failed to update vehicle type', e);
+                        }
+                      }}
+                      accessibilityRole="button"
+                      testID={`chip-${v.key}`}
+                    >
+                      <Text style={[styles.vehicleChipText, isActive ? styles.vehicleChipTextActive : undefined]}>{v.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={styles.mpgRow}>
+                <Text style={styles.mpgLabel}>Custom MPG</Text>
+                <TextInput
+                  style={styles.mpgInput}
+                  inputMode="decimal"
+                  keyboardType="numeric"
+                  placeholder="e.g. 8.5"
+                  value={mpgInput}
+                  onChangeText={setMpgInput}
+                  onBlur={async () => {
+                    try {
+                      const val = parseFloat(mpgInput);
+                      if (!Number.isFinite(val) || val <= 0) return;
+                      await updateProfile({
+                        fuelProfile: {
+                          vehicleType: (selectedVehicleType as any) ?? (load?.vehicleType as any),
+                          averageMpg: val,
+                          fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? undefined as unknown as number,
+                          fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
+                        } as any,
+                      });
+                    } catch (e) {
+                      console.log('[VehicleProfile] failed to update mpg', e);
+                    }
+                  }}
+                  testID="input-mpg"
+                />
+              </View>
+            </View>
+
             {Array.isArray(load.special_requirements) && load.special_requirements.length > 0 && (
               <View style={styles.requirementsContainer}>
                 <View style={styles.requirementsHeader}>
@@ -651,6 +731,63 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.white,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.lg,
+  },
+  vehicleProfileCard: {
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+  },
+  vehicleProfileTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  vehicleChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  vehicleChip: {
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.white,
+  },
+  vehicleChipActive: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#CBD5FF',
+  },
+  vehicleChipText: {
+    color: theme.colors.dark,
+    fontWeight: '600',
+  },
+  vehicleChipTextActive: {
+    color: theme.colors.primary,
+  },
+  mpgRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  mpgLabel: {
+    flex: 0,
+    color: theme.colors.gray,
+    fontSize: theme.fontSize.md,
+  },
+  mpgInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 10,
+    borderRadius: theme.borderRadius.md,
+    fontSize: theme.fontSize.md,
   },
   aiScoreLabel: {
     fontSize: theme.fontSize.sm,
