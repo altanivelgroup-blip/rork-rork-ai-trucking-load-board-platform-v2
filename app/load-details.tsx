@@ -17,7 +17,7 @@ import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency } from '@/utils/fuel';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
-import { estimateMileageFromZips, defaultAvgSpeedForVehicle, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
+import { estimateMileageFromZips, defaultAvgSpeedForVehicle, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
 
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -53,20 +53,20 @@ const [loading, setLoading] = useState<boolean>(true);
       const miles = Number((load as any)?.distance ?? 0);
       if (!Number.isFinite(miles) || miles <= 0) return null;
       const vt = (user?.fuelProfile?.vehicleType ?? (load as any)?.vehicleType ?? 'truck') as string;
-      const avg = defaultAvgSpeedForVehicle(vt);
-      const hours = estimateDurationHours(miles, avg);
+      const avgStateAware = estimateAvgSpeedForRoute((load as any)?.origin?.state, (load as any)?.destination?.state, vt);
+      const hours = estimateDurationHours(miles, avgStateAware);
       const now = Date.now();
       const pickupMs = Number((load as any)?.pickupDate ?? now);
       const departAt = Number.isFinite(pickupMs) ? Math.max(now, pickupMs) : now;
       const arrivalTs = estimateArrivalTimestamp(departAt, hours);
       const prettyDur = formatDurationHours(hours);
       const arriveStr = new Date(arrivalTs).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' });
-      return { durationHours: hours, prettyDur, arrivalTs, arriveStr, avg };
+      return { durationHours: hours, prettyDur, arrivalTs, arriveStr, avg: avgStateAware };
     } catch (e) {
       console.log('[LoadDetails] eta calc error', e);
       return null;
     }
-  }, [load?.distance, load?.pickupDate, load?.vehicleType, user?.fuelProfile?.vehicleType]);
+  }, [load?.distance, load?.pickupDate, load?.vehicleType, load?.origin?.state, load?.destination?.state, user?.fuelProfile?.vehicleType]);
 
   const selectableVehicles: Array<{ key: string; label: string }> = useMemo(() => ([
     { key: 'car-hauler', label: 'Car Hauler' },
