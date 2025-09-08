@@ -13,25 +13,25 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel, Clock } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useLoads } from '@/hooks/useLoads';
-//
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency } from '@/utils/fuel';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
-import { estimateMileageFromZips, defaultAvgSpeedForVehicle, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
-
+import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Image } from 'expo-image';
+import { trpc } from '@/lib/trpc';
 
 export default function LoadDetailsScreen() {
   const params = useLocalSearchParams();
-const loadId = typeof params.loadId === 'string' ? params.loadId : Array.isArray(params.loadId) ? params.loadId[0] : undefined;
+  const loadId = typeof params.loadId === 'string' ? params.loadId : Array.isArray(params.loadId) ? params.loadId[0] : undefined;
   const router = useRouter();
   const { acceptLoad, setFilters, loads } = useLoads();
   const { user, updateProfile } = useAuth();
-  const [isAccepting, setIsAccepting] = useState(false);
-const [load, setLoad] = useState<any | null>(null);
-const [loading, setLoading] = useState<boolean>(true);
+  const [isAccepting, setIsAccepting] = useState<boolean>(false);
+  const [load, setLoad] = useState<any | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
   const photos: string[] = useMemo(() => {
     try {
       const p = (load as any)?.photos;
@@ -47,10 +47,47 @@ const [loading, setLoading] = useState<boolean>(true);
   const [fuelEstimate, setFuelEstimate] = useState<FuelApiResponse | null>(null);
   const [fuelLoading, setFuelLoading] = useState<boolean>(false);
   const [fuelError, setFuelError] = useState<string | null>(null);
+
+  const mapboxToken = (process.env.EXPO_PUBLIC_MAPBOX_TOKEN as string | undefined) ?? undefined;
+  const orsKey = (process.env.EXPO_PUBLIC_ORS_API_KEY as string | undefined) ?? undefined;
+  const eiaKey = (process.env.EXPO_PUBLIC_EIA_API_KEY as string | undefined) ?? undefined;
+
+  const etaQueryEnabled = useMemo(() => {
+    const o: any = (load as any)?.origin;
+    const d: any = (load as any)?.destination;
+    const hasCoords = typeof o?.lat === 'number' && typeof o?.lng === 'number' && typeof d?.lat === 'number' && typeof d?.lng === 'number';
+    const hasKey = !!mapboxToken || !!orsKey;
+    return !!load && hasCoords && hasKey;
+  }, [load, mapboxToken, orsKey]);
+
+  const etaQuery = trpc.route.eta.useQuery(
+    etaQueryEnabled
+      ? {
+          origin: { lat: Number((load as any)?.origin?.lat ?? 0), lon: Number((load as any)?.origin?.lng ?? 0) },
+          destination: { lat: Number((load as any)?.destination?.lat ?? 0), lon: Number((load as any)?.destination?.lng ?? 0) },
+          provider: mapboxToken ? 'mapbox' : 'ors',
+          mapboxToken: mapboxToken,
+          orsKey: orsKey,
+          profile: 'driving-hgv',
+        }
+      : (undefined as unknown as any),
+    { enabled: etaQueryEnabled }
+  );
+
+  const eiaEnabled = useMemo(() => !!((load as any)?.origin?.state || (load as any)?.destination?.state), [load?.origin?.state, load?.destination?.state]);
+  const eiaQuery = trpc.fuel.eiaDiesel.useQuery(
+    eiaEnabled
+      ? { state: ((load as any)?.origin?.state ?? (load as any)?.destination?.state) as string, eiaApiKey: eiaKey }
+      : (undefined as unknown as any),
+    { enabled: eiaEnabled }
+  );
+
   const financials = useMemo(() => {
     try {
       const rate = Number((load as any)?.rate ?? 0);
-      const miles = Number((load as any)?.distance ?? 0);
+      const milesBase = Number((load as any)?.distance ?? 0);
+      const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? etaQuery.data.distanceMeters / 1609.34 : undefined;
+      const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : milesBase;
       const cost = typeof fuelEstimate?.cost === 'number' ? fuelEstimate.cost : undefined;
       const valid = Number.isFinite(rate) && rate > 0 && Number.isFinite(miles) && miles > 0 && typeof cost === 'number';
       if (!valid) {
@@ -63,15 +100,17 @@ const [loading, setLoading] = useState<boolean>(true);
       console.log('[LoadDetails] financials calc error', e);
       return { fuelCost: undefined as unknown as number, netAfterFuel: undefined as unknown as number, profitPerMile: undefined as unknown as number };
     }
-  }, [load?.rate, load?.distance, fuelEstimate?.cost]);
+  }, [load?.rate, load?.distance, fuelEstimate?.cost, etaQuery.data?.distanceMeters]);
 
   const etaInfo = useMemo(() => {
     try {
-      const miles = Number((load as any)?.distance ?? 0);
+      const milesFromRoute = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
+      const miles = Number.isFinite((milesFromRoute as number)) && (milesFromRoute as number) > 0 ? (milesFromRoute as number) : Number((load as any)?.distance ?? 0);
       if (!Number.isFinite(miles) || miles <= 0) return null;
       const vt = (user?.fuelProfile?.vehicleType ?? (load as any)?.vehicleType ?? 'truck') as string;
       const avgStateAware = estimateAvgSpeedForRoute((load as any)?.origin?.state, (load as any)?.destination?.state, vt);
-      const hours = estimateDurationHours(miles, avgStateAware);
+      const remoteDurationHours = typeof etaQuery.data?.durationSec === 'number' ? (etaQuery.data.durationSec / 3600) : undefined;
+      const hours = typeof remoteDurationHours === 'number' && remoteDurationHours > 0 ? remoteDurationHours : estimateDurationHours(miles, avgStateAware);
       const now = Date.now();
       const pickupMs = Number((load as any)?.pickupDate ?? now);
       const departAt = Number.isFinite(pickupMs) ? Math.max(now, pickupMs) : now;
@@ -83,7 +122,7 @@ const [loading, setLoading] = useState<boolean>(true);
       console.log('[LoadDetails] eta calc error', e);
       return null;
     }
-  }, [load?.distance, load?.pickupDate, load?.vehicleType, load?.origin?.state, load?.destination?.state, user?.fuelProfile?.vehicleType]);
+  }, [etaQuery.data?.distanceMeters, etaQuery.data?.durationSec, load?.distance, load?.pickupDate, load?.vehicleType, load?.origin?.state, load?.destination?.state, user?.fuelProfile?.vehicleType]);
 
   const selectableVehicles: Array<{ key: string; label: string }> = useMemo(() => ([
     { key: 'car-hauler', label: 'Car Hauler' },
@@ -104,144 +143,165 @@ const [loading, setLoading] = useState<boolean>(true);
   });
 
   useEffect(() => {
-  let cancelled = false;
-  async function fetchLoad() {
-    try {
-      console.log('[LoadDetails] fetching load', loadId);
-      if (!loadId) {
-        setLoading(false);
-        setLoad(null);
-        return;
-      }
+    let cancelled = false;
+    async function fetchLoad() {
+      try {
+        console.log('[LoadDetails] fetching load', loadId);
+        if (!loadId) {
+          setLoading(false);
+          setLoad(null);
+          return;
+        }
 
-      const localMatch = Array.isArray(loads) ? loads.find(l => String(l.id) === String(loadId)) : undefined;
-      if (localMatch) {
-        const toMillisLocal = (v: any): number => {
-          try {
-            if (typeof v === 'number') return v;
-            if (v instanceof Date) return v.getTime();
-            if (typeof v?.toDate === 'function') return v.toDate().getTime();
-            if (typeof v === 'string') return new Date(v).getTime();
-            return Date.now();
-          } catch {
-            return Date.now();
-          }
-        };
-        const normalizedLocal = {
-          ...localMatch,
-          pickupDate: toMillisLocal((localMatch as any).pickupDate),
-          deliveryDate: toMillisLocal((localMatch as any).deliveryDate),
-        } as any;
-        setLoad(normalizedLocal);
-        setLoading(false);
-        return;
-      }
-
-      const ref = doc(db, 'loads', loadId);
-      const snap = await getDoc(ref);
-      if (!cancelled) {
-        if (snap.exists()) {
-          const raw = snap.data() as any;
-          const toMillis = (v: any): number | undefined => {
+        const localMatch = Array.isArray(loads) ? loads.find(l => String(l.id) === String(loadId)) : undefined;
+        if (localMatch) {
+          const toMillisLocal = (v: any): number => {
             try {
-              if (!v) return undefined;
               if (typeof v === 'number') return v;
               if (v instanceof Date) return v.getTime();
-              if (typeof v === 'string') return new Date(v).getTime();
               if (typeof v?.toDate === 'function') return v.toDate().getTime();
-              return undefined;
+              if (typeof v === 'string') return new Date(v).getTime();
+              return Date.now();
             } catch {
-              return undefined;
+              return Date.now();
             }
           };
-          const normalized = {
-            id: snap.id,
-            ...raw,
-            pickupDate: toMillis(raw.pickupDate) ?? Date.now(),
-            deliveryDate: toMillis(raw.deliveryDate) ?? Date.now(),
-          };
-          setLoad(normalized);
-        } else {
-          setLoad(null);
+          const normalizedLocal = {
+            ...localMatch,
+            pickupDate: toMillisLocal((localMatch as any).pickupDate),
+            deliveryDate: toMillisLocal((localMatch as any).deliveryDate),
+          } as any;
+          setLoad(normalizedLocal);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-      }
-    } catch (e) {
-      console.error('[LoadDetails] fetch error', e);
-      if (!cancelled) {
-        setLoad(null);
-        setLoading(false);
-      }
-    }
-  }
-  fetchLoad();
-  return () => {
-    cancelled = true;
-  };
-}, [loadId]);
 
-// Compute fuel estimate when we have distance and vehicle info
-useEffect(() => {
-  let active = true;
-  const run = async () => {
-    try {
-      setFuelError(null);
-      if (!load || !user) return;
-      const distanceNum = Number(load.distance ?? 0);
-      if (!Number.isFinite(distanceNum) || distanceNum <= 0) return;
-      setFuelLoading(true);
-      const res = await fetchFuelEstimate({
-        load: {
-          distance: distanceNum,
-          vehicleType: (load.vehicleType as any) ?? (user.fuelProfile?.vehicleType as any),
-          weight: Number(load.weight ?? 0),
-          origin: load.origin,
-          destination: load.destination,
-        },
-        driver: user ? { id: user.id, fuelProfile: user.fuelProfile } : null,
-      });
-      if (!active) return;
-      setFuelEstimate(res);
-    } catch (e) {
-      console.warn('[LoadDetails] fuel estimate failed', e);
-      if (active) setFuelError('Failed to estimate fuel');
-    } finally {
-      if (active) setFuelLoading(false);
-    }
-  };
-  run();
-  return () => {
-    active = false;
-  };
-}, [load?.id, load?.distance, load?.vehicleType, load?.weight, load?.origin?.state, load?.destination?.state, user?.id, user?.fuelProfile?.averageMpg, user?.fuelProfile?.fuelPricePerGallon, user?.fuelProfile?.vehicleType]);
-
-// Estimate mileage via ZIPs if distance is missing
-useEffect(() => {
-  let active = true;
-  const run = async () => {
-    try {
-      const originZip = String(load?.origin?.zipCode ?? '').slice(0, 5);
-      const destZip = String(load?.destination?.zipCode ?? '').slice(0, 5);
-      const currentDistance = Number((load as any)?.distance ?? 0);
-      if (!load || !originZip || !destZip) return;
-      if (Number.isFinite(currentDistance) && currentDistance > 0) return;
-      console.log('[LoadDetails] estimating mileage from zips', { originZip, destZip });
-      const miles = await estimateMileageFromZips(originZip, destZip);
-      if (!active) return;
-      if (miles && miles > 0) {
-        const rate = Number(load.rate ?? 0);
-        const rpm = miles > 0 ? rate / miles : 0;
-        setLoad((prev: any) => (prev ? { ...prev, distance: miles, ratePerMile: rpm } : prev));
+        const ref = doc(db, 'loads', loadId);
+        const snap = await getDoc(ref);
+        if (!cancelled) {
+          if (snap.exists()) {
+            const raw = snap.data() as any;
+            const toMillis = (v: any): number | undefined => {
+              try {
+                if (!v) return undefined;
+                if (typeof v === 'number') return v;
+                if (v instanceof Date) return v.getTime();
+                if (typeof v === 'string') return new Date(v).getTime();
+                if (typeof v?.toDate === 'function') return v.toDate().getTime();
+                return undefined;
+              } catch {
+                return undefined;
+              }
+            };
+            const normalized = {
+              id: snap.id,
+              ...raw,
+              pickupDate: toMillis(raw.pickupDate) ?? Date.now(),
+              deliveryDate: toMillis(raw.deliveryDate) ?? Date.now(),
+            };
+            setLoad(normalized);
+          } else {
+            setLoad(null);
+          }
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error('[LoadDetails] fetch error', e);
+        if (!cancelled) {
+          setLoad(null);
+          setLoading(false);
+        }
       }
-    } catch (e) {
-      console.warn('[LoadDetails] mileage estimate failed', e);
     }
-  };
-  run();
-  return () => {
-    active = false;
-  };
-}, [load?.origin?.zipCode, load?.destination?.zipCode, load?.rate]);
+    fetchLoad();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadId, loads]);
+
+  useEffect(() => {
+    let active = true;
+    const run = async () => {
+      try {
+        setFuelError(null);
+        if (!load || !user) return;
+        const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
+        const distanceNum = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : Number(load.distance ?? 0);
+        if (!Number.isFinite(distanceNum) || distanceNum <= 0) return;
+        setFuelLoading(true);
+
+        const eiaPrice = typeof eiaQuery.data?.price === 'number' ? eiaQuery.data.price : undefined;
+        const driverForEstimate = user
+          ? {
+              id: user.id,
+              fuelProfile: {
+                ...(user.fuelProfile ?? {}),
+                fuelPricePerGallon: (eiaPrice ?? (user.fuelProfile?.fuelPricePerGallon as number | undefined)) as number | undefined,
+              },
+            }
+          : null;
+
+        const res = await fetchFuelEstimate({
+          load: {
+            distance: distanceNum,
+            vehicleType: (load.vehicleType as any) ?? (user.fuelProfile?.vehicleType as any),
+            weight: Number(load.weight ?? 0),
+            origin: load.origin,
+            destination: load.destination,
+          },
+          driver: driverForEstimate as any,
+        });
+        if (!active) return;
+        const regionLabel = eiaPrice ? (eiaQuery.data?.source ? 'EIA' : 'EIA') : res.regionLabel;
+        setFuelEstimate({ ...res, regionLabel });
+      } catch (e) {
+        console.warn('[LoadDetails] fuel estimate failed', e);
+        if (active) setFuelError('Failed to estimate fuel');
+      } finally {
+        if (active) setFuelLoading(false);
+      }
+    };
+    run();
+    return () => {
+      active = false;
+    };
+  }, [etaQuery.data?.distanceMeters, eiaQuery.data?.price, eiaQuery.data?.source, load?.id, load?.distance, load?.vehicleType, load?.weight, load?.origin?.state, load?.destination?.state, user?.id, user?.fuelProfile?.averageMpg, user?.fuelProfile?.fuelPricePerGallon, user?.fuelProfile?.vehicleType]);
+
+  useEffect(() => {
+    let active = true;
+    const run = async () => {
+      try {
+        const originZip = String(load?.origin?.zipCode ?? '').slice(0, 5);
+        const destZip = String(load?.destination?.zipCode ?? '').slice(0, 5);
+        const currentDistance = Number((load as any)?.distance ?? 0);
+        if (!load || !originZip || !destZip) return;
+        if (Number.isFinite(currentDistance) && currentDistance > 0) return;
+
+        const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
+        if (typeof routeMiles === 'number' && routeMiles > 0) {
+          const rate = Number(load?.rate ?? 0);
+          const rpm = routeMiles > 0 ? rate / routeMiles : 0;
+          setLoad((prev: any) => (prev ? { ...prev, distance: routeMiles, ratePerMile: rpm } : prev));
+          return;
+        }
+
+        console.log('[LoadDetails] estimating mileage from zips', { originZip, destZip });
+        const miles = await estimateMileageFromZips(originZip, destZip);
+        if (!active) return;
+        if (miles && miles > 0) {
+          const rate = Number(load.rate ?? 0);
+          const rpm = miles > 0 ? rate / miles : 0;
+          setLoad((prev: any) => (prev ? { ...prev, distance: miles, ratePerMile: rpm } : prev));
+        }
+      } catch (e) {
+        console.warn('[LoadDetails] mileage estimate failed', e);
+      }
+    };
+    run();
+    return () => {
+      active = false;
+    };
+  }, [etaQuery.data?.distanceMeters, load?.origin?.zipCode, load?.destination?.zipCode, load?.rate]);
 
   if (loading) {
     return (
@@ -304,6 +364,12 @@ useEffect(() => {
   };
 
   const vehicleColor = theme.colors[(load?.vehicleType as keyof typeof theme.colors) ?? 'primary'] ?? theme.colors.primary;
+
+  const distanceDisplayMiles = useMemo(() => {
+    const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
+    const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : Number(load.distance ?? 0);
+    return Number.isFinite(miles) && miles > 0 ? Math.round(miles) : undefined;
+  }, [etaQuery.data?.distanceMeters, load?.distance]);
 
   return (
     <Modal
@@ -452,7 +518,7 @@ useEffect(() => {
 
             <View style={styles.distanceIndicator}>
               <View style={styles.distanceLine} />
-              <Text style={styles.distanceText} testID="miles-display">{Number(load.distance) > 0 ? `${Math.round(Number(load.distance))} miles` : 'calculating…'}</Text>
+              <Text style={styles.distanceText} testID="miles-display">{typeof distanceDisplayMiles === 'number' ? `${distanceDisplayMiles} miles` : 'calculating…'}</Text>
               <View style={styles.distanceLine} />
             </View>
 
@@ -565,7 +631,7 @@ useEffect(() => {
                             fuelProfile: {
                               vehicleType: v.key as any,
                               averageMpg: Number(mpgInput) || (undefined as unknown as number),
-                              fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? undefined as unknown as number,
+                              fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
                               fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
                             } as any,
                           });
@@ -598,7 +664,7 @@ useEffect(() => {
                         fuelProfile: {
                           vehicleType: (selectedVehicleType as any) ?? (load?.vehicleType as any),
                           averageMpg: val,
-                          fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? undefined as unknown as number,
+                          fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
                           fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
                         } as any,
                       });
@@ -637,7 +703,6 @@ useEffect(() => {
           )}
         </ScrollView>
 
-        {/* Fullscreen viewer */}
         <Modal visible={viewerOpen} transparent animationType="fade" onRequestClose={() => setViewerOpen(false)}>
           <View style={styles.viewerBackdrop}>
             <View style={styles.viewerHeader}>
