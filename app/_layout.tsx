@@ -3,6 +3,7 @@ import React, { useMemo, useCallback } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { trpc, trpcClient } from "@/lib/trpc";
 
 import { AuthProvider } from "@/hooks/useAuth";
 import { PaymentsProvider } from "@/hooks/usePayments";
@@ -161,6 +162,7 @@ function RootLayoutNav() {
       <Stack.Screen name="load-edit" options={{ title: "Edit Load" }} />
       <Stack.Screen name="photo-uploader-demo" options={{ title: "Photo Uploader Demo" }} />
       <Stack.Screen name="debug-nav" options={{ title: "Debug Navigation" }} />
+      <Stack.Screen name="backend-test" options={{ title: "Backend Test" }} />
     </Stack>
   );
 }
@@ -171,7 +173,8 @@ export default function RootLayout() {
   return (
     <ErrorBoundary safeRoute="/(auth)/login">
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <QueryClientProvider client={queryClient}>
+        <trpc.Provider client={trpcClient} queryClient={queryClient}>
+          <QueryClientProvider client={queryClient}>
           <View style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
             <AuthProvider>
               <LoadsProvider>
@@ -193,7 +196,8 @@ export default function RootLayout() {
               </LoadsProvider>
             </AuthProvider>
           </View>
-        </QueryClientProvider>
+          </QueryClientProvider>
+        </trpc.Provider>
       </GestureHandlerRootView>
     </ErrorBoundary>
   );
