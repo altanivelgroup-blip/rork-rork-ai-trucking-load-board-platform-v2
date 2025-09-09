@@ -100,12 +100,17 @@ export default function DriverProfileScreen() {
     const newSubtypes = newType === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
     const newSubtype = newSubtypes[0];
     console.log('[DriverProfile] Setting subtype to:', newSubtype);
-    setFormData(prev => ({
-      ...prev,
-      vehicleCategory: newType,
-      vehicleSubtype: newSubtype,
-      ...(newType === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
-    }));
+    
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        vehicleCategory: newType,
+        vehicleSubtype: newSubtype,
+        ...(newType === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
+      };
+      console.log('[DriverProfile] Updated form data:', updated);
+      return updated;
+    });
   }, [mapTrailerSubtypeToType]);
 
   // Handle subtype change - Fixed logic
@@ -113,11 +118,13 @@ export default function DriverProfileScreen() {
     console.log('[DriverProfile] Subtype change:', newSubtype);
     setFormData(prev => {
       console.log('[DriverProfile] Current category in callback:', prev.vehicleCategory);
-      return {
+      const updated = {
         ...prev,
         vehicleSubtype: newSubtype,
         ...(prev.vehicleCategory === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
       };
+      console.log('[DriverProfile] Updated subtype data:', updated);
+      return updated;
     });
   }, [mapTrailerSubtypeToType]);
 
@@ -325,14 +332,16 @@ export default function DriverProfileScreen() {
               <View style={styles.segmentedControl}>
                 {VEHICLE_TYPES.map((type) => {
                   const isActive = formData.vehicleCategory === type.value;
-                  console.log(`[DriverProfile] Rendering ${type.value}, active: ${isActive}`);
+                  console.log(`[DriverProfile] Rendering ${type.value}, active: ${isActive}, current category: ${formData.vehicleCategory}`);
                   return (
                     <TouchableOpacity
                       key={type.value}
                       style={[styles.segmentButton, isActive && styles.segmentButtonActive]}
                       onPress={() => {
-                        console.log(`[DriverProfile] Pressed ${type.value}`);
-                        handleTypeChange(type.value);
+                        console.log(`[DriverProfile] Pressed ${type.value}, current: ${formData.vehicleCategory}`);
+                        if (formData.vehicleCategory !== type.value) {
+                          handleTypeChange(type.value);
+                        }
                       }}
                       testID={`vehicle-type-${type.value}`}
                     >
@@ -352,14 +361,16 @@ export default function DriverProfileScreen() {
                   {subtypeOptions.map((sub) => {
                     const subStr = String(sub);
                     const isActive = formData.vehicleSubtype === subStr;
-                    console.log(`[DriverProfile] Rendering subtype ${subStr}, active: ${isActive}`);
+                    console.log(`[DriverProfile] Rendering subtype ${subStr}, active: ${isActive}, current subtype: ${formData.vehicleSubtype}, category: ${formData.vehicleCategory}`);
                     return (
                       <TouchableOpacity
                         key={subStr}
                         style={[styles.subtypeButton, isActive && styles.subtypeButtonActive]}
                         onPress={() => {
-                          console.log(`[DriverProfile] Pressed subtype ${subStr}`);
-                          handleSubtypeChange(subStr);
+                          console.log(`[DriverProfile] Pressed subtype ${subStr}, current: ${formData.vehicleSubtype}`);
+                          if (formData.vehicleSubtype !== subStr) {
+                            handleSubtypeChange(subStr);
+                          }
                         }}
                         testID={`vehicle-subtype-${subStr.replace(/\s+/g,'-').toLowerCase()}`}
                       >
