@@ -4,6 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { VEHICLE_TYPES, TRUCK_SUBTYPES, TRAILER_SUBTYPES } from '@/constants/vehicleOptions';
+import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
@@ -329,64 +330,13 @@ export default function DriverProfileScreen() {
           </View>
 
           {/* Type & Subtype controls */}
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Type *</Text>
-              <View style={styles.segmentedControl}>
-                {VEHICLE_TYPES.map((type) => {
-                  const isActive = formData.vehicleCategory === type.value;
-                  console.log(`[DriverProfile] Rendering ${type.value}, active: ${isActive}, current category: ${formData.vehicleCategory}`);
-                  return (
-                    <TouchableOpacity
-                      key={type.value}
-                      style={[styles.segmentButton, isActive && styles.segmentButtonActive]}
-                      onPress={() => {
-                        console.log(`[DriverProfile] Pressed ${type.value}, current: ${formData.vehicleCategory}`);
-                        if (formData.vehicleCategory !== type.value) {
-                          handleTypeChange(type.value);
-                        }
-                      }}
-                      testID={`vehicle-type-${type.value}`}
-                    >
-                      <Text style={[styles.segmentButtonText, isActive && styles.segmentButtonTextActive]}>
-                        {type.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-            <View style={styles.spacer} />
-            <View style={[styles.inputGroup, { flex: 2 }]}>
-              <Text style={styles.label}>Subtype *</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subtypeScroll}>
-                <View style={styles.subtypeContainer}>
-                  {subtypeOptions.map((sub) => {
-                    const subStr = String(sub);
-                    const isActive = formData.vehicleSubtype === subStr;
-                    console.log(`[DriverProfile] Rendering subtype ${subStr}, active: ${isActive}, current subtype: ${formData.vehicleSubtype}, category: ${formData.vehicleCategory}`);
-                    return (
-                      <TouchableOpacity
-                        key={subStr}
-                        style={[styles.subtypeButton, isActive && styles.subtypeButtonActive]}
-                        onPress={() => {
-                          console.log(`[DriverProfile] Pressed subtype ${subStr}, current: ${formData.vehicleSubtype}`);
-                          if (formData.vehicleSubtype !== subStr) {
-                            handleSubtypeChange(subStr);
-                          }
-                        }}
-                        testID={`vehicle-subtype-${subStr.replace(/\s+/g,'-').toLowerCase()}`}
-                      >
-                        <Text style={[styles.subtypeButtonText, isActive && styles.subtypeButtonTextActive]}>
-                          {subStr}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            </View>
-          </View>
+          <TypeSubtypeSelector
+            type={formData.vehicleCategory}
+            subtype={formData.vehicleSubtype}
+            onTypeChange={handleTypeChange}
+            onSubtypeChange={(s) => handleSubtypeChange(String(s))}
+            testIDPrefix="vehicle"
+          />
           
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1 }]}>
