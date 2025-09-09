@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
-import { User, Truck, FileText, Shield, Fuel, Container } from 'lucide-react-native';
+import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType } from '@/types';
 
 export default function DriverProfileScreen() {
@@ -155,7 +155,7 @@ export default function DriverProfileScreen() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}> 
       <Stack.Screen options={{ 
         title: 'Edit Profile',
         headerRight: () => (
@@ -520,6 +520,33 @@ export default function DriverProfileScreen() {
           </View>
         </View>
 
+        {/* Equipment & Maintenance */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Wrench size={20} color={theme.colors.primary} />
+            <Text style={styles.sectionTitle}>Equipment & Maintenance</Text>
+          </View>
+          <View style={styles.row}>
+            <TouchableOpacity 
+              style={styles.documentsBtn} 
+              onPress={() => router.push('/equipment')}
+              testID="open-equipment-btn"
+            >
+              <Truck size={16} color={theme.colors.primary} />
+              <Text style={styles.documentsBtnText}>Manage Equipment</Text>
+            </TouchableOpacity>
+            <View style={styles.spacer} />
+            <TouchableOpacity 
+              style={styles.documentsBtn} 
+              onPress={() => router.push('/maintenance')}
+              testID="open-maintenance-btn"
+            >
+              <Wrench size={16} color={theme.colors.primary} />
+              <Text style={styles.documentsBtnText}>Maintenance</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Documents & Verification */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -545,8 +572,6 @@ export default function DriverProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
-
 
         {/* Action Buttons */}
         <View style={styles.actions}>
@@ -679,6 +704,8 @@ const styles = StyleSheet.create({
     padding: theme.spacing.sm,
     borderWidth: 1,
     borderColor: theme.colors.primary,
+    flex: 1,
+    justifyContent: 'center',
   },
   documentsBtnText: {
     color: theme.colors.primary,
