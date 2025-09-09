@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -136,6 +136,10 @@ export default function ShipperDashboard() {
     router.push('/post-load');
   }, [router]);
   
+  const handleBulkUpload = useCallback(() => {
+    router.push('/csv-bulk-upload');
+  }, [router]);
+  
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -259,9 +263,15 @@ export default function ShipperDashboard() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your Loads</Text>
-            <TouchableOpacity onPress={handlePostNewLoad} style={styles.postBtn}>
-              <Text style={styles.postBtnText}>Post New Load</Text>
-            </TouchableOpacity>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity onPress={handleBulkUpload} style={styles.bulkBtn}>
+                <Upload size={16} color={theme.colors.white} />
+                <Text style={styles.bulkBtnText}>Bulk Upload</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handlePostNewLoad} style={styles.postBtn}>
+                <Text style={styles.postBtnText}>Post New Load</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           
           {shipperLoads.length === 0 ? (
@@ -359,6 +369,24 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
     color: theme.colors.dark,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  bulkBtn: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  bulkBtnText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
   },
   postBtn: {
     backgroundColor: theme.colors.primary,
