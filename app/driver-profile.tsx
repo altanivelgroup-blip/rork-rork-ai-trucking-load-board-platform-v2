@@ -81,7 +81,34 @@ export default function DriverProfileScreen() {
     'Other',
   ] as const), []);
 
+  const mapTrailerSubtypeToType = useCallback((subtype: string) => {
+    if (subtype === 'Flatbed Trailer' || subtype === 'Gooseneck Trailer') return 'flatbed';
+    if (subtype === 'Enclosed Trailer') return 'enclosed-trailer';
+    if (subtype === 'Car Hauler') return 'car-hauler';
+    return 'trailer';
+  }, []);
+
   const subtypeOptions = formData.vehicleCategory === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+
+  // Handle type change and reset subtype
+  const handleTypeChange = useCallback((newType: 'truck' | 'trailer') => {
+    const newSubtypes = newType === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+    setFormData(prev => ({
+      ...prev,
+      vehicleCategory: newType,
+      vehicleSubtype: newSubtypes[0],
+      ...(newType === 'trailer' ? { trailerType: 'flatbed' } : {}),
+    }));
+  }, [TRUCK_SUBTYPES, TRAILER_SUBTYPES]);
+
+  // Handle subtype change
+  const handleSubtypeChange = useCallback((newSubtype: string) => {
+    setFormData(prev => ({
+      ...prev,
+      vehicleSubtype: newSubtype,
+      ...(prev.vehicleCategory === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
+    }));
+  }, [mapTrailerSubtypeToType]);
 
   useEffect(() => {
     if (user) {
@@ -142,12 +169,7 @@ export default function DriverProfileScreen() {
     }));
   };
 
-  const mapTrailerSubtypeToType = useCallback((subtype: string) => {
-    if (subtype === 'Flatbed Trailer' || subtype === 'Gooseneck Trailer') return 'flatbed';
-    if (subtype === 'Enclosed Trailer') return 'enclosed-trailer';
-    if (subtype === 'Car Hauler') return 'car-hauler';
-    return 'trailer';
-  }, []);
+
 
   const onSave = useCallback(async () => {
     try {
@@ -190,7 +212,7 @@ export default function DriverProfileScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [formData, updateProfile, toast]);
+  }, [formData, updateProfile, toast, mapTrailerSubtypeToType]);
 
   const onSubmitForVerification = useCallback(async () => {
     await onSave();
@@ -279,14 +301,7 @@ export default function DriverProfileScreen() {
                   <TouchableOpacity
                     key={type.value}
                     style={[styles.segmentButton, formData.vehicleCategory === type.value && styles.segmentButtonActive]}
-                    onPress={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        vehicleCategory: type.value,
-                        vehicleSubtype: type.value === 'truck' ? 'Hotshot' : 'Flatbed Trailer',
-                        trailerType: type.value === 'trailer' ? 'flatbed' : prev.trailerType,
-                      }));
-                    }}
+                    onPress={() => handleTypeChange(type.value)}
                     testID={`vehicle-type-${type.value}`}
                   >
                     <Text style={[styles.segmentButtonText, formData.vehicleCategory === type.value && styles.segmentButtonTextActive]}>
@@ -305,11 +320,7 @@ export default function DriverProfileScreen() {
                     <TouchableOpacity
                       key={String(sub)}
                       style={[styles.subtypeButton, formData.vehicleSubtype === sub && styles.subtypeButtonActive]}
-                      onPress={() => setFormData(prev => ({ 
-                        ...prev, 
-                        vehicleSubtype: String(sub),
-                        ...(prev.vehicleCategory === 'trailer' ? { trailerType: mapTrailerSubtypeToType(String(sub)) as any } : {}),
-                      }))}
+                      onPress={() => handleSubtypeChange(String(sub))}
                       testID={`vehicle-subtype-${String(sub).replace(/\s+/g,'-').toLowerCase()}`}
                     >
                       <Text style={[styles.subtypeButtonText, formData.vehicleSubtype === sub && styles.subtypeButtonTextActive]}>
