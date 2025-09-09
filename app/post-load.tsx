@@ -28,8 +28,6 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import { subscribeFormFill, consumeStagedFormFill, FormFillPayload } from '@/lib/formFillBus';
 import { useFocusEffect } from '@react-navigation/native';
-import { subscribeFormFill, consumeStagedFormFill, FormFillPayload } from '@/lib/formFillBus';
-import { useFocusEffect } from '@react-navigation/native';
 
 
 
@@ -176,7 +174,7 @@ const onNext = useCallback(async () => {
       appliedOnceRef.current = true;
       applyFormFill(staged);
     }
-    const unsub = subscribeFormFill((d) => {
+    const unsub = subscribeFormFill((d: FormFillPayload) => {
       applyFormFill(d);
     });
     return () => { unsub && unsub(); };
