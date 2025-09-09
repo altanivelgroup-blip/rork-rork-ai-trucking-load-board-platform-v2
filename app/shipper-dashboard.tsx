@@ -132,10 +132,7 @@ export default function ShipperDashboard() {
             <View style={styles.emptyState}>
               <Package size={48} color={theme.colors.gray} />
               <Text style={styles.emptyTitle}>No loads posted yet</Text>
-              <Text style={styles.emptySubtitle}>Start by posting your first load</Text>
-              <TouchableOpacity onPress={handlePostNewLoad} style={styles.emptyBtn}>
-                <Text style={styles.emptyBtnText}>Post a Load</Text>
-              </TouchableOpacity>
+              <Text style={styles.emptySubtitle}>Use the &ldquo;Post New Load&rdquo; button above to get started</Text>
             </View>
           ) : (
             <View style={styles.loadsList}>
@@ -316,16 +313,5 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xs,
     textAlign: 'center',
   },
-  emptyBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    marginTop: theme.spacing.md,
-  },
-  emptyBtnText: {
-    color: theme.colors.white,
-    fontWeight: '600',
-    fontSize: theme.fontSize.md,
-  },
+
 });
