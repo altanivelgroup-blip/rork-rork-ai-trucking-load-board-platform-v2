@@ -135,6 +135,7 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen name="increase-revenue" options={{ title: "Increase Revenue" }} />
+      <Stack.Screen name="driver-profile" options={{ title: "Edit Profile" }} />
       <Stack.Screen name="edit-profile" options={{ title: "Edit Profile" }} />
       <Stack.Screen name="about" options={{ title: "About" }} />
       <Stack.Screen name="post-load-step2" options={{ title: "Post Load - Step 2" }} />

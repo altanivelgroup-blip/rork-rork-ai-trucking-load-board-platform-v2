@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
@@ -34,9 +34,10 @@ const TRAILER_SUBTYPES = [
 
 export default function DriverProfileScreen() {
   const router = useRouter();
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, register, userId, isAuthenticated } = useAuth();
   const toast = useToast();
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [bootstrapping, setBootstrapping] = useState<boolean>(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -129,6 +130,21 @@ export default function DriverProfileScreen() {
   }, [mapTrailerSubtypeToType]);
 
   useEffect(() => {
+    if (!user && userId && !bootstrapping) {
+      (async () => {
+        try {
+          setBootstrapping(true);
+          const anonEmail = `${userId}@anon.local`;
+          await register(anonEmail, 'temp-password', { email: anonEmail, name: '' });
+          console.log('[DriverProfile] Bootstrapped local driver profile for uid:', userId);
+        } catch (e) {
+          console.warn('[DriverProfile] Failed to bootstrap driver profile', e);
+        } finally {
+          setBootstrapping(false);
+        }
+      })();
+    }
+
     if (user) {
       // Determine vehicle category and subtype from user data
       let vehicleCategory: 'truck' | 'trailer' = 'truck';
@@ -189,7 +205,7 @@ export default function DriverProfileScreen() {
         policyNumber: user.policyNumber || '',
       });
     }
-  }, [user]);
+  }, [user, userId, bootstrapping, register]);
 
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -253,6 +269,15 @@ export default function DriverProfileScreen() {
   }, [onSave, toast]);
 
   const insets = useSafeAreaInsets();
+
+  if (bootstrapping) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}> 
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <Text style={{ marginTop: 8, color: theme.colors.gray }}>Preparing your profile...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}> 
