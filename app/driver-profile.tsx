@@ -3,8 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Activi
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { VEHICLE_TYPES, TRUCK_SUBTYPES, TRAILER_SUBTYPES } from '@/constants/vehicleOptions';
-import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
+import { TRUCK_SUBTYPES, TRAILER_SUBTYPES } from '@/constants/vehicleOptions';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
@@ -69,10 +68,7 @@ export default function DriverProfileScreen() {
     return 'trailer';
   }, []);
 
-  const subtypeOptions = useMemo(() => 
-    formData.vehicleCategory === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES,
-    [formData.vehicleCategory]
-  );
+
 
   // Handle type change and reset subtype - Fixed logic
   const handleTypeChange = useCallback((newType: 'truck' | 'trailer') => {
@@ -329,14 +325,7 @@ export default function DriverProfileScreen() {
             <Text style={styles.sectionTitle}>Vehicle Information</Text>
           </View>
 
-          {/* Type & Subtype controls */}
-          <TypeSubtypeSelector
-            type={formData.vehicleCategory}
-            subtype={formData.vehicleSubtype}
-            onTypeChange={handleTypeChange}
-            onSubtypeChange={(s) => handleSubtypeChange(String(s))}
-            testIDPrefix="vehicle"
-          />
+
           
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1 }]}>
