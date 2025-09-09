@@ -12,7 +12,7 @@ import {
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { VEHICLE_TYPES, TRUCK_SUBTYPES, TRAILER_SUBTYPES } from '@/constants/vehicleOptions';
+
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
@@ -247,7 +247,7 @@ export default function VehicleEditScreen() {
   const canPublish = state.photos.length >= 5 && state.uploadsInProgress === 0 && !state.saving;
   const canSave = !state.saving;
   
-  const subtypes = state.vehicle.type === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+
 
   if (state.loading) {
     return (
@@ -352,64 +352,7 @@ export default function VehicleEditScreen() {
             />
           </View>
           
-          <View style={styles.row}>
-            <View style={[styles.field, { flex: 1 }]}>
-              <Text style={styles.label}>Type *</Text>
-              <View style={styles.segmentedControl}>
-                {VEHICLE_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type.value}
-                    style={[
-                      styles.segmentButton,
-                      state.vehicle.type === type.value && styles.segmentButtonActive,
-                    ]}
-                    onPress={() => {
-                      updateField('type', type.value);
-                      // Reset subtype when changing type
-                      const newSubtypes = type.value === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
-                      updateField('subtype', newSubtypes[0]);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentButtonText,
-                        state.vehicle.type === type.value && styles.segmentButtonTextActive,
-                      ]}
-                    >
-                      {type.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-            
-            <View style={[styles.field, { flex: 2, marginLeft: theme.spacing.sm }]}>
-              <Text style={styles.label}>Subtype *</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subtypeScroll}>
-                <View style={styles.subtypeContainer}>
-                  {subtypes.map((subtype) => (
-                    <TouchableOpacity
-                      key={subtype}
-                      style={[
-                        styles.subtypeButton,
-                        state.vehicle.subtype === subtype && styles.subtypeButtonActive,
-                      ]}
-                      onPress={() => updateField('subtype', subtype)}
-                    >
-                      <Text
-                        style={[
-                          styles.subtypeButtonText,
-                          state.vehicle.subtype === subtype && styles.subtypeButtonTextActive,
-                        ]}
-                      >
-                        {subtype}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-          </View>
+
         </View>
         
         {/* Optional Information */}
