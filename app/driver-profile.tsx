@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,30 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType } from '@/types';
+
+// Constants moved outside component to prevent re-creation
+const VEHICLE_TYPES = [
+  { value: 'truck', label: 'Truck' },
+  { value: 'trailer', label: 'Trailer' },
+] as const;
+
+const TRUCK_SUBTYPES = [
+  'Hotshot',
+  'Cargo Van',
+  'Box Truck',
+  'Semi Truck',
+  'Pickup Truck',
+  'Other',
+] as const;
+
+const TRAILER_SUBTYPES = [
+  'Flatbed Trailer',
+  'Enclosed Trailer',
+  'Gooseneck Trailer',
+  'Car Hauler',
+  'Utility Trailer',
+  'Other',
+] as const;
 
 export default function DriverProfileScreen() {
   const router = useRouter();
@@ -57,29 +81,6 @@ export default function DriverProfileScreen() {
   });
 
   // Update form data when user data changes
-  // Vehicle type/subtype options - Fixed constants
-  const VEHICLE_TYPES = [
-    { value: 'truck', label: 'Truck' },
-    { value: 'trailer', label: 'Trailer' },
-  ] as const;
-
-  const TRUCK_SUBTYPES = [
-    'Hotshot',
-    'Cargo Van',
-    'Box Truck',
-    'Semi Truck',
-    'Pickup Truck',
-    'Other',
-  ] as const;
-
-  const TRAILER_SUBTYPES = [
-    'Flatbed Trailer',
-    'Enclosed Trailer',
-    'Gooseneck Trailer',
-    'Car Hauler',
-    'Utility Trailer',
-    'Other',
-  ] as const;
 
   const mapTrailerSubtypeToType = useCallback((subtype: string) => {
     if (subtype === 'Flatbed Trailer' || subtype === 'Gooseneck Trailer') return 'flatbed';
@@ -88,7 +89,10 @@ export default function DriverProfileScreen() {
     return 'trailer';
   }, []);
 
-  const subtypeOptions = formData.vehicleCategory === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+  const subtypeOptions = useMemo(() => 
+    formData.vehicleCategory === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES,
+    [formData.vehicleCategory]
+  );
 
   // Handle type change and reset subtype - Fixed logic
   const handleTypeChange = useCallback((newType: 'truck' | 'trailer') => {
@@ -107,13 +111,15 @@ export default function DriverProfileScreen() {
   // Handle subtype change - Fixed logic
   const handleSubtypeChange = useCallback((newSubtype: string) => {
     console.log('[DriverProfile] Subtype change:', newSubtype);
-    console.log('[DriverProfile] Current category:', formData.vehicleCategory);
-    setFormData(prev => ({
-      ...prev,
-      vehicleSubtype: newSubtype,
-      ...(prev.vehicleCategory === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
-    }));
-  }, [mapTrailerSubtypeToType, formData.vehicleCategory]);
+    setFormData(prev => {
+      console.log('[DriverProfile] Current category in callback:', prev.vehicleCategory);
+      return {
+        ...prev,
+        vehicleSubtype: newSubtype,
+        ...(prev.vehicleCategory === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
+      };
+    });
+  }, [mapTrailerSubtypeToType]);
 
   useEffect(() => {
     if (user) {
