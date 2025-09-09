@@ -28,6 +28,7 @@ const vehicleTypes: VehicleType[] = [
   'box-truck',
   'car-hauler',
   'enclosed-trailer',
+  'trailer',
 ];
 
 const FilterBarComponent: React.FC<FilterBarProps> = ({
