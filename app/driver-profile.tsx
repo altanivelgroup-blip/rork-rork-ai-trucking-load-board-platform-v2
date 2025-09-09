@@ -573,47 +573,54 @@ export default function DriverProfileScreen() {
           <TouchableOpacity 
             style={styles.debugButton} 
             onPress={() => {
-              console.log('[debug] Filling comprehensive sample data...');
-              setFormData({
+              console.log('[debug] Filling comprehensive sample data for robertlv996@gmail.com...');
+              const sampleData = {
                 // Personal Info
                 name: 'Robert Lopez',
-                email: formData.email, // Keep existing email
-                phone: '(555) 123-4567',
-                company: 'Your company name',
+                email: 'robertlv996@gmail.com',
+                phone: '(702) 555-0123',
+                company: 'Lopez Trucking LLC',
                 
                 // Vehicle Info
-                vehicleMake: 'RAM',
-                vehicleModel: '3500',
-                vehicleYear: '2024',
-                fuelType: 'diesel',
-                mpgRated: '12.5',
-                vin: 'Vehicle Identification Number',
-                plate: 'ABC-1234',
-                tankGallons: '50',
-                gvwrLbs: '14000',
+                vehicleMake: 'Freightliner',
+                vehicleModel: 'Cascadia',
+                vehicleYear: '2022',
+                fuelType: 'diesel' as const,
+                mpgRated: '7.2',
+                vin: '1FUJGHDV8NLAA1234',
+                plate: 'NV-TRK-789',
+                tankGallons: '150',
+                gvwrLbs: '80000',
                 
                 // Trailer Info
                 trailerMake: 'Great Dane',
-                trailerModel: 'Flatbed 48ft',
-                trailerYear: '2024',
-                trailerVin: 'Trailer VIN Number',
-                trailerPlate: 'TRL-1234',
-                trailerInsuranceCarrier: 'Progressive Commercial',
-                trailerPolicyNumber: 'TRL-POL-123456789',
+                trailerModel: 'Super Seal 53ft Dry Van',
+                trailerYear: '2021',
+                trailerVin: '1GRAA0628MF123456',
+                trailerPlate: 'NV-TRL-456',
+                trailerInsuranceCarrier: 'Progressive Commercial Auto',
+                trailerPolicyNumber: 'TRL-POL-987654321',
                 trailerGvwrLbs: '34000',
-                trailerType: 'flatbed',
+                trailerType: 'dry_van',
                 
                 // Company Info
-                companyName: 'ACME Logistics LLC',
-                mcNumber: 'MC012345',
-                dotNumber: 'DOT0123456',
-                insuranceCarrier: 'Progressive Commercial',
+                companyName: 'Lopez Trucking LLC',
+                mcNumber: 'MC-987654',
+                dotNumber: 'DOT-3456789',
+                insuranceCarrier: 'Progressive Commercial Auto',
                 policyNumber: 'POL-123456789',
-              });
-              console.log('[debug] Sample data filled successfully');
+              };
+              setFormData(sampleData);
+              console.log('[debug] Sample data filled for Robert Lopez profile:', JSON.stringify(sampleData, null, 2));
+              
+              // Auto-save after filling
+              setTimeout(() => {
+                console.log('[debug] Auto-saving filled data...');
+                onSave();
+              }, 500);
             }}
           >
-            <Text style={styles.debugButtonText}>Fill Sample Data</Text>
+            <Text style={styles.debugButtonText}>Fill & Save Robert&apos;s Profile</Text>
           </TouchableOpacity>
         </View>
 
