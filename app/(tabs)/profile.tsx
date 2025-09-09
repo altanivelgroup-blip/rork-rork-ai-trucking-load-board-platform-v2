@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Truck,
   Wallet,
+  Wrench
 } from 'lucide-react-native';
 
 type ProfileOption = {
@@ -68,6 +69,14 @@ export default function ProfileScreen() {
       subtitle: 'Set MPG and details',
       icon: <Truck size={20} color={theme.colors.secondary} />,
       route: '/vehicle-edit',
+      showChevron: true
+    },
+    {
+      id: 'equipment-maintenance',
+      title: 'Equipment & Maintenance',
+      subtitle: 'Trucks, trailers, service schedule',
+      icon: <Wrench size={20} color={theme.colors.primary} />,
+      route: '/equipment',
       showChevron: true
     },
     {
@@ -154,7 +163,6 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 16 }]}>
-        {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <User size={32} color={theme.colors.white} />
@@ -168,7 +176,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Profile Options */}
         <View style={styles.optionsContainer}>
           {profileOptions.map((option) => (
             <TouchableOpacity
@@ -195,7 +202,6 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* App Version */}
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>LoadRush v1.0.0</Text>
         </View>
