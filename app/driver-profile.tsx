@@ -73,7 +73,7 @@ export default function DriverProfileScreen() {
 
 
 
-  // Handle type change and reset subtype - Fixed logic
+  // Handle type change and reset subtype
   const handleTypeChange = useCallback((newType: 'truck' | 'trailer') => {
     console.log('[DriverProfile] Type change:', newType);
     const newSubtypes = newType === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
@@ -92,7 +92,7 @@ export default function DriverProfileScreen() {
     });
   }, [mapTrailerSubtypeToType]);
 
-  // Handle subtype change - Fixed logic
+  // Handle subtype change
   const handleSubtypeChange = useCallback((newSubtype: string) => {
     console.log('[DriverProfile] Subtype change:', newSubtype);
     setFormData(prev => {
