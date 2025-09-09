@@ -1,7 +1,11 @@
 export type CSVRow = Record<string, string>;
 
 export function parseCSV(input: string): { headers: string[]; rows: CSVRow[] } {
-  const lines = input.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim().length > 0);
+  const cleaned = input.replace(/\ufeff/g, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  const lines = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  while (lines.length && lines[lines.length - 1].trim().length === 0) {
+    lines.pop();
+  }
   if (lines.length === 0) return { headers: [], rows: [] };
   const headers = splitCSVLine(lines[0]).map(h => h.trim());
   const rows: CSVRow[] = [];
@@ -9,29 +13,16 @@ export function parseCSV(input: string): { headers: string[]; rows: CSVRow[] } {
     const cols = splitCSVLine(lines[i]);
     const row: CSVRow = {};
     headers.forEach((h, idx) => {
-      row[h] = (cols[idx] ?? '').trim();
+      const v = cols[idx] ?? '';
+      row[h] = v.replace(/\ufeff/g, '').trim();
     });
-    rows.push(row);
+    const allEmpty = Object.values(row).every(v => (v ?? '').trim().length === 0);
+    if (!allEmpty) rows.push(row);
   }
   return { headers, rows };
 }
 
-export function validateCSVHeaders(headers: string[], required: string[]): string[] {
-  const issues: string[] = [];
-  const normalized = headers.map(h => h.trim());
-  required.forEach((r) => {
-    if (!normalized.includes(r)) {
-      issues.push(`Missing column: ${r}`);
-    }
-  });
-  const extras = normalized.filter(h => !required.includes(h));
-  if (extras.length) {
-    issues.push(`Unexpected column(s): ${extras.join(', ')}`);
-  }
-  return issues;
-}
-
-function splitCSVLine(line: string): string[] {
+export function splitCSVLine(line: string): string[] {
   const res: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -55,65 +46,23 @@ function splitCSVLine(line: string): string[] {
   return res;
 }
 
-export function buildTemplateCSV(): string {
+export function buildCanonicalTemplateCSV(): string {
   const headers = [
-    'Origin',
-    'Destination', 
-    'Vehicle Type',
-    'Weight',
-    'Price'
+    'title','description','originCity','destinationCity','pickupDate','deliveryDate','vehicleType','weight','rate'
   ];
-  const example = [
-    'Dallas, TX',
-    'Houston, TX',
-    'CAR-HAULER',
-    '5000',
-    '1200'
-  ];
-  return headers.join(',') + '\n' + example.map(v => csvEscape(v)).join(',') + '\n';
+  const r1 = ['Dallas to Houston','Palletized goods','Dallas, TX','Houston, TX','2025-09-10 09:00','2025-09-10 17:00','Flatbed','12000','1400'];
+  const r2 = ['Vegas to Phoenix','Expedited delivery','Las Vegas, NV','Phoenix, AZ','2025-09-12 09:00','2025-09-12 17:00','Reefer','8000','1800'];
+  return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n';
 }
 
-export interface SimpleLoadRow {
-  'Origin': string;
-  'Destination': string;
-  'Vehicle Type': string;
-  'Weight': string;
-  'Price': string;
+export function buildSimpleTemplateCSV(): string {
+  const headers = ['Origin','Destination','Vehicle Type','Weight','Price'];
+  const r1 = ['Dallas, TX','Houston, TX','Car Hauler','5000','$1200'];
+  const r2 = ['Las Vegas, NV','Phoenix, AZ','Box Truck','8000','$1600'];
+  return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n';
 }
 
-export function validateSimpleLoadRow(row: SimpleLoadRow): string[] {
-  const errors: string[] = [];
-  
-  if (!row['Origin']?.trim()) {
-    errors.push('Origin is required');
-  }
-  
-  if (!row['Destination']?.trim()) {
-    errors.push('Destination is required');
-  }
-  
-  if (!row['Vehicle Type']?.trim()) {
-    errors.push('Vehicle Type is required');
-  }
-  
-  if (!row['Weight']?.trim()) {
-    errors.push('Weight is required');
-  } else if (isNaN(Number(row['Weight']))) {
-    errors.push('Weight must be a valid number');
-  }
-  
-  if (!row['Price']?.trim()) {
-    errors.push('Price is required');
-  } else if (isNaN(Number(row['Price']))) {
-    errors.push('Price must be a valid number');
-  }
-  
-  return errors;
-}
-
-function csvEscape(v: string): string {
-  if (v.includes(',') || v.includes('"') || v.includes('\n')) {
-    return '"' + v.replace(/"/g, '""') + '"';
-  }
+export function csvEscape(v: string): string {
+  if (v.includes(',') || v.includes('"') || v.includes('\n')) return '"' + v.replace(/"/g, '""') + '"';
   return v;
 }
