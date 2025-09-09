@@ -94,23 +94,26 @@ export default function DriverProfileScreen() {
   const handleTypeChange = useCallback((newType: 'truck' | 'trailer') => {
     console.log('[DriverProfile] Type change:', newType);
     const newSubtypes = newType === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+    const newSubtype = newSubtypes[0];
+    console.log('[DriverProfile] Setting subtype to:', newSubtype);
     setFormData(prev => ({
       ...prev,
       vehicleCategory: newType,
-      vehicleSubtype: newSubtypes[0],
-      ...(newType === 'trailer' ? { trailerType: 'flatbed' } : {}),
+      vehicleSubtype: newSubtype,
+      ...(newType === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
     }));
-  }, []);
+  }, [mapTrailerSubtypeToType]);
 
   // Handle subtype change - Fixed logic
   const handleSubtypeChange = useCallback((newSubtype: string) => {
     console.log('[DriverProfile] Subtype change:', newSubtype);
+    console.log('[DriverProfile] Current category:', formData.vehicleCategory);
     setFormData(prev => ({
       ...prev,
       vehicleSubtype: newSubtype,
       ...(prev.vehicleCategory === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
     }));
-  }, [mapTrailerSubtypeToType]);
+  }, [mapTrailerSubtypeToType, formData.vehicleCategory]);
 
   useEffect(() => {
     if (user) {
@@ -299,18 +302,25 @@ export default function DriverProfileScreen() {
             <View style={[styles.inputGroup, { flex: 1 }]}>
               <Text style={styles.label}>Type *</Text>
               <View style={styles.segmentedControl}>
-                {VEHICLE_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type.value}
-                    style={[styles.segmentButton, formData.vehicleCategory === type.value && styles.segmentButtonActive]}
-                    onPress={() => handleTypeChange(type.value)}
-                    testID={`vehicle-type-${type.value}`}
-                  >
-                    <Text style={[styles.segmentButtonText, formData.vehicleCategory === type.value && styles.segmentButtonTextActive]}>
-                      {type.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {VEHICLE_TYPES.map((type) => {
+                  const isActive = formData.vehicleCategory === type.value;
+                  console.log(`[DriverProfile] Rendering ${type.value}, active: ${isActive}`);
+                  return (
+                    <TouchableOpacity
+                      key={type.value}
+                      style={[styles.segmentButton, isActive && styles.segmentButtonActive]}
+                      onPress={() => {
+                        console.log(`[DriverProfile] Pressed ${type.value}`);
+                        handleTypeChange(type.value);
+                      }}
+                      testID={`vehicle-type-${type.value}`}
+                    >
+                      <Text style={[styles.segmentButtonText, isActive && styles.segmentButtonTextActive]}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
             <View style={styles.spacer} />
@@ -318,18 +328,26 @@ export default function DriverProfileScreen() {
               <Text style={styles.label}>Subtype *</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subtypeScroll}>
                 <View style={styles.subtypeContainer}>
-                  {subtypeOptions.map((sub) => (
-                    <TouchableOpacity
-                      key={String(sub)}
-                      style={[styles.subtypeButton, formData.vehicleSubtype === sub && styles.subtypeButtonActive]}
-                      onPress={() => handleSubtypeChange(String(sub))}
-                      testID={`vehicle-subtype-${String(sub).replace(/\s+/g,'-').toLowerCase()}`}
-                    >
-                      <Text style={[styles.subtypeButtonText, formData.vehicleSubtype === sub && styles.subtypeButtonTextActive]}>
-                        {String(sub)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {subtypeOptions.map((sub) => {
+                    const subStr = String(sub);
+                    const isActive = formData.vehicleSubtype === subStr;
+                    console.log(`[DriverProfile] Rendering subtype ${subStr}, active: ${isActive}`);
+                    return (
+                      <TouchableOpacity
+                        key={subStr}
+                        style={[styles.subtypeButton, isActive && styles.subtypeButtonActive]}
+                        onPress={() => {
+                          console.log(`[DriverProfile] Pressed subtype ${subStr}`);
+                          handleSubtypeChange(subStr);
+                        }}
+                        testID={`vehicle-subtype-${subStr.replace(/\s+/g,'-').toLowerCase()}`}
+                      >
+                        <Text style={[styles.subtypeButtonText, isActive && styles.subtypeButtonTextActive]}>
+                          {subStr}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </ScrollView>
             </View>
