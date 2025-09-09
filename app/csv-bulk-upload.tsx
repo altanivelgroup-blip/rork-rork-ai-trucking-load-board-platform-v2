@@ -12,15 +12,16 @@ import {
 import { Stack, router } from 'expo-router';
 import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { parseCSV, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, SimpleLoadRow, validateSimpleLoadRow } from '@/utils/csv';
+import { parseFileContent, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, validateLoadRow, CSVRow } from '@/utils/csv';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
+
 
 type TemplateType = 'simple' | 'standard' | 'complete';
 
@@ -46,7 +47,7 @@ const TEMPLATE_CONFIGS = {
 };
 
 interface ProcessedRow {
-  original: SimpleLoadRow;
+  original: CSVRow;
   errors: string[];
   id: string;
 }
@@ -69,9 +70,9 @@ export default function CSVBulkUploadScreen() {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   }, []);
 
-  const processCSVData = useCallback((rows: SimpleLoadRow[]) => {
+  const processCSVData = useCallback((rows: CSVRow[]) => {
     const processed: ProcessedRow[] = rows.map(row => {
-      const errors = validateSimpleLoadRow(row);
+      const errors = validateLoadRow(row, selectedTemplate);
       return {
         original: row,
         errors,
@@ -79,14 +80,14 @@ export default function CSVBulkUploadScreen() {
       };
     });
     setProcessedRows(processed);
-  }, [generateLoadId]);
+  }, [generateLoadId, selectedTemplate]);
 
   const handleFileSelect = useCallback(async () => {
     try {
       setIsLoading(true);
       
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'text/csv',
+        type: ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
         copyToCacheDirectory: true,
       });
 
@@ -95,32 +96,24 @@ export default function CSVBulkUploadScreen() {
       }
 
       const file = result.assets[0];
-      let csvContent: string;
-
-      if (Platform.OS === 'web') {
-        const response = await fetch(file.uri);
-        csvContent = await response.text();
-      } else {
-        csvContent = await FileSystem.readAsStringAsync(file.uri);
-      }
-
-      const { headers, rows } = parseCSV(csvContent);
+      const { headers, rows } = await parseFileContent(file.uri, file.name);
       
       const requiredHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
       const headerIssues = validateCSVHeaders(headers, requiredHeaders);
       setHeaderErrors(headerIssues);
       
       if (headerIssues.length > 0) {
-        showToast(`CSV headers do not match ${TEMPLATE_CONFIGS[selectedTemplate].name} format`, 'error');
+        showToast(`File headers do not match ${TEMPLATE_CONFIGS[selectedTemplate].name} format`, 'error');
         return;
       }
 
-      processCSVData(rows as unknown as SimpleLoadRow[]);
+      processCSVData(rows);
       showToast(`Loaded ${rows.length} rows for preview`);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('File select error:', error);
-      showToast('Failed to read CSV file', 'error');
+      const errorMessage = error.message || 'Failed to read file. Please ensure it\'s a valid CSV or Excel file.';
+      showToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -133,47 +126,122 @@ export default function CSVBulkUploadScreen() {
   const performImport = useCallback(async () => {
     try {
       setIsImporting(true);
-      await ensureFirebaseAuth();
+      console.log('[BULK UPLOAD] Starting import process...');
+      
+      const authSuccess = await ensureFirebaseAuth();
+      if (!authSuccess) {
+        throw new Error('Authentication failed. Please try again.');
+      }
+      
       const { db } = getFirebase();
+      console.log('[BULK UPLOAD] Firebase initialized successfully');
       
       const validRows = processedRows.filter(row => row.errors.length === 0);
       let imported = 0;
       
+      console.log(`[BULK UPLOAD] Processing ${validRows.length} valid rows...`);
+      
       for (const processedRow of validRows) {
         const { original, id } = processedRow;
+        console.log(`[BULK UPLOAD] Processing row ${imported + 1}/${validRows.length}:`, id);
         
-        const loadData = {
-          title: `${original['Vehicle Type']} - ${original['Origin']} to ${original['Destination']}`,
-          origin: original['Origin'].trim(),
-          destination: original['Destination'].trim(),
-          vehicleType: original['Vehicle Type'].trim(),
-          weight: Number(original['Weight']),
-          rate: Number(original['Price']),
-          status: 'OPEN',
-          createdBy: user!.id,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          pickupDate: null,
-          deliveryDate: null,
-          attachments: [],
-          clientCreatedAt: Date.now(),
-        };
+        let loadData: any;
+        
+        if (selectedTemplate === 'simple') {
+          loadData = {
+            title: `${original['Vehicle Type']} - ${original['Origin']} to ${original['Destination']}`,
+            origin: original['Origin']?.trim() || '',
+            destination: original['Destination']?.trim() || '',
+            vehicleType: original['Vehicle Type']?.trim() || '',
+            weight: Number(original['Weight']?.replace(/[^0-9.]/g, '') || 0),
+            rate: Number(original['Price']?.replace(/[^0-9.]/g, '') || 0),
+            status: 'OPEN',
+            createdBy: user!.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            pickupDate: null,
+            deliveryDate: null,
+            attachments: [],
+            clientCreatedAt: Date.now(),
+          };
+        } else {
+          // Standard and Complete templates
+          const pickupDate = original['pickupDate'] ? new Date(original['pickupDate']) : null;
+          const deliveryDate = original['deliveryDate'] ? new Date(original['deliveryDate']) : null;
+          
+          loadData = {
+            title: original['title']?.trim() || `${original['vehicleType']} - ${original['originCity']} to ${original['destinationCity']}`,
+            description: original['description']?.trim() || 'Imported via CSV',
+            origin: original['originCity']?.trim() || '',
+            destination: original['destinationCity']?.trim() || '',
+            vehicleType: original['vehicleType']?.trim() || '',
+            weight: Number(original['weight']?.replace(/[^0-9.]/g, '') || 0),
+            rate: Number(original['rate']?.replace(/[^0-9.]/g, '') || 0),
+            status: 'OPEN',
+            createdBy: user!.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            pickupDate: pickupDate,
+            deliveryDate: deliveryDate,
+            attachments: [],
+            clientCreatedAt: Date.now(),
+            // Additional fields for standard/complete templates
+            originPlace: original['originState'] ? {
+              city: original['originCity']?.trim() || '',
+              state: original['originState']?.trim() || '',
+              lat: 0,
+              lng: 0
+            } : undefined,
+            destinationPlace: original['destinationState'] ? {
+              city: original['destinationCity']?.trim() || '',
+              state: original['destinationState']?.trim() || '',
+              lat: 0,
+              lng: 0
+            } : undefined,
+            weightLbs: Number(original['weight']?.replace(/[^0-9.]/g, '') || 0),
+            revenueUsd: Number(original['rate']?.replace(/[^0-9.]/g, '') || 0),
+            distanceMi: original['distance'] ? Number(original['distance'].replace(/[^0-9.]/g, '') || 0) : undefined,
+          };
+          
+          // Add complete template specific fields
+          if (selectedTemplate === 'complete') {
+            loadData = {
+              ...loadData,
+              loadType: original['loadType']?.trim(),
+              reference: original['reference']?.trim(),
+              originAddress: original['originAddress']?.trim(),
+              originZip: original['originZip']?.trim(),
+              destinationAddress: original['destinationAddress']?.trim(),
+              destinationZip: original['destinationZip']?.trim(),
+              specialRequirements: original['specialRequirements']?.trim(),
+              notes: original['notes']?.trim(),
+              dimensions: original['dimensions']?.trim(),
+              hazmat: original['hazmat']?.trim() === 'Yes',
+              temperature: original['temperature']?.trim(),
+              priority: original['priority']?.trim(),
+              expedited: original['expedited']?.trim() === 'Yes',
+            };
+          }
+        }
 
         await setDoc(doc(db, LOADS_COLLECTION, id), loadData);
         imported++;
+        console.log(`[BULK UPLOAD] Successfully imported row ${imported}/${validRows.length}`);
       }
       
+      console.log(`[BULK UPLOAD] Import completed successfully. Imported ${imported} loads.`);
       showToast(`Successfully imported ${imported} loads`);
       setProcessedRows([]);
       router.back();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Import error:', error);
-      showToast('Import failed. Please try again.', 'error');
+      const errorMessage = error.message || 'Import failed. Please try again.';
+      showToast(errorMessage, 'error');
     } finally {
       setIsImporting(false);
     }
-  }, [user, processedRows, showToast]);
+  }, [user, processedRows, showToast, selectedTemplate]);
 
   const handleImport = useCallback(async () => {
     if (!user) {
@@ -253,12 +321,15 @@ export default function CSVBulkUploadScreen() {
           <FileText size={32} color={theme.colors.primary} />
           <Text style={styles.title}>Bulk Upload Loads</Text>
           <Text style={styles.subtitle}>
-            Upload a CSV file with load information. Choose from simple (5 columns) to complete (50+ columns) templates below.
+            Upload a CSV, Excel (.xlsx), or Google Sheets file with load information. Choose from simple (5 columns) to complete (50+ columns) templates below.
           </Text>
         </View>
 
         <View style={styles.templatesContainer}>
-          <Text style={styles.templatesTitle}>Download CSV Templates:</Text>
+          <Text style={styles.templatesTitle}>Download Templates (CSV format):</Text>
+          <Text style={styles.templatesSubtitle}>
+            💡 Tip: Open in Excel or Google Sheets, fill with your data, then save/export as CSV to upload
+          </Text>
           
           <TouchableOpacity 
             style={styles.templateButton} 
@@ -296,6 +367,9 @@ export default function CSVBulkUploadScreen() {
 
         <View style={styles.templateSelectorContainer}>
           <Text style={styles.templateSelectorTitle}>Which template are you uploading?</Text>
+          <Text style={styles.templateSelectorSubtitle}>
+            Select the template type that matches your file&apos;s column structure
+          </Text>
           <TouchableOpacity
             style={styles.templateSelector}
             onPress={() => setShowTemplateDropdown(!showTemplateDropdown)}
@@ -363,7 +437,7 @@ export default function CSVBulkUploadScreen() {
             <Upload size={24} color={theme.colors.white} />
           )}
           <Text style={styles.uploadText}>
-            {isLoading ? 'Loading...' : 'Select CSV File'}
+            {isLoading ? 'Loading...' : 'Select CSV/Excel File'}
           </Text>
         </TouchableOpacity>
 
@@ -392,7 +466,10 @@ export default function CSVBulkUploadScreen() {
                   <View key={row.id} style={styles.rowContainer}>
                     <View style={styles.rowHeader}>
                       <Text style={styles.rowTitle}>
-                        {row.original['Origin']} → {row.original['Destination']}
+                        {selectedTemplate === 'simple' 
+                          ? `${row.original['Origin']} → ${row.original['Destination']}`
+                          : `${row.original['originCity'] || row.original['Origin']} → ${row.original['destinationCity'] || row.original['Destination']}`
+                        }
                       </Text>
                       <TouchableOpacity
                         style={styles.removeButton}
@@ -402,7 +479,10 @@ export default function CSVBulkUploadScreen() {
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.rowDetails}>
-                      {row.original['Vehicle Type']} • {row.original['Weight']} lbs • ${row.original['Price']}
+                      {selectedTemplate === 'simple'
+                        ? `${row.original['Vehicle Type']} • ${row.original['Weight']} lbs • ${row.original['Price']}`
+                        : `${row.original['vehicleType'] || row.original['Vehicle Type']} • ${row.original['weight'] || row.original['Weight']} lbs • ${row.original['rate'] || row.original['Price']}`
+                      }
                     </Text>
                   </View>
                 ))}
@@ -418,7 +498,10 @@ export default function CSVBulkUploadScreen() {
                   <View key={row.id} style={styles.rowContainer}>
                     <View style={styles.rowHeader}>
                       <Text style={styles.rowTitle}>
-                        {row.original['Origin'] || 'Missing'} → {row.original['Destination'] || 'Missing'}
+                        {selectedTemplate === 'simple'
+                          ? `${row.original['Origin'] || 'Missing'} → ${row.original['Destination'] || 'Missing'}`
+                          : `${row.original['originCity'] || row.original['Origin'] || 'Missing'} → ${row.original['destinationCity'] || row.original['Destination'] || 'Missing'}`
+                        }
                       </Text>
                       <TouchableOpacity
                         style={styles.removeButton}
@@ -502,7 +585,13 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '600',
     color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+  },
+  templatesSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
     marginBottom: theme.spacing.sm,
+    lineHeight: 18,
   },
   templateButton: {
     flexDirection: 'row',
@@ -665,7 +754,13 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '600',
     color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+  },
+  templateSelectorSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
     marginBottom: theme.spacing.sm,
+    lineHeight: 18,
   },
   templateSelector: {
     backgroundColor: theme.colors.white,

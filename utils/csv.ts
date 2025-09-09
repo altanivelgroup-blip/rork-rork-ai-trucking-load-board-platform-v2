@@ -220,3 +220,341 @@ export function validateSimpleLoadRow(row: SimpleLoadRow): string[] {
   
   return errors;
 }
+
+export type StandardLoadRow = {
+  title: string;
+  description: string;
+  originCity: string;
+  originState?: string;
+  originZip?: string;
+  originAddress?: string;
+  destinationCity: string;
+  destinationState?: string;
+  destinationZip?: string;
+  destinationAddress?: string;
+  pickupDate?: string;
+  pickupTime?: string;
+  deliveryDate?: string;
+  deliveryTime?: string;
+  timeZone?: string;
+  vehicleType: string;
+  weight: string;
+  rate: string;
+  ratePerMile?: string;
+  distance?: string;
+  specialRequirements?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  loadType?: string;
+  dimensions?: string;
+  hazmat?: string;
+  temperature?: string;
+  notes?: string;
+};
+
+export function validateStandardLoadRow(row: CSVRow): string[] {
+  const errors: string[] = [];
+  
+  // Required fields for standard template
+  if (!row['title']?.trim()) {
+    errors.push('Title is required');
+  }
+  
+  if (!row['originCity']?.trim()) {
+    errors.push('Origin city is required');
+  }
+  
+  if (!row['destinationCity']?.trim()) {
+    errors.push('Destination city is required');
+  }
+  
+  if (!row['vehicleType']?.trim()) {
+    errors.push('Vehicle type is required');
+  }
+  
+  if (!row['weight']?.trim()) {
+    errors.push('Weight is required');
+  } else {
+    const weight = Number(row['weight'].replace(/[^0-9.]/g, ''));
+    if (isNaN(weight) || weight <= 0) {
+      errors.push('Weight must be a valid positive number');
+    }
+  }
+  
+  if (!row['rate']?.trim()) {
+    errors.push('Rate is required');
+  } else {
+    const rate = Number(row['rate'].replace(/[^0-9.]/g, ''));
+    if (isNaN(rate) || rate <= 0) {
+      errors.push('Rate must be a valid positive number');
+    }
+  }
+  
+  // Validate dates if provided
+  if (row['pickupDate']?.trim()) {
+    const date = new Date(row['pickupDate']);
+    if (isNaN(date.getTime())) {
+      errors.push('Pickup date must be a valid date');
+    }
+  }
+  
+  if (row['deliveryDate']?.trim()) {
+    const date = new Date(row['deliveryDate']);
+    if (isNaN(date.getTime())) {
+      errors.push('Delivery date must be a valid date');
+    }
+  }
+  
+  return errors;
+}
+
+export type CompleteLoadRow = {
+  // Basic Load Information
+  title: string;
+  description?: string;
+  loadType?: string;
+  reference?: string;
+  // Origin Details
+  originCity: string;
+  originState?: string;
+  originZip?: string;
+  originAddress?: string;
+  originCompany?: string;
+  originContact?: string;
+  originPhone?: string;
+  originEmail?: string;
+  // Destination Details
+  destinationCity: string;
+  destinationState?: string;
+  destinationZip?: string;
+  destinationAddress?: string;
+  destinationCompany?: string;
+  destinationContact?: string;
+  destinationPhone?: string;
+  destinationEmail?: string;
+  // Scheduling
+  pickupDate?: string;
+  pickupTime?: string;
+  deliveryDate?: string;
+  deliveryTime?: string;
+  timeZone?: string;
+  appointmentRequired?: string;
+  flexibleTiming?: string;
+  // Equipment & Cargo
+  vehicleType: string;
+  weight: string;
+  dimensions?: string;
+  pieces?: string;
+  commodityType?: string;
+  hazmat?: string;
+  temperature?: string;
+  specialEquipment?: string;
+  // Pricing
+  rate: string;
+  rateType?: string;
+  ratePerMile?: string;
+  distance?: string;
+  fuelSurcharge?: string;
+  accessorials?: string;
+  totalRate?: string;
+  // Requirements & Instructions
+  specialRequirements?: string;
+  loadingInstructions?: string;
+  deliveryInstructions?: string;
+  driverRequirements?: string;
+  insuranceRequirements?: string;
+  // Contact & Documentation
+  primaryContact?: string;
+  primaryPhone?: string;
+  primaryEmail?: string;
+  backupContact?: string;
+  backupPhone?: string;
+  backupEmail?: string;
+  bolRequired?: string;
+  podRequired?: string;
+  signatureRequired?: string;
+  photoRequired?: string;
+  documentsRequired?: string;
+  // Additional Information
+  notes?: string;
+  internalNotes?: string;
+  customerReference?: string;
+  poNumber?: string;
+  priority?: string;
+  expedited?: string;
+};
+
+export function validateCompleteLoadRow(row: CSVRow): string[] {
+  const errors: string[] = [];
+  
+  // Required fields for complete template
+  if (!row['title']?.trim()) {
+    errors.push('Title is required');
+  }
+  
+  if (!row['originCity']?.trim()) {
+    errors.push('Origin city is required');
+  }
+  
+  if (!row['destinationCity']?.trim()) {
+    errors.push('Destination city is required');
+  }
+  
+  if (!row['vehicleType']?.trim()) {
+    errors.push('Vehicle type is required');
+  }
+  
+  if (!row['weight']?.trim()) {
+    errors.push('Weight is required');
+  } else {
+    const weight = Number(row['weight'].replace(/[^0-9.]/g, ''));
+    if (isNaN(weight) || weight <= 0) {
+      errors.push('Weight must be a valid positive number');
+    }
+  }
+  
+  if (!row['rate']?.trim()) {
+    errors.push('Rate is required');
+  } else {
+    const rate = Number(row['rate'].replace(/[^0-9.]/g, ''));
+    if (isNaN(rate) || rate <= 0) {
+      errors.push('Rate must be a valid positive number');
+    }
+  }
+  
+  // Validate dates if provided
+  if (row['pickupDate']?.trim()) {
+    const date = new Date(row['pickupDate']);
+    if (isNaN(date.getTime())) {
+      errors.push('Pickup date must be a valid date');
+    }
+  }
+  
+  if (row['deliveryDate']?.trim()) {
+    const date = new Date(row['deliveryDate']);
+    if (isNaN(date.getTime())) {
+      errors.push('Delivery date must be a valid date');
+    }
+  }
+  
+  // Validate email formats if provided
+  const emailFields = ['originEmail', 'destinationEmail', 'primaryEmail', 'backupEmail'];
+  emailFields.forEach(field => {
+    if (row[field]?.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(row[field].trim())) {
+        errors.push(`${field} must be a valid email address`);
+      }
+    }
+  });
+  
+  // Validate phone numbers if provided
+  const phoneFields = ['originPhone', 'destinationPhone', 'primaryPhone', 'backupPhone'];
+  phoneFields.forEach(field => {
+    if (row[field]?.trim()) {
+      const phoneRegex = /^[\d\s\-\(\)\+\.]{10,}$/;
+      if (!phoneRegex.test(row[field].trim())) {
+        errors.push(`${field} must be a valid phone number`);
+      }
+    }
+  });
+  
+  return errors;
+}
+
+// Generic validation function that routes to the appropriate validator
+export function validateLoadRow(row: CSVRow, templateType: 'simple' | 'standard' | 'complete'): string[] {
+  switch (templateType) {
+    case 'simple':
+      return validateSimpleLoadRow(row as unknown as SimpleLoadRow);
+    case 'standard':
+      return validateStandardLoadRow(row);
+    case 'complete':
+      return validateCompleteLoadRow(row);
+    default:
+      return ['Unknown template type'];
+  }
+}
+
+// Function to convert Excel file to CSV format
+export async function parseExcelFile(fileUri: string, fileName: string): Promise<{ headers: string[]; rows: CSVRow[] }> {
+  try {
+    let arrayBuffer: ArrayBuffer;
+    
+    if (typeof window !== 'undefined' && fileUri.startsWith('blob:')) {
+      // Web environment
+      const response = await fetch(fileUri);
+      arrayBuffer = await response.arrayBuffer();
+    } else {
+      // React Native environment
+      const { FileSystem } = require('expo-file-system');
+      const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+      const binaryString = atob(base64);
+      arrayBuffer = new ArrayBuffer(binaryString.length);
+      const uint8Array = new Uint8Array(arrayBuffer);
+      for (let i = 0; i < binaryString.length; i++) {
+        uint8Array[i] = binaryString.charCodeAt(i);
+      }
+    }
+    
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    
+    // Convert to JSON with header row
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
+    
+    if (jsonData.length === 0) {
+      return { headers: [], rows: [] };
+    }
+    
+    const headers = jsonData[0].map(h => (h || '').toString().trim());
+    const rows: CSVRow[] = [];
+    
+    for (let i = 1; i < jsonData.length; i++) {
+      const rowData = jsonData[i];
+      const row: CSVRow = {};
+      
+      headers.forEach((header, index) => {
+        const value = rowData[index];
+        row[header] = (value || '').toString().trim();
+      });
+      
+      // Skip empty rows
+      const hasData = Object.values(row).some(v => v.trim().length > 0);
+      if (hasData) {
+        rows.push(row);
+      }
+    }
+    
+    return { headers, rows };
+  } catch (error) {
+    console.error('Error parsing Excel file:', error);
+    throw new Error('Failed to parse Excel file. Please ensure it\'s a valid Excel file.');
+  }
+}
+
+// Function to determine file type and parse accordingly
+export async function parseFileContent(fileUri: string, fileName: string): Promise<{ headers: string[]; rows: CSVRow[] }> {
+  const fileExtension = fileName.toLowerCase().split('.').pop();
+  
+  if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+    return parseExcelFile(fileUri, fileName);
+  } else {
+    // Default to CSV parsing
+    let csvContent: string;
+    
+    if (typeof window !== 'undefined' && fileUri.startsWith('blob:')) {
+      // Web environment
+      const response = await fetch(fileUri);
+      csvContent = await response.text();
+    } else {
+      // React Native environment
+      const { FileSystem } = require('expo-file-system');
+      csvContent = await FileSystem.readAsStringAsync(fileUri);
+    }
+    
+    return parseCSV(csvContent);
+  }
+}
