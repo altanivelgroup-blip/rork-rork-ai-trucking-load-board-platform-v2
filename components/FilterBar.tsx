@@ -25,6 +25,12 @@ interface FilterBarProps {
 const vehicleTypes: VehicleType[] = [
   'truck',
   'box-truck',
+  'cargo-van',
+  'trailer',
+  'car-hauler',
+  'flatbed',
+  'enclosed-trailer',
+  'reefer',
 ];
 
 const FilterBarComponent: React.FC<FilterBarProps> = ({
@@ -67,7 +73,21 @@ const FilterBarComponent: React.FC<FilterBarProps> = ({
               testID={`vehicle-chip-${vehicle}`}
             >
               <Text style={[styles.chipText, selectedVehicle === vehicle && styles.chipTextActive]}>
-                {vehicle === 'box-truck' ? 'Hotshot' : vehicle.replace('-', ' ')}
+                {vehicle === 'box-truck'
+                  ? 'Hotshot'
+                  : vehicle === 'cargo-van'
+                  ? 'Cargo Van'
+                  : vehicle === 'car-hauler'
+                  ? 'Car Hauler'
+                  : vehicle === 'enclosed-trailer'
+                  ? 'Enclosed'
+                  : vehicle === 'reefer'
+                  ? 'Reefer'
+                  : vehicle === 'flatbed'
+                  ? 'Flatbed'
+                  : vehicle === 'trailer'
+                  ? 'Trailer'
+                  : 'Truck'}
               </Text>
               {selectedVehicle === vehicle && (
                 <X size={14} color={theme.colors.white} />
