@@ -12,6 +12,7 @@ import {
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
+import { VEHICLE_TYPES, TRUCK_SUBTYPES, TRAILER_SUBTYPES } from '@/constants/vehicleOptions';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
@@ -47,28 +48,6 @@ interface VehicleEditState {
   saving: boolean;
 }
 
-const VEHICLE_TYPES = [
-  { value: 'truck', label: 'Truck' },
-  { value: 'trailer', label: 'Trailer' },
-];
-
-const TRUCK_SUBTYPES = [
-  'Hotshot',
-  'Cargo Van',
-  'Box Truck',
-  'Semi Truck',
-  'Pickup Truck',
-  'Other',
-];
-
-const TRAILER_SUBTYPES = [
-  'Flatbed Trailer',
-  'Enclosed Trailer',
-  'Gooseneck Trailer',
-  'Car Hauler',
-  'Utility Trailer',
-  'Other',
-];
 
 export default function VehicleEditScreen() {
   const router = useRouter();

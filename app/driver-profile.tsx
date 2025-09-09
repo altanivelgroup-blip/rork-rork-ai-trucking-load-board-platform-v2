@@ -3,35 +3,13 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Activi
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
+import { VEHICLE_TYPES, TRUCK_SUBTYPES, TRAILER_SUBTYPES } from '@/constants/vehicleOptions';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType } from '@/types';
 
-// Constants moved outside component to prevent re-creation
-const VEHICLE_TYPES = [
-  { value: 'truck', label: 'Truck' },
-  { value: 'trailer', label: 'Trailer' },
-] as const;
-
-const TRUCK_SUBTYPES = [
-  'Hotshot',
-  'Cargo Van',
-  'Box Truck',
-  'Semi Truck',
-  'Pickup Truck',
-  'Other',
-] as const;
-
-const TRAILER_SUBTYPES = [
-  'Flatbed Trailer',
-  'Enclosed Trailer',
-  'Gooseneck Trailer',
-  'Car Hauler',
-  'Utility Trailer',
-  'Other',
-] as const;
-
+// Options moved to shared constants to keep logic in sync
 export default function DriverProfileScreen() {
   const router = useRouter();
   const { user, updateProfile, register, userId, isAuthenticated } = useAuth();
