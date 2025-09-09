@@ -12,7 +12,13 @@ export interface TypeSubtypeSelectorProps {
 }
 
 export default function TypeSubtypeSelector({ type, subtype, onTypeChange, onSubtypeChange, testIDPrefix = 'vehicle' }: TypeSubtypeSelectorProps) {
-  const subtypes = useMemo<readonly AnySubtype[]>(() => (type === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES), [type]);
+  const subtypes = useMemo<readonly AnySubtype[]>(() => {
+    const result = type === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+    console.log(`[TypeSubtypeSelector] Subtypes for ${type}:`, result);
+    return result;
+  }, [type]);
+  
+  console.log(`[TypeSubtypeSelector] Render - type: ${type}, subtype: ${subtype}`);
 
   return (
     <View style={styles.row}>
@@ -26,8 +32,12 @@ export default function TypeSubtypeSelector({ type, subtype, onTypeChange, onSub
               testID={`${testIDPrefix}-type-${t.value}`}
               style={[styles.segmentButton, type === t.value && styles.segmentButtonActive]}
               onPress={() => {
+                console.log(`[TypeSubtypeSelector] Type button pressed: ${t.value}, current: ${type}`);
                 if (type !== t.value) {
+                  console.log(`[TypeSubtypeSelector] Calling onTypeChange with: ${t.value}`);
                   onTypeChange(t.value);
+                } else {
+                  console.log(`[TypeSubtypeSelector] Type unchanged, not calling onTypeChange`);
                 }
               }}
             >
@@ -39,7 +49,7 @@ export default function TypeSubtypeSelector({ type, subtype, onTypeChange, onSub
         </View>
       </View>
 
-      <View style={{ width: 12 }} />
+      <View style={styles.spacer} />
 
       <View style={[styles.field, { flex: 2 }]}>
         <Text style={styles.label}>Subtype *</Text>
@@ -55,7 +65,13 @@ export default function TypeSubtypeSelector({ type, subtype, onTypeChange, onSub
                   testID={`${testIDPrefix}-subtype-${sStr.replace(/\s+/g,'-').toLowerCase()}`}
                   style={[styles.subtypeButton, active && styles.subtypeButtonActive]}
                   onPress={() => {
-                    if (!active) onSubtypeChange(s);
+                    console.log(`[TypeSubtypeSelector] Subtype button pressed: ${sStr}, active: ${active}`);
+                    if (!active) {
+                      console.log(`[TypeSubtypeSelector] Calling onSubtypeChange with: ${sStr}`);
+                      onSubtypeChange(s);
+                    } else {
+                      console.log(`[TypeSubtypeSelector] Subtype already active, not calling onSubtypeChange`);
+                    }
                   }}
                 >
                   <Text style={[styles.subtypeButtonText, active && styles.subtypeButtonTextActive]}>
@@ -86,4 +102,5 @@ const styles = StyleSheet.create({
   subtypeButtonActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
   subtypeButtonText: { fontSize: theme.fontSize.sm, color: theme.colors.gray, fontWeight: '500' as const },
   subtypeButtonTextActive: { color: theme.colors.white, fontWeight: '600' as const },
+  spacer: { width: 12 },
 });

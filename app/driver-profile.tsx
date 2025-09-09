@@ -81,6 +81,11 @@ export default function DriverProfileScreen() {
     console.log('[DriverProfile] Setting subtype to:', newSubtype);
     
     setFormData(prev => {
+      if (prev.vehicleCategory === newType) {
+        console.log('[DriverProfile] Type unchanged, skipping update');
+        return prev;
+      }
+      
       const updated = {
         ...prev,
         vehicleCategory: newType,
@@ -96,6 +101,11 @@ export default function DriverProfileScreen() {
   const handleSubtypeChange = useCallback((newSubtype: string) => {
     console.log('[DriverProfile] Subtype change:', newSubtype);
     setFormData(prev => {
+      if (prev.vehicleSubtype === newSubtype) {
+        console.log('[DriverProfile] Subtype unchanged, skipping update');
+        return prev;
+      }
+      
       console.log('[DriverProfile] Current category in callback:', prev.vehicleCategory);
       const updated = {
         ...prev,
