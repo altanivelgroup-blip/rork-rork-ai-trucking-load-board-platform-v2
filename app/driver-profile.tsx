@@ -55,7 +55,6 @@ export default function DriverProfileScreen() {
   // Update form data when user data changes
   useEffect(() => {
     if (user) {
-      console.log('[driver-profile] updating form data with user:', JSON.stringify(user, null, 2));
       setFormData({
         // Personal Info
         name: user.name || '',
@@ -96,7 +95,6 @@ export default function DriverProfileScreen() {
   }, [user]);
 
   const updateField = (field: string, value: string) => {
-    console.log('[driver-profile] updating field:', field, 'with value:', value);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -110,7 +108,6 @@ export default function DriverProfileScreen() {
   const onSave = useCallback(async () => {
     try {
       setSubmitting(true);
-      console.log('[driver-profile] saving profile with data:', JSON.stringify(formData, null, 2));
       
       const updateData = {
         name: formData.name,
@@ -141,12 +138,9 @@ export default function DriverProfileScreen() {
         policyNumber: formData.policyNumber,
       };
       
-      console.log('[driver-profile] update data:', updateData);
       await updateProfile(updateData);
-      console.log('[driver-profile] profile updated successfully');
       toast.show('Driver profile saved successfully', 'success');
-    } catch (e) {
-      console.error('[driver-profile] save error', e);
+    } catch {
       toast.show('Save failed. Please try again.', 'error');
     } finally {
       setSubmitting(false);
@@ -552,77 +546,7 @@ export default function DriverProfileScreen() {
           </View>
         </View>
 
-        {/* Debug Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Debug Info</Text>
-          <Text style={styles.debugText}>User Email: {user?.email || 'No user'}</Text>
-          <Text style={styles.debugText}>Form Name: {formData.name}</Text>
-          <Text style={styles.debugText}>Form Phone: {formData.phone}</Text>
-          <Text style={styles.debugText}>Form Vehicle Make: {formData.vehicleMake}</Text>
-          
-          <TouchableOpacity 
-            style={styles.debugButton} 
-            onPress={() => {
-              console.log('[debug] Current form data:', JSON.stringify(formData, null, 2));
-              console.log('[debug] Current user:', JSON.stringify(user, null, 2));
-            }}
-          >
-            <Text style={styles.debugButtonText}>Log Current State</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.debugButton} 
-            onPress={() => {
-              console.log('[debug] Filling comprehensive sample data for robertlv996@gmail.com...');
-              const sampleData = {
-                // Personal Info
-                name: 'Robert Lopez',
-                email: 'robertlv996@gmail.com',
-                phone: '(702) 555-0123',
-                company: 'Lopez Trucking LLC',
-                
-                // Vehicle Info
-                vehicleMake: 'Freightliner',
-                vehicleModel: 'Cascadia',
-                vehicleYear: '2022',
-                fuelType: 'diesel' as const,
-                mpgRated: '7.2',
-                vin: '1FUJGHDV8NLAA1234',
-                plate: 'NV-TRK-789',
-                tankGallons: '150',
-                gvwrLbs: '80000',
-                
-                // Trailer Info
-                trailerMake: 'Great Dane',
-                trailerModel: 'Super Seal 53ft Dry Van',
-                trailerYear: '2021',
-                trailerVin: '1GRAA0628MF123456',
-                trailerPlate: 'NV-TRL-456',
-                trailerInsuranceCarrier: 'Progressive Commercial Auto',
-                trailerPolicyNumber: 'TRL-POL-987654321',
-                trailerGvwrLbs: '34000',
-                trailerType: 'dry_van',
-                
-                // Company Info
-                companyName: 'Lopez Trucking LLC',
-                mcNumber: 'MC-987654',
-                dotNumber: 'DOT-3456789',
-                insuranceCarrier: 'Progressive Commercial Auto',
-                policyNumber: 'POL-123456789',
-              };
-              setFormData(sampleData);
-              console.log('[debug] Sample data filled for Robert Lopez profile:', JSON.stringify(sampleData, null, 2));
-              
-              // Auto-save after filling
-              setTimeout(() => {
-                console.log('[debug] Auto-saving filled data...');
-                onSave();
-              }, 500);
-            }}
-          >
-            <Text style={styles.debugButtonText}>Fill & Save Robert's Profile</Text>
-          </TouchableOpacity>
-        </View>
+
 
         {/* Action Buttons */}
         <View style={styles.actions}>
@@ -787,21 +711,5 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '600',
   },
-  debugText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    marginBottom: theme.spacing.xs,
-  },
-  debugButton: {
-    backgroundColor: theme.colors.secondary,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
-    alignItems: 'center',
-  },
-  debugButtonText: {
-    color: theme.colors.white,
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
-  },
+
 });
