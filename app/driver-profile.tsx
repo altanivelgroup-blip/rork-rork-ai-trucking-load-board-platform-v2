@@ -573,35 +573,44 @@ export default function DriverProfileScreen() {
           <TouchableOpacity 
             style={styles.debugButton} 
             onPress={() => {
+              console.log('[debug] Filling comprehensive sample data...');
               setFormData({
-                ...formData,
+                // Personal Info
                 name: 'Robert Lopez',
+                email: formData.email, // Keep existing email
                 phone: '(555) 123-4567',
-                company: 'Lopez Trucking',
-                vehicleMake: 'Peterbilt',
-                vehicleModel: '579',
-                vehicleYear: '2022',
+                company: 'Your company name',
+                
+                // Vehicle Info
+                vehicleMake: 'RAM',
+                vehicleModel: '3500',
+                vehicleYear: '2024',
                 fuelType: 'diesel',
-                mpgRated: '6.5',
-                vin: '1XPWD40X1ED123456',
-                plate: 'TX-ABC123',
-                tankGallons: '150',
-                gvwrLbs: '80000',
+                mpgRated: '12.5',
+                vin: 'Vehicle Identification Number',
+                plate: 'ABC-1234',
+                tankGallons: '50',
+                gvwrLbs: '14000',
+                
+                // Trailer Info
                 trailerMake: 'Great Dane',
-                trailerModel: 'Flatbed 53ft',
-                trailerYear: '2021',
-                trailerVin: '1GRAA0621MH123456',
-                trailerPlate: 'TX-TRL456',
+                trailerModel: 'Flatbed 48ft',
+                trailerYear: '2024',
+                trailerVin: 'Trailer VIN Number',
+                trailerPlate: 'TRL-1234',
                 trailerInsuranceCarrier: 'Progressive Commercial',
-                trailerPolicyNumber: 'TRL-POL-987654321',
+                trailerPolicyNumber: 'TRL-POL-123456789',
                 trailerGvwrLbs: '34000',
                 trailerType: 'flatbed',
-                companyName: 'Lopez Trucking LLC',
-                mcNumber: 'MC123456',
-                dotNumber: 'DOT987654',
+                
+                // Company Info
+                companyName: 'ACME Logistics LLC',
+                mcNumber: 'MC012345',
+                dotNumber: 'DOT0123456',
                 insuranceCarrier: 'Progressive Commercial',
                 policyNumber: 'POL-123456789',
               });
+              console.log('[debug] Sample data filled successfully');
             }}
           >
             <Text style={styles.debugButtonText}>Fill Sample Data</Text>
