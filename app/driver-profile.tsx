@@ -620,7 +620,7 @@ export default function DriverProfileScreen() {
               }, 500);
             }}
           >
-            <Text style={styles.debugButtonText}>Fill & Save Robert&apos;s Profile</Text>
+            <Text style={styles.debugButtonText}>Fill & Save Robert's Profile</Text>
           </TouchableOpacity>
         </View>
 
