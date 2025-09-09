@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -26,6 +26,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
+import { subscribeFormFill, consumeStagedFormFill, FormFillPayload } from '@/lib/formFillBus';
+import { useFocusEffect } from '@react-navigation/native';
+import { subscribeFormFill, consumeStagedFormFill, FormFillPayload } from '@/lib/formFillBus';
+import { useFocusEffect } from '@react-navigation/native';
 
 
 
@@ -48,10 +52,66 @@ export default function PostLoadScreen() {
   const { addLoadsBulkWithToast } = useLoadsWithToast();
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
+  const appliedOnceRef = useRef<boolean>(false);
 
   const canProceed = useMemo(() => {
     return draft.title.trim().length > 0 && draft.description.trim().length > 0 && !!draft.vehicleType;
   }, [draft]);
+
+  const applyFormFill = useCallback((data: FormFillPayload) => {
+    try {
+      const norm: Record<string, any> = {};
+      Object.entries(data || {}).forEach(([k, v]) => {
+        norm[String(k).toLowerCase()] = v;
+      });
+      const get = (...keys: string[]): any => {
+        for (const k of keys) {
+          const val = norm[k.toLowerCase()];
+          if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+        }
+        return undefined;
+      };
+      const originCity = get('origincity', 'origin');
+      const originState = get('originstate');
+      const destCity = get('destcity', 'destination', 'dest');
+      const destState = get('deststate');
+      const miles = get('distancemi', 'miles');
+      const revenue = get('revenueusd', 'revenue');
+      const deliveryLocal = get('deliverydatelocal', 'deliverydate');
+      const deliveryTz = get('deliverytz', 'tz');
+
+      if (originCity || originState) {
+        const city = String(originCity ?? '').trim();
+        const st = String(originState ?? '').trim();
+        const val = [city, st].filter(Boolean).join(', ');
+        if (val) setField('pickup', val);
+      }
+      if (destCity || destState) {
+        const city = String(destCity ?? '').trim();
+        const st = String(destState ?? '').trim();
+        const val = [city, st].filter(Boolean).join(', ');
+        if (val) setField('delivery', val);
+      }
+      if (miles !== undefined) {
+        const n = Number(miles);
+        setField('miles', Number.isFinite(n) ? String(n) : '0');
+      }
+      if (revenue !== undefined) {
+        const n = Number(revenue);
+        setField('rateAmount', Number.isFinite(n) ? String(n) : '0');
+      }
+      if (deliveryLocal !== undefined) {
+        setField('deliveryDateLocal', String(deliveryLocal));
+      }
+      if (deliveryTz !== undefined) {
+        setField('deliveryTZ', String(deliveryTz));
+      }
+      console.log('[PostLoad] Applied form fill payload');
+    } catch (e) {
+      console.warn('[PostLoad] Failed to apply form fill payload', e);
+    }
+  }, [setField]);
+
 const onNext = useCallback(async () => {
   try {
     // guard
@@ -109,6 +169,28 @@ const onNext = useCallback(async () => {
     Alert.alert('Could not save load', 'Please try again. If the problem persists, check your internet connection.');
   }
 }, [canProceed, draft, router]);
+
+  useEffect(() => {
+    const staged = consumeStagedFormFill();
+    if (staged && !appliedOnceRef.current) {
+      appliedOnceRef.current = true;
+      applyFormFill(staged);
+    }
+    const unsub = subscribeFormFill((d) => {
+      applyFormFill(d);
+    });
+    return () => { unsub && unsub(); };
+  }, [applyFormFill]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const staged = consumeStagedFormFill();
+      if (staged) {
+        applyFormFill(staged);
+      }
+      return () => {};
+    }, [applyFormFill])
+  );
 
 
   const toVehicleType = useCallback((v: string | undefined): VehicleType | null => {

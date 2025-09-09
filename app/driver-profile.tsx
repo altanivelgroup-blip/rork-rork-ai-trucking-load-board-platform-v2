@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Activi
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
+import { subscribeFormFill, consumeStagedFormFill, FormFillPayload } from '@/lib/formFillBus';
+import { useFocusEffect } from '@react-navigation/native';
 import { TRUCK_SUBTYPES, TRAILER_SUBTYPES } from '@/constants/vehicleOptions';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
@@ -194,6 +196,52 @@ export default function DriverProfileScreen() {
   };
 
 
+
+  const applyFormFill = useCallback((data: FormFillPayload) => {
+    try {
+      const norm: Record<string, any> = {};
+      Object.entries(data || {}).forEach(([k, v]) => { norm[String(k).toLowerCase()] = v; });
+      const get = (...keys: string[]) => {
+        for (const k of keys) {
+          const val = norm[k.toLowerCase()];
+          if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+        }
+        return undefined;
+      };
+      const make = get('make','vehiclemake');
+      const model = get('model','vehiclemodel');
+      const year = get('year','vehicleyear');
+      const fuel = get('fueltype');
+      const mpg = get('mpg','mpgrated');
+
+      setFormData(prev => ({
+        ...prev,
+        vehicleMake: make !== undefined ? String(make) : prev.vehicleMake,
+        vehicleModel: model !== undefined ? String(model) : prev.vehicleModel,
+        vehicleYear: year !== undefined ? String(Number(year) || '') : prev.vehicleYear,
+        mpgRated: mpg !== undefined ? String(Number(mpg) || '') : prev.mpgRated,
+        fuelType: fuel !== undefined ? (/diesel/i.test(String(fuel)) ? 'diesel' : 'gasoline') : prev.fuelType,
+      }));
+      console.log('[DriverProfile] Applied form fill payload');
+    } catch (e) {
+      console.warn('[DriverProfile] Failed to apply form fill payload', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const staged = consumeStagedFormFill();
+    if (staged) applyFormFill(staged);
+    const unsub = subscribeFormFill((d) => applyFormFill(d));
+    return () => { unsub && unsub(); };
+  }, [applyFormFill]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const staged = consumeStagedFormFill();
+      if (staged) applyFormFill(staged);
+      return () => {};
+    }, [applyFormFill])
+  );
 
   const onSave = useCallback(async () => {
     try {
