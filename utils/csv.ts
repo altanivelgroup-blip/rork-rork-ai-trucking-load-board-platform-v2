@@ -48,10 +48,29 @@ export function splitCSVLine(line: string): string[] {
 
 export function buildCanonicalTemplateCSV(): string {
   const headers = [
-    'title','description','originCity','destinationCity','pickupDate','deliveryDate','vehicleType','weight','rate'
+    'title','description','originCity','originState','originZip','originAddress',
+    'destinationCity','destinationState','destinationZip','destinationAddress',
+    'pickupDate','pickupTime','deliveryDate','deliveryTime','timeZone',
+    'vehicleType','weight','rate','ratePerMile','distance',
+    'specialRequirements','contactName','contactPhone','contactEmail',
+    'loadType','dimensions','hazmat','temperature','notes'
   ];
-  const r1 = ['Dallas to Houston','Palletized goods','Dallas, TX','Houston, TX','2025-09-10 09:00','2025-09-10 17:00','Flatbed','12000','1400'];
-  const r2 = ['Vegas to Phoenix','Expedited delivery','Las Vegas, NV','Phoenix, AZ','2025-09-12 09:00','2025-09-12 17:00','Reefer','8000','1800'];
+  const r1 = [
+    'Dallas to Houston','Palletized goods','Dallas','TX','75201','123 Main St',
+    'Houston','TX','77001','456 Oak Ave',
+    '2025-09-10','09:00','2025-09-10','17:00','America/Chicago',
+    'Flatbed','12000','1400','4.83','290',
+    'Tarps required','John Smith','555-0123','john@company.com',
+    'Freight','48x40x60','No','N/A','Handle with care'
+  ];
+  const r2 = [
+    'Vegas to Phoenix','Expedited delivery','Las Vegas','NV','89101','789 Strip Blvd',
+    'Phoenix','AZ','85001','321 Desert Rd',
+    '2025-09-12','09:00','2025-09-12','17:00','America/Phoenix',
+    'Reefer','8000','1800','6.21','290',
+    'Keep frozen -10F','Jane Doe','555-0456','jane@logistics.com',
+    'Food','40x48x72','No','-10F','Temperature critical'
+  ];
   return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n';
 }
 

@@ -24,20 +24,45 @@ import { useToast } from '@/components/Toast';
 
 // Canonical columns we accept for full template
 const CANONICAL_HEADERS = [
-  'title', 'description', 'originCity', 'destinationCity', 'pickupDate', 'deliveryDate', 'vehicleType', 'weight', 'rate',
+  'title', 'description', 'originCity', 'originState', 'originZip', 'originAddress',
+  'destinationCity', 'destinationState', 'destinationZip', 'destinationAddress',
+  'pickupDate', 'pickupTime', 'deliveryDate', 'deliveryTime', 'timeZone',
+  'vehicleType', 'weight', 'rate', 'ratePerMile', 'distance',
+  'specialRequirements', 'contactName', 'contactPhone', 'contactEmail',
+  'loadType', 'dimensions', 'hazmat', 'temperature', 'notes'
 ] as const;
 
 // Header synonyms mapping
 const HEADER_MAP: Record<string, string[]> = {
-  originCity:      ['origin','pickupcity','fromcity','origin_city','origincity','from','pickup city'],
-  destinationCity: ['destination','destcity','tocity','dropoffcity','destinationcity','to','dropoff city'],
-  pickupDate:      ['pickup','pickup_at','pickupdate','pickupdateLocal','pickup date'],
-  deliveryDate:    ['delivery','delivery_at','deliverydate','deliverydatelocal','dropoff_at','delivery date'],
-  rate:            ['price','revenue','pay','revenueusd','amount','total','price_usd','rateusd'],
-  weight:          ['weightlbs','wt','totalweight','weight_lbs'],
-  vehicleType:     ['equipment','equipmenttype','type','vehicle_type','vehicletype'],
-  title:           ['loadtitle','title_text','name'],
-  description:     ['desc','notes','note','details'],
+  originCity:         ['origin','pickupcity','fromcity','origin_city','origincity','from','pickup city'],
+  originState:        ['origin_state','pickup_state','from_state'],
+  originZip:          ['origin_zip','pickup_zip','from_zip','origin_zipcode'],
+  originAddress:      ['origin_address','pickup_address','from_address'],
+  destinationCity:    ['destination','destcity','tocity','dropoffcity','destinationcity','to','dropoff city'],
+  destinationState:   ['destination_state','dest_state','dropoff_state','to_state'],
+  destinationZip:     ['destination_zip','dest_zip','dropoff_zip','to_zip','destination_zipcode'],
+  destinationAddress: ['destination_address','dest_address','dropoff_address','to_address'],
+  pickupDate:         ['pickup','pickup_at','pickupdate','pickupdateLocal','pickup date'],
+  pickupTime:         ['pickup_time','pickup_at_time'],
+  deliveryDate:       ['delivery','delivery_at','deliverydate','deliverydatelocal','dropoff_at','delivery date'],
+  deliveryTime:       ['delivery_time','dropoff_time','delivery_at_time'],
+  timeZone:           ['timezone','tz','time_zone'],
+  rate:               ['price','revenue','pay','revenueusd','amount','total','price_usd','rateusd'],
+  ratePerMile:        ['rate_per_mile','rpm','price_per_mile'],
+  distance:           ['miles','mi','distance_mi','total_miles'],
+  weight:             ['weightlbs','wt','totalweight','weight_lbs'],
+  vehicleType:        ['equipment','equipmenttype','type','vehicle_type','vehicletype'],
+  title:              ['loadtitle','title_text','name'],
+  description:        ['desc','notes','note','details'],
+  specialRequirements:['special_requirements','special','requirements','specs'],
+  contactName:        ['contact_name','contact','shipper_name','customer_name'],
+  contactPhone:       ['contact_phone','phone','shipper_phone','customer_phone'],
+  contactEmail:       ['contact_email','email','shipper_email','customer_email'],
+  loadType:           ['load_type','cargo_type','freight_type'],
+  dimensions:         ['dims','size','dimensions','length_width_height'],
+  hazmat:             ['hazmat','hazardous','dangerous_goods'],
+  temperature:        ['temp','temperature','temp_requirements'],
+  notes:              ['additional_notes','comments','remarks','extra_info'],
 };
 
 const TYPE_MAP: Record<string, string> = {
@@ -51,13 +76,29 @@ type Canonical = {
   description: string;
   originCity: string;
   originState?: string;
+  originZip?: string;
+  originAddress?: string;
   destinationCity: string;
   destState?: string;
+  destinationZip?: string;
+  destinationAddress?: string;
   pickupDate: string;    // normalized local string: YYYY-MM-DD HH:mm
   deliveryDate: string;  // normalized local string: YYYY-MM-DD HH:mm
+  timeZone?: string;
   vehicleType: string;   // one of VEHICLE_ALLOWED
   weight: number;        // > 0
   rate: number;          // > 0
+  ratePerMile?: number;
+  distance?: number;
+  specialRequirements?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  loadType?: string;
+  dimensions?: string;
+  hazmat?: string;
+  temperature?: string;
+  notes?: string;
 };
 
 type RowReason = { field: string; message: string };
@@ -191,15 +232,32 @@ export default function CSVImportScreen() {
       let title = get('title');
       let description = get('description');
       let origin = get('originCity');
+      let originState = get('originState');
+      let originZip = get('originZip');
+      let originAddress = get('originAddress');
       let destination = get('destinationCity');
+      let destState = get('destinationState');
+      let destZip = get('destinationZip');
+      let destAddress = get('destinationAddress');
       let pickup = get('pickupDate');
+      let pickupTime = get('pickupTime');
       let delivery = get('deliveryDate');
+      let deliveryTime = get('deliveryTime');
+      let timeZone = get('timeZone');
       let vehicle = get('vehicleType');
       let weightStr = get('weight');
       let rateStr = get('rate');
-
-      let originState: string | undefined;
-      let destState: string | undefined;
+      let ratePerMileStr = get('ratePerMile');
+      let distanceStr = get('distance');
+      let specialRequirements = get('specialRequirements');
+      let contactName = get('contactName');
+      let contactPhone = get('contactPhone');
+      let contactEmail = get('contactEmail');
+      let loadType = get('loadType');
+      let dimensions = get('dimensions');
+      let hazmat = get('hazmat');
+      let temperature = get('temperature');
+      let notes = get('notes');
 
       if (isSimple) {
         const parseCityState = (s: string): { city: string; state?: string } => {
@@ -210,8 +268,10 @@ export default function CSVImportScreen() {
         };
         const o = parseCityState(getByHeaderName('Origin'));
         const d = parseCityState(getByHeaderName('Destination'));
-        origin = o.city; originState = o.state;
-        destination = d.city; destState = d.state;
+        origin = o.city; 
+        originState = o.state || '';
+        destination = d.city; 
+        destState = d.state || '';
         vehicle = getByHeaderName('Vehicle Type');
         weightStr = getByHeaderName('Weight');
         rateStr = getByHeaderName('Price');
@@ -236,6 +296,17 @@ export default function CSVImportScreen() {
       if (isNaN(rate) || rate <= 0) reasons.push({ field: 'rate', message: 'Must be a number > 0' });
       const weight = parseNumber(weightStr);
       if (isNaN(weight) || weight <= 0) reasons.push({ field: 'weight', message: 'Must be a number > 0' });
+      
+      const ratePerMile = parseNumber(ratePerMileStr);
+      const distance = parseNumber(distanceStr);
+      
+      // Combine pickup date and time if both provided
+      if (pickup && pickupTime && !pickup.includes(':')) {
+        pickup = `${pickup} ${pickupTime}`;
+      }
+      if (delivery && deliveryTime && !delivery.includes(':')) {
+        delivery = `${delivery} ${deliveryTime}`;
+      }
 
       const p1 = parseDateFlexible(pickup, '09:00');
       if (!p1.ok) reasons.push({ field: 'pickupDate', message: p1.reason ?? 'invalid' });
@@ -258,14 +329,30 @@ export default function CSVImportScreen() {
         title,
         description,
         originCity: origin,
-        originState,
+        originState: originState || undefined,
+        originZip: originZip || undefined,
+        originAddress: originAddress || undefined,
         destinationCity: destination,
-        destState,
+        destState: destState || undefined,
+        destinationZip: destZip || undefined,
+        destinationAddress: destAddress || undefined,
         pickupDate: p1.ok ? (p1.out as string) : '',
         deliveryDate: d1.ok ? (d1.out as string) : '',
+        timeZone: timeZone || undefined,
         vehicleType: vt.ok ? (vt.out as string) : '',
         weight: Number(weight),
         rate: Number(rate),
+        ratePerMile: Number.isFinite(ratePerMile) ? ratePerMile : undefined,
+        distance: Number.isFinite(distance) ? distance : undefined,
+        specialRequirements: specialRequirements || undefined,
+        contactName: contactName || undefined,
+        contactPhone: contactPhone || undefined,
+        contactEmail: contactEmail || undefined,
+        loadType: loadType || undefined,
+        dimensions: dimensions || undefined,
+        hazmat: hazmat || undefined,
+        temperature: temperature || undefined,
+        notes: notes || undefined,
       } : null;
 
       return { original: row, parsed, reasons, skip: false };
@@ -320,6 +407,7 @@ export default function CSVImportScreen() {
         const id = `csv-${Date.now()}-${i++}`;
         const docData = {
           title: p.title,
+          description: p.description,
           origin: `${p.originCity}${p.originState ? ', '+p.originState : ''}`,
           destination: `${p.destinationCity}${p.destState ? ', '+p.destState : ''}`,
           vehicleType: p.vehicleType,
@@ -328,10 +416,43 @@ export default function CSVImportScreen() {
           createdBy: user.id,
           pickupDate: p.pickupDate,
           deliveryDate: p.deliveryDate,
+          deliveryTZ: p.timeZone,
           createdAt: serverTimestamp(),
           clientCreatedAt: Date.now(),
           attachments: [],
           weightLbs: p.weight,
+          revenueUsd: p.rate,
+          distanceMi: p.distance,
+          // Additional fields from expanded template
+          originPlace: p.originAddress || p.originZip ? {
+            city: p.originCity,
+            state: p.originState || '',
+            lat: 0,
+            lng: 0
+          } : undefined,
+          destinationPlace: p.destinationAddress || p.destinationZip ? {
+            city: p.destinationCity,
+            state: p.destState || '',
+            lat: 0,
+            lng: 0
+          } : undefined,
+          // Store additional CSV data as metadata
+          csvMetadata: {
+            originAddress: p.originAddress,
+            originZip: p.originZip,
+            destinationAddress: p.destinationAddress,
+            destinationZip: p.destinationZip,
+            ratePerMile: p.ratePerMile,
+            specialRequirements: p.specialRequirements,
+            contactName: p.contactName,
+            contactPhone: p.contactPhone,
+            contactEmail: p.contactEmail,
+            loadType: p.loadType,
+            dimensions: p.dimensions,
+            hazmat: p.hazmat,
+            temperature: p.temperature,
+            notes: p.notes,
+          },
         };
         await setDoc(doc(db, LOADS_COLLECTION, id), docData);
         imported++;
@@ -463,6 +584,13 @@ export default function CSVImportScreen() {
                       <Text style={styles.rowInfoText}>
                         {row.parsed.pickupDate} • {row.parsed.deliveryDate} • {row.parsed.vehicleType} • ${row.parsed.rate}
                       </Text>
+                      {(row.parsed.contactName || row.parsed.specialRequirements) && (
+                        <Text style={styles.rowInfoText}>
+                          {row.parsed.contactName && `Contact: ${row.parsed.contactName}`}
+                          {row.parsed.contactName && row.parsed.specialRequirements && ' • '}
+                          {row.parsed.specialRequirements && `Special: ${row.parsed.specialRequirements}`}
+                        </Text>
+                      )}
                     </>
                   ) : (
                     <Text style={styles.rowInfoText}>Row invalid</Text>
