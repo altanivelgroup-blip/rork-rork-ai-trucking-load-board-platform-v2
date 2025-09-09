@@ -123,6 +123,24 @@ export default function DriverProfileScreen() {
 
   useEffect(() => {
     if (user) {
+      // Determine vehicle category and subtype from user data
+      let vehicleCategory: 'truck' | 'trailer' = 'truck';
+      let vehicleSubtype = 'Hotshot';
+      
+      // Check if user has trailer info or vehicleInfo that indicates truck type
+      if (user.trailerType) {
+        vehicleCategory = 'trailer';
+        vehicleSubtype = user.trailerType === 'flatbed' ? 'Flatbed Trailer'
+          : user.trailerType === 'enclosed-trailer' ? 'Enclosed Trailer'
+          : user.trailerType === 'car-hauler' ? 'Car Hauler'
+          : 'Flatbed Trailer';
+      } else if (user.vehicleInfo) {
+        vehicleCategory = 'truck';
+        vehicleSubtype = TRUCK_SUBTYPES.includes(user.vehicleInfo as any) ? user.vehicleInfo : 'Hotshot';
+      }
+      
+      console.log('[DriverProfile] Setting initial data:', { vehicleCategory, vehicleSubtype });
+      
       setFormData({
         // Personal Info
         name: user.name || '',
@@ -142,11 +160,8 @@ export default function DriverProfileScreen() {
         gvwrLbs: user.gvwrLbs?.toString() || '',
 
         // Vehicle Category & Subtype
-        vehicleCategory: user.trailerType ? ('trailer' as const) : ('truck' as const),
-        vehicleSubtype: user.trailerType === 'flatbed' ? 'Flatbed Trailer'
-          : user.trailerType === 'enclosed-trailer' ? 'Enclosed Trailer'
-          : user.trailerType === 'car-hauler' ? 'Car Hauler'
-          : 'Hotshot',
+        vehicleCategory,
+        vehicleSubtype,
         
         // Trailer Info
         trailerMake: user.trailerMake || '',
