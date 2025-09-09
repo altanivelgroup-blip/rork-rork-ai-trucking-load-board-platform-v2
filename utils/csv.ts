@@ -74,6 +74,76 @@ export function buildCanonicalTemplateCSV(): string {
   return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n';
 }
 
+export function buildCompleteTemplateCSV(): string {
+  const headers = [
+    // Basic Load Information
+    'title','description','loadType','reference',
+    // Origin Details
+    'originCity','originState','originZip','originAddress','originCompany','originContact','originPhone','originEmail',
+    // Destination Details
+    'destinationCity','destinationState','destinationZip','destinationAddress','destinationCompany','destinationContact','destinationPhone','destinationEmail',
+    // Scheduling
+    'pickupDate','pickupTime','deliveryDate','deliveryTime','timeZone','appointmentRequired','flexibleTiming',
+    // Equipment & Cargo
+    'vehicleType','weight','dimensions','pieces','commodityType','hazmat','temperature','specialEquipment',
+    // Pricing
+    'rate','rateType','ratePerMile','distance','fuelSurcharge','accessorials','totalRate',
+    // Requirements & Instructions
+    'specialRequirements','loadingInstructions','deliveryInstructions','driverRequirements','insuranceRequirements',
+    // Contact & Documentation
+    'primaryContact','primaryPhone','primaryEmail','backupContact','backupPhone','backupEmail',
+    'bolRequired','podRequired','signatureRequired','photoRequired','documentsRequired',
+    // Additional Information
+    'notes','internalNotes','customerReference','poNumber','priority','expedited'
+  ];
+  
+  const r1 = [
+    // Basic Load Information
+    'Steel Coils - Chicago to Detroit','Heavy steel coils for automotive manufacturing','Steel/Metal','SC-2025-001',
+    // Origin Details
+    'Chicago','IL','60601','1200 Industrial Blvd','Steel Works Inc','Mike Johnson','312-555-0101','mike@steelworks.com',
+    // Destination Details
+    'Detroit','MI','48201','500 Auto Plant Rd','Motor City Manufacturing','Sarah Wilson','313-555-0202','sarah@motorcity.com',
+    // Scheduling
+    '2025-09-15','08:00','2025-09-15','16:00','America/Chicago','Yes','No',
+    // Equipment & Cargo
+    'Flatbed','45000','20x8x6','5','Steel Coils','No','Ambient','Tarps and chains required',
+    // Pricing
+    '2800','Flat Rate','9.33','300','150','Tarping: $75','3025',
+    // Requirements & Instructions
+    'Crane required for loading/unloading','Use overhead crane at dock 3','Deliver to receiving dock B','CDL-A required, 2+ years experience','$1M cargo insurance minimum',
+    // Contact & Documentation
+    'Mike Johnson','312-555-0101','mike@steelworks.com','Tom Brown','312-555-0103','tom@steelworks.com',
+    'Yes','Yes','Yes','Yes','BOL, POD, Weight tickets',
+    // Additional Information
+    'Handle with extreme care - high value cargo','Customer prefers morning deliveries','CUST-REF-789','PO-456123','High','No'
+  ];
+  
+  const r2 = [
+    // Basic Load Information
+    'Frozen Food Distribution','Temperature-controlled food products','Food/Beverage','FF-2025-002',
+    // Origin Details
+    'Los Angeles','CA','90001','800 Food Processing Way','Fresh Foods Co','Lisa Garcia','213-555-0301','lisa@freshfoods.com',
+    // Destination Details
+    'Phoenix','AZ','85001','1500 Distribution Center Dr','Desert Foods LLC','Carlos Martinez','602-555-0401','carlos@desertfoods.com',
+    // Scheduling
+    '2025-09-16','06:00','2025-09-16','14:00','America/Phoenix','Yes','2 hour window',
+    // Equipment & Cargo
+    'Reefer','38000','48x8.5x9','26','Frozen Foods','No','-10°F','Multi-temp zones, food grade',
+    // Pricing
+    '2200','Flat Rate','5.89','374','125','Fuel surcharge included','2325',
+    // Requirements & Instructions
+    'Maintain -10°F throughout transit, food grade trailer only','Load from dock 5, temperature check required','Deliver to frozen section, temp log required','Food safety certified driver preferred','Food grade insurance required',
+    // Contact & Documentation
+    'Lisa Garcia','213-555-0301','lisa@freshfoods.com','Maria Rodriguez','213-555-0302','maria@freshfoods.com',
+    'Yes','Yes','Yes','Yes','Temperature logs, food safety docs',
+    // Additional Information
+    'Critical temperature maintenance - reject if temp exceeded','High-value perishable goods','FRESH-789','PO-789456','Critical','Yes'
+  ];
+  
+  return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n';
+}
+
 export function buildSimpleTemplateCSV(): string {
   const headers = ['Origin','Destination','Vehicle Type','Weight','Price'];
   const r1 = ['Dallas, TX','Houston, TX','Car Hauler','5000','$1200'];

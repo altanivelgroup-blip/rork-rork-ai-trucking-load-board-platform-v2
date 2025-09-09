@@ -15,7 +15,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { parseCSV, CSVRow, buildCanonicalTemplateCSV, buildSimpleTemplateCSV } from '@/utils/csv';
+import { parseCSV, CSVRow, buildCanonicalTemplateCSV, buildSimpleTemplateCSV, buildCompleteTemplateCSV } from '@/utils/csv';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
@@ -24,45 +24,110 @@ import { useToast } from '@/components/Toast';
 
 // Canonical columns we accept for full template
 const CANONICAL_HEADERS = [
-  'title', 'description', 'originCity', 'originState', 'originZip', 'originAddress',
-  'destinationCity', 'destinationState', 'destinationZip', 'destinationAddress',
-  'pickupDate', 'pickupTime', 'deliveryDate', 'deliveryTime', 'timeZone',
-  'vehicleType', 'weight', 'rate', 'ratePerMile', 'distance',
-  'specialRequirements', 'contactName', 'contactPhone', 'contactEmail',
-  'loadType', 'dimensions', 'hazmat', 'temperature', 'notes'
+  // Basic Load Information
+  'title', 'description', 'loadType', 'reference',
+  // Origin Details
+  'originCity', 'originState', 'originZip', 'originAddress', 'originCompany', 'originContact', 'originPhone', 'originEmail',
+  // Destination Details
+  'destinationCity', 'destinationState', 'destinationZip', 'destinationAddress', 'destinationCompany', 'destinationContact', 'destinationPhone', 'destinationEmail',
+  // Scheduling
+  'pickupDate', 'pickupTime', 'deliveryDate', 'deliveryTime', 'timeZone', 'appointmentRequired', 'flexibleTiming',
+  // Equipment & Cargo
+  'vehicleType', 'weight', 'dimensions', 'pieces', 'commodityType', 'hazmat', 'temperature', 'specialEquipment',
+  // Pricing
+  'rate', 'rateType', 'ratePerMile', 'distance', 'fuelSurcharge', 'accessorials', 'totalRate',
+  // Requirements & Instructions
+  'specialRequirements', 'loadingInstructions', 'deliveryInstructions', 'driverRequirements', 'insuranceRequirements',
+  // Contact & Documentation
+  'primaryContact', 'primaryPhone', 'primaryEmail', 'backupContact', 'backupPhone', 'backupEmail',
+  'bolRequired', 'podRequired', 'signatureRequired', 'photoRequired', 'documentsRequired',
+  // Additional Information
+  'notes', 'internalNotes', 'customerReference', 'poNumber', 'priority', 'expedited'
 ] as const;
 
 // Header synonyms mapping
 const HEADER_MAP: Record<string, string[]> = {
-  originCity:         ['origin','pickupcity','fromcity','origin_city','origincity','from','pickup city'],
-  originState:        ['origin_state','pickup_state','from_state'],
-  originZip:          ['origin_zip','pickup_zip','from_zip','origin_zipcode'],
-  originAddress:      ['origin_address','pickup_address','from_address'],
-  destinationCity:    ['destination','destcity','tocity','dropoffcity','destinationcity','to','dropoff city'],
-  destinationState:   ['destination_state','dest_state','dropoff_state','to_state'],
-  destinationZip:     ['destination_zip','dest_zip','dropoff_zip','to_zip','destination_zipcode'],
-  destinationAddress: ['destination_address','dest_address','dropoff_address','to_address'],
-  pickupDate:         ['pickup','pickup_at','pickupdate','pickupdateLocal','pickup date'],
-  pickupTime:         ['pickup_time','pickup_at_time'],
-  deliveryDate:       ['delivery','delivery_at','deliverydate','deliverydatelocal','dropoff_at','delivery date'],
-  deliveryTime:       ['delivery_time','dropoff_time','delivery_at_time'],
-  timeZone:           ['timezone','tz','time_zone'],
-  rate:               ['price','revenue','pay','revenueusd','amount','total','price_usd','rateusd'],
-  ratePerMile:        ['rate_per_mile','rpm','price_per_mile'],
-  distance:           ['miles','mi','distance_mi','total_miles'],
-  weight:             ['weightlbs','wt','totalweight','weight_lbs'],
-  vehicleType:        ['equipment','equipmenttype','type','vehicle_type','vehicletype'],
-  title:              ['loadtitle','title_text','name'],
-  description:        ['desc','notes','note','details'],
-  specialRequirements:['special_requirements','special','requirements','specs'],
-  contactName:        ['contact_name','contact','shipper_name','customer_name'],
-  contactPhone:       ['contact_phone','phone','shipper_phone','customer_phone'],
-  contactEmail:       ['contact_email','email','shipper_email','customer_email'],
-  loadType:           ['load_type','cargo_type','freight_type'],
-  dimensions:         ['dims','size','dimensions','length_width_height'],
-  hazmat:             ['hazmat','hazardous','dangerous_goods'],
-  temperature:        ['temp','temperature','temp_requirements'],
-  notes:              ['additional_notes','comments','remarks','extra_info'],
+  // Basic Load Information
+  title:              ['loadtitle','title_text','name','load_title'],
+  description:        ['desc','notes','note','details','load_description'],
+  loadType:           ['load_type','cargo_type','freight_type','commodity_type'],
+  reference:          ['ref','reference_number','load_reference','job_number'],
+  
+  // Origin Details
+  originCity:         ['origin','pickupcity','fromcity','origin_city','origincity','from','pickup city','pickup_city'],
+  originState:        ['origin_state','pickup_state','from_state','origin_st'],
+  originZip:          ['origin_zip','pickup_zip','from_zip','origin_zipcode','origin_postal'],
+  originAddress:      ['origin_address','pickup_address','from_address','origin_addr'],
+  originCompany:      ['origin_company','pickup_company','from_company','shipper_company'],
+  originContact:      ['origin_contact','pickup_contact','from_contact','shipper_contact'],
+  originPhone:        ['origin_phone','pickup_phone','from_phone','shipper_phone'],
+  originEmail:        ['origin_email','pickup_email','from_email','shipper_email'],
+  
+  // Destination Details
+  destinationCity:    ['destination','destcity','tocity','dropoffcity','destinationcity','to','dropoff city','dest_city'],
+  destinationState:   ['destination_state','dest_state','dropoff_state','to_state','dest_st'],
+  destinationZip:     ['destination_zip','dest_zip','dropoff_zip','to_zip','destination_zipcode','dest_postal'],
+  destinationAddress: ['destination_address','dest_address','dropoff_address','to_address','dest_addr'],
+  destinationCompany: ['destination_company','dest_company','dropoff_company','consignee_company','receiver_company'],
+  destinationContact: ['destination_contact','dest_contact','dropoff_contact','consignee_contact','receiver_contact'],
+  destinationPhone:   ['destination_phone','dest_phone','dropoff_phone','consignee_phone','receiver_phone'],
+  destinationEmail:   ['destination_email','dest_email','dropoff_email','consignee_email','receiver_email'],
+  
+  // Scheduling
+  pickupDate:         ['pickup','pickup_at','pickupdate','pickupdateLocal','pickup date','pickup_date'],
+  pickupTime:         ['pickup_time','pickup_at_time','pickup_hour'],
+  deliveryDate:       ['delivery','delivery_at','deliverydate','deliverydatelocal','dropoff_at','delivery date','delivery_date'],
+  deliveryTime:       ['delivery_time','dropoff_time','delivery_at_time','delivery_hour'],
+  timeZone:           ['timezone','tz','time_zone','zone'],
+  appointmentRequired:['appointment_required','appointment','appt_required','scheduled'],
+  flexibleTiming:     ['flexible_timing','flexible','timing_flexibility'],
+  
+  // Equipment & Cargo
+  vehicleType:        ['equipment','equipmenttype','type','vehicle_type','vehicletype','trailer_type'],
+  weight:             ['weightlbs','wt','totalweight','weight_lbs','gross_weight'],
+  dimensions:         ['dims','size','dimensions','length_width_height','lwh'],
+  pieces:             ['piece_count','count','quantity','units','pallets'],
+  commodityType:      ['commodity_type','commodity','cargo_type','product_type'],
+  hazmat:             ['hazmat','hazardous','dangerous_goods','haz_mat'],
+  temperature:        ['temp','temperature','temp_requirements','temp_control'],
+  specialEquipment:   ['special_equipment','equipment_needed','special_gear'],
+  
+  // Pricing
+  rate:               ['price','revenue','pay','revenueusd','amount','total','price_usd','rateusd','base_rate'],
+  rateType:           ['rate_type','pricing_type','rate_method'],
+  ratePerMile:        ['rate_per_mile','rpm','price_per_mile','per_mile_rate'],
+  distance:           ['miles','mi','distance_mi','total_miles','mileage'],
+  fuelSurcharge:      ['fuel_surcharge','fuel_charge','fsc'],
+  accessorials:       ['accessorials','additional_charges','extras','add_ons'],
+  totalRate:          ['total_rate','total_price','final_rate','all_in_rate'],
+  
+  // Requirements & Instructions
+  specialRequirements:['special_requirements','special','requirements','specs','special_instructions'],
+  loadingInstructions:['loading_instructions','loading_notes','pickup_instructions','loading_info'],
+  deliveryInstructions:['delivery_instructions','delivery_notes','dropoff_instructions','delivery_info'],
+  driverRequirements: ['driver_requirements','driver_specs','driver_qualifications'],
+  insuranceRequirements:['insurance_requirements','insurance_specs','coverage_requirements'],
+  
+  // Contact & Documentation
+  primaryContact:     ['primary_contact','main_contact','contact_name','contact'],
+  primaryPhone:       ['primary_phone','main_phone','contact_phone','phone'],
+  primaryEmail:       ['primary_email','main_email','contact_email','email'],
+  backupContact:      ['backup_contact','secondary_contact','alt_contact'],
+  backupPhone:        ['backup_phone','secondary_phone','alt_phone'],
+  backupEmail:        ['backup_email','secondary_email','alt_email'],
+  bolRequired:        ['bol_required','bill_of_lading','bol'],
+  podRequired:        ['pod_required','proof_of_delivery','pod'],
+  signatureRequired:  ['signature_required','signature','sig_required'],
+  photoRequired:      ['photo_required','photos','pictures_required'],
+  documentsRequired:  ['documents_required','docs_required','paperwork'],
+  
+  // Additional Information
+  notes:              ['additional_notes','comments','remarks','extra_info','general_notes'],
+  internalNotes:      ['internal_notes','private_notes','office_notes'],
+  customerReference:  ['customer_reference','customer_ref','cust_ref'],
+  poNumber:           ['po_number','purchase_order','po','po_num'],
+  priority:           ['priority','urgency','importance'],
+  expedited:          ['expedited','rush','urgent','asap'],
 };
 
 const TYPE_MAP: Record<string, string> = {
@@ -496,47 +561,78 @@ export default function CSVImportScreen() {
           <Text style={styles.subtitle}>Upload a CSV file. Column order doesn’t matter. Unknown columns are ignored.</Text>
         </View>
 
-        <View style={styles.templateRow}>
-          <TouchableOpacity testID="csv-template-canonical" style={styles.templateButton} onPress={() => {
-            const csv = buildCanonicalTemplateCSV();
+        <View style={styles.templateContainer}>
+          <TouchableOpacity testID="csv-template-complete" style={[styles.templateButton, styles.templateButtonFull]} onPress={() => {
+            const csv = buildCompleteTemplateCSV();
             if (Platform.OS === 'web') {
               const blob = new Blob([csv], { type: 'text/csv' });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = 'loads_canonical_template.csv';
+              a.download = 'loads_complete_template.csv';
               a.click();
               URL.revokeObjectURL(url);
             } else {
               console.log(csv);
-              showToast('Canonical template printed in console. Copy & save as .csv', 'success');
+              showToast('Complete template printed in console. Copy & save as .csv', 'success');
             }
           }}>
-            <Download size={20} color={theme.colors.primary} />
-            <Text style={styles.templateText}>Canonical Template</Text>
+            <Download size={20} color={theme.colors.white} />
+            <Text style={styles.templateTextFull}>Complete Template (All Fields)</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="csv-template-simple" style={styles.templateButton} onPress={() => {
-            const csv = buildSimpleTemplateCSV();
-            if (Platform.OS === 'web') {
-              const blob = new Blob([csv], { type: 'text/csv' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'loads_simple_template.csv';
-              a.click();
-              URL.revokeObjectURL(url);
-            } else {
-              console.log(csv);
-              showToast('Simple template printed in console. Copy & save as .csv', 'success');
-            }
-          }}>
-            <Download size={20} color={theme.colors.primary} />
-            <Text style={styles.templateText}>Simple Template (5 cols)</Text>
-          </TouchableOpacity>
+          
+          <View style={styles.templateRow}>
+            <TouchableOpacity testID="csv-template-canonical" style={styles.templateButton} onPress={() => {
+              const csv = buildCanonicalTemplateCSV();
+              if (Platform.OS === 'web') {
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'loads_canonical_template.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+              } else {
+                console.log(csv);
+                showToast('Canonical template printed in console. Copy & save as .csv', 'success');
+              }
+            }}>
+              <Download size={20} color={theme.colors.primary} />
+              <Text style={styles.templateText}>Standard Template</Text>
+            </TouchableOpacity>
+            <TouchableOpacity testID="csv-template-simple" style={styles.templateButton} onPress={() => {
+              const csv = buildSimpleTemplateCSV();
+              if (Platform.OS === 'web') {
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'loads_simple_template.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+              } else {
+                console.log(csv);
+                showToast('Simple template printed in console. Copy & save as .csv', 'success');
+              }
+            }}>
+              <Download size={20} color={theme.colors.primary} />
+              <Text style={styles.templateText}>Simple Template (5 cols)</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={styles.simpleNote}>
-          <Info size={16} color={theme.colors.gray} />
-          <Text style={styles.simpleNoteText}>Dates will default to 09:00 and 17:00 local if omitted.</Text>
+        <View style={styles.templateInfo}>
+          <View style={styles.simpleNote}>
+            <Info size={16} color={theme.colors.gray} />
+            <Text style={styles.simpleNoteText}>Complete Template: All fields for comprehensive load management</Text>
+          </View>
+          <View style={styles.simpleNote}>
+            <Info size={16} color={theme.colors.gray} />
+            <Text style={styles.simpleNoteText}>Standard Template: Essential fields for basic load posting</Text>
+          </View>
+          <View style={styles.simpleNote}>
+            <Info size={16} color={theme.colors.gray} />
+            <Text style={styles.simpleNoteText}>Simple Template: Minimal fields, dates default to 09:00 and 17:00</Text>
+          </View>
         </View>
 
         <TouchableOpacity testID="csv-file-select" style={styles.uploadButton} onPress={handleFileSelect} disabled={isLoading}>
@@ -648,10 +744,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  templateContainer: {
+    marginBottom: theme.spacing.md,
+  },
   templateRow: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
-    marginBottom: theme.spacing.xs,
+    marginTop: theme.spacing.sm,
+  },
+  templateButtonFull: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  templateTextFull: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.white,
+    fontWeight: '600',
+    marginLeft: theme.spacing.xs,
+  },
+  templateInfo: {
+    marginBottom: theme.spacing.md,
   },
   templateButton: {
     flexDirection: 'row',
@@ -674,7 +787,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.xs,
   },
   simpleNoteText: {
     fontSize: theme.fontSize.xs,
