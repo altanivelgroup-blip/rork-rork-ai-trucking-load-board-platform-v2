@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -26,7 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
-import { subscribeFormFill, consumeStagedFormFill, FormFillPayload } from '@/lib/formFillBus';
+import { subscribeFormFill, consumeStagedFormFill } from '@/lib/formFillBus';
 import { useFocusEffect } from '@react-navigation/native';
 
 
@@ -56,57 +56,50 @@ export default function PostLoadScreen() {
     return draft.title.trim().length > 0 && draft.description.trim().length > 0 && !!draft.vehicleType;
   }, [draft]);
 
-  const applyFormFill = useCallback((data: FormFillPayload) => {
-    try {
-      const norm: Record<string, any> = {};
-      Object.entries(data || {}).forEach(([k, v]) => {
-        norm[String(k).toLowerCase()] = v;
-      });
-      const get = (...keys: string[]): any => {
-        for (const k of keys) {
-          const val = norm[k.toLowerCase()];
-          if (val !== undefined && val !== null && String(val).trim() !== '') return val;
-        }
-        return undefined;
-      };
-      const originCity = get('origincity', 'origin');
-      const originState = get('originstate');
-      const destCity = get('destcity', 'destination', 'dest');
-      const destState = get('deststate');
-      const miles = get('distancemi', 'miles');
-      const revenue = get('revenueusd', 'revenue');
-      const deliveryLocal = get('deliverydatelocal', 'deliverydate');
-      const deliveryTz = get('deliverytz', 'tz');
+  const [devBanner, setDevBanner] = useState<string | null>(null);
 
-      if (originCity || originState) {
-        const city = String(originCity ?? '').trim();
-        const st = String(originState ?? '').trim();
-        const val = [city, st].filter(Boolean).join(', ');
-        if (val) setField('pickup', val);
+  const applyFormFillToPostLoad = useCallback((raw: Record<string, any>) => {
+    if (!raw) return;
+    const lower = (s: string) => s?.toString().trim().toLowerCase();
+    const get = (...keys: string[]) => {
+      for (const k of keys) {
+        const hit = Object.keys(raw).find((x) => lower(x) === lower(k));
+        if (hit) return (raw as Record<string, any>)[hit];
       }
-      if (destCity || destState) {
-        const city = String(destCity ?? '').trim();
-        const st = String(destState ?? '').trim();
-        const val = [city, st].filter(Boolean).join(', ');
-        if (val) setField('delivery', val);
-      }
-      if (miles !== undefined) {
-        const n = Number(miles);
-        setField('miles', Number.isFinite(n) ? String(n) : '0');
-      }
-      if (revenue !== undefined) {
-        const n = Number(revenue);
-        setField('rateAmount', Number.isFinite(n) ? String(n) : '0');
-      }
-      if (deliveryLocal !== undefined) {
-        setField('deliveryDateLocal', String(deliveryLocal));
-      }
-      if (deliveryTz !== undefined) {
-        setField('deliveryTZ', String(deliveryTz));
-      }
-      console.log('[PostLoad] Applied form fill payload');
-    } catch (e) {
-      console.warn('[PostLoad] Failed to apply form fill payload', e);
+      return undefined;
+    };
+    const vStr = (x: any) => (x == null ? '' : String(x).trim());
+    const vNum = (x: any) => {
+      const n = Number(x);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const oCity = vStr(get('originCity', 'origin_city', 'origin'));
+    const oState = vStr(get('originState', 'origin_state'));
+    const dCity = vStr(get('destCity', 'destination', 'dest_city', 'dropoffCity'));
+    const dState = vStr(get('destState', 'dest_state', 'dropoffState'));
+    const miles = vNum(get('distanceMi', 'miles', 'mi'));
+    const rev = vNum(get('revenueUsd', 'revenue', 'rate', 'rateTotalUSD'));
+    const when = vStr(get('deliveryDateLocal', 'deliveryDate'));
+    const tz = vStr(get('deliveryTZ', 'tz'));
+
+    if (oCity || oState) {
+      const val = [oCity, oState].filter(Boolean).join(', ');
+      if (val) setField('pickup', val);
+    }
+    if (dCity || dState) {
+      const val = [dCity, dState].filter(Boolean).join(', ');
+      if (val) setField('delivery', val);
+    }
+    setField('miles', String(miles));
+    setField('rateAmount', String(rev));
+    if (when) setField('deliveryDateLocal', when);
+    if (tz) setField('deliveryTZ', tz);
+
+    if (__DEV__) {
+      const summary = `[FormFill] Applied to Post Load: { oCity:${oCity}, oState:${oState}, dCity:${dCity}, dState:${dState}, miles:${miles}, rev:${rev}, when:${when}, tz:${tz} }`;
+      console.log(summary);
+      setDevBanner(summary);
     }
   }, [setField]);
 
@@ -168,27 +161,21 @@ const onNext = useCallback(async () => {
   }
 }, [canProceed, draft, router]);
 
-  useEffect(() => {
-    const staged = consumeStagedFormFill();
-    if (staged && !appliedOnceRef.current) {
-      appliedOnceRef.current = true;
-      applyFormFill(staged);
-    }
-    const unsub = subscribeFormFill((d: FormFillPayload) => {
-      applyFormFill(d);
-    });
-    return () => { unsub && unsub(); };
-  }, [applyFormFill]);
-
   useFocusEffect(
     React.useCallback(() => {
       const staged = consumeStagedFormFill();
       if (staged) {
-        applyFormFill(staged);
+        appliedOnceRef.current = true;
+        applyFormFillToPostLoad(staged as Record<string, any>);
       }
-      return () => {};
-    }, [applyFormFill])
+      const unsub = subscribeFormFill(applyFormFillToPostLoad);
+      return () => {
+        unsub && unsub();
+      };
+    }, [applyFormFillToPostLoad])
   );
+
+
 
 
   const toVehicleType = useCallback((v: string | undefined): VehicleType | null => {
@@ -339,6 +326,12 @@ const onNext = useCallback(async () => {
           <View style={styles.header}>
             <Stepper current={1} total={5} />
           </View>
+
+          {__DEV__ && devBanner && (
+            <View style={styles.devBanner} testID="devFormFillBanner">
+              <Text style={styles.devBannerText} numberOfLines={2}>{devBanner}</Text>
+            </View>
+          )}
 
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Bulk Upload (CSV)</Text>
@@ -690,5 +683,19 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.lg,
     fontWeight: '800',
+  },
+  devBanner: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#ecfeff',
+    borderWidth: 1,
+    borderColor: '#67e8f9',
+  },
+  devBannerText: {
+    color: '#0e7490',
+    fontSize: 12,
   },
 });
