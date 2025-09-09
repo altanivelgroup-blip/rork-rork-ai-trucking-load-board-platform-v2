@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2 } from 'lucide-react-native';
+import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { theme } from '@/constants/theme';
@@ -22,7 +22,28 @@ import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
 
-const REQUIRED_HEADERS = ['Origin', 'Destination', 'Vehicle Type', 'Weight', 'Price'];
+type TemplateType = 'simple' | 'standard' | 'complete';
+
+const TEMPLATE_CONFIGS = {
+  simple: {
+    name: 'Simple Template (5 columns)',
+    description: 'Origin, Destination, Vehicle Type, Weight, Price',
+    requiredHeaders: ['Origin', 'Destination', 'Vehicle Type', 'Weight', 'Price'],
+    color: theme.colors.primary,
+  },
+  standard: {
+    name: 'Standard Template (29 columns)',
+    description: 'Includes dates, addresses, contacts, requirements',
+    requiredHeaders: ['title','description','originCity','destinationCity','pickupDate','deliveryDate','vehicleType','weight','rate'],
+    color: theme.colors.success,
+  },
+  complete: {
+    name: 'Complete Template (50+ columns)',
+    description: 'All possible load details, contacts, documentation',
+    requiredHeaders: ['title','description','originCity','destinationCity','pickupDate','deliveryDate','vehicleType','weight','rate'],
+    color: theme.colors.warning,
+  },
+};
 
 interface ProcessedRow {
   original: SimpleLoadRow;
@@ -36,6 +57,8 @@ export default function CSVBulkUploadScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [headerErrors, setHeaderErrors] = useState<string[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('simple');
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const toast = useToast();
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -83,11 +106,12 @@ export default function CSVBulkUploadScreen() {
 
       const { headers, rows } = parseCSV(csvContent);
       
-      const headerIssues = validateCSVHeaders(headers, REQUIRED_HEADERS);
+      const requiredHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
+      const headerIssues = validateCSVHeaders(headers, requiredHeaders);
       setHeaderErrors(headerIssues);
       
       if (headerIssues.length > 0) {
-        showToast('CSV headers do not match required format', 'error');
+        showToast(`CSV headers do not match ${TEMPLATE_CONFIGS[selectedTemplate].name} format`, 'error');
         return;
       }
 
@@ -100,7 +124,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [processCSVData, showToast]);
+  }, [processCSVData, showToast, selectedTemplate]);
 
   const removeRow = useCallback((index: number) => {
     setProcessedRows(prev => prev.filter((_, i) => i !== index));
@@ -268,6 +292,64 @@ export default function CSVBulkUploadScreen() {
               <Text style={styles.templateSubtext}>All possible load details, contacts, documentation</Text>
             </View>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.templateSelectorContainer}>
+          <Text style={styles.templateSelectorTitle}>Which template are you uploading?</Text>
+          <TouchableOpacity
+            style={styles.templateSelector}
+            onPress={() => setShowTemplateDropdown(!showTemplateDropdown)}
+          >
+            <View style={styles.templateSelectorContent}>
+              <View style={styles.templateSelectorLeft}>
+                <View style={[styles.templateIndicator, { backgroundColor: TEMPLATE_CONFIGS[selectedTemplate].color }]} />
+                <View>
+                  <Text style={styles.templateSelectorText}>{TEMPLATE_CONFIGS[selectedTemplate].name}</Text>
+                  <Text style={styles.templateSelectorSubtext}>{TEMPLATE_CONFIGS[selectedTemplate].description}</Text>
+                </View>
+              </View>
+              <ChevronDown 
+                size={20} 
+                color={theme.colors.gray} 
+                style={[styles.chevron, showTemplateDropdown && styles.chevronRotated]} 
+              />
+            </View>
+          </TouchableOpacity>
+          
+          {showTemplateDropdown && (
+            <View style={styles.templateDropdown}>
+              {(Object.keys(TEMPLATE_CONFIGS) as TemplateType[]).map((templateType) => {
+                const config = TEMPLATE_CONFIGS[templateType];
+                const isSelected = selectedTemplate === templateType;
+                
+                return (
+                  <TouchableOpacity
+                    key={templateType}
+                    style={[styles.templateOption, isSelected && styles.templateOptionSelected]}
+                    onPress={() => {
+                      setSelectedTemplate(templateType);
+                      setShowTemplateDropdown(false);
+                      setProcessedRows([]);
+                      setHeaderErrors([]);
+                    }}
+                  >
+                    <View style={[styles.templateIndicator, { backgroundColor: config.color }]} />
+                    <View style={styles.templateOptionContent}>
+                      <Text style={[styles.templateOptionText, isSelected && styles.templateOptionTextSelected]}>
+                        {config.name}
+                      </Text>
+                      <Text style={[styles.templateOptionSubtext, isSelected && styles.templateOptionSubtextSelected]}>
+                        {config.description}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <CheckCircle size={16} color={theme.colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         <TouchableOpacity
@@ -575,5 +657,100 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: '600',
     marginLeft: theme.spacing.sm,
+  },
+  templateSelectorContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  templateSelectorTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  templateSelector: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  templateSelectorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  templateSelectorLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  templateIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: theme.spacing.sm,
+  },
+  templateSelectorText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: 2,
+  },
+  templateSelectorSubtext: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  chevron: {
+    marginLeft: theme.spacing.sm,
+  },
+  chevronRotated: {
+    transform: [{ rotate: '180deg' }],
+  },
+  templateDropdown: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginTop: theme.spacing.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  templateOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  templateOptionSelected: {
+    backgroundColor: '#F0F9FF',
+  },
+  templateOptionContent: {
+    flex: 1,
+    marginLeft: theme.spacing.sm,
+  },
+  templateOptionText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: 2,
+  },
+  templateOptionTextSelected: {
+    color: theme.colors.primary,
+  },
+  templateOptionSubtext: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  templateOptionSubtextSelected: {
+    color: theme.colors.primary,
   },
 });
