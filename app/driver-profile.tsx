@@ -100,7 +100,7 @@ export default function DriverProfileScreen() {
       vehicleSubtype: newSubtypes[0],
       ...(newType === 'trailer' ? { trailerType: 'flatbed' } : {}),
     }));
-  }, [TRUCK_SUBTYPES, TRAILER_SUBTYPES]);
+  }, []);
 
   // Handle subtype change - Fixed logic
   const handleSubtypeChange = useCallback((newSubtype: string) => {
