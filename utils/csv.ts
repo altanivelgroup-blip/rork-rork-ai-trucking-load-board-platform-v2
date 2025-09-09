@@ -66,3 +66,11 @@ export function csvEscape(v: string): string {
   if (v.includes(',') || v.includes('"') || v.includes('\n')) return '"' + v.replace(/"/g, '""') + '"';
   return v;
 }
+
+export function normalizeCSVHeader(h: string): string {
+  return (h ?? '').toString().replace(/\ufeff/g, '').trim();
+}
+
+export function validateCSVHeaders(headers: string[]): string[] {
+  return (headers ?? []).map(normalizeCSVHeader);
+}
