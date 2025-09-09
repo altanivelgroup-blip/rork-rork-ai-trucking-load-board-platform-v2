@@ -1,5 +1,13 @@
 export type CSVRow = Record<string, string>;
 
+export type SimpleLoadRow = {
+  'Origin': string;
+  'Destination': string;
+  'Vehicle Type': string;
+  'Weight': string;
+  'Price': string;
+};
+
 export function parseCSV(input: string): { headers: string[]; rows: CSVRow[] } {
   const cleaned = input.replace(/\ufeff/g, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
   const lines = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
@@ -146,9 +154,10 @@ export function buildCompleteTemplateCSV(): string {
 
 export function buildSimpleTemplateCSV(): string {
   const headers = ['Origin','Destination','Vehicle Type','Weight','Price'];
-  const r1 = ['Dallas, TX','Houston, TX','Car Hauler','5000','$1200'];
-  const r2 = ['Las Vegas, NV','Phoenix, AZ','Box Truck','8000','$1600'];
-  return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n';
+  const r1 = ['Dallas, TX','Houston, TX','Car Hauler','5000','1200'];
+  const r2 = ['Las Vegas, NV','Phoenix, AZ','Box Truck','8000','1600'];
+  const r3 = ['Miami, FL','Atlanta, GA','Flatbed','12000','2400'];
+  return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n' + r3.map(csvEscape).join(',') + '\n';
 }
 
 export function csvEscape(v: string): string {
@@ -160,6 +169,54 @@ export function normalizeCSVHeader(h: string): string {
   return (h ?? '').toString().replace(/\ufeff/g, '').trim();
 }
 
-export function validateCSVHeaders(headers: string[]): string[] {
-  return (headers ?? []).map(normalizeCSVHeader);
+export function validateCSVHeaders(headers: string[], requiredHeaders?: string[]): string[] {
+  if (!requiredHeaders) {
+    return (headers ?? []).map(normalizeCSVHeader);
+  }
+  
+  const normalized = (headers ?? []).map(normalizeCSVHeader);
+  const missing = requiredHeaders.filter(req => !normalized.includes(req));
+  const errors: string[] = [];
+  
+  if (missing.length > 0) {
+    errors.push(`Missing required headers: ${missing.join(', ')}`);
+  }
+  
+  return errors;
+}
+
+export function validateSimpleLoadRow(row: SimpleLoadRow): string[] {
+  const errors: string[] = [];
+  
+  if (!row['Origin']?.trim()) {
+    errors.push('Origin is required');
+  }
+  
+  if (!row['Destination']?.trim()) {
+    errors.push('Destination is required');
+  }
+  
+  if (!row['Vehicle Type']?.trim()) {
+    errors.push('Vehicle Type is required');
+  }
+  
+  if (!row['Weight']?.trim()) {
+    errors.push('Weight is required');
+  } else {
+    const weight = Number(row['Weight'].replace(/[^0-9.]/g, ''));
+    if (isNaN(weight) || weight <= 0) {
+      errors.push('Weight must be a valid positive number');
+    }
+  }
+  
+  if (!row['Price']?.trim()) {
+    errors.push('Price is required');
+  } else {
+    const price = Number(row['Price'].replace(/[^0-9.]/g, ''));
+    if (isNaN(price) || price <= 0) {
+      errors.push('Price must be a valid positive number');
+    }
+  }
+  
+  return errors;
 }

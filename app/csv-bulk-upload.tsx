@@ -15,7 +15,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { parseCSV, validateCSVHeaders, buildTemplateCSV, SimpleLoadRow, validateSimpleLoadRow } from '@/utils/csv';
+import { parseCSV, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, SimpleLoadRow, validateSimpleLoadRow } from '@/utils/csv';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
@@ -176,19 +176,39 @@ export default function CSVBulkUploadScreen() {
 
 
 
-  const downloadTemplate = useCallback(() => {
-    const template = buildTemplateCSV();
+  const downloadTemplate = useCallback((templateType: 'simple' | 'complete' | 'canonical') => {
+    let template: string;
+    let filename: string;
+    
+    switch (templateType) {
+      case 'simple':
+        template = buildSimpleTemplateCSV();
+        filename = 'loads_simple_template.csv';
+        break;
+      case 'complete':
+        template = buildCompleteTemplateCSV();
+        filename = 'loads_complete_template.csv';
+        break;
+      case 'canonical':
+        template = buildCanonicalTemplateCSV();
+        filename = 'loads_canonical_template.csv';
+        break;
+      default:
+        template = buildSimpleTemplateCSV();
+        filename = 'loads_simple_template.csv';
+    }
     
     if (Platform.OS === 'web') {
       const blob = new Blob([template], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'loads_template.csv';
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+      showToast(`${templateType.charAt(0).toUpperCase() + templateType.slice(1)} template downloaded`, 'success');
     } else {
-      showToast('Template downloaded to device', 'success');
+      showToast(`${templateType.charAt(0).toUpperCase() + templateType.slice(1)} template downloaded to device`, 'success');
     }
   }, [showToast]);
 
@@ -209,14 +229,46 @@ export default function CSVBulkUploadScreen() {
           <FileText size={32} color={theme.colors.primary} />
           <Text style={styles.title}>Bulk Upload Loads</Text>
           <Text style={styles.subtitle}>
-            Upload a CSV file with Origin, Destination, Vehicle Type, Weight, and Price columns.
+            Upload a CSV file with load information. Choose from simple (5 columns) to complete (50+ columns) templates below.
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.templateButton} onPress={downloadTemplate}>
-          <Download size={20} color={theme.colors.primary} />
-          <Text style={styles.templateText}>Download Sample CSV</Text>
-        </TouchableOpacity>
+        <View style={styles.templatesContainer}>
+          <Text style={styles.templatesTitle}>Download CSV Templates:</Text>
+          
+          <TouchableOpacity 
+            style={styles.templateButton} 
+            onPress={() => downloadTemplate('simple')}
+          >
+            <Download size={20} color={theme.colors.primary} />
+            <View style={styles.templateTextContainer}>
+              <Text style={styles.templateText}>Simple Template (5 columns)</Text>
+              <Text style={styles.templateSubtext}>Origin, Destination, Vehicle Type, Weight, Price</Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.templateButton} 
+            onPress={() => downloadTemplate('canonical')}
+          >
+            <Download size={20} color={theme.colors.success} />
+            <View style={styles.templateTextContainer}>
+              <Text style={styles.templateText}>Standard Template (29 columns)</Text>
+              <Text style={styles.templateSubtext}>Includes dates, addresses, contacts, requirements</Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.templateButton} 
+            onPress={() => downloadTemplate('complete')}
+          >
+            <Download size={20} color={theme.colors.warning} />
+            <View style={styles.templateTextContainer}>
+              <Text style={styles.templateText}>Complete Template (50+ columns)</Text>
+              <Text style={styles.templateSubtext}>All possible load details, contacts, documentation</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={styles.uploadButton}
@@ -361,22 +413,44 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  templatesContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  templatesTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
   templateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme.spacing.sm,
+    padding: theme.spacing.md,
     backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
-    borderColor: theme.colors.primary,
-    marginBottom: theme.spacing.md,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  templateTextContainer: {
+    flex: 1,
+    marginLeft: theme.spacing.sm,
   },
   templateText: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.primary,
+    color: theme.colors.dark,
     fontWeight: '600',
-    marginLeft: theme.spacing.xs,
+    marginBottom: 2,
+  },
+  templateSubtext: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    lineHeight: 16,
   },
   uploadButton: {
     flexDirection: 'row',
