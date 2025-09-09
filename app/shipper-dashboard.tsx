@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, TrendingUp, Eye, Edit, Trash2 } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
+
+
 
 interface LoadRowProps {
   id: string;
@@ -64,10 +66,55 @@ export default function ShipperDashboard() {
   const stats = useMemo(() => {
     const totalLoads = shipperLoads.length;
     const activeLoads = shipperLoads.filter(l => l.status === 'available' || l.status === 'in-transit').length;
+    const completedLoads = shipperLoads.filter(l => l.status === 'delivered').length;
     const totalRevenue = shipperLoads.reduce((sum, l) => sum + (l.rate || 0), 0);
     const avgRate = totalLoads > 0 ? totalRevenue / totalLoads : 0;
+    const completionRate = totalLoads > 0 ? (completedLoads / totalLoads) * 100 : 0;
     
-    return { totalLoads, activeLoads, totalRevenue, avgRate };
+    // Calculate trends (mock data for now - in real app would compare to previous period)
+    const revenueGrowth = 12.5; // Mock 12.5% growth
+    const loadGrowth = 8.3; // Mock 8.3% growth
+    
+    return { 
+      totalLoads, 
+      activeLoads, 
+      completedLoads,
+      totalRevenue, 
+      avgRate, 
+      completionRate,
+      revenueGrowth,
+      loadGrowth
+    };
+  }, [shipperLoads]);
+  
+  const analytics = useMemo(() => {
+    // Performance metrics
+    const avgTimeToBook = 2.3; // Mock average days to book
+    const topRoutes = shipperLoads.reduce((acc, load) => {
+      const route = `${load.origin?.city || 'Unknown'} → ${load.destination?.city || 'Unknown'}`;
+      acc[route] = (acc[route] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const sortedRoutes = Object.entries(topRoutes)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3);
+    
+    // Revenue by month (mock data)
+    const monthlyRevenue = [
+      { month: 'Jan', revenue: 45000 },
+      { month: 'Feb', revenue: 52000 },
+      { month: 'Mar', revenue: 48000 },
+      { month: 'Apr', revenue: 61000 },
+      { month: 'May', revenue: 58000 },
+      { month: 'Jun', revenue: 67000 },
+    ];
+    
+    return {
+      avgTimeToBook,
+      topRoutes: sortedRoutes,
+      monthlyRevenue
+    };
   }, [shipperLoads]);
   
   const handleViewLoad = useCallback((loadId: string) => {
@@ -99,24 +146,113 @@ export default function ShipperDashboard() {
         
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Package size={24} color={theme.colors.primary} />
+            <View style={styles.statHeader}>
+              <Package size={20} color={theme.colors.primary} />
+              <View style={[styles.trendBadge, { backgroundColor: stats.loadGrowth > 0 ? '#dcfce7' : '#fef2f2' }]}>
+                <Text style={[styles.trendText, { color: stats.loadGrowth > 0 ? '#16a34a' : '#dc2626' }]}>+{stats.loadGrowth}%</Text>
+              </View>
+            </View>
             <Text style={styles.statValue}>{stats.totalLoads}</Text>
             <Text style={styles.statLabel}>Total Loads</Text>
           </View>
           <View style={styles.statCard}>
-            <Truck size={24} color="#10b981" />
-            <Text style={styles.statValue}>{stats.activeLoads}</Text>
-            <Text style={styles.statLabel}>Active Loads</Text>
+            <View style={styles.statHeader}>
+              <Truck size={20} color="#10b981" />
+              <View style={styles.statusIndicator}>
+                <Text style={styles.statusIndicatorText}>{stats.activeLoads} active</Text>
+              </View>
+            </View>
+            <Text style={styles.statValue}>{stats.completedLoads}</Text>
+            <Text style={styles.statLabel}>Completed</Text>
           </View>
           <View style={styles.statCard}>
-            <DollarSign size={24} color="#f59e0b" />
+            <View style={styles.statHeader}>
+              <DollarSign size={20} color="#f59e0b" />
+              <View style={[styles.trendBadge, { backgroundColor: '#dcfce7' }]}>
+                <Text style={[styles.trendText, { color: '#16a34a' }]}>+{stats.revenueGrowth}%</Text>
+              </View>
+            </View>
             <Text style={styles.statValue}>${stats.totalRevenue.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Total Revenue</Text>
           </View>
           <View style={styles.statCard}>
-            <TrendingUp size={24} color="#8b5cf6" />
+            <View style={styles.statHeader}>
+              <Target size={20} color="#8b5cf6" />
+              <Text style={styles.completionRate}>{Math.round(stats.completionRate)}%</Text>
+            </View>
             <Text style={styles.statValue}>${Math.round(stats.avgRate)}</Text>
             <Text style={styles.statLabel}>Avg Rate</Text>
+          </View>
+        </View>
+        
+        {/* Analytics Section */}
+        <View style={styles.analyticsSection}>
+          <Text style={styles.sectionTitle}>Performance Analytics</Text>
+          
+          {/* Key Metrics Row */}
+          <View style={styles.metricsRow}>
+            <View style={styles.metricCard}>
+              <Clock size={18} color={theme.colors.primary} />
+              <Text style={styles.metricValue}>{analytics.avgTimeToBook} days</Text>
+              <Text style={styles.metricLabel}>Avg Time to Book</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <BarChart3 size={18} color="#10b981" />
+              <Text style={styles.metricValue}>{Math.round(stats.completionRate)}%</Text>
+              <Text style={styles.metricLabel}>Completion Rate</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <AlertTriangle size={18} color="#f59e0b" />
+              <Text style={styles.metricValue}>2</Text>
+              <Text style={styles.metricLabel}>Issues</Text>
+            </View>
+          </View>
+          
+          {/* Revenue Chart */}
+          <View style={styles.chartCard}>
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>Revenue Trend</Text>
+              <Text style={styles.chartSubtitle}>Last 6 months</Text>
+            </View>
+            <View style={styles.chart}>
+              {analytics.monthlyRevenue.map((item, index) => {
+                const maxRevenue = Math.max(...analytics.monthlyRevenue.map(r => r.revenue));
+                const height = (item.revenue / maxRevenue) * 80;
+                return (
+                  <View key={item.month} style={styles.chartBar}>
+                    <View style={[styles.bar, { height }]} />
+                    <Text style={styles.barLabel}>{item.month}</Text>
+                    <Text style={styles.barValue}>${(item.revenue / 1000).toFixed(0)}k</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+          
+          {/* Top Routes */}
+          <View style={styles.routesCard}>
+            <View style={styles.routesHeader}>
+              <MapPin size={18} color={theme.colors.primary} />
+              <Text style={styles.routesTitle}>Top Routes</Text>
+            </View>
+            {analytics.topRoutes.length > 0 ? (
+              analytics.topRoutes.map(([route, count], index) => (
+                <View key={route} style={styles.routeItem}>
+                  <View style={styles.routeRank}>
+                    <Text style={styles.rankText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.routeInfo}>
+                    <Text style={styles.routeName} numberOfLines={1}>{route}</Text>
+                    <Text style={styles.routeCount}>{count} loads</Text>
+                  </View>
+                  <View style={styles.routeBar}>
+                    <View style={[styles.routeProgress, { width: `${(count / analytics.topRoutes[0][1]) * 100}%` }]} />
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noRoutesText}>No routes data available</Text>
+            )}
           </View>
         </View>
         
@@ -312,6 +448,195 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     marginTop: theme.spacing.xs,
     textAlign: 'center',
+  },
+  statHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: theme.spacing.xs,
+  },
+  trendBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  trendText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  statusIndicator: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statusIndicatorText: {
+    fontSize: 10,
+    color: '#16a34a',
+    fontWeight: '600',
+  },
+  completionRate: {
+    fontSize: 12,
+    color: '#8b5cf6',
+    fontWeight: '700',
+  },
+  analyticsSection: {
+    marginBottom: theme.spacing.lg,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  metricValue: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.dark,
+    marginTop: 4,
+  },
+  metricLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  chartCard: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    marginBottom: theme.spacing.md,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  chartHeader: {
+    marginBottom: theme.spacing.md,
+  },
+  chartTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  chartSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginTop: 2,
+  },
+  chart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 120,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  chartBar: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 2,
+  },
+  bar: {
+    backgroundColor: theme.colors.primary,
+    width: '80%',
+    borderRadius: 2,
+    marginBottom: theme.spacing.xs,
+  },
+  barLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginBottom: 2,
+  },
+  barValue: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.dark,
+    fontWeight: '600',
+  },
+  routesCard: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  routesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.xs,
+  },
+  routesTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  routeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  routeRank: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.sm,
+  },
+  rankText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+  },
+  routeInfo: {
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  routeName: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  routeCount: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginTop: 2,
+  },
+  routeBar: {
+    width: 60,
+    height: 4,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: 2,
+  },
+  routeProgress: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 2,
+  },
+  noRoutesText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    paddingVertical: theme.spacing.md,
   },
 
 });
