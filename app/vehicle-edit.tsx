@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
+import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
+import { TRUCK_SUBTYPES, TRAILER_SUBTYPES, AnySubtype } from '@/constants/vehicleOptions';
 
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
@@ -116,6 +118,32 @@ export default function VehicleEditScreen() {
   useEffect(() => {
     loadVehicle();
   }, [loadVehicle]);
+
+  const isAddMode = useMemo(() => !vehicle_id, [vehicle_id]);
+
+  const handleTypeChange = useCallback((t: 'truck' | 'trailer') => {
+    setState(prev => {
+      const defaultSubtype: AnySubtype = t === 'truck' ? TRUCK_SUBTYPES[0] : TRAILER_SUBTYPES[0];
+      return {
+        ...prev,
+        vehicle: {
+          ...prev.vehicle,
+          type: t,
+          subtype: String(defaultSubtype),
+        },
+      };
+    });
+  }, []);
+
+  const handleSubtypeChange = useCallback((s: AnySubtype) => {
+    setState(prev => ({
+      ...prev,
+      vehicle: {
+        ...prev.vehicle,
+        subtype: String(s),
+      },
+    }));
+  }, []);
 
   // Handle photo uploader changes
   const handlePhotoChange = useCallback((photos: string[], primaryPhoto: string, uploadsInProgress: number) => {
@@ -351,8 +379,18 @@ export default function VehicleEditScreen() {
               placeholderTextColor={theme.colors.gray}
             />
           </View>
-          
 
+          {isAddMode && (
+            <View style={{ marginTop: theme.spacing.sm }}>
+              <TypeSubtypeSelector
+                type={state.vehicle.type}
+                subtype={state.vehicle.subtype}
+                onTypeChange={handleTypeChange}
+                onSubtypeChange={handleSubtypeChange}
+                testIDPrefix="add-vehicle"
+              />
+            </View>
+          )}
         </View>
         
         {/* Optional Information */}
