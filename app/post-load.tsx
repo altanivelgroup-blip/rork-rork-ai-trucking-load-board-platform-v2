@@ -46,7 +46,7 @@ const VEHICLE_OPTIONS: VehicleOption[] = [
 
 export default function PostLoadScreen() {
   const router = useRouter();
-  const { draft, setField } = usePostLoad();
+  const { draft, setField, updateDraft } = usePostLoad();
   const { addLoadsBulkWithToast } = useLoadsWithToast();
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
@@ -83,25 +83,21 @@ export default function PostLoadScreen() {
     const when = vStr(get('deliveryDateLocal', 'deliveryDate'));
     const tz = vStr(get('deliveryTZ', 'tz'));
 
-    if (oCity || oState) {
-      const val = [oCity, oState].filter(Boolean).join(', ');
-      if (val) setField('pickup', val);
-    }
-    if (dCity || dState) {
-      const val = [dCity, dState].filter(Boolean).join(', ');
-      if (val) setField('delivery', val);
-    }
-    setField('miles', String(miles));
-    setField('rateAmount', String(rev));
-    if (when) setField('deliveryDateLocal', when);
-    if (tz) setField('deliveryTZ', tz);
+    updateDraft({
+      origin: { city: oCity, state: oState },
+      destination: { city: dCity, state: dState },
+      distanceMi: miles,
+      revenueUsd: rev,
+      deliveryDateLocal: when,
+      deliveryTZ: tz,
+    });
 
     if (__DEV__) {
-      const summary = `[FormFill] Applied to Post Load: { oCity:${oCity}, oState:${oState}, dCity:${dCity}, dState:${dState}, miles:${miles}, rev:${rev}, when:${when}, tz:${tz} }`;
+      const summary = `[FormFill] Applied to Post Load (draft-level): { oCity:${oCity}, oState:${oState}, dCity:${dCity}, dState:${dState}, miles:${miles}, rev:${rev}, when:${when}, tz:${tz} }`;
       console.log(summary);
       setDevBanner(summary);
     }
-  }, [setField]);
+  }, [updateDraft]);
 
 const onNext = useCallback(async () => {
   try {

@@ -42,6 +42,7 @@ interface PostLoadDraft {
 interface PostLoadState {
   draft: PostLoadDraft;
   setField: <K extends keyof PostLoadDraft>(key: K, value: PostLoadDraft[K]) => void;
+  updateDraft: (patch: Partial<PostLoadDraft> & Record<string, unknown>) => void;
   reset: () => void;
   canSubmit: boolean;
   canPost: boolean;
@@ -84,6 +85,45 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
   const [draft, setDraft] = useState<PostLoadDraft>(initialDraft);
   const setField = useCallback(<K extends keyof PostLoadDraft>(key: K, value: PostLoadDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const updateDraft = useCallback((patch: Partial<PostLoadDraft> & Record<string, unknown>) => {
+    setDraft((prev) => {
+      const next: PostLoadDraft = { ...prev, ...(patch as Partial<PostLoadDraft>) } as PostLoadDraft;
+
+      const originAny = (patch as any)?.origin;
+      if (originAny && (typeof originAny === 'object')) {
+        const city = (originAny.city ?? '').toString().trim();
+        const state = (originAny.state ?? '').toString().trim();
+        const combined = [city, state].filter(Boolean).join(', ');
+        if (combined.length > 0) next.pickup = combined;
+      }
+
+      const destinationAny = (patch as any)?.destination;
+      if (destinationAny && (typeof destinationAny === 'object')) {
+        const city = (destinationAny.city ?? '').toString().trim();
+        const state = (destinationAny.state ?? '').toString().trim();
+        const combined = [city, state].filter(Boolean).join(', ');
+        if (combined.length > 0) next.delivery = combined;
+      }
+
+      if ((patch as any)?.distanceMi != null) {
+        const milesNum = Number((patch as any).distanceMi);
+        next.miles = Number.isFinite(milesNum) ? String(milesNum) : prev.miles;
+      }
+      if ((patch as any)?.revenueUsd != null) {
+        const revNum = Number((patch as any).revenueUsd);
+        next.rateAmount = Number.isFinite(revNum) ? String(revNum) : prev.rateAmount;
+      }
+      if ((patch as any)?.deliveryDateLocal != null) {
+        next.deliveryDateLocal = String((patch as any).deliveryDateLocal ?? '');
+      }
+      if ((patch as any)?.deliveryTZ != null) {
+        next.deliveryTZ = String((patch as any).deliveryTZ ?? '');
+      }
+
+      return next;
+    });
   }, []);
 
   const canSubmit = useMemo(() => {
@@ -649,7 +689,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
 
   return useMemo(() => ({ 
     draft, 
-    setField, 
+    setField,
+    updateDraft,
     reset, 
     canSubmit, 
     canPost, 
@@ -657,5 +698,5 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     uploadPhotos, 
     uploadPhotosToFirebase,
     postLoadWizard 
-  }), [draft, setField, reset, canSubmit, canPost, submit, uploadPhotos, uploadPhotosToFirebase, postLoadWizard]);
+  }), [draft, setField, updateDraft, reset, canSubmit, canPost, submit, uploadPhotos, uploadPhotosToFirebase, postLoadWizard]);
 });
