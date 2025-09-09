@@ -108,8 +108,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const login = useCallback(async (email: string, password: string) => {
     console.log('[auth] login attempt for', email);
+    await ensureFirebaseAuth();
+    const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
     const mockUser: Driver = {
-      id: '1',
+      id: uid,
       role: 'driver',
       email,
       name: 'Test Driver',
@@ -129,7 +131,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       },
       isAvailable: true,
       verificationStatus: 'verified',
-    };
+    } as Driver;
     
     setUser(mockUser);
     await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
@@ -137,12 +139,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const register = useCallback(async (email: string, password: string, profile?: Partial<Driver>) => {
+    await ensureFirebaseAuth();
+    const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
     const mockUser: Driver = {
-      id: '1',
+      id: uid,
       role: 'driver',
       email,
-      name: profile?.name || 'New Driver',
-      phone: profile?.phone || '',
+      name: profile?.name ?? 'New Driver',
+      phone: profile?.phone ?? '',
       membershipTier: 'basic',
       createdAt: new Date(),
       cdlNumber: '',
@@ -158,8 +162,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       },
       isAvailable: true,
       verificationStatus: 'unverified',
-    };
-    
+      company: profile?.company ?? '',
+    } as unknown as Driver;
+
     setUser(mockUser);
     await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
   }, []);
@@ -186,12 +191,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     console.log('[auth] profile saved to AsyncStorage');
 
     try {
+      await ensureFirebaseAuth();
       if (auth?.currentUser?.uid) {
         const uid = auth.currentUser.uid;
         const ref = doc(db, 'drivers', uid);
         const payload: Record<string, unknown> = {
           displayName: updated.name ?? '',
           email: updated.email ?? '',
+          phone: (updated as any).phone ?? null,
+          company: (updated as any).company ?? null,
           vehicleMake: (updates as any).vehicleMake ?? updated.vehicleMake ?? null,
           vehicleModel: (updates as any).vehicleModel ?? updated.vehicleModel ?? null,
           vehicleYear: (updates as any).vehicleYear ?? updated.vehicleYear ?? null,
@@ -201,7 +209,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           plate: (updates as any).plate ?? updated.plate ?? null,
           tankGallons: (updates as any).tankGallons ?? (updated.tankGallons ?? null),
           gvwrLbs: (updates as any).gvwrLbs ?? (updated.gvwrLbs ?? null),
-          // Trailer fields
           trailerMake: (updates as any).trailerMake ?? updated.trailerMake ?? null,
           trailerModel: (updates as any).trailerModel ?? updated.trailerModel ?? null,
           trailerYear: (updates as any).trailerYear ?? updated.trailerYear ?? null,
@@ -211,7 +218,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           trailerPolicyNumber: (updates as any).trailerPolicyNumber ?? updated.trailerPolicyNumber ?? null,
           trailerGvwrLbs: (updates as any).trailerGvwrLbs ?? updated.trailerGvwrLbs ?? null,
           trailerType: (updates as any).trailerType ?? updated.trailerType ?? null,
-          // Company fields
           companyName: (updates as any).companyName ?? updated.companyName ?? null,
           mcNumber: (updates as any).mcNumber ?? updated.mcNumber ?? null,
           dotNumber: (updates as any).dotNumber ?? updated.dotNumber ?? null,
