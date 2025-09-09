@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,11 +10,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType } from '@/types';
+import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
 
 // Options moved to shared constants to keep logic in sync
 export default function DriverProfileScreen() {
   const router = useRouter();
-  const { user, updateProfile, register, userId, isAuthenticated } = useAuth();
+  const { user, updateProfile, register, userId } = useAuth();
   const toast = useToast();
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [bootstrapping, setBootstrapping] = useState<boolean>(false);
@@ -373,7 +374,14 @@ export default function DriverProfileScreen() {
             <Text style={styles.sectionTitle}>Vehicle Information</Text>
           </View>
 
-
+          {/* Type & Subtype Selector */}
+          <TypeSubtypeSelector
+            type={formData.vehicleCategory}
+            subtype={formData.vehicleSubtype}
+            onTypeChange={handleTypeChange}
+            onSubtypeChange={handleSubtypeChange}
+            testIDPrefix="profile"
+          />
           
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1 }]}>
