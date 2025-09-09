@@ -5,12 +5,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { subscribeFormFill, consumeStagedFormFill, FormFillPayload } from '@/lib/formFillBus';
 import { useFocusEffect } from '@react-navigation/native';
-import { TRUCK_SUBTYPES, TRAILER_SUBTYPES } from '@/constants/vehicleOptions';
+
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType } from '@/types';
-import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
+
 
 // Options moved to shared constants to keep logic in sync
 export default function DriverProfileScreen() {
@@ -39,9 +39,7 @@ export default function DriverProfileScreen() {
     tankGallons: '50',
     gvwrLbs: '',
     
-    // Vehicle Category & Subtype
-    vehicleCategory: 'truck' as 'truck' | 'trailer',
-    vehicleSubtype: 'Hotshot',
+
     
     // Trailer Info
     trailerMake: '',
@@ -64,58 +62,11 @@ export default function DriverProfileScreen() {
 
   // Update form data when user data changes
 
-  const mapTrailerSubtypeToType = useCallback((subtype: string) => {
-    if (subtype === 'Flatbed Trailer' || subtype === 'Gooseneck Trailer') return 'flatbed';
-    if (subtype === 'Enclosed Trailer') return 'enclosed-trailer';
-    if (subtype === 'Car Hauler') return 'car-hauler';
-    return 'trailer';
-  }, []);
 
 
 
-  // Handle type change and reset subtype
-  const handleTypeChange = useCallback((newType: 'truck' | 'trailer') => {
-    console.log('[DriverProfile] Type change:', newType);
-    const newSubtypes = newType === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
-    const newSubtype = newSubtypes[0];
-    console.log('[DriverProfile] Setting subtype to:', newSubtype);
-    
-    setFormData(prev => {
-      if (prev.vehicleCategory === newType) {
-        console.log('[DriverProfile] Type unchanged, skipping update');
-        return prev;
-      }
-      
-      const updated = {
-        ...prev,
-        vehicleCategory: newType,
-        vehicleSubtype: newSubtype,
-        ...(newType === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
-      };
-      console.log('[DriverProfile] Updated form data:', updated);
-      return updated;
-    });
-  }, [mapTrailerSubtypeToType]);
 
-  // Handle subtype change
-  const handleSubtypeChange = useCallback((newSubtype: string) => {
-    console.log('[DriverProfile] Subtype change:', newSubtype);
-    setFormData(prev => {
-      if (prev.vehicleSubtype === newSubtype) {
-        console.log('[DriverProfile] Subtype unchanged, skipping update');
-        return prev;
-      }
-      
-      console.log('[DriverProfile] Current category in callback:', prev.vehicleCategory);
-      const updated = {
-        ...prev,
-        vehicleSubtype: newSubtype,
-        ...(prev.vehicleCategory === 'trailer' ? { trailerType: mapTrailerSubtypeToType(newSubtype) } : {}),
-      };
-      console.log('[DriverProfile] Updated subtype data:', updated);
-      return updated;
-    });
-  }, [mapTrailerSubtypeToType]);
+
 
   useEffect(() => {
     if (!user && userId && !bootstrapping) {
@@ -134,23 +85,7 @@ export default function DriverProfileScreen() {
     }
 
     if (user) {
-      // Determine vehicle category and subtype from user data
-      let vehicleCategory: 'truck' | 'trailer' = 'truck';
-      let vehicleSubtype = 'Hotshot';
-      
-      // Check if user has trailer info or vehicleInfo that indicates truck type
-      if (user.trailerType) {
-        vehicleCategory = 'trailer';
-        vehicleSubtype = user.trailerType === 'flatbed' ? 'Flatbed Trailer'
-          : user.trailerType === 'enclosed-trailer' ? 'Enclosed Trailer'
-          : user.trailerType === 'car-hauler' ? 'Car Hauler'
-          : 'Flatbed Trailer';
-      } else if (user.vehicleInfo) {
-        vehicleCategory = 'truck';
-        vehicleSubtype = TRUCK_SUBTYPES.includes(user.vehicleInfo as any) ? user.vehicleInfo : 'Hotshot';
-      }
-      
-      console.log('[DriverProfile] Setting initial data:', { vehicleCategory, vehicleSubtype });
+
       
       setFormData({
         // Personal Info
@@ -170,9 +105,7 @@ export default function DriverProfileScreen() {
         tankGallons: user.tankGallons?.toString() || '50',
         gvwrLbs: user.gvwrLbs?.toString() || '',
 
-        // Vehicle Category & Subtype
-        vehicleCategory,
-        vehicleSubtype,
+
         
         // Trailer Info
         trailerMake: user.trailerMake || '',
@@ -271,7 +204,7 @@ export default function DriverProfileScreen() {
         plate: formData.plate,
         tankGallons: formData.tankGallons ? parseInt(formData.tankGallons) : null,
         gvwrLbs: formData.gvwrLbs ? parseInt(formData.gvwrLbs) : null,
-        vehicleInfo: formData.vehicleCategory === 'truck' ? formData.vehicleSubtype : undefined,
+        vehicleInfo: undefined,
         trailerMake: formData.trailerMake,
         trailerModel: formData.trailerModel,
         trailerYear: formData.trailerYear ? parseInt(formData.trailerYear) : null,
@@ -280,7 +213,7 @@ export default function DriverProfileScreen() {
         trailerInsuranceCarrier: formData.trailerInsuranceCarrier,
         trailerPolicyNumber: formData.trailerPolicyNumber,
         trailerGvwrLbs: formData.trailerGvwrLbs ? parseInt(formData.trailerGvwrLbs) : null,
-        trailerType: (formData.vehicleCategory === 'trailer' ? mapTrailerSubtypeToType(formData.vehicleSubtype) : formData.trailerType) as VehicleType,
+        trailerType: formData.trailerType as VehicleType,
         companyName: formData.companyName,
         mcNumber: formData.mcNumber,
         dotNumber: formData.dotNumber,
@@ -295,7 +228,7 @@ export default function DriverProfileScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [formData, updateProfile, toast, mapTrailerSubtypeToType]);
+  }, [formData, updateProfile, toast]);
 
   const onSubmitForVerification = useCallback(async () => {
     await onSave();
@@ -384,14 +317,7 @@ export default function DriverProfileScreen() {
             <Text style={styles.sectionTitle}>Vehicle Information</Text>
           </View>
 
-          {/* Type & Subtype Selector */}
-          <TypeSubtypeSelector
-            type={formData.vehicleCategory}
-            subtype={formData.vehicleSubtype}
-            onTypeChange={handleTypeChange}
-            onSubtypeChange={handleSubtypeChange}
-            testIDPrefix="profile"
-          />
+
           
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1 }]}>
