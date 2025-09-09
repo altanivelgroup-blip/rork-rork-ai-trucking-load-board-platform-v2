@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,29 +57,29 @@ export default function DriverProfileScreen() {
   });
 
   // Update form data when user data changes
-  // Vehicle type/subtype options
-  const VEHICLE_TYPES = useMemo(() => ([
+  // Vehicle type/subtype options - Fixed constants
+  const VEHICLE_TYPES = [
     { value: 'truck', label: 'Truck' },
     { value: 'trailer', label: 'Trailer' },
-  ] as const), []);
+  ] as const;
 
-  const TRUCK_SUBTYPES = useMemo(() => ([
+  const TRUCK_SUBTYPES = [
     'Hotshot',
     'Cargo Van',
     'Box Truck',
     'Semi Truck',
     'Pickup Truck',
     'Other',
-  ] as const), []);
+  ] as const;
 
-  const TRAILER_SUBTYPES = useMemo(() => ([
+  const TRAILER_SUBTYPES = [
     'Flatbed Trailer',
     'Enclosed Trailer',
     'Gooseneck Trailer',
     'Car Hauler',
     'Utility Trailer',
     'Other',
-  ] as const), []);
+  ] as const;
 
   const mapTrailerSubtypeToType = useCallback((subtype: string) => {
     if (subtype === 'Flatbed Trailer' || subtype === 'Gooseneck Trailer') return 'flatbed';
@@ -90,8 +90,9 @@ export default function DriverProfileScreen() {
 
   const subtypeOptions = formData.vehicleCategory === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
 
-  // Handle type change and reset subtype
+  // Handle type change and reset subtype - Fixed logic
   const handleTypeChange = useCallback((newType: 'truck' | 'trailer') => {
+    console.log('[DriverProfile] Type change:', newType);
     const newSubtypes = newType === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
     setFormData(prev => ({
       ...prev,
@@ -101,8 +102,9 @@ export default function DriverProfileScreen() {
     }));
   }, [TRUCK_SUBTYPES, TRAILER_SUBTYPES]);
 
-  // Handle subtype change
+  // Handle subtype change - Fixed logic
   const handleSubtypeChange = useCallback((newSubtype: string) => {
+    console.log('[DriverProfile] Subtype change:', newSubtype);
     setFormData(prev => ({
       ...prev,
       vehicleSubtype: newSubtype,
