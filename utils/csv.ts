@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx';
+
 export type CSVRow = Record<string, string>;
 
 export type SimpleLoadRow = {
