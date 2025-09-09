@@ -284,6 +284,7 @@ export default function DriverProfileScreen() {
                         ...prev,
                         vehicleCategory: type.value,
                         vehicleSubtype: type.value === 'truck' ? 'Hotshot' : 'Flatbed Trailer',
+                        trailerType: type.value === 'trailer' ? 'flatbed' : prev.trailerType,
                       }));
                     }}
                     testID={`vehicle-type-${type.value}`}
@@ -304,7 +305,11 @@ export default function DriverProfileScreen() {
                     <TouchableOpacity
                       key={String(sub)}
                       style={[styles.subtypeButton, formData.vehicleSubtype === sub && styles.subtypeButtonActive]}
-                      onPress={() => setFormData(prev => ({ ...prev, vehicleSubtype: String(sub) }))}
+                      onPress={() => setFormData(prev => ({ 
+                        ...prev, 
+                        vehicleSubtype: String(sub),
+                        ...(prev.vehicleCategory === 'trailer' ? { trailerType: mapTrailerSubtypeToType(String(sub)) as any } : {}),
+                      }))}
                       testID={`vehicle-subtype-${String(sub).replace(/\s+/g,'-').toLowerCase()}`}
                     >
                       <Text style={[styles.subtypeButtonText, formData.vehicleSubtype === sub && styles.subtypeButtonTextActive]}>
