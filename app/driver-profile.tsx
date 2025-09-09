@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +33,10 @@ export default function DriverProfileScreen() {
     tankGallons: '50',
     gvwrLbs: '',
     
+    // Vehicle Category & Subtype
+    vehicleCategory: 'truck' as 'truck' | 'trailer',
+    vehicleSubtype: 'Hotshot',
+    
     // Trailer Info
     trailerMake: '',
     trailerModel: '',
@@ -53,6 +57,32 @@ export default function DriverProfileScreen() {
   });
 
   // Update form data when user data changes
+  // Vehicle type/subtype options
+  const VEHICLE_TYPES = useMemo(() => ([
+    { value: 'truck', label: 'Truck' },
+    { value: 'trailer', label: 'Trailer' },
+  ] as const), []);
+
+  const TRUCK_SUBTYPES = useMemo(() => ([
+    'Hotshot',
+    'Cargo Van',
+    'Box Truck',
+    'Semi Truck',
+    'Pickup Truck',
+    'Other',
+  ] as const), []);
+
+  const TRAILER_SUBTYPES = useMemo(() => ([
+    'Flatbed Trailer',
+    'Enclosed Trailer',
+    'Gooseneck Trailer',
+    'Car Hauler',
+    'Utility Trailer',
+    'Other',
+  ] as const), []);
+
+  const subtypeOptions = formData.vehicleCategory === 'truck' ? TRUCK_SUBTYPES : TRAILER_SUBTYPES;
+
   useEffect(() => {
     if (user) {
       setFormData({
@@ -72,6 +102,13 @@ export default function DriverProfileScreen() {
         plate: user.plate || '',
         tankGallons: user.tankGallons?.toString() || '50',
         gvwrLbs: user.gvwrLbs?.toString() || '',
+
+        // Vehicle Category & Subtype
+        vehicleCategory: user.trailerType ? ('trailer' as const) : ('truck' as const),
+        vehicleSubtype: user.trailerType === 'flatbed' ? 'Flatbed Trailer'
+          : user.trailerType === 'enclosed-trailer' ? 'Enclosed Trailer'
+          : user.trailerType === 'car-hauler' ? 'Car Hauler'
+          : 'Hotshot',
         
         // Trailer Info
         trailerMake: user.trailerMake || '',
@@ -105,6 +142,13 @@ export default function DriverProfileScreen() {
     }));
   };
 
+  const mapTrailerSubtypeToType = useCallback((subtype: string) => {
+    if (subtype === 'Flatbed Trailer' || subtype === 'Gooseneck Trailer') return 'flatbed';
+    if (subtype === 'Enclosed Trailer') return 'enclosed-trailer';
+    if (subtype === 'Car Hauler') return 'car-hauler';
+    return 'trailer';
+  }, []);
+
   const onSave = useCallback(async () => {
     try {
       setSubmitting(true);
@@ -122,6 +166,7 @@ export default function DriverProfileScreen() {
         plate: formData.plate,
         tankGallons: formData.tankGallons ? parseInt(formData.tankGallons) : null,
         gvwrLbs: formData.gvwrLbs ? parseInt(formData.gvwrLbs) : null,
+        vehicleInfo: formData.vehicleCategory === 'truck' ? formData.vehicleSubtype : undefined,
         trailerMake: formData.trailerMake,
         trailerModel: formData.trailerModel,
         trailerYear: formData.trailerYear ? parseInt(formData.trailerYear) : null,
@@ -130,7 +175,7 @@ export default function DriverProfileScreen() {
         trailerInsuranceCarrier: formData.trailerInsuranceCarrier,
         trailerPolicyNumber: formData.trailerPolicyNumber,
         trailerGvwrLbs: formData.trailerGvwrLbs ? parseInt(formData.trailerGvwrLbs) : null,
-        trailerType: formData.trailerType as VehicleType,
+        trailerType: (formData.vehicleCategory === 'trailer' ? mapTrailerSubtypeToType(formData.vehicleSubtype) : formData.trailerType) as VehicleType,
         companyName: formData.companyName,
         mcNumber: formData.mcNumber,
         dotNumber: formData.dotNumber,
@@ -223,6 +268,53 @@ export default function DriverProfileScreen() {
           <View style={styles.sectionHeader}>
             <Truck size={20} color={theme.colors.primary} />
             <Text style={styles.sectionTitle}>Vehicle Information</Text>
+          </View>
+
+          {/* Type & Subtype controls */}
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Type *</Text>
+              <View style={styles.segmentedControl}>
+                {VEHICLE_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type.value}
+                    style={[styles.segmentButton, formData.vehicleCategory === type.value && styles.segmentButtonActive]}
+                    onPress={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        vehicleCategory: type.value,
+                        vehicleSubtype: type.value === 'truck' ? 'Hotshot' : 'Flatbed Trailer',
+                      }));
+                    }}
+                    testID={`vehicle-type-${type.value}`}
+                  >
+                    <Text style={[styles.segmentButtonText, formData.vehicleCategory === type.value && styles.segmentButtonTextActive]}>
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={styles.spacer} />
+            <View style={[styles.inputGroup, { flex: 2 }]}>
+              <Text style={styles.label}>Subtype *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subtypeScroll}>
+                <View style={styles.subtypeContainer}>
+                  {subtypeOptions.map((sub) => (
+                    <TouchableOpacity
+                      key={String(sub)}
+                      style={[styles.subtypeButton, formData.vehicleSubtype === sub && styles.subtypeButtonActive]}
+                      onPress={() => setFormData(prev => ({ ...prev, vehicleSubtype: String(sub) }))}
+                      testID={`vehicle-subtype-${String(sub).replace(/\s+/g,'-').toLowerCase()}`}
+                    >
+                      <Text style={[styles.subtypeButtonText, formData.vehicleSubtype === sub && styles.subtypeButtonTextActive]}>
+                        {String(sub)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
           </View>
           
           <View style={styles.row}>
@@ -675,6 +767,53 @@ const styles = StyleSheet.create({
     padding: theme.spacing.sm,
     justifyContent: 'center',
   },
+  // Segmented control & subtype chips
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+    padding: 2,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+  },
+  segmentButtonActive: {
+    backgroundColor: theme.colors.white,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  segmentButtonText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+    color: theme.colors.gray,
+  },
+  segmentButtonTextActive: {
+    color: theme.colors.dark,
+    fontWeight: '600',
+  },
+  subtypeScroll: { maxHeight: 40 },
+  subtypeContainer: { flexDirection: 'row', gap: theme.spacing.xs },
+  subtypeButton: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.lightGray,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  subtypeButtonActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  subtypeButtonText: { fontSize: theme.fontSize.sm, color: theme.colors.gray, fontWeight: '500' },
+  subtypeButtonTextActive: { color: theme.colors.white, fontWeight: '600' },
   fuelToggleText: {
     color: theme.colors.white,
     fontWeight: '600',

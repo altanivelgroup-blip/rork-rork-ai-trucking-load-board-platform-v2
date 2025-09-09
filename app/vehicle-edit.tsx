@@ -53,7 +53,7 @@ const VEHICLE_TYPES = [
 ];
 
 const TRUCK_SUBTYPES = [
-  'Hotshot Truck',
+  'Hotshot',
   'Cargo Van',
   'Box Truck',
   'Semi Truck',
@@ -83,7 +83,7 @@ export default function VehicleEditScreen() {
       make: '',
       model: '',
       type: 'truck',
-      subtype: 'Hotshot Truck',
+      subtype: 'Hotshot',
       vin: '',
       licensePlate: '',
       photos: [],
