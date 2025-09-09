@@ -164,6 +164,7 @@ function RootLayoutNav() {
       <Stack.Screen name="photo-uploader-demo" options={{ title: "Photo Uploader Demo" }} />
       <Stack.Screen name="debug-nav" options={{ title: "Debug Navigation" }} />
       <Stack.Screen name="backend-test" options={{ title: "Backend Test" }} />
+      <Stack.Screen name="dev-bulk-tools" options={{ title: "Bulk Tools (Dev)" }} />
     </Stack>
   );
 }

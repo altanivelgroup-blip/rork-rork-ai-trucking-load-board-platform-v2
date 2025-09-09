@@ -56,7 +56,18 @@ export default function LoginScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onLongPress={() => {
+                console.log('[login] logo long-pressed -> navigating to dev-bulk-tools');
+                try { router.push('/dev-bulk-tools'); } catch (e) { console.warn('nav error', e); }
+              }}
+              delayLongPress={500}
+              style={styles.logoContainer}
+              testID="login-logo-hotspot"
+              accessibilityRole="imagebutton"
+              accessibilityLabel="App logo"
+            >
               <Image
                 source={{ uri: AUTH_ICON_URL }}
                 style={styles.logoImage}
@@ -64,7 +75,7 @@ export default function LoginScreen() {
                 accessibilityLabel="LoadRun AI Load Board for Car Haulers"
                 testID="login-logo-image"
               />
-            </View>
+            </TouchableOpacity>
             <Text style={styles.title} testID="login-title">LoadRun</Text>
             <Text style={styles.subtitle}>AI Load Board for Car Haulers</Text>
           </View>
