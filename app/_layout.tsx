@@ -198,14 +198,14 @@ export default function RootLayout() {
                       <SettingsProvider>
                         <PaymentsProvider>
                           <MaintenanceProvider>
-                            <PostLoadProvider>
-                              <LoadsProvider>
+                            <LoadsProvider>
+                              <PostLoadProvider>
                                 <AutoArriveProvider>
                                   <RootLayoutNav />
                                   <AutoArriveSheet />
                                 </AutoArriveProvider>
-                              </LoadsProvider>
-                            </PostLoadProvider>
+                              </PostLoadProvider>
+                            </LoadsProvider>
                           </MaintenanceProvider>
                         </PaymentsProvider>
                       </SettingsProvider>
