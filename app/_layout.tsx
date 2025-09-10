@@ -15,6 +15,7 @@ import { AutoArriveProvider } from "@/hooks/useAutoArrive";
 
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
@@ -184,34 +185,36 @@ export default function RootLayout() {
   console.log("[RootLayout] rendering");
 
   return (
-    <ErrorBoundary safeRoute="/(auth)/login">
-      <GestureHandlerRootView style={styles.rootContainer}>
-        <trpc.Provider client={trpcClient} queryClient={queryClient}>
-          <QueryClientProvider client={queryClient}>
-          <View style={styles.appContainer}>
-            <AuthProvider>
-              <LoadsProvider>
-                <PaymentsProvider>
-                  <MaintenanceProvider>
-                    <SettingsProvider>
-                      <PostLoadProvider>
-                        <ToastProvider>
-                          <AutoArriveProvider>
-                            <RootLayoutNav />
-                            <AutoArriveSheet />
-                          </AutoArriveProvider>
-                          <ToastHost />
-                        </ToastProvider>
-                      </PostLoadProvider>
-                    </SettingsProvider>
-                  </MaintenanceProvider>
-                </PaymentsProvider>
-              </LoadsProvider>
-            </AuthProvider>
-          </View>
-          </QueryClientProvider>
-        </trpc.Provider>
-      </GestureHandlerRootView>
-    </ErrorBoundary>
+    <GlobalErrorBoundary>
+      <ErrorBoundary safeRoute="/(auth)/login">
+        <GestureHandlerRootView style={styles.rootContainer}>
+          <trpc.Provider client={trpcClient} queryClient={queryClient}>
+            <QueryClientProvider client={queryClient}>
+            <View style={styles.appContainer}>
+              <AuthProvider>
+                <LoadsProvider>
+                  <PaymentsProvider>
+                    <MaintenanceProvider>
+                      <SettingsProvider>
+                        <PostLoadProvider>
+                          <ToastProvider>
+                            <AutoArriveProvider>
+                              <RootLayoutNav />
+                              <AutoArriveSheet />
+                            </AutoArriveProvider>
+                            <ToastHost />
+                          </ToastProvider>
+                        </PostLoadProvider>
+                      </SettingsProvider>
+                    </MaintenanceProvider>
+                  </PaymentsProvider>
+                </LoadsProvider>
+              </AuthProvider>
+            </View>
+            </QueryClientProvider>
+          </trpc.Provider>
+        </GestureHandlerRootView>
+      </ErrorBoundary>
+    </GlobalErrorBoundary>
   );
 }
