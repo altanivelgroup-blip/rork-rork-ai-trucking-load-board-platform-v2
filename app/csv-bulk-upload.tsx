@@ -16,6 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { parseFileContent, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, validateLoadRow, CSVRow } from '@/utils/csv';
+import * as XLSX from 'xlsx';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
@@ -28,14 +29,14 @@ type TemplateType = 'simple' | 'standard' | 'complete';
 const TEMPLATE_CONFIGS = {
   simple: {
     name: 'Simple Template (5 columns)',
-    description: 'Origin, Destination, Vehicle Type, Weight, Price',
-    requiredHeaders: ['Origin', 'Destination', 'Vehicle Type', 'Weight', 'Price'],
+    description: 'Origin, Destination, VehicleType, Weight, Price',
+    requiredHeaders: ['Origin','Destination','VehicleType','Weight','Price'],
     color: theme.colors.primary,
   },
   standard: {
-    name: 'Standard Template (29 columns)',
+    name: 'Standard Template (16 columns)',
     description: 'Includes dates, addresses, contacts, requirements',
-    requiredHeaders: ['title','description','originCity','destinationCity','pickupDate','deliveryDate','vehicleType','weight','rate'],
+    requiredHeaders: ['title','description','equipmentType','vehicleCount','originCity','originState','originZip','destinationCity','destinationState','destinationZip','pickupDate','deliveryDate','rate','contactName','contactEmail','contactPhone'],
     color: theme.colors.success,
   },
   complete: {
@@ -52,14 +53,48 @@ interface ProcessedRow {
   id: string;
 }
 
+// Validate headers function
+function validateHeaders(headers: string[], expected: string[]): { ok: boolean; errors: string[] } {
+  console.log('Headers:', headers);
+  
+  const errors: string[] = [];
+  
+  // Check exact length match
+  if (headers.length !== expected.length) {
+    errors.push(`Expected ${expected.length} columns, got ${headers.length}`);
+  }
+  
+  // Check exact order and names
+  for (let i = 0; i < Math.max(headers.length, expected.length); i++) {
+    const actual = headers[i]?.trim() || '';
+    const expectedHeader = expected[i] || '';
+    
+    if (actual !== expectedHeader) {
+      if (i < expected.length && i < headers.length) {
+        errors.push(`Column ${i + 1}: expected "${expectedHeader}", got "${actual}"`);
+      } else if (i >= expected.length) {
+        errors.push(`Extra column ${i + 1}: "${actual}"`);
+      } else {
+        errors.push(`Missing column ${i + 1}: "${expectedHeader}"`);
+      }
+    }
+  }
+  
+  return {
+    ok: errors.length === 0,
+    errors
+  };
+}
+
 export default function CSVBulkUploadScreen() {
   const { user } = useAuth();
   const [processedRows, setProcessedRows] = useState<ProcessedRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [headerErrors, setHeaderErrors] = useState<string[]>([]);
+  const [headerValidation, setHeaderValidation] = useState<{ ok: boolean; errors: string[] } | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('simple');
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const toast = useToast();
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -85,6 +120,9 @@ export default function CSVBulkUploadScreen() {
   const handleFileSelect = useCallback(async () => {
     try {
       setIsLoading(true);
+      setHeaderValidation(null);
+      setProcessedRows([]);
+      setFileHeaders([]);
       
       const result = await DocumentPicker.getDocumentAsync({
         type: ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
@@ -96,28 +134,78 @@ export default function CSVBulkUploadScreen() {
       }
 
       const file = result.assets[0];
-      const { headers, rows } = await parseFileContent(file.uri, file.name);
       
-      const requiredHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
-      const headerIssues = validateCSVHeaders(headers, requiredHeaders);
-      setHeaderErrors(headerIssues);
+      // Only read headers initially
+      let headers: string[];
       
-      if (headerIssues.length > 0) {
-        showToast(`File headers do not match ${TEMPLATE_CONFIGS[selectedTemplate].name} format`, 'error');
-        return;
+      const fileExtension = file.name.toLowerCase().split('.').pop();
+      
+      if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        // For Excel files, we need to read the first row
+        let arrayBuffer: ArrayBuffer;
+        
+        if (typeof window !== 'undefined' && file.uri.startsWith('blob:')) {
+          const response = await fetch(file.uri);
+          arrayBuffer = await response.arrayBuffer();
+        } else {
+          const { FileSystem } = require('expo-file-system');
+          const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+          const binaryString = atob(base64);
+          arrayBuffer = new ArrayBuffer(binaryString.length);
+          const uint8Array = new Uint8Array(arrayBuffer);
+          for (let i = 0; i < binaryString.length; i++) {
+            uint8Array[i] = binaryString.charCodeAt(i);
+          }
+        }
+        
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
+        
+        if (jsonData.length === 0) {
+          throw new Error('Excel file appears to be empty');
+        }
+        
+        headers = jsonData[0].map(h => (h || '').toString().trim());
+      } else {
+        // For CSV files, read only the first line
+        let csvContent: string;
+        
+        if (typeof window !== 'undefined' && file.uri.startsWith('blob:')) {
+          const response = await fetch(file.uri);
+          csvContent = await response.text();
+        } else {
+          const { FileSystem } = require('expo-file-system');
+          csvContent = await FileSystem.readAsStringAsync(file.uri);
+        }
+        
+        const firstLine = csvContent.split('\n')[0];
+        headers = firstLine.split(',').map(h => h.replace(/"/g, '').trim());
       }
-
-      processCSVData(rows);
-      showToast(`Loaded ${rows.length} rows for preview`);
+      
+      setFileHeaders(headers);
+      
+      // Validate headers against selected template
+      const expectedHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
+      const validation = validateHeaders(headers, expectedHeaders);
+      setHeaderValidation(validation);
+      
+      if (validation.ok) {
+        showToast(`✅ Headers valid for ${TEMPLATE_CONFIGS[selectedTemplate].name}`, 'success');
+      } else {
+        showToast(`❌ Invalid headers. Expected ${TEMPLATE_CONFIGS[selectedTemplate].name} format.`, 'error');
+      }
       
     } catch (error: any) {
       console.error('File select error:', error);
-      const errorMessage = error.message || 'Failed to read file. Please ensure it\'s a valid CSV or Excel file.';
+      console.warn(error);
+      const errorMessage = error.message || 'CSV read error';
       showToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [processCSVData, showToast, selectedTemplate]);
+  }, [showToast, selectedTemplate]);
 
   const removeRow = useCallback((index: number) => {
     setProcessedRows(prev => prev.filter((_, i) => i !== index));
@@ -149,10 +237,10 @@ export default function CSVBulkUploadScreen() {
         
         if (selectedTemplate === 'simple') {
           loadData = {
-            title: `${original['Vehicle Type']} - ${original['Origin']} to ${original['Destination']}`,
+            title: `${original['VehicleType']} - ${original['Origin']} to ${original['Destination']}`,
             origin: original['Origin']?.trim() || '',
             destination: original['Destination']?.trim() || '',
-            vehicleType: original['Vehicle Type']?.trim() || '',
+            vehicleType: original['VehicleType']?.trim() || '',
             weight: Number(original['Weight']?.replace(/[^0-9.]/g, '') || 0),
             rate: Number(original['Price']?.replace(/[^0-9.]/g, '') || 0),
             status: 'OPEN',
@@ -338,7 +426,7 @@ export default function CSVBulkUploadScreen() {
             <Download size={20} color={theme.colors.primary} />
             <View style={styles.templateTextContainer}>
               <Text style={styles.templateText}>Simple Template (5 columns)</Text>
-              <Text style={styles.templateSubtext}>Origin, Destination, Vehicle Type, Weight, Price</Text>
+              <Text style={styles.templateSubtext}>Origin, Destination, VehicleType, Weight, Price</Text>
             </View>
           </TouchableOpacity>
           
@@ -348,7 +436,7 @@ export default function CSVBulkUploadScreen() {
           >
             <Download size={20} color={theme.colors.success} />
             <View style={styles.templateTextContainer}>
-              <Text style={styles.templateText}>Standard Template (29 columns)</Text>
+              <Text style={styles.templateText}>Standard Template (16 columns)</Text>
               <Text style={styles.templateSubtext}>Includes dates, addresses, contacts, requirements</Text>
             </View>
           </TouchableOpacity>
@@ -404,7 +492,8 @@ export default function CSVBulkUploadScreen() {
                       setSelectedTemplate(templateType);
                       setShowTemplateDropdown(false);
                       setProcessedRows([]);
-                      setHeaderErrors([]);
+                      setHeaderValidation(null);
+                      setFileHeaders([]);
                     }}
                   >
                     <View style={[styles.templateIndicator, { backgroundColor: config.color }]} />
@@ -441,13 +530,48 @@ export default function CSVBulkUploadScreen() {
           </Text>
         </TouchableOpacity>
 
-        {headerErrors.length > 0 && (
-          <View style={styles.errorContainer}>
-            <AlertCircle size={20} color={theme.colors.danger} />
-            <Text style={styles.errorTitle}>Header Issues:</Text>
-            {headerErrors.map((error, index) => (
-              <Text key={index} style={styles.errorText}>• {error}</Text>
-            ))}
+        {headerValidation && (
+          <View style={[styles.bannerContainer, headerValidation.ok ? styles.successBanner : styles.errorBanner]}>
+            {headerValidation.ok ? (
+              <>
+                <CheckCircle size={20} color={theme.colors.success} />
+                <Text style={[styles.bannerTitle, styles.successText]}>
+                  ✅ Headers valid for {TEMPLATE_CONFIGS[selectedTemplate].name}
+                </Text>
+              </>
+            ) : (
+              <>
+                <AlertCircle size={20} color={theme.colors.danger} />
+                <View style={styles.bannerContent}>
+                  <Text style={[styles.bannerTitle, styles.errorText]}>
+                    ❌ Invalid headers. Expected {TEMPLATE_CONFIGS[selectedTemplate].name} format.
+                  </Text>
+                  {headerValidation.errors.map((error, index) => (
+                    <Text key={index} style={styles.bannerErrorText}>• {error}</Text>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
+        {headerValidation?.ok && (
+          <View style={styles.actionContainer}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.previewButton]}
+              disabled={true}
+            >
+              <Text style={styles.actionButtonText}>Preview & Validate</Text>
+              <Text style={styles.actionButtonSubtext}>(Coming Soon)</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.actionButton, styles.importButton]}
+              disabled={true}
+            >
+              <Text style={styles.actionButtonText}>Import</Text>
+              <Text style={styles.actionButtonSubtext}>(Coming Soon)</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -480,8 +604,8 @@ export default function CSVBulkUploadScreen() {
                     </View>
                     <Text style={styles.rowDetails}>
                       {selectedTemplate === 'simple'
-                        ? `${row.original['Vehicle Type']} • ${row.original['Weight']} lbs • ${row.original['Price']}`
-                        : `${row.original['vehicleType'] || row.original['Vehicle Type']} • ${row.original['weight'] || row.original['Weight']} lbs • ${row.original['rate'] || row.original['Price']}`
+                        ? `${row.original['VehicleType']} • ${row.original['Weight']} lbs • ${row.original['Price']}`
+                        : `${row.original['vehicleType'] || row.original['VehicleType']} • ${row.original['weight'] || row.original['Weight']} lbs • ${row.original['rate'] || row.original['Price']}`
                       }
                     </Text>
                   </View>
@@ -531,7 +655,7 @@ export default function CSVBulkUploadScreen() {
             
             {validRows.length > 0 && (
               <TouchableOpacity
-                style={[styles.importButton, isImporting && styles.importButtonDisabled]}
+                style={[styles.finalImportButton, isImporting && styles.importButtonDisabled]}
                 onPress={handleImport}
                 disabled={isImporting}
               >
@@ -638,22 +762,72 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: theme.spacing.sm,
   },
-  errorContainer: {
-    backgroundColor: '#FEE2E2',
+  bannerContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
     marginBottom: theme.spacing.md,
   },
-  errorTitle: {
+  successBanner: {
+    backgroundColor: '#D1FAE5',
+    borderColor: theme.colors.success,
+    borderWidth: 1,
+  },
+  errorBanner: {
+    backgroundColor: '#FEE2E2',
+    borderColor: theme.colors.danger,
+    borderWidth: 1,
+  },
+  bannerContent: {
+    flex: 1,
+    marginLeft: theme.spacing.sm,
+  },
+  bannerTitle: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: theme.colors.danger,
     marginBottom: theme.spacing.xs,
+    marginLeft: theme.spacing.sm,
+  },
+  successText: {
+    color: theme.colors.success,
   },
   errorText: {
-    fontSize: theme.fontSize.sm,
     color: theme.colors.danger,
-    marginLeft: theme.spacing.sm,
+  },
+  bannerErrorText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.danger,
+    marginTop: 2,
+  },
+  actionContainer: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
+  },
+  actionButton: {
+    flex: 1,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    opacity: 0.5,
+  },
+  previewButton: {
+    backgroundColor: theme.colors.primary,
+  },
+  importButton: {
+    backgroundColor: theme.colors.success,
+  },
+  actionButtonText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  actionButtonSubtext: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.white,
+    opacity: 0.8,
+    marginTop: 2,
   },
   previewContainer: {
     backgroundColor: theme.colors.white,
@@ -730,7 +904,7 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
   },
-  importButton: {
+  finalImportButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

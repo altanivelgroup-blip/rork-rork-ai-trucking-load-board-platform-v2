@@ -5,7 +5,7 @@ export type CSVRow = Record<string, string>;
 export type SimpleLoadRow = {
   'Origin': string;
   'Destination': string;
-  'Vehicle Type': string;
+  'VehicleType': string;
   'Weight': string;
   'Price': string;
 };
@@ -58,28 +58,13 @@ export function splitCSVLine(line: string): string[] {
 
 export function buildCanonicalTemplateCSV(): string {
   const headers = [
-    'title','description','originCity','originState','originZip','originAddress',
-    'destinationCity','destinationState','destinationZip','destinationAddress',
-    'pickupDate','pickupTime','deliveryDate','deliveryTime','timeZone',
-    'vehicleType','weight','rate','ratePerMile','distance',
-    'specialRequirements','contactName','contactPhone','contactEmail',
-    'loadType','dimensions','hazmat','temperature','notes'
+    'title','description','equipmentType','vehicleCount','originCity','originState','originZip','destinationCity','destinationState','destinationZip','pickupDate','deliveryDate','rate','contactName','contactEmail','contactPhone'
   ];
   const r1 = [
-    'Dallas to Houston','Palletized goods','Dallas','TX','75201','123 Main St',
-    'Houston','TX','77001','456 Oak Ave',
-    '2025-09-10','09:00','2025-09-10','17:00','America/Chicago',
-    'Flatbed','12000','1400','4.83','290',
-    'Tarps required','John Smith','555-0123','john@company.com',
-    'Freight','48x40x60','No','N/A','Handle with care'
+    'Dallas to Houston','Palletized goods','Flatbed','1','Dallas','TX','75201','Houston','TX','77001','2025-09-10','2025-09-10','1400','John Smith','john@company.com','555-0123'
   ];
   const r2 = [
-    'Vegas to Phoenix','Expedited delivery','Las Vegas','NV','89101','789 Strip Blvd',
-    'Phoenix','AZ','85001','321 Desert Rd',
-    '2025-09-12','09:00','2025-09-12','17:00','America/Phoenix',
-    'Reefer','8000','1800','6.21','290',
-    'Keep frozen -10F','Jane Doe','555-0456','jane@logistics.com',
-    'Food','40x48x72','No','-10F','Temperature critical'
+    'Vegas to Phoenix','Expedited delivery','Reefer','1','Las Vegas','NV','89101','Phoenix','AZ','85001','2025-09-12','2025-09-12','1800','Jane Doe','jane@logistics.com','555-0456'
   ];
   return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n';
 }
@@ -155,7 +140,7 @@ export function buildCompleteTemplateCSV(): string {
 }
 
 export function buildSimpleTemplateCSV(): string {
-  const headers = ['Origin','Destination','Vehicle Type','Weight','Price'];
+  const headers = ['Origin','Destination','VehicleType','Weight','Price'];
   const r1 = ['Dallas, TX','Houston, TX','Car Hauler','5000','1200'];
   const r2 = ['Las Vegas, NV','Phoenix, AZ','Box Truck','8000','1600'];
   const r3 = ['Miami, FL','Atlanta, GA','Flatbed','12000','2400'];
@@ -198,8 +183,8 @@ export function validateSimpleLoadRow(row: SimpleLoadRow): string[] {
     errors.push('Destination is required');
   }
   
-  if (!row['Vehicle Type']?.trim()) {
-    errors.push('Vehicle Type is required');
+  if (!row['VehicleType']?.trim()) {
+    errors.push('VehicleType is required');
   }
   
   if (!row['Weight']?.trim()) {
