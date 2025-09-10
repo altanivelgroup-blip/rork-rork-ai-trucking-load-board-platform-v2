@@ -1,8 +1,9 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Alert } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { Mic, Square } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { PermissionEducation } from '@/components/PermissionEducation';
+import { platformAlert } from '@/utils/platformAlert';
 
 interface VoiceCaptureProps {
   onTranscribed: (text: string) => void;
@@ -36,11 +37,11 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
       if (txt.length > 0) {
         onTranscribed(txt);
       } else {
-        Alert.alert('No speech detected', 'Try speaking closer to the mic.');
+        platformAlert('No speech detected', 'Try speaking closer to the mic.');
       }
     } catch (e) {
       console.log('[VoiceCapture] STT error', e);
-      Alert.alert('Transcription failed', 'Please try again.');
+      platformAlert('Transcription failed', 'Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -69,7 +70,7 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
       setIsRecording(true);
     } catch (e) {
       console.log('[VoiceCapture] startWebRecording error', e);
-      Alert.alert('Microphone Error', 'Please allow microphone access in your browser.');
+      platformAlert('Microphone Error', 'Please allow microphone access in your browser.');
     }
   }, [sendToSTT]);
 
@@ -87,7 +88,7 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
       const { Audio } = await import('expo-av');
       const perm = await Audio.requestPermissionsAsync();
       if (perm.status !== 'granted') {
-        Alert.alert('Permission required', 'Please enable microphone access in settings.');
+        platformAlert('Permission required', 'Please enable microphone access in settings.');
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
@@ -98,7 +99,7 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
       setIsRecording(true);
     } catch (e) {
       console.log('[VoiceCapture] startNativeRecording error', e);
-      Alert.alert('Recording error', 'Failed to start recording.');
+      platformAlert('Recording error', 'Failed to start recording.');
     }
   }, []);
 
@@ -113,7 +114,7 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
       setIsRecording(false);
       if (!uri) {
-        Alert.alert('Recording error', 'No audio captured.');
+        platformAlert('Recording error', 'No audio captured.');
         return;
       }
       const ext = uri.split('.').pop() ?? 'm4a';
@@ -127,10 +128,10 @@ export const VoiceCapture: React.FC<VoiceCaptureProps> = memo(({ onTranscribed, 
       const data = (await res.json()) as { text?: string };
       const txt = (data?.text ?? '').trim();
       if (txt.length > 0) onTranscribed(txt);
-      else Alert.alert('No speech detected', 'Try speaking closer to the mic.');
+      else platformAlert('No speech detected', 'Try speaking closer to the mic.');
     } catch (e) {
       console.log('[VoiceCapture] stopNativeRecording error', e);
-      Alert.alert('Transcription failed', 'Please try again.');
+      platformAlert('Transcription failed', 'Please try again.');
     } finally {
       setIsSending(false);
     }

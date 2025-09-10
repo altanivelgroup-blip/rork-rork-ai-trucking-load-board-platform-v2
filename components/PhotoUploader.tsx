@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Alert,
+
   Platform,
   StyleSheet,
   ActivityIndicator,
@@ -41,6 +41,7 @@ import {
 import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
 import { prepareForUpload, isImageMime, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
+import { platformAlert } from '@/utils/platformAlert';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -574,7 +575,7 @@ export function PhotoUploader({
   }, [state.photos, updateFirestorePhotos, toast, onChange]);
 
   const handleDeletePhoto = useCallback(async (photoToDelete: PhotoItem) => {
-    Alert.alert(
+    platformAlert(
       'Delete Photo',
       'Are you sure you want to delete this photo?',
       [
@@ -741,7 +742,7 @@ export function PhotoUploader({
 
           <View style={styles.qaControl}>
             <Text style={styles.qaControlLabel}>Photo Size</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={styles.sizeButtonContainer}>
               {(['small','medium','large'] as ResizePreset[]).map(p => (
                 <TouchableOpacity
                   key={p}
@@ -837,7 +838,7 @@ export function PhotoUploader({
         <View style={styles.errorContainer}>
           <AlertCircle color={theme.colors.danger} size={20} />
           <Text style={styles.errorContainerText}>
-            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap "Retry" to try again.
+            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap &quot;Retry&quot; to try again.
           </Text>
         </View>
       )}
@@ -1139,6 +1140,10 @@ const styles = StyleSheet.create({
   },
   sizePillTextActive: {
     color: theme.colors.white,
+  },
+  sizeButtonContainer: {
+    flexDirection: 'row',
+    gap: 8,
   },
   retryButton: {
     backgroundColor: theme.colors.primary,
