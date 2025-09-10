@@ -81,6 +81,7 @@ export interface Driver extends User {
   trailerPolicyNumber?: string;
   trailerGvwrLbs?: number | null;
   trailerType?: VehicleType;
+  vehicleSubtype?: string;
 }
 
 export interface Document {
