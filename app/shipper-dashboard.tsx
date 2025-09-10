@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { getFirebase } from '@/utils/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as Clipboard from 'expo-clipboard';
 
@@ -31,6 +31,109 @@ interface UserInfo {
   authCreationTime?: string | null;
   isAnonymous?: boolean;
   device?: string;
+}
+
+interface LoginHistoryItem {
+  createdAt: { seconds: number; nanoseconds: number };
+  device?: string;
+  provider?: string;
+}
+
+function LoginHistoryDropdown() {
+  const { userId } = useAuth();
+  const [firebaseUser, setFirebaseUser] = useState<any>(null);
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const auth = getAuth();
+    setFirebaseUser(auth.currentUser);
+  }, []);
+
+  useEffect(() => {
+    async function fetchLoginHistory() {
+      const uid = userId || firebaseUser?.uid;
+      if (!uid || !expanded) return;
+
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const { db } = getFirebase();
+        const loginsRef = collection(db, 'users', uid, 'logins');
+        const q = query(loginsRef, orderBy('createdAt', 'desc'), limit(5));
+        const snapshot = await getDocs(q);
+        
+        const history: LoginHistoryItem[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.createdAt) {
+            history.push(data as LoginHistoryItem);
+          }
+        });
+        
+        setLoginHistory(history);
+      } catch (err) {
+        console.warn('[LoginHistoryDropdown] Failed to fetch login history:', err);
+        setError('Couldn\'t load login history.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchLoginHistory();
+  }, [userId, firebaseUser?.uid, expanded]);
+
+  const formatLoginTime = (timestamp: { seconds: number; nanoseconds: number }) => {
+    const date = new Date(timestamp.seconds * 1000);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const uid = userId || firebaseUser?.uid;
+  if (!uid) return null;
+
+  return (
+    <View style={styles.loginHistoryContainer}>
+      <TouchableOpacity 
+        style={styles.loginHistoryHeader}
+        onPress={() => setExpanded(!expanded)}
+        testID="login-history-toggle"
+      >
+        <Text style={styles.loginHistoryLabel}>Last 5 logins</Text>
+        {expanded ? (
+          <ChevronDown size={14} color={theme.colors.gray} />
+        ) : (
+          <ChevronRight size={14} color={theme.colors.gray} />
+        )}
+      </TouchableOpacity>
+      
+      {expanded && (
+        <View style={styles.loginHistoryContent}>
+          {loading ? (
+            <Text style={styles.loginHistoryItem}>Loading...</Text>
+          ) : error ? (
+            <Text style={styles.loginHistoryError}>{error}</Text>
+          ) : loginHistory.length === 0 ? (
+            <Text style={styles.loginHistoryEmpty}>No login history yet.</Text>
+          ) : (
+            loginHistory.map((login, index) => (
+              <Text key={`${login.createdAt.seconds}-${index}`} style={styles.loginHistoryItem}>
+                {formatLoginTime(login.createdAt)} — {login.device || 'unknown'} — {login.provider || 'unknown'}
+              </Text>
+            ))
+          )}
+        </View>
+      )}
+    </View>
+  );
 }
 
 function UserInfoRow() {
@@ -304,6 +407,7 @@ export default function ShipperDashboard() {
           <Text style={styles.title}>Shipper Dashboard</Text>
           <Text style={styles.subtitle}>Manage your loads and track performance</Text>
           <UserInfoRow />
+          <LoginHistoryDropdown />
         </View>
         
         <View style={styles.statsGrid}>
@@ -896,5 +1000,38 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.sm,
     fontWeight: '500',
+  },
+  loginHistoryContainer: {
+    marginTop: theme.spacing.xs,
+  },
+  loginHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: theme.spacing.xs,
+  },
+  loginHistoryLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    fontWeight: '500',
+  },
+  loginHistoryContent: {
+    paddingLeft: theme.spacing.sm,
+    paddingTop: theme.spacing.xs,
+  },
+  loginHistoryItem: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    paddingVertical: 2,
+  },
+  loginHistoryEmpty: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    fontStyle: 'italic',
+  },
+  loginHistoryError: {
+    fontSize: theme.fontSize.xs,
+    color: '#f59e0b',
+    fontStyle: 'italic',
   },
 });
