@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence, signInAnonymously } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getFirebase } from '@/utils/firebase';
 
 // Track initialization state
@@ -69,6 +70,9 @@ async function performInitAuth(): Promise<void> {
 
     // 3) Set up auth state listener (only once)
     setupAuthStateListener(auth);
+    
+    // 4) Set up login tracking
+    watchAndRecordLogin();
     
   } catch (error: any) {
     console.error('[InitAuth] Critical initialization error:', error);
@@ -141,4 +145,34 @@ export async function ensureAuthReady(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// Track user login events in Firestore
+export function watchAndRecordLogin() {
+  const { auth, db } = getFirebase();
+
+  onAuthStateChanged(auth, async (u) => {
+    if (!u) return;
+    
+    try {
+      await setDoc(
+        doc(db, "users", u.uid),
+        {
+          // server authoritative login time:
+          lastLoginAt: serverTimestamp(),
+          // handy extras
+          isAnonymous: u.isAnonymous ?? false,
+          lastProvider: u.providerData?.[0]?.providerId ?? "anonymous",
+          // what the client saw from Auth (string)
+          authLastSignInTime: u.metadata?.lastSignInTime || null,
+          authCreationTime: u.metadata?.creationTime || null,
+          device: Platform.OS, // "web" | "ios" | "android"
+        },
+        { merge: true }
+      );
+      console.log("[InitAuth] Recorded lastLoginAt for", u.uid);
+    } catch (e) {
+      console.warn("[InitAuth] Failed to record lastLoginAt:", e);
+    }
+  });
 }
