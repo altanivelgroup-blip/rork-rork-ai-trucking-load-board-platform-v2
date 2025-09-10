@@ -71,14 +71,14 @@ async function performInitAuth(): Promise<void> {
     // 3) Set up auth state listener (only once)
     setupAuthStateListener(auth);
     
-    // 4) Set up login tracking (fire and forget)
+    // 4) Set up login tracking (fire and forget) - delay to avoid conflicts
     setTimeout(() => {
       try {
         watchAndRecordLogin();
       } catch (e) {
         console.warn('[InitAuth] Login tracking setup failed:', e);
       }
-    }, 100);
+    }, 1000);
     
   } catch (error: any) {
     console.error('[InitAuth] Critical initialization error:', error);
@@ -165,7 +165,8 @@ export function watchAndRecordLogin() {
   try {
     const { auth, db } = getFirebase();
 
-    onAuthStateChanged(auth, async (u) => {
+    // Use a separate listener for login tracking to avoid conflicts
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (!u) return;
       
       try {
@@ -189,6 +190,9 @@ export function watchAndRecordLogin() {
         console.warn("[InitAuth] Failed to record lastLoginAt:", e);
       }
     });
+    
+    // Store unsubscribe function for cleanup if needed
+    (globalThis as any).__loginWatcherUnsubscribe = unsubscribe;
   } catch (error) {
     console.warn('[InitAuth] Failed to setup login watcher:', error);
   }
