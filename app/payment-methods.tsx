@@ -10,8 +10,8 @@ type PlanId = 'basic' | 'pro' | 'enterprise';
 
 const PLAN_META: Record<PlanId, { label: string; price: string; period: string; description: string }> = {
   basic: { label: 'Basic', price: 'Free', period: '', description: 'Essential features' },
-  pro: { label: 'Pro', price: '$49', period: '/month', description: 'Most popular' },
-  enterprise: { label: 'Enterprise', price: '$99', period: '/month', description: 'For fleets' },
+  pro: { label: 'Pro', price: '$49.99', period: '/month', description: 'Most popular' },
+  enterprise: { label: 'Enterprise', price: '$199', period: '/month', description: 'For fleets' },
 };
 
 export default function PaymentMethodsScreen() {
@@ -100,13 +100,13 @@ export default function PaymentMethodsScreen() {
               )}
             </View>
             <View style={styles.planBannerContent}>
-              <Text style={styles.planBannerTitle}>{isLockedFromActive ? 'Active Plan' : 'Locked Plan'}</Text>
+              <Text style={styles.planBannerTitle}>{isLockedFromActive ? 'Active Plan' : 'Selected Plan'}</Text>
               <Text style={styles.planBannerSubtitle}>
                 {PLAN_META[effectivePlan].label} {PLAN_META[effectivePlan].price}
                 <Text style={styles.planBannerPeriod}> {PLAN_META[effectivePlan].period}</Text>
               </Text>
               <Text style={styles.planBannerHint}>
-                {isLockedFromActive ? 'This is your current subscription. Plan selection is locked.' : 'Plan is locked from ?plan. You can confirm below.'}
+                {isLockedFromActive ? 'This is your current subscription.' : 'Complete payment setup to activate this plan.'}
               </Text>
             </View>
             <Lock size={18} color={theme.colors.gray} />
@@ -246,7 +246,7 @@ export default function PaymentMethodsScreen() {
 
                   setIsConfirming(true);
                   await updateProfile({ membershipTier: effectivePlan });
-                  Alert.alert('Success', `Subscribed to ${PLAN_META[effectivePlan].label}.`, [
+                  Alert.alert('Success', `Successfully upgraded to ${PLAN_META[effectivePlan].label} plan!`, [
                     { text: 'OK', onPress: () => router.back() },
                   ]);
                 } catch {
@@ -257,7 +257,9 @@ export default function PaymentMethodsScreen() {
               }}
               disabled={isConfirming}
             >
-              <Text style={styles.confirmText}>Confirm / Subscribe</Text>
+              <Text style={styles.confirmText}>
+                {effectivePlan === 'basic' ? 'Activate Basic Plan' : 'Subscribe & Activate'}
+              </Text>
             </TouchableOpacity>
           ) : (
             <View style={[styles.confirmBtn, { backgroundColor: '#E5E7EB' }]} accessibilityRole="button" accessibilityState={{ disabled: true }}>

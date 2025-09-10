@@ -1,13 +1,19 @@
 // app/shipper-membership.tsx
 import React, { useMemo } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { theme } from "@/constants/theme";
 import { Check, X, Star } from "lucide-react-native";
+import { useAuth } from "@/hooks/useAuth";
 
 type PlanKey = "shipper-basic" | "shipper-pro" | "shipper-enterprise";
 
 export default function ShipperMembershipScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  
+  const currentPlan = user?.membershipTier || 'basic';
+  
   const plans = useMemo(
     () => [
       {
@@ -63,7 +69,7 @@ export default function ShipperMembershipScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.lightGray }}>
+    <View style={styles.container}>
       <Stack.Screen options={{ title: "Shipper Membership" }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.h1}>Choose your Shipper plan</Text>
@@ -72,20 +78,42 @@ export default function ShipperMembershipScreen() {
         </Text>
 
         <View style={styles.grid}>
-          {plans.map((p) => (
-            <PlanCard
-              key={p.key}
-              name={p.name}
-              price={p.price}
-              highlight={p.highlight}
-              features={p.features}
-              cta={p.cta}
-              onPress={() => {
-                // TODO: wire to purchase/upgrade or contact flow
-                console.log("[ShipperMembership] choose", p.key);
-              }}
-            />
-          ))}
+          {plans.map((p) => {
+            const planKey = p.key.replace('shipper-', '') as 'basic' | 'pro' | 'enterprise';
+            const isCurrentPlan = currentPlan === planKey;
+            
+            return (
+              <PlanCard
+                key={p.key}
+                name={p.name}
+                price={p.price}
+                highlight={p.highlight}
+                features={p.features}
+                cta={isCurrentPlan ? 'Current Plan' : p.cta}
+                isCurrentPlan={isCurrentPlan}
+                onPress={() => {
+                  console.log("[ShipperMembership] choose", p.key);
+                  
+                  if (isCurrentPlan) {
+                    // Already on this plan, just show payment methods
+                    router.push('/payment-methods');
+                    return;
+                  }
+                  
+                  if (p.key === 'shipper-basic') {
+                    // Basic plan is free, no payment needed
+                    router.push('/payment-methods?plan=basic');
+                  } else if (p.key === 'shipper-pro') {
+                    // Navigate to payment methods with pro plan
+                    router.push('/payment-methods?plan=pro');
+                  } else if (p.key === 'shipper-enterprise') {
+                    // Navigate to payment methods with enterprise plan
+                    router.push('/payment-methods?plan=enterprise');
+                  }
+                }}
+              />
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -98,6 +126,7 @@ function PlanCard({
   features,
   cta,
   highlight,
+  isCurrentPlan = false,
   onPress,
 }: {
   name: string;
@@ -105,6 +134,7 @@ function PlanCard({
   features: { label: string; ok: boolean; note?: string }[];
   cta: string;
   highlight: "popular" | "value" | null;
+  isCurrentPlan?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -121,7 +151,7 @@ function PlanCard({
 
       <View style={styles.divider} />
 
-      <View style={{ gap: 10 }}>
+      <View style={styles.featuresContainer}>
         {features.map((f, i) => (
           <View key={i} style={styles.row}>
             {f.ok ? (
@@ -137,15 +167,26 @@ function PlanCard({
         ))}
       </View>
 
-      <Pressable onPress={onPress} style={styles.cta}>
-        <Text style={styles.ctaText}>{cta}</Text>
+      <Pressable 
+        onPress={onPress} 
+        style={[
+          styles.cta, 
+          isCurrentPlan && styles.ctaCurrent
+        ]}
+      >
+        <Text style={[
+          styles.ctaText,
+          isCurrentPlan && styles.ctaTextCurrent
+        ]}>{cta}</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.lightGray },
   scroll: { padding: 16, paddingBottom: 32 },
+  featuresContainer: { gap: 10 },
   h1: { fontSize: theme.fontSize.xl, fontWeight: "800", color: theme.colors.dark, textAlign: "center" },
   sub: { color: theme.colors.gray, textAlign: "center", marginTop: 6, marginBottom: 16 },
   grid: {
@@ -198,5 +239,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  ctaCurrent: {
+    backgroundColor: theme.colors.lightGray,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
   ctaText: { color: "#fff", fontWeight: "800" },
+  ctaTextCurrent: { color: theme.colors.gray },
 });
