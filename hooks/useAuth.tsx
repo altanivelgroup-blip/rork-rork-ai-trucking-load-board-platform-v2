@@ -27,6 +27,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
+  const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
   const toast = useToast();
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         if (cached) {
           console.log('[auth] found cached user');
           setUser(JSON.parse(cached));
+          setIsAnonymous(false); // Cached user means they were previously authenticated
         } else {
           console.log('[auth] no cached user found');
         }
@@ -65,13 +67,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               if (!isMounted) return;
               
               if (firebaseUser) {
-                console.log('[auth] Firebase user state changed:', firebaseUser.uid);
+                console.log('[auth] Firebase user state changed:', firebaseUser.uid, 'isAnonymous:', firebaseUser.isAnonymous);
                 setUserId(firebaseUser.uid);
                 setIsFirebaseAuthenticated(true);
+                setIsAnonymous(firebaseUser.isAnonymous);
               } else {
                 console.log('[auth] Firebase user signed out');
                 setUserId(null);
                 setIsFirebaseAuthenticated(false);
+                setIsAnonymous(true);
               }
             });
           } else {
@@ -130,6 +134,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     } as Driver;
     
     setUser(mockUser);
+    setIsAnonymous(false); // Mark as not anonymous when user logs in
     await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
     console.log('[auth] login successful');
   }, []);
@@ -162,12 +167,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     } as unknown as Driver;
 
     setUser(mockUser);
+    setIsAnonymous(false); // Mark as not anonymous when user registers
     await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
   }, []);
 
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
     setUser(null);
+    setIsAnonymous(true); // Reset to anonymous on logout
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -238,14 +245,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     user,
     userId,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && !isAnonymous, // Only authenticated if user exists AND not anonymous
     isFirebaseAuthenticated,
     login,
     register,
     resetPassword,
     logout,
     updateProfile,
-  }), [user, userId, isLoading, isFirebaseAuthenticated, login, register, resetPassword, logout, updateProfile]);
+  }), [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, login, register, resetPassword, logout, updateProfile]);
 
   return value;
 });
