@@ -105,12 +105,13 @@ export default function ShipperDashboard() {
       // Loads with very low rates (below $1000)
       ...shipperLoads.filter(load => (load.rate || 0) < 1000).map(load => `Low rate: ${load.description || 'Untitled'} (${load.rate})`),
       // Loads that have been available for too long (mock: more than 7 days old)
+      // Note: Using pickupDate as proxy for creation date since createdAt is not available
       ...shipperLoads.filter(load => {
         if (load.status !== 'available') return false;
-        const createdDate = load.createdAt ? new Date(load.createdAt) : new Date();
-        const daysDiff = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+        const pickupDate = load.pickupDate ? new Date(load.pickupDate) : new Date();
+        const daysDiff = (Date.now() - pickupDate.getTime()) / (1000 * 60 * 60 * 24);
         return daysDiff > 7;
-      }).map(load => `Stale load: ${load.description || 'Untitled'} (${Math.floor((Date.now() - (load.createdAt ? new Date(load.createdAt).getTime() : Date.now())) / (1000 * 60 * 60 * 24))} days old)`),
+      }).map(load => `Stale load: ${load.description || 'Untitled'} (${Math.floor((Date.now() - (load.pickupDate ? new Date(load.pickupDate).getTime() : Date.now())) / (1000 * 60 * 60 * 24))} days old)`),
       // Loads missing critical information
       ...shipperLoads.filter(load => 
         !load.origin?.city || !load.destination?.city || !load.rate || !load.description
