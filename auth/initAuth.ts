@@ -71,8 +71,14 @@ async function performInitAuth(): Promise<void> {
     // 3) Set up auth state listener (only once)
     setupAuthStateListener(auth);
     
-    // 4) Set up login tracking
-    watchAndRecordLogin();
+    // 4) Set up login tracking (fire and forget)
+    setTimeout(() => {
+      try {
+        watchAndRecordLogin();
+      } catch (e) {
+        console.warn('[InitAuth] Login tracking setup failed:', e);
+      }
+    }, 100);
     
   } catch (error: any) {
     console.error('[InitAuth] Critical initialization error:', error);

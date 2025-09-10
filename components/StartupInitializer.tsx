@@ -16,13 +16,13 @@ export function StartupInitializer({ children }: StartupInitializerProps) {
       try {
         console.log('[StartupInitializer] Starting app initialization...');
         
-        // Initialize Firebase auth at startup (non-blocking)
+        // Initialize Firebase auth at startup (fire and forget)
         initAuth().catch((error) => {
           console.warn('[StartupInitializer] Firebase init failed, continuing anyway:', error);
         });
         
-        // Small delay to let things settle, then proceed
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Minimal delay to prevent flash, then proceed
+        await new Promise(resolve => setTimeout(resolve, 50));
         
         console.log('[StartupInitializer] App initialization completed');
         
@@ -46,12 +46,12 @@ export function StartupInitializer({ children }: StartupInitializerProps) {
     };
   }, []);
 
-  // Show loading screen during initialization
+  // Show minimal loading screen during initialization
   if (isInitializing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0b5fff" />
-        <Text style={styles.loadingText}>Initializing app...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }

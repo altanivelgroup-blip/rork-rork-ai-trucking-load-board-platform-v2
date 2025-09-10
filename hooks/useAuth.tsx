@@ -29,77 +29,87 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
 
-
+  // Load cached user data
   useEffect(() => {
     let isMounted = true;
-    let unsubscribeAuth: (() => void) | null = null;
     
-    const init = async () => {
+    const loadCachedUser = async () => {
       try {
-        console.log('[auth] initializing...');
-        
-        // Load cached user profile first (non-blocking)
+        console.log('[auth] loading cached user...');
         const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
         
         if (!isMounted) return;
         
         if (cached) {
           console.log('[auth] found cached user');
-          setUser(JSON.parse(cached));
-          setIsAnonymous(false); // Cached user means they were previously authenticated
+          const cachedUser = JSON.parse(cached);
+          setUser(cachedUser);
+          setIsAnonymous(false);
         } else {
           console.log('[auth] no cached user found');
         }
         
-        // Set loading to false immediately to unblock UI
         setIsLoading(false);
-        
-        // Try Firebase auth in background (non-blocking)
-        ensureFirebaseAuth().then((firebaseAuthSuccess) => {
-          if (!isMounted) return;
-          
-          if (firebaseAuthSuccess) {
-            console.log('[auth] Firebase authentication successful');
-            setIsFirebaseAuthenticated(true);
-            
-            // Set up Firebase auth state listener
-            unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-              if (!isMounted) return;
-              
-              if (firebaseUser) {
-                console.log('[auth] Firebase user state changed:', firebaseUser.uid, 'isAnonymous:', firebaseUser.isAnonymous);
-                setUserId(firebaseUser.uid);
-                setIsFirebaseAuthenticated(true);
-                setIsAnonymous(firebaseUser.isAnonymous);
-              } else {
-                console.log('[auth] Firebase user signed out');
-                setUserId(null);
-                setIsFirebaseAuthenticated(false);
-                setIsAnonymous(true);
-              }
-            });
-          } else {
-            console.log('[auth] Firebase authentication failed, continuing without it');
-            // Don't show error toast - just continue without Firebase
-          }
-        }).catch((e) => {
-          console.warn('[auth] Firebase init failed, continuing without it:', e);
-        });
-        
       } catch (e) {
-        console.error('[auth] init error', e);
+        console.error('[auth] error loading cached user:', e);
         if (isMounted) {
-          setIsLoading(false); // Always unblock UI
+          setIsLoading(false);
         }
       }
     };
     
-    // Start immediately without delay
-    init();
+    loadCachedUser();
     
     return () => {
       isMounted = false;
-      // Clean up Firebase auth listener
+    };
+  }, []);
+
+  // Set up Firebase auth listener (always called, not conditional)
+  useEffect(() => {
+    let isMounted = true;
+    let unsubscribeAuth: (() => void) | null = null;
+    
+    const setupFirebaseAuth = async () => {
+      try {
+        console.log('[auth] setting up Firebase auth...');
+        
+        const firebaseAuthSuccess = await ensureFirebaseAuth();
+        
+        if (!isMounted) return;
+        
+        if (firebaseAuthSuccess) {
+          console.log('[auth] Firebase authentication successful');
+          setIsFirebaseAuthenticated(true);
+          
+          // Set up Firebase auth state listener
+          unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+            if (!isMounted) return;
+            
+            if (firebaseUser) {
+              console.log('[auth] Firebase user state changed:', firebaseUser.uid, 'isAnonymous:', firebaseUser.isAnonymous);
+              setUserId(firebaseUser.uid);
+              setIsFirebaseAuthenticated(true);
+              setIsAnonymous(firebaseUser.isAnonymous);
+            } else {
+              console.log('[auth] Firebase user signed out');
+              setUserId(null);
+              setIsFirebaseAuthenticated(false);
+              setIsAnonymous(true);
+            }
+          });
+        } else {
+          console.log('[auth] Firebase authentication failed, continuing without it');
+        }
+      } catch (e) {
+        console.warn('[auth] Firebase setup failed, continuing without it:', e);
+      }
+    };
+    
+    setupFirebaseAuth();
+    
+    return () => {
+      isMounted = false;
       if (unsubscribeAuth) {
         unsubscribeAuth();
       }
