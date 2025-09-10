@@ -56,7 +56,7 @@ export default function ProfileScreen() {
 
   const profileOptions: ProfileOption[] = [
     {
-      id: 'edit-profile',
+      id: 'driver-profile',
       title: 'Edit Profile',
       subtitle: 'Personal info, vehicle, MPG, VIN, plate',
       icon: <Edit3 size={20} color={theme.colors.primary} />,

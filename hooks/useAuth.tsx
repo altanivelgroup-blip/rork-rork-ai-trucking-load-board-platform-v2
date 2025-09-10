@@ -31,6 +31,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   useEffect(() => {
     let isMounted = true;
+    let unsubscribeAuth: (() => void) | null = null;
     
     const init = async () => {
       try {
@@ -46,7 +47,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           setIsFirebaseAuthenticated(true);
           
           // Set up Firebase auth state listener
-          const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+          unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+            if (!isMounted) return;
+            
             if (firebaseUser) {
               console.log('[auth] Firebase user state changed:', firebaseUser.uid);
               setUserId(firebaseUser.uid);
@@ -57,12 +60,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               setIsFirebaseAuthenticated(false);
             }
           });
-          
-          // Clean up listener when component unmounts
-          if (isMounted) {
-            // Store the unsubscribe function for cleanup
-            (init as any).unsubscribe = unsubscribe;
-          }
         } else {
           console.log('[auth] Firebase authentication failed');
           if (isMounted) {
@@ -99,9 +96,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     return () => {
       isMounted = false;
       clearTimeout(timer);
-      // Clean up Firebase auth listener if it exists
-      if ((init as any).unsubscribe) {
-        (init as any).unsubscribe();
+      // Clean up Firebase auth listener
+      if (unsubscribeAuth) {
+        unsubscribeAuth();
       }
     };
   }, [toast]);
