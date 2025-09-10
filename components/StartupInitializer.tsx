@@ -16,11 +16,11 @@ export function StartupInitializer({ children }: StartupInitializerProps) {
       try {
         console.log('[StartupInitializer] Starting app initialization...');
         
-        // Temporarily disable Firebase auth initialization to debug hook order issue
-        console.log('[StartupInitializer] Skipping Firebase init for debugging');
-        // initAuth().catch((error) => {
-        //   console.warn('[StartupInitializer] Firebase init failed, continuing anyway:', error);
-        // });
+        // Initialize Firebase auth
+        console.log('[StartupInitializer] Initializing Firebase auth...');
+        initAuth().catch((error) => {
+          console.warn('[StartupInitializer] Firebase init failed, continuing anyway:', error);
+        });
         
         // Minimal delay to prevent flash, then proceed
         await new Promise(resolve => setTimeout(resolve, 100));

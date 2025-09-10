@@ -66,14 +66,58 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     };
   }, []);
 
-  // Temporarily disable Firebase auth setup to debug hook order issue
+  // Firebase auth setup - always called to maintain hook order
   useEffect(() => {
-    console.log('[auth] Skipping Firebase auth setup for debugging');
-    // Set default states
-    setIsFirebaseAuthenticated(false);
-    setUserId(null);
-    setIsAnonymous(true);
-  }, []);
+    let isMounted = true;
+    
+    const setupFirebaseAuth = async () => {
+      try {
+        console.log('[auth] Setting up Firebase auth...');
+        await ensureFirebaseAuth();
+        
+        if (!isMounted) return;
+        
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+          if (!isMounted) return;
+          
+          console.log('[auth] Firebase auth state changed:', {
+            uid: firebaseUser?.uid,
+            isAnonymous: firebaseUser?.isAnonymous,
+          });
+          
+          setUserId(firebaseUser?.uid || null);
+          setIsFirebaseAuthenticated(!!firebaseUser);
+          
+          // Only set anonymous state if we don't have a local user
+          if (!user) {
+            setIsAnonymous(firebaseUser?.isAnonymous ?? true);
+          }
+        });
+        
+        return unsubscribe;
+      } catch (error) {
+        console.warn('[auth] Firebase auth setup failed:', error);
+        if (isMounted) {
+          setIsFirebaseAuthenticated(false);
+          setUserId(null);
+          setIsAnonymous(true);
+        }
+      }
+    };
+    
+    let unsubscribe: (() => void) | undefined;
+    
+    setupFirebaseAuth().then((unsub) => {
+      unsubscribe = unsub;
+    });
+    
+    return () => {
+      isMounted = false;
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
     console.log('[auth] login attempt for', email);
