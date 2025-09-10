@@ -573,22 +573,25 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
   }, [isLoading]);
 
   // Always return the same structure - no conditional hooks
-  const value = useMemo(() => ({
-    loads,
-    filters,
-    isLoading,
-    filteredLoads,
-    aiRecommendedLoads,
-    currentLoad,
-    favorites,
-    isFavorited,
-    toggleFavorite,
-    setFilters: setFiltersCallback,
-    acceptLoad,
-    refreshLoads,
-    addLoad,
-    addLoadsBulk,
-  }), [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
+  const value = useMemo(() => {
+    const result: LoadsState = {
+      loads,
+      filters,
+      isLoading,
+      filteredLoads,
+      aiRecommendedLoads,
+      currentLoad,
+      favorites,
+      isFavorited,
+      toggleFavorite,
+      setFilters: setFiltersCallback,
+      acceptLoad,
+      refreshLoads,
+      addLoad,
+      addLoadsBulk,
+    };
+    return result;
+  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
 
   return value;
 });

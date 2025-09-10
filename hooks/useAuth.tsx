@@ -127,35 +127,41 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const login = useCallback(async (email: string, password: string) => {
     console.log('[auth] login attempt for', email);
-    await ensureFirebaseAuth();
-    const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
-    const mockUser: Driver = {
-      id: uid,
-      role: 'driver',
-      email,
-      name: 'Test Driver',
-      phone: '',
-      membershipTier: 'basic',
-      createdAt: new Date(),
-      cdlNumber: '',
-      vehicleTypes: [],
-      rating: 4.8,
-      completedLoads: 24,
-      documents: [],
-      wallet: {
-        balance: 2450,
-        pendingEarnings: 850,
-        totalEarnings: 12500,
-        transactions: [],
-      },
-      isAvailable: true,
-      verificationStatus: 'verified',
-    } as Driver;
-    
-    setUser(mockUser);
-    setIsAnonymous(false); // Mark as not anonymous when user logs in
-    await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
-    console.log('[auth] login successful');
+    try {
+      await ensureFirebaseAuth();
+      const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
+      const mockUser: Driver = {
+        id: uid,
+        role: 'driver',
+        email,
+        name: email === 'guest@example.com' ? 'Guest User' : 'Test Driver',
+        phone: '',
+        membershipTier: 'basic',
+        createdAt: new Date(),
+        cdlNumber: '',
+        vehicleTypes: [],
+        rating: 4.8,
+        completedLoads: 24,
+        documents: [],
+        wallet: {
+          balance: 2450,
+          pendingEarnings: 850,
+          totalEarnings: 12500,
+          transactions: [],
+        },
+        isAvailable: true,
+        verificationStatus: 'verified',
+      } as Driver;
+      
+      setUser(mockUser);
+      setUserId(uid);
+      setIsAnonymous(email === 'guest@example.com'); // Mark as anonymous for guest users
+      await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
+      console.log('[auth] login successful');
+    } catch (error) {
+      console.error('[auth] login failed:', error);
+      throw error;
+    }
   }, []);
 
   const register = useCallback(async (email: string, password: string, profile?: Partial<Driver>) => {
@@ -261,18 +267,21 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [user]);
 
   // Always compute the same value structure to maintain consistency
-  const value = useMemo(() => ({
-    user,
-    userId,
-    isLoading,
-    isAuthenticated: !!user && !isAnonymous, // Only authenticated if user exists AND not anonymous
-    isFirebaseAuthenticated,
-    login,
-    register,
-    resetPassword,
-    logout,
-    updateProfile,
-  }), [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, login, register, resetPassword, logout, updateProfile]);
+  const value = useMemo(() => {
+    const result: AuthState = {
+      user,
+      userId,
+      isLoading,
+      isAuthenticated: !!user && !isAnonymous, // Only authenticated if user exists AND not anonymous
+      isFirebaseAuthenticated,
+      login,
+      register,
+      resetPassword,
+      logout,
+      updateProfile,
+    };
+    return result;
+  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, login, register, resetPassword, logout, updateProfile]);
 
   return value;
 });

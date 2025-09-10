@@ -17,10 +17,10 @@ import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { moderateScale } from '@/src/ui/scale';
-import { Dimensions } from 'react-native';
+import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { getFirebase } from '@/utils/firebase';
 
-const { width: screenWidth } = Dimensions.get('window');
-const isTablet = screenWidth >= 768;
+
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
@@ -34,15 +34,38 @@ export default function LoginScreen() {
 
 
   const handleLogin = useCallback(async () => {
-    if (!email || !password) return;
     setIsLoading(true);
     try {
-      console.log('[login] attempting login for', email);
-      await login(email, password);
-      console.log('[login] success, navigating to dashboard');
+      const { auth } = getFirebase();
+      
+      if (email?.trim() && password?.trim()) {
+        // Real email/password sign-in
+        console.log('[login] attempting email/password login for', email);
+        const result = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+        console.log('[login] signed in with email:', result.user.email, 'uid:', result.user.uid);
+        
+        // Update local auth state
+        await login(email, password);
+        
+        console.log('[login] success, navigating to dashboard');
+        router.replace('/(tabs)/dashboard');
+        return;
+      }
+      
+      // If no credentials provided, allow guest access
+      console.log('[login] no credentials provided, signing in anonymously');
+      const result = await signInAnonymously(auth);
+      console.log('[login] signed in anonymously. uid:', result.user.uid);
+      
+      // Update local auth state with anonymous user
+      await login('guest@example.com', 'guest');
+      
+      console.log('[login] anonymous success, navigating to dashboard');
       router.replace('/(tabs)/dashboard');
-    } catch (error) {
-      console.error('[login] failed', error);
+    } catch (error: any) {
+      console.error('[login] failed:', error?.code, error?.message);
+      // Show user-friendly error message instead of silently failing
+      // For now, just log the error - in production you'd show a toast/alert
     } finally {
       setIsLoading(false);
     }
@@ -119,7 +142,9 @@ export default function LoginScreen() {
               {isLoading ? (
                 <ActivityIndicator color={theme.colors.white} />
               ) : (
-                <Text style={styles.loginButtonText}>Login</Text>
+                <Text style={styles.loginButtonText}>
+                  {email?.trim() && password?.trim() ? 'Login' : 'Continue as Guest'}
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -129,7 +154,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account?</Text>
+            <Text style={styles.footerText}>Don&apos;t have an account?</Text>
             <TouchableOpacity onPress={() => router.push('/signup')} testID="signup-link">
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
@@ -158,8 +183,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl * 2,
   },
   logoContainer: {
-    width: isTablet ? 180 : moderateScale(120),
-    height: isTablet ? 180 : moderateScale(120),
+    width: moderateScale(120),
+    height: moderateScale(120),
     borderRadius: moderateScale(24),
     backgroundColor: 'transparent',
     justifyContent: 'center',
@@ -168,8 +193,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoImage: {
-    width: isTablet ? 180 : moderateScale(120),
-    height: isTablet ? 180 : moderateScale(120),
+    width: moderateScale(120),
+    height: moderateScale(120),
     borderRadius: moderateScale(24),
   },
   title: {
