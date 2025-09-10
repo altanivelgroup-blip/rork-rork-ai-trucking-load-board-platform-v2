@@ -1,11 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { DollarSign, Filter, Phone, Mail, Plus } from 'lucide-react-native';
+import { DollarSign, Filter, Phone, Mail, Plus, X } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
 import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoadsScreen() {
   const router = useRouter();
@@ -15,6 +16,9 @@ export default function LoadsScreen() {
   const [showFiltersModal, setShowFiltersModal] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [selectedQuickFilters, setSelectedQuickFilters] = useState<string[]>([]);
+  const [showBulkOnly, setShowBulkOnly] = useState<boolean>(false);
+  const [showLastImportOnly, setShowLastImportOnly] = useState<boolean>(false);
+  const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
   
   const equipmentTypes = ['Backhaul', 'Flatbed', 'Reefer', 'Box Truck', 'Car Hauler', 'Enclosed Trailer'];
   const sortingOptions = ['Highest $/mi', 'Near me', 'Lightest', 'New Today', 'AI for Loads', 'AI Backhaul'];
@@ -22,7 +26,21 @@ export default function LoadsScreen() {
   const [selectedSortOptions, setSelectedSortOptions] = useState<string[]>(['Near me', 'New Today', 'AI for Loads', 'AI Backhaul']);
 
   
-  const loads = filteredLoads;
+  const loads = useMemo(() => {
+    let filtered = filteredLoads;
+    
+    // Apply bulk filter if enabled
+    if (showBulkOnly) {
+      filtered = filtered.filter(load => load.bulkImportId);
+    }
+    
+    // Apply last import filter if enabled
+    if (showLastImportOnly && lastBulkImportId) {
+      filtered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
+    }
+    
+    return filtered;
+  }, [filteredLoads, showBulkOnly, showLastImportOnly, lastBulkImportId]);
   
   const handleLoadPress = (loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
@@ -85,6 +103,22 @@ export default function LoadsScreen() {
     router.push('/ai-loads');
   };
   
+  // Load last bulk import ID on component mount
+  useEffect(() => {
+    const loadLastBulkImportId = async () => {
+      try {
+        const storedId = await AsyncStorage.getItem('lastBulkImportId');
+        if (storedId) {
+          setLastBulkImportId(storedId);
+        }
+      } catch (error) {
+        console.warn('Failed to load last bulk import ID:', error);
+      }
+    };
+    
+    loadLastBulkImportId();
+  }, []);
+  
   return (
     <>
       <Stack.Screen options={{ title: 'Available Loads' }} />
@@ -96,6 +130,56 @@ export default function LoadsScreen() {
           {/* Equipment Type Filters */}
           <View style={styles.equipmentFilters}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.equipmentFiltersContent}>
+              {/* Bulk Filter Chip */}
+              <TouchableOpacity
+                style={[
+                  styles.equipmentFilterChip,
+                  styles.bulkFilterChip,
+                  showBulkOnly && styles.bulkFilterChipActive
+                ]}
+                onPress={() => {
+                  setShowBulkOnly(!showBulkOnly);
+                  if (showLastImportOnly) setShowLastImportOnly(false);
+                }}
+              >
+                <Text style={[
+                  styles.equipmentFilterText,
+                  styles.bulkFilterText,
+                  showBulkOnly && styles.equipmentFilterTextActive
+                ]}>
+                  Bulk Import
+                </Text>
+                {showBulkOnly && (
+                  <X size={14} color={theme.colors.white} />
+                )}
+              </TouchableOpacity>
+              
+              {/* Last Import Filter Chip */}
+              {lastBulkImportId && (
+                <TouchableOpacity
+                  style={[
+                    styles.equipmentFilterChip,
+                    styles.lastImportFilterChip,
+                    showLastImportOnly && styles.lastImportFilterChipActive
+                  ]}
+                  onPress={() => {
+                    setShowLastImportOnly(!showLastImportOnly);
+                    if (showBulkOnly) setShowBulkOnly(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.equipmentFilterText,
+                    styles.lastImportFilterText,
+                    showLastImportOnly && styles.equipmentFilterTextActive
+                  ]}>
+                    Last Import
+                  </Text>
+                  {showLastImportOnly && (
+                    <X size={14} color={theme.colors.white} />
+                  )}
+                </TouchableOpacity>
+              )}
+              
               {equipmentTypes.map((type) => {
                 const isSelected = selectedEquipmentType === type;
                 const isBackhaul = type === 'Backhaul';
@@ -169,7 +253,7 @@ export default function LoadsScreen() {
               <Text style={styles.emptySubtitle}>Try adjusting your filters or check back later</Text>
             </View>
           ) : (
-            loads.map((load) => {
+            loads.map((load: any) => {
               const originText = typeof load.origin === 'string'
                 ? load.origin
                 : `${load.origin?.city ?? ''}, ${load.origin?.state ?? ''}`;
@@ -205,6 +289,11 @@ export default function LoadsScreen() {
                       <Text style={styles.subtitleText}>
                         {load.pickupDate ? new Date(load.pickupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'ASAP'} • {load.vehicleType || 'truck'} • {weightVal.toLocaleString()} lbs
                       </Text>
+                      {load.bulkImportId && (
+                        <View style={styles.bulkBadge}>
+                          <Text style={styles.bulkBadgeText}>Bulk</Text>
+                        </View>
+                      )}
                     </View>
                   </TouchableOpacity>
                   
@@ -445,6 +534,41 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
+  },
+  bulkFilterChip: {
+    backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
+  },
+  bulkFilterChipActive: {
+    backgroundColor: '#c2410c',
+    borderColor: '#c2410c',
+  },
+  bulkFilterText: {
+    color: theme.colors.white,
+  },
+  bulkBadge: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing.xs,
+  },
+  bulkBadgeText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  lastImportFilterChip: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  lastImportFilterChipActive: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  lastImportFilterText: {
+    color: theme.colors.white,
   },
 
 });

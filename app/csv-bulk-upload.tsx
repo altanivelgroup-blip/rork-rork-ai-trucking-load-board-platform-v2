@@ -16,6 +16,7 @@ import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDo
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as CryptoJS from 'crypto-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -208,7 +209,7 @@ export default function CSVBulkUploadScreen() {
   // Navigate to loads filtered by bulk import ID
   const viewBulkImportLoads = useCallback((bulkImportId: string) => {
     router.push(`/loads?bulkImportId=${bulkImportId}`);
-  }, []);
+  }, [router]);
 
   // Undo bulk import by ID
   const undoBulkImport = useCallback(async (bulkImportId: string) => {
@@ -824,6 +825,13 @@ export default function CSVBulkUploadScreen() {
       
       console.log(`[BULK UPLOAD] Import completed successfully. Imported ${imported} loads, skipped ${skippedDuplicates} duplicates.`);
       showToast(`Successfully imported ${imported} loads${skippedDuplicates > 0 ? `, skipped ${skippedDuplicates} duplicates` : ''}`, 'success');
+      
+      // Store the last bulk import ID for easy access
+      try {
+        await AsyncStorage.setItem('lastBulkImportId', bulkImportId);
+      } catch (error) {
+        console.warn('[BULK UPLOAD] Failed to store last bulk import ID:', error);
+      }
       
     } catch (error: any) {
       console.error('Import error:', error);

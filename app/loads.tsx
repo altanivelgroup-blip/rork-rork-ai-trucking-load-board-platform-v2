@@ -2,7 +2,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { MapPin, Calendar, Package, DollarSign } from 'lucide-react-native';
+import { MapPin, Calendar, Package, DollarSign, X } from 'lucide-react-native';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 
@@ -75,6 +75,11 @@ const loads = useMemo(() => {
     }
   }
 
+  // Filter by bulk import ID if provided
+  if (params.bulkImportId && typeof params.bulkImportId === 'string' && params.bulkImportId.trim() !== '') {
+    filtered = filtered.filter(load => load.bulkImportId === params.bulkImportId);
+  }
+
   return filtered;
 }, [params, items]);
 
@@ -85,7 +90,89 @@ const loads = useMemo(() => {
   return (
     <>
       <Stack.Screen options={{ title: 'Available Loads' }} />
-      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}> 
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        {/* Filter Chips */}
+        {(params.bulkImportId || params.origin || params.destination || params.minWeight || params.minPrice) && (
+          <View style={styles.filterChipsContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsContent}>
+              {params.bulkImportId && (
+                <View style={[styles.filterChip, styles.bulkFilterChip]}>
+                  <Text style={styles.filterChipText}>Source = Bulk (last import)</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newParams = { ...params };
+                      delete newParams.bulkImportId;
+                      router.replace({ pathname: '/loads', params: newParams });
+                    }}
+                    style={styles.filterChipRemove}
+                  >
+                    <X size={14} color={theme.colors.white} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {params.origin && (
+                <View style={styles.filterChip}>
+                  <Text style={styles.filterChipText}>Origin: {params.origin}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newParams = { ...params };
+                      delete newParams.origin;
+                      router.replace({ pathname: '/loads', params: newParams });
+                    }}
+                    style={styles.filterChipRemove}
+                  >
+                    <X size={14} color={theme.colors.white} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {params.destination && (
+                <View style={styles.filterChip}>
+                  <Text style={styles.filterChipText}>Destination: {params.destination}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newParams = { ...params };
+                      delete newParams.destination;
+                      router.replace({ pathname: '/loads', params: newParams });
+                    }}
+                    style={styles.filterChipRemove}
+                  >
+                    <X size={14} color={theme.colors.white} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {params.minWeight && (
+                <View style={styles.filterChip}>
+                  <Text style={styles.filterChipText}>Min Weight: {params.minWeight} lbs</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newParams = { ...params };
+                      delete newParams.minWeight;
+                      router.replace({ pathname: '/loads', params: newParams });
+                    }}
+                    style={styles.filterChipRemove}
+                  >
+                    <X size={14} color={theme.colors.white} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {params.minPrice && (
+                <View style={styles.filterChip}>
+                  <Text style={styles.filterChipText}>Min Price: ${params.minPrice}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newParams = { ...params };
+                      delete newParams.minPrice;
+                      router.replace({ pathname: '/loads', params: newParams });
+                    }}
+                    style={styles.filterChipRemove}
+                  >
+                    <X size={14} color={theme.colors.white} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        )}
         <ScrollView contentContainerStyle={styles.content}>
           {loads.length === 0 ? (
             <View style={styles.emptyState}>
@@ -127,6 +214,12 @@ const loads = useMemo(() => {
                     <Package size={16} color={theme.colors.gray} />
                     <Text style={styles.detailText}>{load.weight?.toLocaleString() || '0'} lbs</Text>
                   </View>
+                  
+                  {load.bulkImportId && (
+                    <View style={styles.bulkBadge}>
+                      <Text style={styles.bulkBadgeText}>Bulk</Text>
+                    </View>
+                  )}
                 </View>
                 
                 {load.description && (
@@ -226,5 +319,47 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.dark,
     lineHeight: 20,
+  },
+  filterChipsContainer: {
+    backgroundColor: theme.colors.white,
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  filterChipsContent: {
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing.xs,
+  },
+  bulkFilterChip: {
+    backgroundColor: '#FF6B35',
+  },
+  filterChipText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  filterChipRemove: {
+    padding: 2,
+  },
+  bulkBadge: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+    alignSelf: 'flex-start',
+  },
+  bulkBadgeText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.white,
   },
 });
