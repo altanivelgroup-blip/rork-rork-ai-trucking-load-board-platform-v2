@@ -29,6 +29,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
   // Load cached user data - always called, never conditional
   useEffect(() => {
@@ -50,10 +51,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           console.log('[auth] no cached user found');
         }
         
+        setIsInitialized(true);
         setIsLoading(false);
       } catch (e) {
         console.error('[auth] error loading cached user:', e);
         if (isMounted) {
+          setIsInitialized(true);
           setIsLoading(false);
         }
       }
@@ -68,7 +71,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   // Firebase auth setup - always called to maintain hook order
   useEffect(() => {
+    // Only setup Firebase after initial load is complete
+    if (!isInitialized) return;
+    
     let isMounted = true;
+    let unsubscribe: (() => void) | undefined;
     
     const setupFirebaseAuth = async () => {
       try {
@@ -77,7 +84,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         
         if (!isMounted) return;
         
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
           if (!isMounted) return;
           
           console.log('[auth] Firebase auth state changed:', {
@@ -87,25 +94,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           
           setUserId(firebaseUser?.uid || null);
           setIsFirebaseAuthenticated(!!firebaseUser);
-          setIsAnonymous(firebaseUser?.isAnonymous ?? true);
+          
+          // Only update isAnonymous if we don't have a local user
+          if (!user) {
+            setIsAnonymous(firebaseUser?.isAnonymous ?? true);
+          }
         });
-        
-        return unsubscribe;
       } catch (error) {
         console.warn('[auth] Firebase auth setup failed:', error);
         if (isMounted) {
           setIsFirebaseAuthenticated(false);
           setUserId(null);
-          setIsAnonymous(true);
         }
       }
     };
     
-    let unsubscribe: (() => void) | undefined;
-    
-    setupFirebaseAuth().then((unsub) => {
-      unsubscribe = unsub;
-    });
+    setupFirebaseAuth();
     
     return () => {
       isMounted = false;
@@ -113,7 +117,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         unsubscribe();
       }
     };
-  }, []);
+  }, [isInitialized, user]);
 
   const login = useCallback(async (email: string, password: string) => {
     console.log('[auth] login attempt for', email);

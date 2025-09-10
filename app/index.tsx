@@ -3,64 +3,50 @@ import { View, ActivityIndicator, Text, StyleSheet, TouchableOpacity } from 'rea
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, isLoading } = useAuth();
-  const [hasNavigated, setHasNavigated] = useState<boolean>(false);
   const [showManualNav, setShowManualNav] = useState<boolean>(false);
 
   useEffect(() => {
-    console.log('[Index] Auth state - user:', !!user, 'isLoading:', isLoading, 'hasNavigated:', hasNavigated);
+    console.log('[Index] Starting navigation...');
     
-    // Don't navigate if still loading or already navigated
-    if (isLoading || hasNavigated) {
-      return;
-    }
-
     let isMounted = true;
 
-    // Show manual navigation after 3 seconds if auto-nav fails
+    // Show manual navigation after 1 second
     const manualNavTimer = setTimeout(() => {
-      if (!hasNavigated && isMounted) {
-        console.log('[Index] Auto-navigation timeout, showing manual options');
+      if (isMounted) {
+        console.log('[Index] Showing manual navigation options');
         setShowManualNav(true);
       }
-    }, 3000);
+    }, 1000);
     
-    // Navigate based on auth state
+    // Auto-navigate to login immediately
     const navTimer = setTimeout(() => {
-      if (hasNavigated || !isMounted) return;
+      if (!isMounted) return;
       
       try {
-        setHasNavigated(true);
-        if (user) {
-          console.log('[Index] User authenticated, redirecting to dashboard');
-          router.replace('/(tabs)/dashboard');
-        } else {
-          console.log('[Index] No user, redirecting to login');
-          router.replace('/(auth)/login');
-        }
+        console.log('[Index] Auto-navigating to login');
+        router.replace('/(auth)/login');
       } catch (error) {
         console.warn('[Index] Navigation error:', error);
         if (isMounted) {
-          setHasNavigated(false);
           setShowManualNav(true);
         }
       }
-    }, 500);
+    }, 50);
 
     return () => {
       isMounted = false;
       clearTimeout(navTimer);
       clearTimeout(manualNavTimer);
     };
-  }, [router, user, isLoading, hasNavigated]);
+  }, [router]);
 
   const handleManualLogin = () => {
     try {
+      console.log('[Index] Manual navigation to login');
       router.replace('/(auth)/login');
     } catch (error) {
       console.warn('[Index] Manual login navigation error:', error);
@@ -69,6 +55,7 @@ export default function IndexScreen() {
 
   const handleManualDashboard = () => {
     try {
+      console.log('[Index] Manual navigation to dashboard');
       router.replace('/(tabs)/dashboard');
     } catch (error) {
       console.warn('[Index] Manual dashboard navigation error:', error);
@@ -82,7 +69,7 @@ export default function IndexScreen() {
         LoadBoard AI
       </Text>
       <Text style={styles.subtitle} testID="splashSubtitle">
-        {isLoading ? 'Loading...' : user ? 'Loading dashboard...' : 'Redirecting to sign in...'}
+        Redirecting to sign in...
       </Text>
       
       {showManualNav && (
