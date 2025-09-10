@@ -100,6 +100,23 @@ export default function ShipperDashboard() {
       .sort(([,a], [,b]) => b - a)
       .slice(0, 3);
     
+    // Calculate real issues
+    const issues = [
+      // Loads with very low rates (below $1000)
+      ...shipperLoads.filter(load => (load.rate || 0) < 1000).map(load => `Low rate: ${load.description || 'Untitled'} (${load.rate})`),
+      // Loads that have been available for too long (mock: more than 7 days old)
+      ...shipperLoads.filter(load => {
+        if (load.status !== 'available') return false;
+        const createdDate = load.createdAt ? new Date(load.createdAt) : new Date();
+        const daysDiff = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+        return daysDiff > 7;
+      }).map(load => `Stale load: ${load.description || 'Untitled'} (${Math.floor((Date.now() - (load.createdAt ? new Date(load.createdAt).getTime() : Date.now())) / (1000 * 60 * 60 * 24))} days old)`),
+      // Loads missing critical information
+      ...shipperLoads.filter(load => 
+        !load.origin?.city || !load.destination?.city || !load.rate || !load.description
+      ).map(load => `Incomplete info: ${load.description || load.id}`)
+    ];
+    
     // Revenue by month (mock data)
     const monthlyRevenue = [
       { month: 'Jan', revenue: 45000 },
@@ -113,7 +130,8 @@ export default function ShipperDashboard() {
     return {
       avgTimeToBook,
       topRoutes: sortedRoutes,
-      monthlyRevenue
+      monthlyRevenue,
+      issues
     };
   }, [shipperLoads]);
   
@@ -205,11 +223,19 @@ export default function ShipperDashboard() {
               <Text style={styles.metricValue}>{Math.round(stats.completionRate)}%</Text>
               <Text style={styles.metricLabel}>Completion Rate</Text>
             </View>
-            <View style={styles.metricCard}>
-              <AlertTriangle size={18} color="#f59e0b" />
-              <Text style={styles.metricValue}>2</Text>
+            <TouchableOpacity 
+              style={[styles.metricCard, analytics.issues.length > 0 && { borderColor: '#f59e0b', borderWidth: 1 }]}
+              onPress={() => {
+                if (analytics.issues.length > 0) {
+                  console.log('Issues detected:', analytics.issues);
+                  // Could navigate to issues detail page or show modal
+                }
+              }}
+            >
+              <AlertTriangle size={18} color={analytics.issues.length > 0 ? '#f59e0b' : '#6b7280'} />
+              <Text style={[styles.metricValue, analytics.issues.length > 0 && { color: '#f59e0b' }]}>{analytics.issues.length}</Text>
               <Text style={styles.metricLabel}>Issues</Text>
-            </View>
+            </TouchableOpacity>
           </View>
           
           {/* Revenue Chart */}
