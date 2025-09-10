@@ -256,35 +256,42 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
         if (d?.isArchived === true) return null;
         const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
         const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+        
+        // Handle both structured and friendly fallback fields for origin/destination
+        const originCity = d?.origin?.city || d?.originCity || 'Unknown';
+        const originState = d?.origin?.state || d?.originState || '';
+        const destCity = d?.destination?.city || d?.destCity || 'Unknown';
+        const destState = d?.destination?.state || d?.destState || '';
+        
         return {
           id: String(doc.id),
           shipperId: String(d?.createdBy ?? 'unknown'),
           shipperName: '',
           origin: {
             address: '',
-            city: String(d?.origin ?? ''),
-            state: '',
+            city: originCity,
+            state: originState,
             zipCode: '',
             lat: 0,
             lng: 0,
           },
           destination: {
             address: '',
-            city: String(d?.destination ?? ''),
-            state: '',
+            city: destCity,
+            state: destState,
             zipCode: '',
             lat: 0,
             lng: 0,
           },
-          distance: 0,
-          weight: 0,
-          vehicleType: (d?.vehicleType as any) ?? 'van',
-          rate: Number(d?.rate ?? 0),
+          distance: Number(d?.distance ?? 0),
+          weight: Number(d?.weight ?? d?.weightLbs ?? 0),
+          vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'van',
+          rate: Number(d?.rate ?? d?.rateTotalUSD ?? 0),
           ratePerMile: 0,
           pickupDate: pickup,
           deliveryDate: delivery,
           status: 'available',
-          description: String(d?.title ?? ''),
+          description: String(d?.title ?? d?.description ?? ''),
           special_requirements: undefined,
           isBackhaul: false,
           bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
@@ -437,21 +444,28 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
               if (d?.isArchived === true) return null;
               const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
               const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+              
+              // Handle both structured and friendly fallback fields for origin/destination
+              const originCity = d?.origin?.city || d?.originCity || 'Unknown';
+              const originState = d?.origin?.state || d?.originState || '';
+              const destCity = d?.destination?.city || d?.destCity || 'Unknown';
+              const destState = d?.destination?.state || d?.destState || '';
+              
               const mapped: Load = {
                 id: String(doc.id),
                 shipperId: String(d?.createdBy ?? 'unknown'),
                 shipperName: '',
-                origin: { address: '', city: String(d?.origin ?? ''), state: '', zipCode: '', lat: 0, lng: 0 },
-                destination: { address: '', city: String(d?.destination ?? ''), state: '', zipCode: '', lat: 0, lng: 0 },
-                distance: 0,
-                weight: 0,
-                vehicleType: (d?.vehicleType as any) ?? 'van',
-                rate: Number(d?.rate ?? 0),
+                origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
+                destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
+                distance: Number(d?.distance ?? 0),
+                weight: Number(d?.weight ?? d?.weightLbs ?? 0),
+                vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'van',
+                rate: Number(d?.rate ?? d?.rateTotalUSD ?? 0),
                 ratePerMile: 0,
                 pickupDate: pickup,
                 deliveryDate: delivery,
                 status: 'available',
-                description: String(d?.title ?? ''),
+                description: String(d?.title ?? d?.description ?? ''),
                 special_requirements: undefined,
                 isBackhaul: false,
                 bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
@@ -473,21 +487,28 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
                 if (d?.isArchived === true) return null;
                 const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
                 const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+                
+                // Handle both structured and friendly fallback fields for origin/destination
+                const originCity = d?.origin?.city || d?.originCity || 'Unknown';
+                const originState = d?.origin?.state || d?.originState || '';
+                const destCity = d?.destination?.city || d?.destCity || 'Unknown';
+                const destState = d?.destination?.state || d?.destState || '';
+                
                 const mapped: Load = {
                   id: String(doc.id),
                   shipperId: String(d?.createdBy ?? 'unknown'),
                   shipperName: '',
-                  origin: { address: '', city: String(d?.origin ?? ''), state: '', zipCode: '', lat: 0, lng: 0 },
-                  destination: { address: '', city: String(d?.destination ?? ''), state: '', zipCode: '', lat: 0, lng: 0 },
-                  distance: 0,
-                  weight: 0,
-                  vehicleType: (d?.vehicleType as any) ?? 'van',
-                  rate: Number(d?.rate ?? 0),
+                  origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
+                  destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
+                  distance: Number(d?.distance ?? 0),
+                  weight: Number(d?.weight ?? d?.weightLbs ?? 0),
+                  vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'van',
+                  rate: Number(d?.rate ?? d?.rateTotalUSD ?? 0),
                   ratePerMile: 0,
                   pickupDate: pickup,
                   deliveryDate: delivery,
                   status: 'available',
-                  description: String(d?.title ?? ''),
+                  description: String(d?.title ?? d?.description ?? ''),
                   special_requirements: undefined,
                   isBackhaul: false,
                   bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,

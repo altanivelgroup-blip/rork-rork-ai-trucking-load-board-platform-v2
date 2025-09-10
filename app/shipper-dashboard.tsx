@@ -58,9 +58,22 @@ export default function ShipperDashboard() {
   
   const shipperLoads = useMemo(() => {
     const uid = userId || user?.id || null;
-    console.log('[ShipperDashboard] filter by uid:', uid);
+    console.log('[ShipperDashboard] filter by uid:', uid, 'total loads:', loads.length);
     if (!uid) return [];
-    return loads.filter(load => load.shipperId === uid);
+    
+    // Filter loads by shipper ID or createdBy field
+    const filtered = loads.filter(load => {
+      const isOwner = load.shipperId === uid || 
+                     (load as any).createdBy === uid ||
+                     (load as any).userId === uid;
+      if (isOwner) {
+        console.log('[ShipperDashboard] Found owned load:', load.id, load.description || 'Untitled');
+      }
+      return isOwner;
+    });
+    
+    console.log('[ShipperDashboard] Found', filtered.length, 'loads for user', uid);
+    return filtered;
   }, [loads, user?.id, userId]);
   
   const stats = useMemo(() => {
@@ -299,6 +312,14 @@ export default function ShipperDashboard() {
                 <Text style={styles.postBtnText}>Post New Load</Text>
               </TouchableOpacity>
             </View>
+            
+            {/* Debug button - remove in production */}
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={() => router.push('/debug-bulk-upload')}
+            >
+              <Text style={styles.debugButtonText}>🔧 Debug Bulk Upload</Text>
+            </TouchableOpacity>
           </View>
           
           {shipperLoads.length === 0 ? (
@@ -693,5 +714,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: theme.spacing.md,
   },
-
+  debugButton: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  debugButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+  },
 });

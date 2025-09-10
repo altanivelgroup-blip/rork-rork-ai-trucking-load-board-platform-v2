@@ -3,28 +3,37 @@ import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   useEffect(() => {
-    console.log('[Index] Scheduling redirect to login');
-    // Delay navigation to ensure the navigation system is ready
+    console.log('[Index] Checking auth state...');
+    
+    // Wait for auth to initialize, then redirect appropriately
     const timer = setTimeout(() => {
       try {
-        router.replace('/(auth)/login');
+        if (user) {
+          console.log('[Index] User authenticated, redirecting to dashboard');
+          router.replace('/(tabs)/dashboard');
+        } else {
+          console.log('[Index] No user, redirecting to login');
+          router.replace('/(auth)/login');
+        }
       } catch (error) {
         console.warn('[Index] Navigation error:', error);
-        // Retry after a longer delay if first attempt fails
+        // Fallback to login on error
         setTimeout(() => {
           router.replace('/(auth)/login');
-        }, 1000);
+        }, 500);
       }
-    }, 100);
+    }, 300); // Slightly longer delay to ensure auth is ready
 
     return () => clearTimeout(timer);
-  }, [router]);
+  }, [router, user]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -33,7 +42,7 @@ export default function IndexScreen() {
         LoadBoard AI
       </Text>
       <Text style={styles.subtitle} testID="splashSubtitle">
-        Redirecting to sign in...
+        {user ? 'Loading dashboard...' : 'Redirecting to sign in...'}
       </Text>
     </View>
   );
