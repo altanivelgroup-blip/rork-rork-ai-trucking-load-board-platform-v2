@@ -1,11 +1,15 @@
-import React, { useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
+import { getFirebase } from '@/utils/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import * as Clipboard from 'expo-clipboard';
 
 
 
@@ -19,6 +23,127 @@ interface LoadRowProps {
   onView: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+}
+
+interface UserInfo {
+  lastLoginAt?: { seconds: number; nanoseconds: number } | null;
+  authLastSignInTime?: string | null;
+  authCreationTime?: string | null;
+  isAnonymous?: boolean;
+  device?: string;
+}
+
+function UserInfoRow() {
+  const { userId } = useAuth();
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Get current Firebase user
+    const auth = getAuth();
+    setFirebaseUser(auth.currentUser);
+  }, []);
+
+  useEffect(() => {
+    async function fetchUserInfo() {
+      const uid = userId || firebaseUser?.uid;
+      if (!uid) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { db } = getFirebase();
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        
+        if (userDoc.exists()) {
+          setUserInfo(userDoc.data() as UserInfo);
+        }
+      } catch (error) {
+        console.warn('[UserInfoRow] Failed to fetch user info:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchUserInfo();
+  }, [userId, firebaseUser?.uid]);
+
+  const handleCopyUID = async () => {
+    const uid = userId || firebaseUser?.uid;
+    if (!uid) return;
+    
+    try {
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(uid);
+      } else {
+        await Clipboard.setStringAsync(uid);
+      }
+      
+      setToastVisible(true);
+      setTimeout(() => setToastVisible(false), 2000);
+    } catch (error) {
+      console.warn('[UserInfoRow] Failed to copy UID:', error);
+    }
+  };
+
+  const formatUID = (uid: string) => {
+    if (uid.length <= 10) return uid;
+    return `${uid.slice(0, 6)}…${uid.slice(-4)}`;
+  };
+
+  const formatLastLogin = () => {
+    if (userInfo?.lastLoginAt) {
+      const date = new Date(userInfo.lastLoginAt.seconds * 1000);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+    
+    if (userInfo?.authLastSignInTime) {
+      const date = new Date(userInfo.authLastSignInTime);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+    
+    return 'Unknown';
+  };
+
+  const uid = userId || firebaseUser?.uid;
+  if (!uid || loading) {
+    return null;
+  }
+
+  return (
+    <>
+      <View style={styles.userInfoRow}>
+        <Text style={styles.userInfoText}>
+          Signed in: {formatUID(uid)} • Last login: {formatLastLogin()}
+        </Text>
+        <TouchableOpacity onPress={handleCopyUID} style={styles.copyButton} testID="copy-uid-button">
+          <Copy size={12} color={theme.colors.gray} />
+          <Text style={styles.copyButtonText}>Copy</Text>
+        </TouchableOpacity>
+      </View>
+      
+      {toastVisible && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>UID copied</Text>
+        </View>
+      )}
+    </>
+  );
 }
 
 function LoadRow({ id, title, originCity, destinationCity, rate, status, onView, onEdit, onDelete }: LoadRowProps) {
@@ -178,6 +303,7 @@ export default function ShipperDashboard() {
         <View style={styles.header}>
           <Text style={styles.title}>Shipper Dashboard</Text>
           <Text style={styles.subtitle}>Manage your loads and track performance</Text>
+          <UserInfoRow />
         </View>
         
         <View style={styles.statsGrid}>
@@ -726,5 +852,49 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
+  },
+  userInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.lightGray,
+  },
+  userInfoText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    flex: 1,
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: theme.colors.lightGray,
+    gap: 2,
+  },
+  copyButtonText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    fontWeight: '500',
+  },
+  toast: {
+    position: 'absolute',
+    top: 100,
+    left: '50%',
+    transform: [{ translateX: -50 }],
+    backgroundColor: theme.colors.dark,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    zIndex: 1000,
+  },
+  toastText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
   },
 });
