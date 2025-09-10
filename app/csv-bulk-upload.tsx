@@ -8,14 +8,15 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+
 } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown } from 'lucide-react-native';
+import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { parseFileContent, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, validateLoadRow, CSVRow } from '@/utils/csv';
+import { parseFileContent, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, validateLoadRow, CSVRow, parseCSV } from '@/utils/csv';
 import * as XLSX from 'xlsx';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -51,6 +52,18 @@ interface ProcessedRow {
   original: CSVRow;
   errors: string[];
   id: string;
+}
+
+interface NormalizedPreviewRow {
+  title: string | null;
+  equipmentType: string | null;
+  origin: string | null;
+  destination: string | null;
+  pickupDate: string | null;
+  deliveryDate: string | null;
+  rate: number | null;
+  status: 'valid' | 'invalid';
+  errors: string[];
 }
 
 // Validate headers function
@@ -89,13 +102,20 @@ function validateHeaders(headers: string[], expected: string[]): { ok: boolean; 
 export default function CSVBulkUploadScreen() {
   const { user } = useAuth();
   const [processedRows, setProcessedRows] = useState<ProcessedRow[]>([]);
+  const [normalizedRows, setNormalizedRows] = useState<NormalizedPreviewRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [headerValidation, setHeaderValidation] = useState<{ ok: boolean; errors: string[] } | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('simple');
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [expandedErrors, setExpandedErrors] = useState<Set<number>>(new Set());
+  const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string } | null>(null);
   const toast = useToast();
+  
+  const PAGE_SIZE = 20;
+  const MAX_ROWS = 5000;
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     toast.show(message, type);
@@ -105,17 +125,151 @@ export default function CSVBulkUploadScreen() {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   }, []);
 
-  const processCSVData = useCallback((rows: CSVRow[]) => {
-    const processed: ProcessedRow[] = rows.map(row => {
-      const errors = validateLoadRow(row, selectedTemplate);
+  const normalizeNumber = useCallback((value: string | null | undefined): number | null => {
+    if (!value?.trim()) return null;
+    const cleaned = value.replace(/[$,]/g, '').trim();
+    const num = Number(cleaned);
+    return isNaN(num) ? null : Math.max(0, num);
+  }, []);
+
+  const normalizeDate = useCallback((value: string | null | undefined): string | null => {
+    if (!value?.trim()) return null;
+    try {
+      const date = new Date(value.trim());
+      if (isNaN(date.getTime())) return null;
+      return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const validateRowData = useCallback((row: CSVRow, template: TemplateType): { status: 'valid' | 'invalid'; errors: string[] } => {
+    const errors: string[] = [];
+    
+    if (template === 'simple') {
+      // Simple template validation
+      if (!row['Origin']?.trim()) errors.push('Origin is required');
+      if (!row['Destination']?.trim()) errors.push('Destination is required');
+      if (!row['VehicleType']?.trim()) errors.push('VehicleType is required');
+      if (!row['Price']?.trim()) errors.push('Price is required');
+      
+      const rate = normalizeNumber(row['Price']);
+      if (row['Price']?.trim() && (rate === null || rate < 0)) {
+        errors.push('Price must be a valid number ≥ 0');
+      }
+    } else {
+      // Standard template validation
+      if (!row['equipmentType']?.trim()) errors.push('equipmentType is required');
+      if (!row['originCity']?.trim()) errors.push('originCity is required');
+      if (!row['originState']?.trim()) errors.push('originState is required');
+      if (!row['destinationCity']?.trim()) errors.push('destinationCity is required');
+      if (!row['destinationState']?.trim()) errors.push('destinationState is required');
+      if (!row['pickupDate']?.trim()) errors.push('pickupDate is required');
+      if (!row['deliveryDate']?.trim()) errors.push('deliveryDate is required');
+      if (!row['rate']?.trim()) errors.push('rate is required');
+      
+      const rate = normalizeNumber(row['rate']);
+      if (row['rate']?.trim() && (rate === null || rate < 0)) {
+        errors.push('rate must be a valid number ≥ 0');
+      }
+      
+      const pickupDate = normalizeDate(row['pickupDate']);
+      const deliveryDate = normalizeDate(row['deliveryDate']);
+      
+      if (row['pickupDate']?.trim() && !pickupDate) {
+        errors.push('pickupDate must be a valid date (YYYY-MM-DD or YYYY-MM-DDTHH:mm)');
+      }
+      
+      if (row['deliveryDate']?.trim() && !deliveryDate) {
+        errors.push('deliveryDate must be a valid date (YYYY-MM-DD or YYYY-MM-DDTHH:mm)');
+      }
+      
+      if (pickupDate && deliveryDate && pickupDate > deliveryDate) {
+        errors.push('pickupDate cannot be after deliveryDate');
+      }
+    }
+    
+    return {
+      status: errors.length === 0 ? 'valid' : 'invalid',
+      errors
+    };
+  }, [normalizeNumber, normalizeDate]);
+
+  const normalizeRowForPreview = useCallback((row: CSVRow, template: TemplateType): NormalizedPreviewRow => {
+    const validation = validateRowData(row, template);
+    
+    if (template === 'simple') {
       return {
-        original: row,
-        errors,
-        id: generateLoadId(),
+        title: null,
+        equipmentType: row['VehicleType']?.trim() || null,
+        origin: row['Origin']?.trim() || null,
+        destination: row['Destination']?.trim() || null,
+        pickupDate: null,
+        deliveryDate: null,
+        rate: normalizeNumber(row['Price']),
+        status: validation.status,
+        errors: validation.errors
       };
-    });
-    setProcessedRows(processed);
-  }, [generateLoadId, selectedTemplate]);
+    } else {
+      // Standard template
+      const originParts = [
+        row['originCity']?.trim(),
+        row['originState']?.trim()?.toUpperCase(),
+        row['originZip']?.trim()
+      ].filter(Boolean);
+      
+      const destinationParts = [
+        row['destinationCity']?.trim(),
+        row['destinationState']?.trim()?.toUpperCase(),
+        row['destinationZip']?.trim()
+      ].filter(Boolean);
+      
+      return {
+        title: row['title']?.trim() || null,
+        equipmentType: row['equipmentType']?.trim() || null,
+        origin: originParts.length > 0 ? originParts.join(', ').replace(/,\s*,/g, ',').replace(/,\s*$/, '') : null,
+        destination: destinationParts.length > 0 ? destinationParts.join(', ').replace(/,\s*,/g, ',').replace(/,\s*$/, '') : null,
+        pickupDate: normalizeDate(row['pickupDate']),
+        deliveryDate: normalizeDate(row['deliveryDate']),
+        rate: normalizeNumber(row['rate']),
+        status: validation.status,
+        errors: validation.errors
+      };
+    }
+  }, [validateRowData, normalizeNumber, normalizeDate]);
+
+  const processCSVData = useCallback(async () => {
+    if (!selectedFile) return;
+    
+    try {
+      console.log('[CSV PROCESSING] Starting row parsing and validation...');
+      
+      // Parse the full file content
+      const { headers, rows } = await parseFileContent(selectedFile.uri, selectedFile.name);
+      
+      console.log(`[CSV PROCESSING] Parsed ${rows.length} rows`);
+      
+      // Check row limit
+      if (rows.length > MAX_ROWS) {
+        throw new Error(`File too large. Please split into smaller batches (≤${MAX_ROWS.toLocaleString()} rows).`);
+      }
+      
+      // Normalize and validate all rows
+      const normalized = rows.map(row => normalizeRowForPreview(row, selectedTemplate));
+      
+      setNormalizedRows(normalized);
+      setCurrentPage(0);
+      
+      const validCount = normalized.filter(r => r.status === 'valid').length;
+      const invalidCount = normalized.filter(r => r.status === 'invalid').length;
+      
+      console.log(`[CSV PROCESSING] Processed ${normalized.length} rows: ${validCount} valid, ${invalidCount} invalid`);
+      
+    } catch (error: any) {
+      console.error('[CSV PROCESSING] Error:', error);
+      throw error;
+    }
+  }, [selectedFile, selectedTemplate, normalizeRowForPreview]);
 
   const handleFileSelect = useCallback(async () => {
     try {
@@ -185,6 +339,7 @@ export default function CSVBulkUploadScreen() {
       }
       
       setFileHeaders(headers);
+      setSelectedFile({ uri: file.uri, name: file.name });
       
       // Validate headers against selected template
       const expectedHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
@@ -394,6 +549,27 @@ export default function CSVBulkUploadScreen() {
 
   const validRows = processedRows.filter(row => row.errors.length === 0);
   const invalidRows = processedRows.filter(row => row.errors.length > 0);
+  
+  // Pagination logic for normalized rows
+  const totalPages = Math.ceil(normalizedRows.length / PAGE_SIZE);
+  const startIndex = currentPage * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, normalizedRows.length);
+  const currentPageRows = normalizedRows.slice(startIndex, endIndex);
+  
+  const validCount = normalizedRows.filter(r => r.status === 'valid').length;
+  const invalidCount = normalizedRows.filter(r => r.status === 'invalid').length;
+  
+  const toggleErrorExpansion = useCallback((index: number) => {
+    setExpandedErrors(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -492,8 +668,12 @@ export default function CSVBulkUploadScreen() {
                       setSelectedTemplate(templateType);
                       setShowTemplateDropdown(false);
                       setProcessedRows([]);
+                      setNormalizedRows([]);
                       setHeaderValidation(null);
                       setFileHeaders([]);
+                      setSelectedFile(null);
+                      setCurrentPage(0);
+                      setExpandedErrors(new Set());
                     }}
                   >
                     <View style={[styles.templateIndicator, { backgroundColor: config.color }]} />
@@ -543,7 +723,7 @@ export default function CSVBulkUploadScreen() {
               <>
                 <AlertCircle size={20} color={theme.colors.danger} />
                 <View style={styles.bannerContent}>
-                  <Text style={[styles.bannerTitle, styles.errorText]}>
+                  <Text style={[styles.bannerTitle, styles.bannerErrorTextStyle]}>
                     ❌ Invalid headers. Expected {TEMPLATE_CONFIGS[selectedTemplate].name} format.
                   </Text>
                   {headerValidation.errors.map((error, index) => (
@@ -559,101 +739,186 @@ export default function CSVBulkUploadScreen() {
           <View style={styles.actionContainer}>
             <TouchableOpacity
               style={[styles.actionButton, styles.previewButton]}
-              disabled={true}
+              onPress={async () => {
+                try {
+                  setIsLoading(true);
+                  await processCSVData();
+                  showToast('Rows parsed and validated successfully', 'success');
+                } catch (error: any) {
+                  console.warn(error);
+                  showToast(error.message || 'Failed to process CSV data', 'error');
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              disabled={isLoading}
             >
-              <Text style={styles.actionButtonText}>Preview & Validate</Text>
-              <Text style={styles.actionButtonSubtext}>(Coming Soon)</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color={theme.colors.white} />
+              ) : (
+                <Eye size={16} color={theme.colors.white} />
+              )}
+              <Text style={styles.actionButtonText}>
+                {isLoading ? 'Processing...' : 'Preview & Validate'}
+              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.actionButton, styles.importButton]}
-              disabled={true}
+              style={[styles.actionButton, styles.importButton, normalizedRows.length > 0 && validCount > 0 ? { opacity: 1 } : {}]}
+              disabled={normalizedRows.length === 0 || validCount === 0}
             >
               <Text style={styles.actionButtonText}>Import</Text>
-              <Text style={styles.actionButtonSubtext}>(Coming Soon)</Text>
+              <Text style={styles.actionButtonSubtext}>
+                {normalizedRows.length === 0 ? '(Disabled until preview)' : validCount === 0 ? '(No valid rows)' : `(${validCount} valid rows)`}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {processedRows.length > 0 && (
+        {normalizedRows.length > 0 && (
           <View style={styles.previewContainer}>
-            <Text style={styles.previewTitle}>
-              Preview ({processedRows.length} rows)
-            </Text>
-            
-            {validRows.length > 0 && (
-              <View style={styles.validSection}>
-                <Text style={styles.sectionTitle}>
-                  ✅ Valid Rows ({validRows.length})
-                </Text>
-                {validRows.map((row, index) => (
-                  <View key={row.id} style={styles.rowContainer}>
-                    <View style={styles.rowHeader}>
-                      <Text style={styles.rowTitle}>
-                        {selectedTemplate === 'simple' 
-                          ? `${row.original['Origin']} → ${row.original['Destination']}`
-                          : `${row.original['originCity'] || row.original['Origin']} → ${row.original['destinationCity'] || row.original['Destination']}`
-                        }
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.removeButton}
-                        onPress={() => removeRow(processedRows.indexOf(row))}
-                      >
-                        <Trash2 size={16} color={theme.colors.danger} />
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={styles.rowDetails}>
-                      {selectedTemplate === 'simple'
-                        ? `${row.original['VehicleType']} • ${row.original['Weight']} lbs • ${row.original['Price']}`
-                        : `${row.original['vehicleType'] || row.original['VehicleType']} • ${row.original['weight'] || row.original['Weight']} lbs • ${row.original['rate'] || row.original['Price']}`
-                      }
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {invalidRows.length > 0 && (
-              <View style={styles.invalidSection}>
-                <Text style={styles.sectionTitle}>
-                  ❌ Invalid Rows ({invalidRows.length})
-                </Text>
-                {invalidRows.map((row, index) => (
-                  <View key={row.id} style={styles.rowContainer}>
-                    <View style={styles.rowHeader}>
-                      <Text style={styles.rowTitle}>
-                        {selectedTemplate === 'simple'
-                          ? `${row.original['Origin'] || 'Missing'} → ${row.original['Destination'] || 'Missing'}`
-                          : `${row.original['originCity'] || row.original['Origin'] || 'Missing'} → ${row.original['destinationCity'] || row.original['Destination'] || 'Missing'}`
-                        }
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.removeButton}
-                        onPress={() => removeRow(processedRows.indexOf(row))}
-                      >
-                        <Trash2 size={16} color={theme.colors.danger} />
-                      </TouchableOpacity>
-                    </View>
-                    <View style={styles.errorList}>
-                      {row.errors.map((error, errorIndex) => (
-                        <Text key={errorIndex} style={styles.rowErrorText}>
-                          • {error}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-            
-            <View style={styles.summaryContainer}>
-              <Text style={styles.summaryTitle}>Import Summary</Text>
-              <Text style={styles.summaryText}>
-                Total: {processedRows.length} | Valid: {validRows.length} | Invalid: {invalidRows.length}
+            <View style={styles.previewHeader}>
+              <Text style={styles.previewTitle}>
+                Preview ({normalizedRows.length} rows)
               </Text>
+              <View style={styles.countsContainer}>
+                <View style={styles.countPill}>
+                  <Text style={styles.countText}>Valid {validCount}</Text>
+                </View>
+                <Text style={styles.countSeparator}>•</Text>
+                <View style={[styles.countPill, styles.invalidCountPill]}>
+                  <Text style={[styles.countText, styles.invalidCountText]}>Invalid {invalidCount}</Text>
+                </View>
+                <Text style={styles.countSeparator}>•</Text>
+                <View style={styles.countPill}>
+                  <Text style={styles.countText}>Total {normalizedRows.length}</Text>
+                </View>
+              </View>
             </View>
             
-            {validRows.length > 0 && (
+            {normalizedRows.length > MAX_ROWS && (
+              <View style={styles.warningBanner}>
+                <AlertCircle size={16} color={theme.colors.warning} />
+                <Text style={styles.warningText}>
+                  File too large. Please split into smaller batches (≤{MAX_ROWS.toLocaleString()} rows).
+                </Text>
+              </View>
+            )}
+            
+            <View style={styles.tableContainer}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, styles.titleColumn]}>Title</Text>
+                <Text style={[styles.tableHeaderText, styles.equipmentColumn]}>Equipment</Text>
+                <Text style={[styles.tableHeaderText, styles.locationColumn]}>Origin</Text>
+                <Text style={[styles.tableHeaderText, styles.locationColumn]}>Destination</Text>
+                <Text style={[styles.tableHeaderText, styles.dateColumn]}>Pickup</Text>
+                <Text style={[styles.tableHeaderText, styles.dateColumn]}>Delivery</Text>
+                <Text style={[styles.tableHeaderText, styles.rateColumn]}>Rate</Text>
+                <Text style={[styles.tableHeaderText, styles.statusColumn]}>Status</Text>
+              </View>
+              
+              {currentPageRows.map((row, index) => {
+                const globalIndex = startIndex + index;
+                const isExpanded = expandedErrors.has(globalIndex);
+                
+                return (
+                  <View key={globalIndex} style={styles.tableRow}>
+                    <View style={styles.tableRowContent}>
+                      <Text style={[styles.tableCellText, styles.titleColumn]} numberOfLines={1}>
+                        {row.title || '-'}
+                      </Text>
+                      <Text style={[styles.tableCellText, styles.equipmentColumn]} numberOfLines={1}>
+                        {row.equipmentType || '-'}
+                      </Text>
+                      <Text style={[styles.tableCellText, styles.locationColumn]} numberOfLines={1}>
+                        {row.origin || '-'}
+                      </Text>
+                      <Text style={[styles.tableCellText, styles.locationColumn]} numberOfLines={1}>
+                        {row.destination || '-'}
+                      </Text>
+                      <Text style={[styles.tableCellText, styles.dateColumn]} numberOfLines={1}>
+                        {row.pickupDate || '-'}
+                      </Text>
+                      <Text style={[styles.tableCellText, styles.dateColumn]} numberOfLines={1}>
+                        {row.deliveryDate || '-'}
+                      </Text>
+                      <Text style={[styles.tableCellText, styles.rateColumn]} numberOfLines={1}>
+                        {row.rate !== null ? `${row.rate.toLocaleString()}` : '-'}
+                      </Text>
+                      <View style={[styles.statusColumn, styles.statusContainer]}>
+                        <View style={[styles.statusPill, row.status === 'valid' ? styles.validPill : styles.invalidPill]}>
+                          <Text style={[styles.statusText, row.status === 'valid' ? styles.validText : styles.invalidText]}>
+                            {row.status === 'valid' ? '✅ Valid' : '❌ Invalid'}
+                          </Text>
+                        </View>
+                        {row.status === 'invalid' && row.errors.length > 0 && (
+                          <TouchableOpacity
+                            style={styles.errorToggle}
+                            onPress={() => toggleErrorExpansion(globalIndex)}
+                          >
+                            <Text style={styles.errorToggleText}>
+                              {isExpanded ? 'Hide errors' : 'Show errors'}
+                            </Text>
+                            {isExpanded ? (
+                              <EyeOff size={12} color={theme.colors.danger} />
+                            ) : (
+                              <Eye size={12} color={theme.colors.danger} />
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                    
+                    {isExpanded && row.errors.length > 0 && (
+                      <View style={styles.errorExpansion}>
+                        {row.errors.map((error, errorIndex) => (
+                          <Text key={errorIndex} style={styles.errorRowText}>
+                            • {error}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+            
+            {totalPages > 1 && (
+              <View style={styles.paginationContainer}>
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
+                  onPress={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                  disabled={currentPage === 0}
+                >
+                  <ChevronLeft size={16} color={currentPage === 0 ? theme.colors.gray : theme.colors.primary} />
+                  <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>
+                    Previous
+                  </Text>
+                </TouchableOpacity>
+                
+                <View style={styles.paginationInfo}>
+                  <Text style={styles.paginationText}>
+                    Page {currentPage + 1} of {totalPages}
+                  </Text>
+                  <Text style={styles.paginationSubtext}>
+                    Showing {startIndex + 1}-{endIndex} of {normalizedRows.length}
+                  </Text>
+                </View>
+                
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === totalPages - 1 && styles.paginationButtonDisabled]}
+                  onPress={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
+                  disabled={currentPage === totalPages - 1}
+                >
+                  <Text style={[styles.paginationButtonText, currentPage === totalPages - 1 && styles.paginationButtonTextDisabled]}>
+                    Next
+                  </Text>
+                  <ChevronRight size={16} color={currentPage === totalPages - 1 ? theme.colors.gray : theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            {validCount > 0 && (
               <TouchableOpacity
                 style={[styles.finalImportButton, isImporting && styles.importButtonDisabled]}
                 onPress={handleImport}
@@ -665,7 +930,7 @@ export default function CSVBulkUploadScreen() {
                   <CheckCircle size={24} color={theme.colors.white} />
                 )}
                 <Text style={styles.importText}>
-                  {isImporting ? 'Importing...' : `Import ${validRows.length} Loads`}
+                  {isImporting ? 'Importing...' : `Import ${validCount} Valid Loads`}
                 </Text>
               </TouchableOpacity>
             )}
@@ -792,7 +1057,7 @@ const styles = StyleSheet.create({
   successText: {
     color: theme.colors.success,
   },
-  errorText: {
+  bannerErrorTextStyle: {
     color: theme.colors.danger,
   },
   bannerErrorText: {
@@ -811,9 +1076,13 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     opacity: 0.5,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
   },
   previewButton: {
     backgroundColor: theme.colors.primary,
+    opacity: 1,
   },
   importButton: {
     backgroundColor: theme.colors.success,
@@ -1021,5 +1290,202 @@ const styles = StyleSheet.create({
   },
   templateOptionSubtextSelected: {
     color: theme.colors.primary,
+  },
+  previewHeader: {
+    marginBottom: theme.spacing.md,
+  },
+  countsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.xs,
+    flexWrap: 'wrap',
+  },
+  countPill: {
+    backgroundColor: '#E5F3FF',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs / 2,
+    borderRadius: theme.borderRadius.sm,
+  },
+  invalidCountPill: {
+    backgroundColor: '#FEE2E2',
+  },
+  countText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  invalidCountText: {
+    color: theme.colors.danger,
+  },
+  countSeparator: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginHorizontal: theme.spacing.xs,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.warning,
+  },
+  warningText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.warning,
+    marginLeft: theme.spacing.xs,
+    flex: 1,
+  },
+  tableContainer: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.md,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  tableHeaderText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    textAlign: 'center',
+  },
+  tableRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  tableRowContent: {
+    flexDirection: 'row',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.xs,
+    alignItems: 'center',
+  },
+  tableCellText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.dark,
+    textAlign: 'center',
+  },
+  titleColumn: {
+    flex: 2,
+    minWidth: 80,
+  },
+  equipmentColumn: {
+    flex: 1.5,
+    minWidth: 60,
+  },
+  locationColumn: {
+    flex: 2,
+    minWidth: 80,
+  },
+  dateColumn: {
+    flex: 1.2,
+    minWidth: 50,
+  },
+  rateColumn: {
+    flex: 1,
+    minWidth: 40,
+  },
+  statusColumn: {
+    flex: 1.5,
+    minWidth: 60,
+  },
+  statusContainer: {
+    alignItems: 'center',
+  },
+  statusPill: {
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: 2,
+  },
+  validPill: {
+    backgroundColor: '#D1FAE5',
+  },
+  invalidPill: {
+    backgroundColor: '#FEE2E2',
+  },
+  statusText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+  },
+  validText: {
+    color: theme.colors.success,
+  },
+  invalidText: {
+    color: theme.colors.danger,
+  },
+  errorToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  errorToggleText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.danger,
+    textDecorationLine: 'underline',
+  },
+  errorExpansion: {
+    backgroundColor: '#FEE2E2',
+    padding: theme.spacing.sm,
+    marginHorizontal: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+  },
+  errorRowText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.danger,
+    marginBottom: 2,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+  },
+  paginationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    gap: theme.spacing.xs / 2,
+  },
+  paginationButtonDisabled: {
+    borderColor: theme.colors.gray,
+    opacity: 0.5,
+  },
+  paginationButtonText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  paginationButtonTextDisabled: {
+    color: theme.colors.gray,
+  },
+  paginationInfo: {
+    alignItems: 'center',
+  },
+  paginationText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  paginationSubtext: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginTop: 2,
   },
 });
