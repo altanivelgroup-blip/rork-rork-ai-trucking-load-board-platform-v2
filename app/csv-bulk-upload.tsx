@@ -8,18 +8,20 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Switch,
 
 } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react-native';
+import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, RotateCcw, Share } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Sharing from 'expo-sharing';
 
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { parseFileContent, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, validateLoadRow, CSVRow, parseCSV } from '@/utils/csv';
 import * as XLSX from 'xlsx';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, Timestamp, writeBatch, query, where, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
@@ -112,6 +114,11 @@ export default function CSVBulkUploadScreen() {
   const [currentPage, setCurrentPage] = useState(0);
   const [expandedErrors, setExpandedErrors] = useState<Set<number>>(new Set());
   const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string } | null>(null);
+  const [isDryRun, setIsDryRun] = useState(true);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importSummary, setImportSummary] = useState<{ imported: number; skipped: number; total: number } | null>(null);
+  const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
+  const [isUndoing, setIsUndoing] = useState(false);
   const toast = useToast();
   
   const PAGE_SIZE = 20;
@@ -123,6 +130,10 @@ export default function CSVBulkUploadScreen() {
 
   const generateLoadId = useCallback(() => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }, []);
+
+  const generateBulkImportId = useCallback(() => {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }, []);
 
   const normalizeNumber = useCallback((value: string | null | undefined): number | null => {
@@ -141,6 +152,48 @@ export default function CSVBulkUploadScreen() {
     } catch {
       return null;
     }
+  }, []);
+
+  // Helper functions for location parsing
+  const parseLocationText = useCallback((locationStr: string): { city: string; state: string; zip: string } | null => {
+    if (!locationStr?.trim()) return null;
+    
+    // Try to parse "City, ST ZIP" format
+    const parts = locationStr.trim().split(',');
+    if (parts.length >= 2) {
+      const city = parts[0].trim();
+      const stateZipPart = parts[1].trim();
+      
+      // Extract state (2 letters) and zip
+      const stateZipMatch = stateZipPart.match(/^([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/);
+      if (stateZipMatch) {
+        return {
+          city,
+          state: stateZipMatch[1],
+          zip: stateZipMatch[2] || ''
+        };
+      }
+    }
+    
+    return null;
+  }, []);
+
+  const toTimestampOrNull = useCallback((dateStr: string | null): Timestamp | null => {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+      return Timestamp.fromDate(date);
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const stripMoney = useCallback((value: string | null | undefined): number | null => {
+    if (!value?.trim()) return null;
+    const cleaned = value.replace(/[$,]/g, '').trim();
+    const num = Number(cleaned);
+    return isNaN(num) ? null : Math.max(0, num);
   }, []);
 
   const validateRowData = useCallback((row: CSVRow, template: TemplateType): { status: 'valid' | 'invalid'; errors: string[] } => {
@@ -237,6 +290,64 @@ export default function CSVBulkUploadScreen() {
       };
     }
   }, [validateRowData, normalizeNumber, normalizeDate]);
+
+  // Transform parsed row to Firestore document format
+  const toFirestoreDoc = useCallback((parsedRow: NormalizedPreviewRow, templateType: TemplateType, bulkImportId: string): any => {
+    const baseDoc = {
+      status: 'open',
+      createdBy: user?.id || 'unknown',
+      createdAt: serverTimestamp(),
+      bulkImportId,
+    };
+
+    if (templateType === 'simple') {
+      // For simple template, try to parse origin/destination
+      const originParsed = parseLocationText(parsedRow.origin || '');
+      const destinationParsed = parseLocationText(parsedRow.destination || '');
+      
+      return {
+        ...baseDoc,
+        title: parsedRow.title || `${parsedRow.equipmentType || 'Load'} - ${parsedRow.origin} to ${parsedRow.destination}`,
+        description: null,
+        equipmentType: parsedRow.equipmentType,
+        vehicleCount: null,
+        origin: originParsed,
+        destination: destinationParsed,
+        originCity: parsedRow.origin, // Friendly fallback
+        destCity: parsedRow.destination, // Friendly fallback
+        pickupDate: null,
+        deliveryDate: null,
+        rate: parsedRow.rate,
+        rateTotalUSD: parsedRow.rate, // Legacy compatibility
+        contactName: null,
+        contactEmail: null,
+        contactPhone: null,
+      };
+    } else {
+      // Standard template - build structured origin/destination from normalized data
+      const originParsed = parseLocationText(parsedRow.origin || '');
+      const destinationParsed = parseLocationText(parsedRow.destination || '');
+      
+      return {
+        ...baseDoc,
+        title: parsedRow.title,
+        description: null, // Could be mapped from original data if available
+        equipmentType: parsedRow.equipmentType,
+        vehicleCount: null, // Could be mapped from original data if available
+        origin: originParsed,
+        destination: destinationParsed,
+        originCity: parsedRow.origin, // Friendly fallback
+        destCity: parsedRow.destination, // Friendly fallback
+        pickupDate: toTimestampOrNull(parsedRow.pickupDate),
+        deliveryDate: toTimestampOrNull(parsedRow.deliveryDate),
+        rate: parsedRow.rate,
+        rateTotalUSD: parsedRow.rate, // Legacy compatibility
+        contactName: null, // Could be mapped from original data if available
+        contactEmail: null, // Could be mapped from original data if available
+        contactPhone: null, // Could be mapped from original data if available
+      };
+    }
+  }, [user, parseLocationText, toTimestampOrNull]);
 
   const processCSVData = useCallback(async () => {
     if (!selectedFile) return;
@@ -366,148 +477,238 @@ export default function CSVBulkUploadScreen() {
     setProcessedRows(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  const performImport = useCallback(async () => {
+  const performImport = useCallback(async (dryRun: boolean = false) => {
     try {
       setIsImporting(true);
-      console.log('[BULK UPLOAD] Starting import process...');
+      setImportProgress({ current: 0, total: 0 });
+      setImportSummary(null);
       
-      const authSuccess = await ensureFirebaseAuth();
-      if (!authSuccess) {
-        throw new Error('Authentication failed. Please try again.');
+      console.log(`[BULK UPLOAD] Starting ${dryRun ? 'simulation' : 'import'} process...`);
+      
+      if (!dryRun) {
+        const authSuccess = await ensureFirebaseAuth();
+        if (!authSuccess) {
+          throw new Error('Authentication failed. Please try again.');
+        }
       }
       
-      const { db } = getFirebase();
-      console.log('[BULK UPLOAD] Firebase initialized successfully');
+      const validRows = normalizedRows.filter(row => row.status === 'valid');
+      const invalidRows = normalizedRows.filter(row => row.status === 'invalid');
       
-      const validRows = processedRows.filter(row => row.errors.length === 0);
+      if (validRows.length === 0) {
+        throw new Error('No valid rows to import');
+      }
+      
+      setImportProgress({ current: 0, total: validRows.length });
+      
+      if (dryRun) {
+        // Simulate processing
+        for (let i = 0; i < validRows.length; i++) {
+          await new Promise(resolve => setTimeout(resolve, 10)); // Small delay for UI
+          setImportProgress({ current: i + 1, total: validRows.length });
+        }
+        
+        setImportSummary({
+          imported: validRows.length,
+          skipped: invalidRows.length,
+          total: normalizedRows.length
+        });
+        
+        showToast(`Simulation complete: ${validRows.length} rows would be imported`, 'success');
+        return;
+      }
+      
+      // Real import
+      const { db } = getFirebase();
+      const bulkImportId = generateBulkImportId();
+      const BATCH_SIZE = 400;
       let imported = 0;
       
-      console.log(`[BULK UPLOAD] Processing ${validRows.length} valid rows...`);
+      console.log(`[BULK UPLOAD] Processing ${validRows.length} valid rows with bulk ID: ${bulkImportId}`);
       
-      for (const processedRow of validRows) {
-        const { original, id } = processedRow;
-        console.log(`[BULK UPLOAD] Processing row ${imported + 1}/${validRows.length}:`, id);
+      // Process in batches
+      for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const batchRows = validRows.slice(i, Math.min(i + BATCH_SIZE, validRows.length));
         
-        let loadData: any;
-        
-        if (selectedTemplate === 'simple') {
-          loadData = {
-            title: `${original['VehicleType']} - ${original['Origin']} to ${original['Destination']}`,
-            origin: original['Origin']?.trim() || '',
-            destination: original['Destination']?.trim() || '',
-            vehicleType: original['VehicleType']?.trim() || '',
-            weight: Number(original['Weight']?.replace(/[^0-9.]/g, '') || 0),
-            rate: Number(original['Price']?.replace(/[^0-9.]/g, '') || 0),
-            status: 'OPEN',
-            createdBy: user!.id,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            pickupDate: null,
-            deliveryDate: null,
-            attachments: [],
-            clientCreatedAt: Date.now(),
-          };
-        } else {
-          // Standard and Complete templates
-          const pickupDate = original['pickupDate'] ? new Date(original['pickupDate']) : null;
-          const deliveryDate = original['deliveryDate'] ? new Date(original['deliveryDate']) : null;
-          
-          loadData = {
-            title: original['title']?.trim() || `${original['vehicleType']} - ${original['originCity']} to ${original['destinationCity']}`,
-            description: original['description']?.trim() || 'Imported via CSV',
-            origin: original['originCity']?.trim() || '',
-            destination: original['destinationCity']?.trim() || '',
-            vehicleType: original['vehicleType']?.trim() || '',
-            weight: Number(original['weight']?.replace(/[^0-9.]/g, '') || 0),
-            rate: Number(original['rate']?.replace(/[^0-9.]/g, '') || 0),
-            status: 'OPEN',
-            createdBy: user!.id,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            pickupDate: pickupDate,
-            deliveryDate: deliveryDate,
-            attachments: [],
-            clientCreatedAt: Date.now(),
-            // Additional fields for standard/complete templates
-            originPlace: original['originState'] ? {
-              city: original['originCity']?.trim() || '',
-              state: original['originState']?.trim() || '',
-              lat: 0,
-              lng: 0
-            } : undefined,
-            destinationPlace: original['destinationState'] ? {
-              city: original['destinationCity']?.trim() || '',
-              state: original['destinationState']?.trim() || '',
-              lat: 0,
-              lng: 0
-            } : undefined,
-            weightLbs: Number(original['weight']?.replace(/[^0-9.]/g, '') || 0),
-            revenueUsd: Number(original['rate']?.replace(/[^0-9.]/g, '') || 0),
-            distanceMi: original['distance'] ? Number(original['distance'].replace(/[^0-9.]/g, '') || 0) : undefined,
-          };
-          
-          // Add complete template specific fields
-          if (selectedTemplate === 'complete') {
-            loadData = {
-              ...loadData,
-              loadType: original['loadType']?.trim(),
-              reference: original['reference']?.trim(),
-              originAddress: original['originAddress']?.trim(),
-              originZip: original['originZip']?.trim(),
-              destinationAddress: original['destinationAddress']?.trim(),
-              destinationZip: original['destinationZip']?.trim(),
-              specialRequirements: original['specialRequirements']?.trim(),
-              notes: original['notes']?.trim(),
-              dimensions: original['dimensions']?.trim(),
-              hazmat: original['hazmat']?.trim() === 'Yes',
-              temperature: original['temperature']?.trim(),
-              priority: original['priority']?.trim(),
-              expedited: original['expedited']?.trim() === 'Yes',
-            };
-          }
+        for (const row of batchRows) {
+          const docId = generateLoadId();
+          const docData = toFirestoreDoc(row, selectedTemplate, bulkImportId);
+          const docRef = doc(db, LOADS_COLLECTION, docId);
+          batch.set(docRef, docData);
         }
-
-        await setDoc(doc(db, LOADS_COLLECTION, id), loadData);
-        imported++;
-        console.log(`[BULK UPLOAD] Successfully imported row ${imported}/${validRows.length}`);
+        
+        try {
+          await batch.commit();
+          imported += batchRows.length;
+          setImportProgress({ current: imported, total: validRows.length });
+          console.log(`[BULK UPLOAD] Batch completed: ${imported}/${validRows.length}`);
+        } catch (error: any) {
+          console.error(`[BULK UPLOAD] Batch failed at ${imported}/${validRows.length}:`, error);
+          throw new Error(`Import failed after ${imported} rows. ${error.message}`);
+        }
       }
       
+      setLastBulkImportId(bulkImportId);
+      setImportSummary({
+        imported: validRows.length,
+        skipped: invalidRows.length,
+        total: normalizedRows.length
+      });
+      
       console.log(`[BULK UPLOAD] Import completed successfully. Imported ${imported} loads.`);
-      showToast(`Successfully imported ${imported} loads`);
-      setProcessedRows([]);
-      router.back();
+      showToast(`Successfully imported ${imported} loads`, 'success');
       
     } catch (error: any) {
       console.error('Import error:', error);
-      const errorMessage = error.message || 'Import failed. Please try again.';
+      const errorMessage = error.message || `${dryRun ? 'Simulation' : 'Import'} failed. Please try again.`;
       showToast(errorMessage, 'error');
     } finally {
       setIsImporting(false);
+      setImportProgress({ current: 0, total: 0 });
     }
-  }, [user, processedRows, showToast, selectedTemplate]);
+  }, [normalizedRows, selectedTemplate, generateBulkImportId, generateLoadId, toFirestoreDoc, showToast]);
 
   const handleImport = useCallback(async () => {
-    if (!user) {
-      showToast('Authentication required', 'error');
+    if (!isDryRun && !user) {
+      showToast('Sign in required', 'error');
       return;
     }
 
-    const validRows = processedRows.filter(row => row.errors.length === 0);
+    const validRows = normalizedRows.filter(row => row.status === 'valid');
     
     if (validRows.length === 0) {
       showToast('No valid rows to import', 'error');
       return;
     }
 
+    if (isDryRun) {
+      await performImport(true);
+    } else {
+      Alert.alert(
+        'Confirm Import',
+        `Import ${validRows.length} loads to Firestore?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Import', onPress: () => performImport(false) }
+        ]
+      );
+    }
+  }, [isDryRun, user, normalizedRows, showToast, performImport]);
+
+  const downloadSkippedRows = useCallback(async () => {
+    const invalidRows = normalizedRows.filter(row => row.status === 'invalid');
+    
+    if (invalidRows.length === 0) {
+      showToast('No invalid rows to download', 'error');
+      return;
+    }
+
+    // Build CSV content with error reasons
+    const headers = ['rowNumber', 'errorReasons', 'title', 'equipmentType', 'origin', 'destination', 'pickupDate', 'deliveryDate', 'rate'];
+    const csvRows = invalidRows.map((row, index) => {
+      return [
+        (index + 1).toString(),
+        row.errors.join('; '),
+        row.title || '',
+        row.equipmentType || '',
+        row.origin || '',
+        row.destination || '',
+        row.pickupDate || '',
+        row.deliveryDate || '',
+        row.rate?.toString() || ''
+      ];
+    });
+    
+    const csvContent = [headers, ...csvRows]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+    
+    const filename = `skipped_rows_${Date.now()}.csv`;
+    
+    if (Platform.OS === 'web') {
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Skipped rows downloaded', 'success');
+    } else {
+      try {
+        const { FileSystem } = require('expo-file-system');
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(fileUri, csvContent);
+        
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri);
+        } else {
+          showToast('File saved to device', 'success');
+        }
+      } catch (error) {
+        console.error('Error sharing file:', error);
+        showToast('Error downloading file', 'error');
+      }
+    }
+  }, [normalizedRows, showToast]);
+
+  const undoLastImport = useCallback(async () => {
+    if (!lastBulkImportId) {
+      showToast('No recent import to undo', 'error');
+      return;
+    }
+
     Alert.alert(
-      'Confirm Import',
-      `Import ${validRows.length} loads to Firestore?`,
+      'Undo Last Import',
+      'This will mark all documents from the last import as deleted. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Import', onPress: performImport }
+        {
+          text: 'Undo',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsUndoing(true);
+              
+              const authSuccess = await ensureFirebaseAuth();
+              if (!authSuccess) {
+                throw new Error('Authentication failed');
+              }
+              
+              const { db } = getFirebase();
+              const q = query(
+                collection(db, LOADS_COLLECTION),
+                where('bulkImportId', '==', lastBulkImportId)
+              );
+              
+              const querySnapshot = await getDocs(q);
+              const batch = writeBatch(db);
+              
+              querySnapshot.forEach((docSnapshot) => {
+                batch.update(docSnapshot.ref, {
+                  status: 'deleted',
+                  deletedAt: serverTimestamp(),
+                  deletedBy: user?.id || 'unknown'
+                });
+              });
+              
+              await batch.commit();
+              
+              showToast(`↩️ Reverted ${querySnapshot.size} documents from last import`, 'success');
+              setLastBulkImportId(null);
+              
+            } catch (error: any) {
+              console.error('Undo error:', error);
+              showToast(error.message || 'Undo failed', 'error');
+            } finally {
+              setIsUndoing(false);
+            }
+          }
+        }
       ]
     );
-  }, [user, processedRows, showToast, performImport]);
+  }, [lastBulkImportId, user, showToast]);
 
 
 
@@ -763,15 +964,96 @@ export default function CSVBulkUploadScreen() {
               </Text>
             </TouchableOpacity>
             
-            <TouchableOpacity
-              style={[styles.actionButton, styles.importButton, normalizedRows.length > 0 && validCount > 0 ? { opacity: 1 } : {}]}
-              disabled={normalizedRows.length === 0 || validCount === 0}
-            >
-              <Text style={styles.actionButtonText}>Import</Text>
-              <Text style={styles.actionButtonSubtext}>
-                {normalizedRows.length === 0 ? '(Disabled until preview)' : validCount === 0 ? '(No valid rows)' : `(${validCount} valid rows)`}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.importSection}>
+              <View style={styles.dryRunContainer}>
+                <View style={styles.dryRunToggle}>
+                  <Text style={styles.dryRunLabel}>Dry Run (no writes)</Text>
+                  <Switch
+                    value={isDryRun}
+                    onValueChange={setIsDryRun}
+                    trackColor={{ false: theme.colors.gray, true: theme.colors.primary }}
+                    thumbColor={isDryRun ? theme.colors.white : theme.colors.white}
+                  />
+                </View>
+                <Text style={styles.dryRunDescription}>
+                  {isDryRun ? 'Simulate import without writing to database' : 'Perform actual import to database'}
+                </Text>
+              </View>
+              
+              <TouchableOpacity
+                style={[styles.actionButton, styles.importButton, normalizedRows.length > 0 && validCount > 0 ? { opacity: 1 } : {}]}
+                onPress={handleImport}
+                disabled={normalizedRows.length === 0 || validCount === 0 || isImporting}
+              >
+                {isImporting ? (
+                  <ActivityIndicator size="small" color={theme.colors.white} />
+                ) : (
+                  <CheckCircle size={16} color={theme.colors.white} />
+                )}
+                <Text style={styles.actionButtonText}>
+                  {isImporting ? 'Processing...' : isDryRun ? `Simulate Import (${validCount} valid)` : `Import ${validCount} Valid Rows`}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Progress Bar */}
+        {isImporting && importProgress.total > 0 && (
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              Processed {importProgress.current} / {importProgress.total}
+            </Text>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { width: `${(importProgress.current / importProgress.total) * 100}%` }
+                ]} 
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Import Summary */}
+        {importSummary && (
+          <View style={styles.summaryBanner}>
+            <CheckCircle size={20} color={theme.colors.success} />
+            <Text style={styles.summaryText}>
+              ✅ {isDryRun ? 'Simulated' : 'Imported'} {importSummary.imported} • ❗Skipped {importSummary.skipped} • Total {importSummary.total}
+            </Text>
+          </View>
+        )}
+
+        {/* Action Buttons */}
+        {normalizedRows.length > 0 && importSummary && (
+          <View style={styles.postImportActions}>
+            {importSummary.skipped > 0 && (
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={downloadSkippedRows}
+              >
+                <Download size={16} color={theme.colors.primary} />
+                <Text style={styles.secondaryButtonText}>Download Skipped Rows (.csv)</Text>
+              </TouchableOpacity>
+            )}
+            
+            {lastBulkImportId && !isDryRun && (
+              <TouchableOpacity
+                style={[styles.secondaryButton, styles.undoButton]}
+                onPress={undoLastImport}
+                disabled={isUndoing}
+              >
+                {isUndoing ? (
+                  <ActivityIndicator size={16} color={theme.colors.danger} />
+                ) : (
+                  <RotateCcw size={16} color={theme.colors.danger} />
+                )}
+                <Text style={[styles.secondaryButtonText, styles.undoButtonText]}>
+                  {isUndoing ? 'Undoing...' : 'Undo last import'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -918,22 +1200,7 @@ export default function CSVBulkUploadScreen() {
               </View>
             )}
             
-            {validCount > 0 && (
-              <TouchableOpacity
-                style={[styles.finalImportButton, isImporting && styles.importButtonDisabled]}
-                onPress={handleImport}
-                disabled={isImporting}
-              >
-                {isImporting ? (
-                  <ActivityIndicator color={theme.colors.white} />
-                ) : (
-                  <CheckCircle size={24} color={theme.colors.white} />
-                )}
-                <Text style={styles.importText}>
-                  {isImporting ? 'Importing...' : `Import ${validCount} Valid Loads`}
-                </Text>
-              </TouchableOpacity>
-            )}
+
           </View>
         )}
       </ScrollView>
@@ -1172,6 +1439,91 @@ const styles = StyleSheet.create({
   summaryText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
+  },
+  importSection: {
+    gap: theme.spacing.sm,
+  },
+  dryRunContainer: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  dryRunToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  dryRunLabel: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  dryRunDescription: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+  },
+  progressContainer: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
+  },
+  progressText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 4,
+  },
+  summaryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.success,
+  },
+  postImportActions: {
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    gap: theme.spacing.xs,
+  },
+  secondaryButtonText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  undoButton: {
+    borderColor: theme.colors.danger,
+  },
+  undoButtonText: {
+    color: theme.colors.danger,
   },
   finalImportButton: {
     flexDirection: 'row',
