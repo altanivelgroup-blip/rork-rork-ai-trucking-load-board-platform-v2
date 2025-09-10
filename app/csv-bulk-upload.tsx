@@ -642,16 +642,24 @@ export default function CSVBulkUploadScreen() {
           const response = await fetch(file.uri);
           arrayBuffer = await response.arrayBuffer();
         } else {
-          // Use the parseFileContent function which handles platform differences
-          const { headers: tempHeaders } = await parseFileContent(file.uri, file.name);
-          // For Excel files, we need to re-read to get the array buffer
-          const FileSystem = await import('expo-file-system');
-          const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
-          const binaryString = atob(base64);
-          arrayBuffer = new ArrayBuffer(binaryString.length);
-          const uint8Array = new Uint8Array(arrayBuffer);
-          for (let i = 0; i < binaryString.length; i++) {
-            uint8Array[i] = binaryString.charCodeAt(i);
+          // React Native environment
+          try {
+            const FileSystem = await import('expo-file-system');
+            if (!FileSystem || !FileSystem.readAsStringAsync) {
+              throw new Error('FileSystem.readAsStringAsync is not available');
+            }
+            const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+            const binaryString = atob(base64);
+            arrayBuffer = new ArrayBuffer(binaryString.length);
+            const uint8Array = new Uint8Array(arrayBuffer);
+            for (let i = 0; i < binaryString.length; i++) {
+              uint8Array[i] = binaryString.charCodeAt(i);
+            }
+          } catch (error) {
+            console.warn('FileSystem not available for Excel parsing, trying fetch fallback:', error);
+            // Fallback to fetch for React Native Web or when FileSystem is not available
+            const response = await fetch(file.uri);
+            arrayBuffer = await response.arrayBuffer();
           }
         }
         
@@ -673,8 +681,19 @@ export default function CSVBulkUploadScreen() {
           const response = await fetch(file.uri);
           csvContent = await response.text();
         } else {
-          const FileSystem = await import('expo-file-system');
-          csvContent = await FileSystem.readAsStringAsync(file.uri);
+          // React Native environment
+          try {
+            const FileSystem = await import('expo-file-system');
+            if (!FileSystem || !FileSystem.readAsStringAsync) {
+              throw new Error('FileSystem.readAsStringAsync is not available');
+            }
+            csvContent = await FileSystem.readAsStringAsync(file.uri);
+          } catch (error) {
+            console.warn('FileSystem not available, trying fetch fallback:', error);
+            // Fallback to fetch for React Native Web or when FileSystem is not available
+            const response = await fetch(file.uri);
+            csvContent = await response.text();
+          }
         }
         
         const firstLine = csvContent.split('\n')[0];
