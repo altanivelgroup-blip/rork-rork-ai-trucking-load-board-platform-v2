@@ -7,7 +7,7 @@ import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { getFirebase } from '@/utils/firebase';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as Clipboard from 'expo-clipboard';
 
@@ -133,6 +133,83 @@ function LoginHistoryDropdown() {
         </View>
       )}
     </View>
+  );
+}
+
+function TestLoginWriteButton() {
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [firebaseUser, setFirebaseUser] = useState<any>(null);
+
+  useEffect(() => {
+    const auth = getAuth();
+    setFirebaseUser(auth.currentUser);
+  }, []);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 3000);
+  };
+
+  const handleTestLoginWrite = async () => {
+    try {
+      const auth = getAuth();
+      const u = auth.currentUser;
+      
+      if (!u) {
+        showToast('No auth user.');
+        return;
+      }
+
+      const { db } = getFirebase();
+      const uid = u.uid;
+
+      // Write to users/{uid}
+      await setDoc(doc(db, 'users', uid), {
+        lastLoginAt: serverTimestamp(),
+        devPingAt: serverTimestamp(),
+        email: u.email ?? null,
+        isAnonymous: !!u.isAnonymous,
+      }, { merge: true });
+
+      // Write to users/{uid}/logins
+      await addDoc(collection(db, 'users', uid, 'logins'), {
+        createdAt: serverTimestamp(),
+        device: Platform.OS,
+        provider: u.providerData?.[0]?.providerId ?? (u.isAnonymous ? 'anonymous' : 'unknown'),
+      });
+
+      showToast('Login write: OK');
+    } catch (err: any) {
+      console.warn('[TestLoginWrite] Error:', err);
+      const code = err?.code || 'unknown';
+      showToast(`Login write FAILED: ${code}`);
+    }
+  };
+
+  // Hide button when EXPO_PUBLIC_SHOW_DEV_TOOLS !== 'true'
+  const showDevTools = process.env.EXPO_PUBLIC_SHOW_DEV_TOOLS === 'true';
+  if (!showDevTools) {
+    return null;
+  }
+
+  return (
+    <>
+      <TouchableOpacity 
+        onPress={handleTestLoginWrite}
+        style={styles.testLoginButton}
+        testID="test-login-write-button"
+      >
+        <Text style={styles.testLoginButtonText}>Test Login Write</Text>
+      </TouchableOpacity>
+      
+      {toastVisible && (
+        <View style={styles.testToast}>
+          <Text style={styles.testToastText}>{toastMessage}</Text>
+        </View>
+      )}
+    </>
   );
 }
 
@@ -407,6 +484,7 @@ export default function ShipperDashboard() {
           <Text style={styles.title}>Shipper Dashboard</Text>
           <Text style={styles.subtitle}>Manage your loads and track performance</Text>
           <UserInfoRow />
+          <TestLoginWriteButton />
           <LoginHistoryDropdown />
         </View>
         
@@ -1033,5 +1111,36 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: '#f59e0b',
     fontStyle: 'italic',
+  },
+  testLoginButton: {
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  testLoginButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+  },
+  testToast: {
+    position: 'absolute',
+    top: 120,
+    left: '50%',
+    transform: [{ translateX: -50 }],
+    backgroundColor: theme.colors.dark,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    zIndex: 1001,
+    maxWidth: '80%',
+  },
+  testToastText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
