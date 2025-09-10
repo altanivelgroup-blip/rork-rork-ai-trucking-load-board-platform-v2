@@ -91,10 +91,10 @@ export default function DriverProfileScreen() {
         }
       })();
     }
+  }, [user, userId, bootstrapping, register]);
 
+  useEffect(() => {
     if (user) {
-
-      
       setFormData({
         // Personal Info
         name: user.name || '',
@@ -116,8 +116,6 @@ export default function DriverProfileScreen() {
         plate: user.plate || '',
         tankGallons: user.tankGallons?.toString() || '50',
         gvwrLbs: user.gvwrLbs?.toString() || '',
-
-
         
         // Trailer Info
         trailerMake: user.trailerMake || '',
@@ -129,7 +127,6 @@ export default function DriverProfileScreen() {
         trailerPolicyNumber: user.trailerPolicyNumber || '',
         trailerGvwrLbs: user.trailerGvwrLbs?.toString() || '',
         trailerType: user.trailerType || 'flatbed',
-
         
         // Company Info
         companyName: user.companyName || '',
@@ -139,20 +136,35 @@ export default function DriverProfileScreen() {
         policyNumber: user.policyNumber || '',
       });
     }
-  }, [user, userId, bootstrapping, register]);
+  }, [user]);
 
-  const updateField = (field: string, value: string) => {
+  const updateField = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
+  }, []);
 
-
-
-  const toggleFuelType = () => {
+  const toggleFuelType = useCallback(() => {
     setFormData(prev => ({ 
       ...prev, 
       fuelType: prev.fuelType === 'diesel' ? 'gasoline' as const : 'diesel' as const
     }));
-  };
+  }, []);
+
+  const handleTypeChange = useCallback((type: 'truck' | 'trailer') => {
+    console.log('[DriverProfile] Primary vehicle type changed to:', type);
+    setFormData(prev => ({ 
+      ...prev, 
+      primaryVehicleType: type,
+      primaryVehicleSubtype: '' // Reset subtype when type changes
+    }));
+  }, []);
+
+  const handleSubtypeChange = useCallback((subtype: AnySubtype) => {
+    console.log('[DriverProfile] Primary vehicle subtype changed to:', subtype);
+    setFormData(prev => ({ 
+      ...prev, 
+      primaryVehicleSubtype: String(subtype)
+    }));
+  }, []);
 
 
 
@@ -203,6 +215,8 @@ export default function DriverProfileScreen() {
   );
 
   const onSave = useCallback(async () => {
+    if (submitting) return;
+    
     try {
       setSubmitting(true);
       
@@ -249,12 +263,13 @@ export default function DriverProfileScreen() {
       
       await updateProfile(updateData);
       toast.show('Driver profile saved successfully', 'success');
-    } catch {
+    } catch (error) {
+      console.error('Profile save error:', error);
       toast.show('Save failed. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
-  }, [formData, updateProfile, toast]);
+  }, [formData, updateProfile, toast, submitting]);
 
   const onSubmitForVerification = useCallback(async () => {
     await onSave();
@@ -346,21 +361,8 @@ export default function DriverProfileScreen() {
           <TypeSubtypeSelector
             type={formData.primaryVehicleType}
             subtype={formData.primaryVehicleSubtype}
-            onTypeChange={(type) => {
-              console.log('[DriverProfile] Primary vehicle type changed to:', type);
-              setFormData(prev => ({ 
-                ...prev, 
-                primaryVehicleType: type,
-                primaryVehicleSubtype: '' // Reset subtype when type changes
-              }));
-            }}
-            onSubtypeChange={(subtype: AnySubtype) => {
-              console.log('[DriverProfile] Primary vehicle subtype changed to:', subtype);
-              setFormData(prev => ({ 
-                ...prev, 
-                primaryVehicleSubtype: String(subtype)
-              }));
-            }}
+            onTypeChange={handleTypeChange}
+            onSubtypeChange={handleSubtypeChange}
             testIDPrefix="primary-vehicle"
           />
         </View>
