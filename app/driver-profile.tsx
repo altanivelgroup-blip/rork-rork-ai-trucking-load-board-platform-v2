@@ -9,9 +9,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
-import { FuelKind, VehicleType, PrimaryVehicle } from '@/types';
-import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
-import { AnySubtype } from '@/constants/vehicleOptions';
+import { FuelKind, VehicleType } from '@/types';
+
 
 
 
@@ -31,9 +30,7 @@ export default function DriverProfileScreen() {
     phone: '',
     company: '',
     
-    // Primary Vehicle
-    primaryVehicleType: 'truck' as 'truck' | 'trailer',
-    primaryVehicleSubtype: '',
+
     
     // Vehicle Info
     vehicleMake: '',
@@ -102,9 +99,7 @@ export default function DriverProfileScreen() {
         phone: user.phone || '',
         company: user.company || '',
         
-        // Primary Vehicle
-        primaryVehicleType: user.primaryVehicle?.type || 'truck',
-        primaryVehicleSubtype: user.primaryVehicle?.subtype || '',
+
         
         // Vehicle Info
         vehicleMake: user.vehicleMake || '',
@@ -149,26 +144,7 @@ export default function DriverProfileScreen() {
     }));
   }, []);
 
-  const handleTypeChange = useCallback((type: 'truck' | 'trailer') => {
-    console.log('[DriverProfile] Primary vehicle type changed to:', type);
-    console.log('[DriverProfile] Current formData.primaryVehicleType:', formData.primaryVehicleType);
-    setFormData(prev => ({ 
-      ...prev, 
-      primaryVehicleType: type,
-      primaryVehicleSubtype: '' // Reset subtype when type changes
-    }));
-    console.log('[DriverProfile] After setFormData called');
-  }, [formData.primaryVehicleType]);
 
-  const handleSubtypeChange = useCallback((subtype: AnySubtype) => {
-    console.log('[DriverProfile] Primary vehicle subtype changed to:', subtype);
-    console.log('[DriverProfile] Current formData.primaryVehicleSubtype:', formData.primaryVehicleSubtype);
-    setFormData(prev => ({ 
-      ...prev, 
-      primaryVehicleSubtype: String(subtype)
-    }));
-    console.log('[DriverProfile] After subtype setFormData called');
-  }, [formData.primaryVehicleSubtype]);
 
 
 
@@ -224,20 +200,13 @@ export default function DriverProfileScreen() {
     try {
       setSubmitting(true);
       
-      // Validate primary vehicle fields
-      if (!formData.primaryVehicleType || !formData.primaryVehicleSubtype) {
-        toast.show('Please select both vehicle type and subtype', 'error');
-        return;
-      }
+
       
       const updateData = {
         name: formData.name,
         phone: formData.phone,
         company: formData.company,
-        primaryVehicle: {
-          type: formData.primaryVehicleType,
-          subtype: formData.primaryVehicleSubtype,
-        } as PrimaryVehicle,
+
         vehicleMake: formData.vehicleMake,
         vehicleModel: formData.vehicleModel,
         vehicleYear: formData.vehicleYear ? parseInt(formData.vehicleYear) : null,
@@ -355,27 +324,7 @@ export default function DriverProfileScreen() {
           </View>
         </View>
 
-        {/* Primary Vehicle */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Truck size={20} color={theme.colors.primary} />
-            <Text style={styles.sectionTitle}>Primary Vehicle *</Text>
-          </View>
-          
-          <TypeSubtypeSelector
-            type={formData.primaryVehicleType}
-            subtype={formData.primaryVehicleSubtype}
-            onTypeChange={handleTypeChange}
-            onSubtypeChange={handleSubtypeChange}
-            testIDPrefix="primary-vehicle"
-          />
-          
-          {/* Debug Info */}
-          <View style={styles.debugInfo}>
-            <Text style={styles.debugText}>Debug: Type = {formData.primaryVehicleType}</Text>
-            <Text style={styles.debugText}>Debug: Subtype = {formData.primaryVehicleSubtype || '(none)'}</Text>
-          </View>
-        </View>
+
 
         {/* Vehicle Information */}
         <View style={styles.section}>
