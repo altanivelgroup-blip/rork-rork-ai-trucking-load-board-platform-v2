@@ -87,11 +87,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           
           setUserId(firebaseUser?.uid || null);
           setIsFirebaseAuthenticated(!!firebaseUser);
-          
-          // Only set anonymous state if we don't have a local user
-          if (!user) {
-            setIsAnonymous(firebaseUser?.isAnonymous ?? true);
-          }
+          setIsAnonymous(firebaseUser?.isAnonymous ?? true);
         });
         
         return unsubscribe;
@@ -117,7 +113,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         unsubscribe();
       }
     };
-  }, [user]);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     console.log('[auth] login attempt for', email);
