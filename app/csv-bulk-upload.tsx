@@ -642,7 +642,10 @@ export default function CSVBulkUploadScreen() {
           const response = await fetch(file.uri);
           arrayBuffer = await response.arrayBuffer();
         } else {
-          const { FileSystem } = require('expo-file-system');
+          // Use the parseFileContent function which handles platform differences
+          const { headers: tempHeaders } = await parseFileContent(file.uri, file.name);
+          // For Excel files, we need to re-read to get the array buffer
+          const FileSystem = await import('expo-file-system');
           const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
           const binaryString = atob(base64);
           arrayBuffer = new ArrayBuffer(binaryString.length);
@@ -670,7 +673,7 @@ export default function CSVBulkUploadScreen() {
           const response = await fetch(file.uri);
           csvContent = await response.text();
         } else {
-          const { FileSystem } = require('expo-file-system');
+          const FileSystem = await import('expo-file-system');
           csvContent = await FileSystem.readAsStringAsync(file.uri);
         }
         
@@ -911,7 +914,7 @@ export default function CSVBulkUploadScreen() {
       showToast('Skipped rows downloaded', 'success');
     } else {
       try {
-        const { FileSystem } = require('expo-file-system');
+        const FileSystem = await import('expo-file-system');
         const fileUri = `${FileSystem.documentDirectory}${filename}`;
         await FileSystem.writeAsStringAsync(fileUri, csvContent);
         

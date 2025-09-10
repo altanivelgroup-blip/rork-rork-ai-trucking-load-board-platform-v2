@@ -475,7 +475,7 @@ export async function parseExcelFile(fileUri: string, fileName: string): Promise
       arrayBuffer = await response.arrayBuffer();
     } else {
       // React Native environment
-      const { FileSystem } = require('expo-file-system');
+      const FileSystem = await import('expo-file-system');
       const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
       const binaryString = atob(base64);
       arrayBuffer = new ArrayBuffer(binaryString.length);
@@ -538,7 +538,7 @@ export async function parseFileContent(fileUri: string, fileName: string): Promi
       csvContent = await response.text();
     } else {
       // React Native environment
-      const { FileSystem } = require('expo-file-system');
+      const FileSystem = await import('expo-file-system');
       csvContent = await FileSystem.readAsStringAsync(fileUri);
     }
     
