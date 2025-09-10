@@ -191,29 +191,29 @@ export default function RootLayout() {
         <GestureHandlerRootView style={styles.rootContainer}>
           <trpc.Provider client={trpcClient} queryClient={queryClient}>
             <QueryClientProvider client={queryClient}>
-              <StartupInitializer>
-                <View style={styles.appContainer}>
-                  <AuthProvider>
-                    <LoadsProvider>
-                      <PaymentsProvider>
-                        <MaintenanceProvider>
-                          <SettingsProvider>
-                            <PostLoadProvider>
-                              <ToastProvider>
+              <ToastProvider>
+                <StartupInitializer>
+                  <View style={styles.appContainer}>
+                    <AuthProvider>
+                      <LoadsProvider>
+                        <PaymentsProvider>
+                          <MaintenanceProvider>
+                            <SettingsProvider>
+                              <PostLoadProvider>
                                 <AutoArriveProvider>
                                   <RootLayoutNav />
                                   <AutoArriveSheet />
                                 </AutoArriveProvider>
-                                <ToastHost />
-                              </ToastProvider>
-                            </PostLoadProvider>
-                          </SettingsProvider>
-                        </MaintenanceProvider>
-                      </PaymentsProvider>
-                    </LoadsProvider>
-                  </AuthProvider>
-                </View>
-              </StartupInitializer>
+                              </PostLoadProvider>
+                            </SettingsProvider>
+                          </MaintenanceProvider>
+                        </PaymentsProvider>
+                      </LoadsProvider>
+                    </AuthProvider>
+                  </View>
+                </StartupInitializer>
+                <ToastHost />
+              </ToastProvider>
             </QueryClientProvider>
           </trpc.Provider>
         </GestureHandlerRootView>

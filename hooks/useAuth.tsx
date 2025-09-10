@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Driver } from '@/types';
 import { auth, ensureFirebaseAuth, db } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { useToast } from '@/components/Toast';
+
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AuthState {
@@ -28,7 +28,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
-  const toast = useToast();
+
 
   useEffect(() => {
     let isMounted = true;

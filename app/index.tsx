@@ -9,8 +9,8 @@ export default function IndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, isLoading } = useAuth();
-  const [hasNavigated, setHasNavigated] = useState(false);
-  const [showManualNav, setShowManualNav] = useState(false);
+  const [hasNavigated, setHasNavigated] = useState<boolean>(false);
+  const [showManualNav, setShowManualNav] = useState<boolean>(false);
 
   useEffect(() => {
     console.log('[Index] Auth state - user:', !!user, 'isLoading:', isLoading, 'hasNavigated:', hasNavigated);
@@ -20,9 +20,11 @@ export default function IndexScreen() {
       return;
     }
 
+    let isMounted = true;
+
     // Show manual navigation after 3 seconds if auto-nav fails
     const manualNavTimer = setTimeout(() => {
-      if (!hasNavigated) {
+      if (!hasNavigated && isMounted) {
         console.log('[Index] Auto-navigation timeout, showing manual options');
         setShowManualNav(true);
       }
@@ -30,7 +32,7 @@ export default function IndexScreen() {
     
     // Navigate based on auth state
     const navTimer = setTimeout(() => {
-      if (hasNavigated) return;
+      if (hasNavigated || !isMounted) return;
       
       try {
         setHasNavigated(true);
@@ -43,12 +45,15 @@ export default function IndexScreen() {
         }
       } catch (error) {
         console.warn('[Index] Navigation error:', error);
-        setHasNavigated(false);
-        setShowManualNav(true);
+        if (isMounted) {
+          setHasNavigated(false);
+          setShowManualNav(true);
+        }
       }
     }, 500);
 
     return () => {
+      isMounted = false;
       clearTimeout(navTimer);
       clearTimeout(manualNavTimer);
     };

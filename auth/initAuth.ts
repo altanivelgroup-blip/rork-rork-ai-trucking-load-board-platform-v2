@@ -148,31 +148,42 @@ export async function ensureAuthReady(): Promise<boolean> {
 }
 
 // Track user login events in Firestore
+let loginWatcherSetup = false;
 export function watchAndRecordLogin() {
-  const { auth, db } = getFirebase();
+  if (loginWatcherSetup) {
+    console.log('[InitAuth] Login watcher already setup, skipping');
+    return;
+  }
+  loginWatcherSetup = true;
+  
+  try {
+    const { auth, db } = getFirebase();
 
-  onAuthStateChanged(auth, async (u) => {
-    if (!u) return;
-    
-    try {
-      await setDoc(
-        doc(db, "users", u.uid),
-        {
-          // server authoritative login time:
-          lastLoginAt: serverTimestamp(),
-          // handy extras
-          isAnonymous: u.isAnonymous ?? false,
-          lastProvider: u.providerData?.[0]?.providerId ?? "anonymous",
-          // what the client saw from Auth (string)
-          authLastSignInTime: u.metadata?.lastSignInTime || null,
-          authCreationTime: u.metadata?.creationTime || null,
-          device: Platform.OS, // "web" | "ios" | "android"
-        },
-        { merge: true }
-      );
-      console.log("[InitAuth] Recorded lastLoginAt for", u.uid);
-    } catch (e) {
-      console.warn("[InitAuth] Failed to record lastLoginAt:", e);
-    }
-  });
+    onAuthStateChanged(auth, async (u) => {
+      if (!u) return;
+      
+      try {
+        await setDoc(
+          doc(db, "users", u.uid),
+          {
+            // server authoritative login time:
+            lastLoginAt: serverTimestamp(),
+            // handy extras
+            isAnonymous: u.isAnonymous ?? false,
+            lastProvider: u.providerData?.[0]?.providerId ?? "anonymous",
+            // what the client saw from Auth (string)
+            authLastSignInTime: u.metadata?.lastSignInTime || null,
+            authCreationTime: u.metadata?.creationTime || null,
+            device: Platform.OS, // "web" | "ios" | "android"
+          },
+          { merge: true }
+        );
+        console.log("[InitAuth] Recorded lastLoginAt for", u.uid);
+      } catch (e) {
+        console.warn("[InitAuth] Failed to record lastLoginAt:", e);
+      }
+    });
+  } catch (error) {
+    console.warn('[InitAuth] Failed to setup login watcher:', error);
+  }
 }
