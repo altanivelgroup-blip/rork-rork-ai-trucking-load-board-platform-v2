@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 
 } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, RotateCcw, Share } from 'lucide-react-native';
+import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, RotateCcw, Share, History, ExternalLink } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as CryptoJS from 'crypto-js';
@@ -26,6 +26,7 @@ import { doc, setDoc, serverTimestamp, Timestamp, writeBatch, query, where, coll
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
+import { BulkImportSession } from '@/types';
 
 
 type TemplateType = 'simple' | 'standard' | 'complete';
@@ -121,14 +122,155 @@ export default function CSVBulkUploadScreen() {
   const [importSummary, setImportSummary] = useState<{ imported: number; skipped: number; total: number } | null>(null);
   const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
   const [isUndoing, setIsUndoing] = useState(false);
+  const [importHistory, setImportHistory] = useState<BulkImportSession[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [skippedRowsData, setSkippedRowsData] = useState<NormalizedPreviewRow[]>([]);
   const toast = useToast();
   
   const PAGE_SIZE = 20;
   const MAX_ROWS = 5000;
+  const BULK_IMPORTS_COLLECTION = 'bulkImports';
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     toast.show(message, type);
   }, [toast]);
+
+  // Load import history
+  const loadImportHistory = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoadingHistory(true);
+      const { db } = getFirebase();
+      
+      const q = query(
+        collection(db, BULK_IMPORTS_COLLECTION),
+        where('userId', '==', user.id),
+        orderBy('createdAt', 'desc'),
+        limit(10)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const sessions: BulkImportSession[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        sessions.push({
+          id: doc.id,
+          userId: data.userId,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          templateType: data.templateType,
+          fileName: data.fileName,
+          totals: data.totals,
+          notes: data.notes
+        });
+      });
+      
+      setImportHistory(sessions);
+    } catch (error) {
+      console.warn('[IMPORT HISTORY] Error loading history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [user?.id]);
+
+  // Create bulk import session record
+  const createBulkImportSession = useCallback(async (
+    bulkImportId: string,
+    templateType: TemplateType,
+    fileName: string,
+    totals: { valid: number; skipped: number; written: number }
+  ) => {
+    if (!user?.id) return;
+    
+    try {
+      const { db } = getFirebase();
+      const sessionData: Omit<BulkImportSession, 'id'> = {
+        userId: user.id,
+        createdAt: new Date(),
+        templateType,
+        fileName,
+        totals
+      };
+      
+      await setDoc(doc(db, BULK_IMPORTS_COLLECTION, bulkImportId), {
+        ...sessionData,
+        createdAt: serverTimestamp()
+      });
+      
+      console.log(`[BULK IMPORT] Created session record: ${bulkImportId}`);
+    } catch (error) {
+      console.warn('[BULK IMPORT] Error creating session record:', error);
+    }
+  }, [user?.id]);
+
+  // Navigate to loads filtered by bulk import ID
+  const viewBulkImportLoads = useCallback((bulkImportId: string) => {
+    router.push(`/loads?bulkImportId=${bulkImportId}`);
+  }, []);
+
+  // Undo bulk import by ID
+  const undoBulkImport = useCallback(async (bulkImportId: string) => {
+    Alert.alert(
+      'Undo Import',
+      'This will mark all documents from this import as deleted. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Undo',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsUndoing(true);
+              
+              const authSuccess = await ensureFirebaseAuth();
+              if (!authSuccess) {
+                throw new Error('Authentication failed');
+              }
+              
+              const { db } = getFirebase();
+              const q = query(
+                collection(db, LOADS_COLLECTION),
+                where('bulkImportId', '==', bulkImportId)
+              );
+              
+              const querySnapshot = await getDocs(q);
+              const batch = writeBatch(db);
+              
+              querySnapshot.forEach((docSnapshot) => {
+                batch.update(docSnapshot.ref, {
+                  status: 'deleted',
+                  deletedAt: serverTimestamp(),
+                  deletedBy: user?.id || 'unknown'
+                });
+              });
+              
+              await batch.commit();
+              
+              showToast(`↩️ Reverted ${querySnapshot.size} documents from import`, 'success');
+              
+              // Refresh history
+              await loadImportHistory();
+              
+            } catch (error: any) {
+              console.error('Undo error:', error);
+              showToast(error.message || 'Undo failed', 'error');
+            } finally {
+              setIsUndoing(false);
+            }
+          }
+        }
+      ]
+    );
+  }, [user?.id, showToast, loadImportHistory]);
+
+  // Load history on component mount
+  useEffect(() => {
+    if (user?.id) {
+      loadImportHistory();
+    }
+  }, [user?.id, loadImportHistory]);
 
   const generateLoadId = useCallback(() => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -655,11 +797,30 @@ export default function CSVBulkUploadScreen() {
       }
       
       setLastBulkImportId(bulkImportId);
-      setImportSummary({
+      const finalSummary = {
         imported: imported,
         skipped: skippedRows.length + skippedDuplicates,
         total: normalizedRows.length
-      });
+      };
+      setImportSummary(finalSummary);
+      
+      // Store skipped rows for download
+      setSkippedRowsData([...skippedRows, ...normalizedRows.filter(r => r.status === 'duplicate')]);
+      
+      // Create bulk import session record
+      await createBulkImportSession(
+        bulkImportId,
+        selectedTemplate,
+        selectedFile?.name || 'unknown.csv',
+        {
+          valid: validRows.length,
+          skipped: skippedRows.length + skippedDuplicates,
+          written: imported
+        }
+      );
+      
+      // Refresh history
+      await loadImportHistory();
       
       console.log(`[BULK UPLOAD] Import completed successfully. Imported ${imported} loads, skipped ${skippedDuplicates} duplicates.`);
       showToast(`Successfully imported ${imported} loads${skippedDuplicates > 0 ? `, skipped ${skippedDuplicates} duplicates` : ''}`, 'success');
@@ -701,8 +862,8 @@ export default function CSVBulkUploadScreen() {
     }
   }, [isDryRun, user, normalizedRows, showToast, performImport]);
 
-  const downloadSkippedRows = useCallback(async () => {
-    const skippedRows = normalizedRows.filter(row => row.status === 'invalid' || row.status === 'duplicate');
+  const downloadSkippedRows = useCallback(async (rowsToDownload?: NormalizedPreviewRow[]) => {
+    const skippedRows = rowsToDownload || normalizedRows.filter(row => row.status === 'invalid' || row.status === 'duplicate');
     
     if (skippedRows.length === 0) {
       showToast('No skipped rows to download', 'error');
@@ -757,6 +918,13 @@ export default function CSVBulkUploadScreen() {
       }
     }
   }, [normalizedRows, showToast]);
+
+  // Download skipped rows from history
+  const downloadHistorySkippedRows = useCallback(async (session: BulkImportSession) => {
+    // For now, we'll show a message that this feature requires stored error data
+    // In a full implementation, you'd store the skipped rows data in the session
+    showToast('Skipped rows data not available for historical imports', 'error');
+  }, [showToast]);
 
   const undoLastImport = useCallback(async () => {
     if (!lastBulkImportId) {
@@ -1131,13 +1299,107 @@ export default function CSVBulkUploadScreen() {
           </View>
         )}
 
+        {/* Import History Panel */}
+        <View style={styles.historyContainer}>
+          <TouchableOpacity
+            style={styles.historyHeader}
+            onPress={() => setShowHistory(!showHistory)}
+          >
+            <View style={styles.historyHeaderLeft}>
+              <History size={20} color={theme.colors.primary} />
+              <Text style={styles.historyTitle}>Import History</Text>
+            </View>
+            <ChevronDown 
+              size={16} 
+              color={theme.colors.gray} 
+              style={[styles.historyChevron, showHistory && styles.historyChevronRotated]} 
+            />
+          </TouchableOpacity>
+          
+          {showHistory && (
+            <View style={styles.historyContent}>
+              {isLoadingHistory ? (
+                <View style={styles.historyLoading}>
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <Text style={styles.historyLoadingText}>Loading history...</Text>
+                </View>
+              ) : importHistory.length === 0 ? (
+                <Text style={styles.historyEmpty}>No import history found</Text>
+              ) : (
+                importHistory.map((session) => (
+                  <View key={session.id} style={styles.historyItem}>
+                    <View style={styles.historyItemHeader}>
+                      <Text style={styles.historyItemDate}>
+                        {session.createdAt.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </Text>
+                      <View style={styles.historyItemStats}>
+                        <Text style={styles.historyItemStat}>
+                          {session.totals.written} written
+                        </Text>
+                        <Text style={styles.historyItemStatSeparator}>•</Text>
+                        <Text style={styles.historyItemStat}>
+                          {session.totals.skipped} skipped
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <Text style={styles.historyItemFile}>
+                      {session.fileName} ({session.templateType})
+                    </Text>
+                    
+                    <View style={styles.historyItemActions}>
+                      <TouchableOpacity
+                        style={styles.historyAction}
+                        onPress={() => viewBulkImportLoads(session.id)}
+                      >
+                        <ExternalLink size={14} color={theme.colors.primary} />
+                        <Text style={styles.historyActionText}>View Loads</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={styles.historyAction}
+                        onPress={() => undoBulkImport(session.id)}
+                        disabled={isUndoing}
+                      >
+                        {isUndoing ? (
+                          <ActivityIndicator size={14} color={theme.colors.danger} />
+                        ) : (
+                          <RotateCcw size={14} color={theme.colors.danger} />
+                        )}
+                        <Text style={[styles.historyActionText, styles.historyActionDanger]}>
+                          Undo
+                        </Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={styles.historyAction}
+                        onPress={() => downloadHistorySkippedRows(session)}
+                      >
+                        <Download size={14} color={theme.colors.gray} />
+                        <Text style={[styles.historyActionText, styles.historyActionSecondary]}>
+                          Skipped CSV
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+        </View>
+
         {/* Action Buttons */}
         {normalizedRows.length > 0 && importSummary && (
           <View style={styles.postImportActions}>
             {importSummary.skipped > 0 && (
               <TouchableOpacity
                 style={styles.secondaryButton}
-                onPress={downloadSkippedRows}
+                onPress={() => downloadSkippedRows(skippedRowsData.length > 0 ? skippedRowsData : undefined)}
               >
                 <Download size={16} color={theme.colors.primary} />
                 <Text style={styles.secondaryButtonText}>Download Skipped Rows (.csv)</Text>
@@ -1974,5 +2236,109 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: theme.colors.gray,
     marginTop: 2,
+  },
+  historyContainer: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: theme.spacing.md,
+  },
+  historyHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  historyTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  historyChevron: {
+    transform: [{ rotate: '0deg' }],
+  },
+  historyChevronRotated: {
+    transform: [{ rotate: '180deg' }],
+  },
+  historyContent: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  historyLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+    gap: theme.spacing.sm,
+  },
+  historyLoadingText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+  },
+  historyEmpty: {
+    textAlign: 'center',
+    padding: theme.spacing.lg,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+  },
+  historyItem: {
+    padding: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  historyItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  historyItemDate: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  historyItemStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  historyItemStat: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  historyItemStatSeparator: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  historyItemFile: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: theme.spacing.sm,
+  },
+  historyItemActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+  },
+  historyAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs / 2,
+  },
+  historyActionText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  historyActionDanger: {
+    color: theme.colors.danger,
+  },
+  historyActionSecondary: {
+    color: theme.colors.gray,
   },
 });

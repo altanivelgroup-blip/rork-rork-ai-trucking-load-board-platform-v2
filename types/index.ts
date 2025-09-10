@@ -135,6 +135,7 @@ export interface Load {
   assignedDriverId?: string;
   isBackhaul?: boolean;
   aiScore?: number; // AI matching score
+  bulkImportId?: string; // Bulk import session ID
 }
 
 export interface Location {
@@ -208,4 +209,18 @@ export interface ScheduleItem {
   location?: string;
   notes?: string;
   relatedLoadId?: string;
+}
+
+export interface BulkImportSession {
+  id: string;
+  userId: string;
+  createdAt: Date;
+  templateType: 'simple' | 'standard' | 'complete';
+  fileName: string;
+  totals: {
+    valid: number;
+    skipped: number;
+    written: number;
+  };
+  notes?: string;
 }

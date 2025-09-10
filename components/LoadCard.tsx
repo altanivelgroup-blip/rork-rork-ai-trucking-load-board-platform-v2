@@ -72,6 +72,11 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
                 <Text style={styles.backhaulText}>BACKHAUL</Text>
               </View>
             )}
+            {load.bulkImportId && (
+              <View style={styles.bulkTag}>
+                <Text style={styles.bulkText}>BULK</Text>
+              </View>
+            )}
             <Pressable
               onPress={handleFavPress}
               testID={`favorite-${load.id}`}
@@ -179,6 +184,11 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
             {load.isBackhaul && (
               <View style={styles.backhaulTag}>
                 <Text style={styles.backhaulText}>BACKHAUL</Text>
+              </View>
+            )}
+            {load.bulkImportId && (
+              <View style={styles.bulkTag}>
+                <Text style={styles.bulkText}>BULK</Text>
               </View>
             )}
             <Pressable
@@ -304,6 +314,17 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.sm,
   },
   backhaulText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+  },
+  bulkTag: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+  },
+  bulkText: {
     color: theme.colors.white,
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
@@ -444,6 +465,7 @@ export const LoadCard = memo(
     if (a.distance !== b.distance) return false;
     if ((a.aiScore ?? 0) !== (b.aiScore ?? 0)) return false;
     if ((a.isBackhaul ?? false) !== (b.isBackhaul ?? false)) return false;
+    if (a.bulkImportId !== b.bulkImportId) return false;
     if (a.vehicleType !== b.vehicleType) return false;
     if (a.weight !== b.weight) return false;
     if (a.pickupDate.toString() !== b.pickupDate.toString()) return false;
