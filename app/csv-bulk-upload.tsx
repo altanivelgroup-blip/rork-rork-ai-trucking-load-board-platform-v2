@@ -14,6 +14,7 @@ import {
 import { Stack, router } from 'expo-router';
 import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, RotateCcw, Share, History, ExternalLink } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as CryptoJS from 'crypto-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -117,7 +118,7 @@ export default function CSVBulkUploadScreen() {
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [expandedErrors, setExpandedErrors] = useState<Set<number>>(new Set());
-  const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string } | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string; webFile?: File } | null>(null);
   const [isDryRun, setIsDryRun] = useState(true);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importSummary, setImportSummary] = useState<{ imported: number; skipped: number; total: number } | null>(null);
@@ -580,8 +581,23 @@ export default function CSVBulkUploadScreen() {
     try {
       console.log('[CSV PROCESSING] Starting row parsing and validation...');
       
-      // Parse the full file content
-      const { headers, rows } = await parseFileContent(selectedFile.uri, selectedFile.name);
+      let headers: string[];
+      let rows: CSVRow[];
+      
+      if (Platform.OS === 'web' && selectedFile.webFile) {
+        // Web path: use the File object directly
+        const text = await selectedFile.webFile.text();
+        const parsed = parseCSV(text);
+        headers = parsed.headers;
+        rows = parsed.rows;
+      } else if (selectedFile.uri) {
+        // Native path: use FileSystem or parseFileContent
+        const parsed = await parseFileContent(selectedFile.uri, selectedFile.name);
+        headers = parsed.headers;
+        rows = parsed.rows;
+      } else {
+        throw new Error('No file data available for processing');
+      }
       
       console.log(`[CSV PROCESSING] Parsed ${rows.length} rows`);
       
@@ -615,7 +631,7 @@ export default function CSVBulkUploadScreen() {
   const readHeaderLine = useCallback(async (opts?: {
     webFile?: File;
     nativePick?: boolean;
-  }): Promise<{ ok: true; headersLine: string; fileName: string } | { ok: false; message: string }> => {
+  }): Promise<{ ok: true; headersLine: string; fileName: string; uri?: string; webFile?: File } | { ok: false; message: string }> => {
     try {
       // 1) Web path: <input type="file"> gives us a File
       if (Platform.OS === "web") {
@@ -629,7 +645,7 @@ export default function CSVBulkUploadScreen() {
 
         const text = await f.text();
         const firstLine = text.split(/\r?\n/)[0] ?? "";
-        return { ok: true, headersLine: firstLine, fileName: f.name };
+        return { ok: true, headersLine: firstLine, fileName: f.name, webFile: f };
       }
 
       // 2) Native path: use DocumentPicker + Expo FileSystem
@@ -649,25 +665,15 @@ export default function CSVBulkUploadScreen() {
           return { ok: false, message: "Excel not supported in header check. Please upload a CSV." };
         }
 
-        try {
-          const FileSystem = await import('expo-file-system');
-          if (!FileSystem || !FileSystem.readAsStringAsync) {
-            return { ok: false, message: "FileSystem unavailable. Did you install expo-file-system?" };
-          }
-
-          const content = await FileSystem.readAsStringAsync(asset.uri, {
-            encoding: FileSystem.EncodingType.UTF8,
-          });
-          const firstLine = content.split(/\r?\n/)[0] ?? "";
-          return { ok: true, headersLine: firstLine, fileName: name };
-        } catch (fsError) {
-          console.warn('FileSystem error, trying fetch fallback:', fsError);
-          // Fallback to fetch
-          const response = await fetch(asset.uri);
-          const content = await response.text();
-          const firstLine = content.split(/\r?\n/)[0] ?? "";
-          return { ok: true, headersLine: firstLine, fileName: name };
+        if (!FileSystem || !FileSystem.readAsStringAsync) {
+          return { ok: false, message: "FileSystem unavailable. Did you install expo-file-system?" };
         }
+
+        const content = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        const firstLine = content.split(/\r?\n/)[0] ?? "";
+        return { ok: true, headersLine: firstLine, fileName: name, uri: asset.uri };
       }
 
       return { ok: false, message: "Unsupported file selection flow." };
@@ -726,7 +732,11 @@ export default function CSVBulkUploadScreen() {
       console.log('Headers:', headers);
       
       setFileHeaders(headers);
-      setSelectedFile({ uri: '', name: result.fileName }); // URI not needed for header validation
+      setSelectedFile({ 
+        uri: result.uri || '', 
+        name: result.fileName,
+        webFile: result.webFile
+      });
       
       // Validate headers against selected template
       const expectedHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
