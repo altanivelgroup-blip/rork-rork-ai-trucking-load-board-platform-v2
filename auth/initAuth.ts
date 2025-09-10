@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence, signInAnonymously } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { getFirebase } from '@/utils/firebase';
 
 // Track initialization state
@@ -170,6 +170,7 @@ export function watchAndRecordLogin() {
       if (!u) return;
       
       try {
+        // 1) Keep existing users/{uid} upsert (lastLoginAt, email, isAnonymous)
         await setDoc(
           doc(db, "users", u.uid),
           {
@@ -186,6 +187,23 @@ export function watchAndRecordLogin() {
           { merge: true }
         );
         console.log("[InitAuth] Recorded lastLoginAt for", u.uid);
+        
+        // 2) NEW: append to users/{uid}/logins for reliable "Last 5"
+        try {
+          const provider =
+            u.providerData?.[0]?.providerId || (u.isAnonymous ? "anonymous" : "unknown");
+          await addDoc(
+            collection(db, "users", u.uid, "logins"),
+            {
+              createdAt: serverTimestamp(),
+              device: Platform.OS,        // "web" | "ios" | "android"
+              provider,                   // "anonymous", "password", "google.com", etc.
+            }
+          );
+          console.log("[InitAuth] Login event recorded for", u.uid);
+        } catch (e) {
+          console.warn("[InitAuth] Failed to append login history:", e);
+        }
       } catch (e) {
         console.warn("[InitAuth] Failed to record lastLoginAt:", e);
       }
