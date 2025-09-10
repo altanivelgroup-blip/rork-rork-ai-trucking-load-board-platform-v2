@@ -683,6 +683,52 @@ export default function CSVBulkUploadScreen() {
     }
   }, []);
 
+  // Web file input change handler
+  const onWebFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const res = await readHeaderLine({ webFile: file });
+    if (!res.ok) return showToast(res.message, 'error');
+    handleHeadersLine(res.headersLine, res.fileName, res.uri, res.webFile);
+  }, [readHeaderLine, showToast]);
+
+  // Native file picker handler
+  const onPickNativeFile = useCallback(async () => {
+    const res = await readHeaderLine({ nativePick: true });
+    if (!res.ok) return showToast(res.message, 'error');
+    handleHeadersLine(res.headersLine, res.fileName, res.uri, res.webFile);
+  }, [readHeaderLine, showToast]);
+
+  // Common header processing logic
+  const handleHeadersLine = useCallback((headersLine: string, fileName: string, uri?: string, webFile?: File) => {
+    try {
+      // Parse headers from the first line
+      const headers = headersLine.split(',').map(h => h.replace(/"/g, '').trim());
+      
+      console.log('Headers:', headers);
+      
+      setFileHeaders(headers);
+      setSelectedFile({ 
+        uri: uri || '', 
+        name: fileName,
+        webFile: webFile
+      });
+      
+      // Validate headers against selected template
+      const expectedHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
+      const validation = validateHeaders(headers, expectedHeaders);
+      setHeaderValidation(validation);
+      
+      if (validation.ok) {
+        showToast(`✅ Headers valid for ${TEMPLATE_CONFIGS[selectedTemplate].name}`, 'success');
+      } else {
+        showToast(`❌ Invalid headers. Expected ${TEMPLATE_CONFIGS[selectedTemplate].name} format.`, 'error');
+      }
+    } catch (error: any) {
+      console.error('Header processing error:', error);
+      showToast(error.message || 'Header processing failed', 'error');
+    }
+  }, [selectedTemplate, showToast]);
+
   const handleFileSelect = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -691,8 +737,6 @@ export default function CSVBulkUploadScreen() {
       setFileHeaders([]);
       setNormalizedRows([]);
       setSelectedFile(null);
-      
-      let result;
       
       if (Platform.OS === 'web') {
         // Create a file input for web
@@ -716,37 +760,16 @@ export default function CSVBulkUploadScreen() {
           return;
         }
         
-        result = await readHeaderLine({ webFile });
+        // Directly call the header processing logic for web files
+        const res = await readHeaderLine({ webFile });
+        if (!res.ok) {
+          showToast(res.message, 'error');
+          return;
+        }
+        handleHeadersLine(res.headersLine, res.fileName, res.uri, res.webFile);
       } else {
         // Native file picker
-        result = await readHeaderLine({ nativePick: true });
-      }
-      
-      if (!result.ok) {
-        throw new Error(result.message);
-      }
-      
-      // Parse headers from the first line
-      const headers = result.headersLine.split(',').map(h => h.replace(/"/g, '').trim());
-      
-      console.log('Headers:', headers);
-      
-      setFileHeaders(headers);
-      setSelectedFile({ 
-        uri: result.uri || '', 
-        name: result.fileName,
-        webFile: result.webFile
-      });
-      
-      // Validate headers against selected template
-      const expectedHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
-      const validation = validateHeaders(headers, expectedHeaders);
-      setHeaderValidation(validation);
-      
-      if (validation.ok) {
-        showToast(`✅ Headers valid for ${TEMPLATE_CONFIGS[selectedTemplate].name}`, 'success');
-      } else {
-        showToast(`❌ Invalid headers. Expected ${TEMPLATE_CONFIGS[selectedTemplate].name} format.`, 'error');
+        await onPickNativeFile();
       }
       
     } catch (error: any) {
@@ -757,7 +780,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [showToast, selectedTemplate, readHeaderLine]);
+  }, [onWebFileChange, onPickNativeFile, showToast]);
 
   const removeRow = useCallback((index: number) => {
     setProcessedRows(prev => prev.filter((_, i) => i !== index));
