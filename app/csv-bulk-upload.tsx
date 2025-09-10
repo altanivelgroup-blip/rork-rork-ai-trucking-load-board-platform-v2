@@ -15,13 +15,14 @@ import { Stack, router } from 'expo-router';
 import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, RotateCcw, Share } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
+import * as CryptoJS from 'crypto-js';
 
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { parseFileContent, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, validateLoadRow, CSVRow, parseCSV } from '@/utils/csv';
 import * as XLSX from 'xlsx';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp, Timestamp, writeBatch, query, where, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, Timestamp, writeBatch, query, where, collection, getDocs, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
@@ -64,8 +65,9 @@ interface NormalizedPreviewRow {
   pickupDate: string | null;
   deliveryDate: string | null;
   rate: number | null;
-  status: 'valid' | 'invalid';
+  status: 'valid' | 'invalid' | 'duplicate';
   errors: string[];
+  rowHash?: string;
 }
 
 // Validate headers function
@@ -196,6 +198,21 @@ export default function CSVBulkUploadScreen() {
     return isNaN(num) ? null : Math.max(0, num);
   }, []);
 
+  // Compute row hash for duplicate detection
+  const computeRowHash = useCallback((row: NormalizedPreviewRow): string => {
+    const hashInput = [
+      row.title || '',
+      row.equipmentType || '',
+      row.origin || '',
+      row.destination || '',
+      row.pickupDate || '',
+      row.deliveryDate || '',
+      row.rate?.toString() || ''
+    ].join('|').toLowerCase().trim();
+    
+    return CryptoJS.SHA1(hashInput).toString();
+  }, []);
+
   const validateRowData = useCallback((row: CSVRow, template: TemplateType): { status: 'valid' | 'invalid'; errors: string[] } => {
     const errors: string[] = [];
     
@@ -251,8 +268,10 @@ export default function CSVBulkUploadScreen() {
   const normalizeRowForPreview = useCallback((row: CSVRow, template: TemplateType): NormalizedPreviewRow => {
     const validation = validateRowData(row, template);
     
+    let normalizedRow: NormalizedPreviewRow;
+    
     if (template === 'simple') {
-      return {
+      normalizedRow = {
         title: null,
         equipmentType: row['VehicleType']?.trim() || null,
         origin: row['Origin']?.trim() || null,
@@ -277,7 +296,7 @@ export default function CSVBulkUploadScreen() {
         row['destinationZip']?.trim()
       ].filter(Boolean);
       
-      return {
+      normalizedRow = {
         title: row['title']?.trim() || null,
         equipmentType: row['equipmentType']?.trim() || null,
         origin: originParts.length > 0 ? originParts.join(', ').replace(/,\s*,/g, ',').replace(/,\s*$/, '') : null,
@@ -289,7 +308,12 @@ export default function CSVBulkUploadScreen() {
         errors: validation.errors
       };
     }
-  }, [validateRowData, normalizeNumber, normalizeDate]);
+    
+    // Compute and attach row hash
+    normalizedRow.rowHash = computeRowHash(normalizedRow);
+    
+    return normalizedRow;
+  }, [validateRowData, normalizeNumber, normalizeDate, computeRowHash]);
 
   // Transform parsed row to Firestore document format
   const toFirestoreDoc = useCallback((parsedRow: NormalizedPreviewRow, templateType: TemplateType, bulkImportId: string): any => {
@@ -322,6 +346,7 @@ export default function CSVBulkUploadScreen() {
         contactName: null,
         contactEmail: null,
         contactPhone: null,
+        rowHash: parsedRow.rowHash,
       };
     } else {
       // Standard template - build structured origin/destination from normalized data
@@ -345,9 +370,66 @@ export default function CSVBulkUploadScreen() {
         contactName: null, // Could be mapped from original data if available
         contactEmail: null, // Could be mapped from original data if available
         contactPhone: null, // Could be mapped from original data if available
+        rowHash: parsedRow.rowHash,
       };
     }
   }, [user, parseLocationText, toTimestampOrNull]);
+
+  // Check for duplicate rows in Firestore
+  const checkForDuplicates = useCallback(async (rows: NormalizedPreviewRow[]): Promise<NormalizedPreviewRow[]> => {
+    if (rows.length === 0) return rows;
+    
+    try {
+      const { db } = getFirebase();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const rowHashes = rows.map(row => row.rowHash).filter(Boolean) as string[];
+      
+      if (rowHashes.length === 0) return rows;
+      
+      // Query for existing documents with the same hashes
+      // Note: Firestore 'in' queries are limited to 30 items, so we need to batch
+      const batchSize = 30;
+      const existingHashes = new Set<string>();
+      
+      for (let i = 0; i < rowHashes.length; i += batchSize) {
+        const batchHashes = rowHashes.slice(i, i + batchSize);
+        
+        const q = query(
+          collection(db, LOADS_COLLECTION),
+          where('rowHash', 'in', batchHashes),
+          where('status', '!=', 'deleted'),
+          where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo))
+        );
+        
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.rowHash) {
+            existingHashes.add(data.rowHash);
+          }
+        });
+      }
+      
+      // Mark duplicate rows
+      return rows.map(row => {
+        if (row.rowHash && existingHashes.has(row.rowHash)) {
+          return {
+            ...row,
+            status: 'duplicate' as const,
+            errors: [...row.errors, 'Duplicate (existing recent load)']
+          };
+        }
+        return row;
+      });
+      
+    } catch (error) {
+      console.warn('[DUPLICATE CHECK] Error checking for duplicates:', error);
+      // If duplicate check fails, return original rows without marking duplicates
+      return rows;
+    }
+  }, []);
 
   const processCSVData = useCallback(async () => {
     if (!selectedFile) return;
@@ -368,19 +450,23 @@ export default function CSVBulkUploadScreen() {
       // Normalize and validate all rows
       const normalized = rows.map(row => normalizeRowForPreview(row, selectedTemplate));
       
-      setNormalizedRows(normalized);
+      // Check for duplicates
+      const normalizedWithDuplicateCheck = await checkForDuplicates(normalized);
+      
+      setNormalizedRows(normalizedWithDuplicateCheck);
       setCurrentPage(0);
       
-      const validCount = normalized.filter(r => r.status === 'valid').length;
-      const invalidCount = normalized.filter(r => r.status === 'invalid').length;
+      const validCount = normalizedWithDuplicateCheck.filter(r => r.status === 'valid').length;
+      const invalidCount = normalizedWithDuplicateCheck.filter(r => r.status === 'invalid').length;
+      const duplicateCount = normalizedWithDuplicateCheck.filter(r => r.status === 'duplicate').length;
       
-      console.log(`[CSV PROCESSING] Processed ${normalized.length} rows: ${validCount} valid, ${invalidCount} invalid`);
+      console.log(`[CSV PROCESSING] Processed ${normalizedWithDuplicateCheck.length} rows: ${validCount} valid, ${invalidCount} invalid, ${duplicateCount} duplicates`);
       
     } catch (error: any) {
       console.error('[CSV PROCESSING] Error:', error);
       throw error;
     }
-  }, [selectedFile, selectedTemplate, normalizeRowForPreview]);
+  }, [selectedFile, selectedTemplate, normalizeRowForPreview, checkForDuplicates]);
 
   const handleFileSelect = useCallback(async () => {
     try {
@@ -494,6 +580,8 @@ export default function CSVBulkUploadScreen() {
       
       const validRows = normalizedRows.filter(row => row.status === 'valid');
       const invalidRows = normalizedRows.filter(row => row.status === 'invalid');
+      const duplicateRows = normalizedRows.filter(row => row.status === 'duplicate');
+      const skippedRows = [...invalidRows, ...duplicateRows];
       
       if (validRows.length === 0) {
         throw new Error('No valid rows to import');
@@ -502,62 +590,79 @@ export default function CSVBulkUploadScreen() {
       setImportProgress({ current: 0, total: validRows.length });
       
       if (dryRun) {
+        // In dry run, also check for duplicates among the valid rows
+        const validRowsWithDuplicateCheck = await checkForDuplicates(validRows);
+        const finalValidRows = validRowsWithDuplicateCheck.filter(row => row.status === 'valid');
+        const newDuplicates = validRowsWithDuplicateCheck.filter(row => row.status === 'duplicate');
+        
         // Simulate processing
-        for (let i = 0; i < validRows.length; i++) {
+        for (let i = 0; i < finalValidRows.length; i++) {
           await new Promise(resolve => setTimeout(resolve, 10)); // Small delay for UI
-          setImportProgress({ current: i + 1, total: validRows.length });
+          setImportProgress({ current: i + 1, total: finalValidRows.length });
         }
         
         setImportSummary({
-          imported: validRows.length,
-          skipped: invalidRows.length,
+          imported: finalValidRows.length,
+          skipped: skippedRows.length + newDuplicates.length,
           total: normalizedRows.length
         });
         
-        showToast(`Simulation complete: ${validRows.length} rows would be imported`, 'success');
+        showToast(`Simulation complete: ${finalValidRows.length} rows would be imported, ${newDuplicates.length} additional duplicates found`, 'success');
         return;
       }
       
-      // Real import
+      // Real import - check for duplicates one more time before writing
       const { db } = getFirebase();
       const bulkImportId = generateBulkImportId();
       const BATCH_SIZE = 400;
       let imported = 0;
+      let skippedDuplicates = 0;
       
       console.log(`[BULK UPLOAD] Processing ${validRows.length} valid rows with bulk ID: ${bulkImportId}`);
       
-      // Process in batches
+      // Process in batches with duplicate checking
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
-        const batch = writeBatch(db);
         const batchRows = validRows.slice(i, Math.min(i + BATCH_SIZE, validRows.length));
         
-        for (const row of batchRows) {
-          const docId = generateLoadId();
-          const docData = toFirestoreDoc(row, selectedTemplate, bulkImportId);
-          const docRef = doc(db, LOADS_COLLECTION, docId);
-          batch.set(docRef, docData);
+        // Check this batch for duplicates before writing
+        const batchWithDuplicateCheck = await checkForDuplicates(batchRows);
+        const batchValidRows = batchWithDuplicateCheck.filter(row => row.status === 'valid');
+        const batchDuplicates = batchWithDuplicateCheck.filter(row => row.status === 'duplicate');
+        
+        skippedDuplicates += batchDuplicates.length;
+        
+        if (batchValidRows.length > 0) {
+          const batch = writeBatch(db);
+          
+          for (const row of batchValidRows) {
+            const docId = generateLoadId();
+            const docData = toFirestoreDoc(row, selectedTemplate, bulkImportId);
+            const docRef = doc(db, LOADS_COLLECTION, docId);
+            batch.set(docRef, docData);
+          }
+          
+          try {
+            await batch.commit();
+            imported += batchValidRows.length;
+            console.log(`[BULK UPLOAD] Batch completed: ${imported}/${validRows.length}, skipped ${batchDuplicates.length} duplicates`);
+          } catch (error: any) {
+            console.error(`[BULK UPLOAD] Batch failed at ${imported}/${validRows.length}:`, error);
+            throw new Error(`Import failed after ${imported} rows. ${error.message}`);
+          }
         }
         
-        try {
-          await batch.commit();
-          imported += batchRows.length;
-          setImportProgress({ current: imported, total: validRows.length });
-          console.log(`[BULK UPLOAD] Batch completed: ${imported}/${validRows.length}`);
-        } catch (error: any) {
-          console.error(`[BULK UPLOAD] Batch failed at ${imported}/${validRows.length}:`, error);
-          throw new Error(`Import failed after ${imported} rows. ${error.message}`);
-        }
+        setImportProgress({ current: i + batchRows.length, total: validRows.length });
       }
       
       setLastBulkImportId(bulkImportId);
       setImportSummary({
-        imported: validRows.length,
-        skipped: invalidRows.length,
+        imported: imported,
+        skipped: skippedRows.length + skippedDuplicates,
         total: normalizedRows.length
       });
       
-      console.log(`[BULK UPLOAD] Import completed successfully. Imported ${imported} loads.`);
-      showToast(`Successfully imported ${imported} loads`, 'success');
+      console.log(`[BULK UPLOAD] Import completed successfully. Imported ${imported} loads, skipped ${skippedDuplicates} duplicates.`);
+      showToast(`Successfully imported ${imported} loads${skippedDuplicates > 0 ? `, skipped ${skippedDuplicates} duplicates` : ''}`, 'success');
       
     } catch (error: any) {
       console.error('Import error:', error);
@@ -567,7 +672,7 @@ export default function CSVBulkUploadScreen() {
       setIsImporting(false);
       setImportProgress({ current: 0, total: 0 });
     }
-  }, [normalizedRows, selectedTemplate, generateBulkImportId, generateLoadId, toFirestoreDoc, showToast]);
+  }, [normalizedRows, selectedTemplate, generateBulkImportId, generateLoadId, toFirestoreDoc, showToast, checkForDuplicates]);
 
   const handleImport = useCallback(async () => {
     if (!isDryRun && !user) {
@@ -597,16 +702,16 @@ export default function CSVBulkUploadScreen() {
   }, [isDryRun, user, normalizedRows, showToast, performImport]);
 
   const downloadSkippedRows = useCallback(async () => {
-    const invalidRows = normalizedRows.filter(row => row.status === 'invalid');
+    const skippedRows = normalizedRows.filter(row => row.status === 'invalid' || row.status === 'duplicate');
     
-    if (invalidRows.length === 0) {
-      showToast('No invalid rows to download', 'error');
+    if (skippedRows.length === 0) {
+      showToast('No skipped rows to download', 'error');
       return;
     }
 
     // Build CSV content with error reasons
     const headers = ['rowNumber', 'errorReasons', 'title', 'equipmentType', 'origin', 'destination', 'pickupDate', 'deliveryDate', 'rate'];
-    const csvRows = invalidRows.map((row, index) => {
+    const csvRows = skippedRows.map((row, index) => {
       return [
         (index + 1).toString(),
         row.errors.join('; '),
@@ -759,6 +864,7 @@ export default function CSVBulkUploadScreen() {
   
   const validCount = normalizedRows.filter(r => r.status === 'valid').length;
   const invalidCount = normalizedRows.filter(r => r.status === 'invalid').length;
+  const duplicateCount = normalizedRows.filter(r => r.status === 'duplicate').length;
   
   const toggleErrorExpansion = useCallback((index: number) => {
     setExpandedErrors(prev => {
@@ -1071,6 +1177,14 @@ export default function CSVBulkUploadScreen() {
                 <View style={[styles.countPill, styles.invalidCountPill]}>
                   <Text style={[styles.countText, styles.invalidCountText]}>Invalid {invalidCount}</Text>
                 </View>
+                {duplicateCount > 0 && (
+                  <>
+                    <Text style={styles.countSeparator}>•</Text>
+                    <View style={[styles.countPill, styles.duplicateCountPill]}>
+                      <Text style={[styles.countText, styles.duplicateCountText]}>Duplicate {duplicateCount}</Text>
+                    </View>
+                  </>
+                )}
                 <Text style={styles.countSeparator}>•</Text>
                 <View style={styles.countPill}>
                   <Text style={styles.countText}>Total {normalizedRows.length}</Text>
@@ -1128,12 +1242,21 @@ export default function CSVBulkUploadScreen() {
                         {row.rate !== null ? `${row.rate.toLocaleString()}` : '-'}
                       </Text>
                       <View style={[styles.statusColumn, styles.statusContainer]}>
-                        <View style={[styles.statusPill, row.status === 'valid' ? styles.validPill : styles.invalidPill]}>
-                          <Text style={[styles.statusText, row.status === 'valid' ? styles.validText : styles.invalidText]}>
-                            {row.status === 'valid' ? '✅ Valid' : '❌ Invalid'}
+                        <View style={[
+                          styles.statusPill, 
+                          row.status === 'valid' ? styles.validPill : 
+                          row.status === 'duplicate' ? styles.duplicatePill : styles.invalidPill
+                        ]}>
+                          <Text style={[
+                            styles.statusText, 
+                            row.status === 'valid' ? styles.validText : 
+                            row.status === 'duplicate' ? styles.duplicateText : styles.invalidText
+                          ]}>
+                            {row.status === 'valid' ? '✅ Valid' : 
+                             row.status === 'duplicate' ? '🔄 Duplicate' : '❌ Invalid'}
                           </Text>
                         </View>
-                        {row.status === 'invalid' && row.errors.length > 0 && (
+                        {(row.status === 'invalid' || row.status === 'duplicate') && row.errors.length > 0 && (
                           <TouchableOpacity
                             style={styles.errorToggle}
                             onPress={() => toggleErrorExpansion(globalIndex)}
@@ -1661,6 +1784,9 @@ const styles = StyleSheet.create({
   invalidCountPill: {
     backgroundColor: '#FEE2E2',
   },
+  duplicateCountPill: {
+    backgroundColor: '#FEF3C7',
+  },
   countText: {
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
@@ -1668,6 +1794,9 @@ const styles = StyleSheet.create({
   },
   invalidCountText: {
     color: theme.colors.danger,
+  },
+  duplicateCountText: {
+    color: theme.colors.warning,
   },
   countSeparator: {
     fontSize: theme.fontSize.xs,
@@ -1764,6 +1893,9 @@ const styles = StyleSheet.create({
   invalidPill: {
     backgroundColor: '#FEE2E2',
   },
+  duplicatePill: {
+    backgroundColor: '#FEF3C7',
+  },
   statusText: {
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
@@ -1773,6 +1905,9 @@ const styles = StyleSheet.create({
   },
   invalidText: {
     color: theme.colors.danger,
+  },
+  duplicateText: {
+    color: theme.colors.warning,
   },
   errorToggle: {
     flexDirection: 'row',
