@@ -611,97 +611,122 @@ export default function CSVBulkUploadScreen() {
     }
   }, [selectedFile, selectedTemplate, normalizeRowForPreview, checkForDuplicates]);
 
+  // Use web vs native paths. Keep it tiny and defensive.
+  const readHeaderLine = useCallback(async (opts?: {
+    webFile?: File;
+    nativePick?: boolean;
+  }): Promise<{ ok: true; headersLine: string; fileName: string } | { ok: false; message: string }> => {
+    try {
+      // 1) Web path: <input type="file"> gives us a File
+      if (Platform.OS === "web") {
+        const f = opts?.webFile;
+        if (!f) return { ok: false, message: "No file selected." };
+
+        // Reject Excel for header-read step
+        if (/\.(xlsx?|xls)$/i.test(f.name)) {
+          return { ok: false, message: "Excel not supported in header check. Please upload a CSV." };
+        }
+
+        const text = await f.text();
+        const firstLine = text.split(/\r?\n/)[0] ?? "";
+        return { ok: true, headersLine: firstLine, fileName: f.name };
+      }
+
+      // 2) Native path: use DocumentPicker + Expo FileSystem
+      if (opts?.nativePick) {
+        const res = await DocumentPicker.getDocumentAsync({
+          copyToCacheDirectory: true,
+          multiple: false,
+          type: ["text/csv", "text/plain", "application/vnd.ms-excel"],
+        });
+
+        if (res.canceled) return { ok: false, message: "File selection canceled." };
+        const asset = res.assets?.[0];
+        if (!asset?.uri) return { ok: false, message: "No file URI returned." };
+
+        const name = asset.name ?? "selected.csv";
+        if (/\.(xlsx?|xls)$/i.test(name)) {
+          return { ok: false, message: "Excel not supported in header check. Please upload a CSV." };
+        }
+
+        try {
+          const FileSystem = await import('expo-file-system');
+          if (!FileSystem || !FileSystem.readAsStringAsync) {
+            return { ok: false, message: "FileSystem unavailable. Did you install expo-file-system?" };
+          }
+
+          const content = await FileSystem.readAsStringAsync(asset.uri, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          const firstLine = content.split(/\r?\n/)[0] ?? "";
+          return { ok: true, headersLine: firstLine, fileName: name };
+        } catch (fsError) {
+          console.warn('FileSystem error, trying fetch fallback:', fsError);
+          // Fallback to fetch
+          const response = await fetch(asset.uri);
+          const content = await response.text();
+          const firstLine = content.split(/\r?\n/)[0] ?? "";
+          return { ok: true, headersLine: firstLine, fileName: name };
+        }
+      }
+
+      return { ok: false, message: "Unsupported file selection flow." };
+    } catch (err: any) {
+      console.warn("Header read error", err);
+      return { ok: false, message: "CSV read error. See console for details." };
+    }
+  }, []);
+
   const handleFileSelect = useCallback(async () => {
     try {
       setIsLoading(true);
       setHeaderValidation(null);
       setProcessedRows([]);
       setFileHeaders([]);
+      setNormalizedRows([]);
+      setSelectedFile(null);
       
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled) {
-        return;
-      }
-
-      const file = result.assets[0];
+      let result;
       
-      // Only read headers initially
-      let headers: string[];
-      
-      const fileExtension = file.name.toLowerCase().split('.').pop();
-      
-      if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-        // For Excel files, we need to read the first row
-        let arrayBuffer: ArrayBuffer;
+      if (Platform.OS === 'web') {
+        // Create a file input for web
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.csv,.txt';
+        input.multiple = false;
         
-        if (typeof window !== 'undefined' && file.uri.startsWith('blob:')) {
-          const response = await fetch(file.uri);
-          arrayBuffer = await response.arrayBuffer();
-        } else {
-          // React Native environment
-          try {
-            const FileSystem = await import('expo-file-system');
-            if (!FileSystem || !FileSystem.readAsStringAsync) {
-              throw new Error('FileSystem.readAsStringAsync is not available');
-            }
-            const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
-            const binaryString = atob(base64);
-            arrayBuffer = new ArrayBuffer(binaryString.length);
-            const uint8Array = new Uint8Array(arrayBuffer);
-            for (let i = 0; i < binaryString.length; i++) {
-              uint8Array[i] = binaryString.charCodeAt(i);
-            }
-          } catch (error) {
-            console.warn('FileSystem not available for Excel parsing, trying fetch fallback:', error);
-            // Fallback to fetch for React Native Web or when FileSystem is not available
-            const response = await fetch(file.uri);
-            arrayBuffer = await response.arrayBuffer();
-          }
+        const filePromise = new Promise<File | null>((resolve) => {
+          input.onchange = (e) => {
+            const files = (e.target as HTMLInputElement).files;
+            resolve(files?.[0] || null);
+          };
+          input.oncancel = () => resolve(null);
+        });
+        
+        input.click();
+        const webFile = await filePromise;
+        
+        if (!webFile) {
+          return;
         }
         
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
-        
-        if (jsonData.length === 0) {
-          throw new Error('Excel file appears to be empty');
-        }
-        
-        headers = jsonData[0].map(h => (h || '').toString().trim());
+        result = await readHeaderLine({ webFile });
       } else {
-        // For CSV files, read only the first line
-        let csvContent: string;
-        
-        if (typeof window !== 'undefined' && file.uri.startsWith('blob:')) {
-          const response = await fetch(file.uri);
-          csvContent = await response.text();
-        } else {
-          // React Native environment
-          try {
-            const FileSystem = await import('expo-file-system');
-            if (!FileSystem || !FileSystem.readAsStringAsync) {
-              throw new Error('FileSystem.readAsStringAsync is not available');
-            }
-            csvContent = await FileSystem.readAsStringAsync(file.uri);
-          } catch (error) {
-            console.warn('FileSystem not available, trying fetch fallback:', error);
-            // Fallback to fetch for React Native Web or when FileSystem is not available
-            const response = await fetch(file.uri);
-            csvContent = await response.text();
-          }
-        }
-        
-        const firstLine = csvContent.split('\n')[0];
-        headers = firstLine.split(',').map(h => h.replace(/"/g, '').trim());
+        // Native file picker
+        result = await readHeaderLine({ nativePick: true });
       }
+      
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+      
+      // Parse headers from the first line
+      const headers = result.headersLine.split(',').map(h => h.replace(/"/g, '').trim());
+      
+      console.log('Headers:', headers);
       
       setFileHeaders(headers);
-      setSelectedFile({ uri: file.uri, name: file.name });
+      setSelectedFile({ uri: '', name: result.fileName }); // URI not needed for header validation
       
       // Validate headers against selected template
       const expectedHeaders = TEMPLATE_CONFIGS[selectedTemplate].requiredHeaders;
@@ -722,7 +747,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [showToast, selectedTemplate]);
+  }, [showToast, selectedTemplate, readHeaderLine]);
 
   const removeRow = useCallback((index: number) => {
     setProcessedRows(prev => prev.filter((_, i) => i !== index));
