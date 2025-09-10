@@ -1,12 +1,12 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Platform } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Crown, Star, Check, CreditCard } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { usePayments } from '@/hooks/usePayments';
 
-type MembershipTier = 'basic' | 'vip';
+
+type MembershipTier = 'basic' | 'pro' | 'enterprise';
 
 interface MembershipPlan {
   tier: MembershipTier;
@@ -15,80 +15,75 @@ interface MembershipPlan {
   description: string;
   features: string[];
   highlighted?: boolean;
+  popular?: boolean;
 }
 
 export default function MembershipScreen() {
   const router = useRouter();
   const { user, updateProfile } = useAuth();
-  const { methods } = usePayments();
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  const currentTier: MembershipTier = user?.membershipTier === 'pro' || user?.membershipTier === 'business' ? 'vip' : 'basic';
-  const isVip = currentTier === 'vip';
+
+  const currentTier: MembershipTier = (user?.membershipTier as MembershipTier) || 'basic';
+  const isPremium = currentTier !== 'basic';
 
   const plans: MembershipPlan[] = [
     {
       tier: 'basic',
       name: 'Basic',
       price: 'Free',
-      description: 'Access to loads with standard features',
+      description: 'Essential features for getting started',
       features: [
         'Browse available loads',
         'Basic load filtering',
         'Standard support',
-        'Basic driver profile'
+        'Basic driver profile',
+        'Up to 5 load applications per day'
       ]
     },
     {
-      tier: 'vip',
-      name: 'VIP',
-      price: '$10/month',
-      description: 'Premium features with priority access',
+      tier: 'pro',
+      name: 'Pro',
+      price: '$49/month',
+      description: 'Advanced features for professional drivers',
       features: [
         'All Basic features',
-        'Highlighted loads',
+        'Unlimited load applications',
         'Priority placement in search',
-        'Advanced filtering options',
+        'Advanced filtering & sorting',
+        'Load alerts & notifications',
         'Priority customer support',
-        'VIP badge on profile'
+        'Pro badge on profile'
+      ],
+      highlighted: true,
+      popular: true
+    },
+    {
+      tier: 'enterprise',
+      name: 'Enterprise',
+      price: '$99/month',
+      description: 'Complete solution for fleet operators',
+      features: [
+        'All Pro features',
+        'Fleet management dashboard',
+        'Multiple driver accounts',
+        'Advanced analytics & reporting',
+        'Dedicated account manager',
+        'Custom integrations',
+        'White-label options'
       ],
       highlighted: true
     }
   ];
 
-  const processUpgrade = useCallback(async () => {
-    setIsProcessing(true);
-    try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Update user profile to VIP
-      await updateProfile({ membershipTier: 'pro' });
-      
-      Alert.alert(
-        'Welcome to VIP!',
-        'Your membership has been upgraded. You now have access to highlighted loads and priority placement.',
-        [{ text: 'Great!', style: 'default' }]
-      );
-    } catch {
-      Alert.alert(
-        'Upgrade Failed',
-        'There was an issue processing your payment. Please try again.',
-        [{ text: 'OK', style: 'default' }]
-      );
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [updateProfile]);
+
 
   const processDowngrade = useCallback(async () => {
-    setIsProcessing(true);
     try {
       await updateProfile({ membershipTier: 'basic' });
       
       Alert.alert(
         'Membership Updated',
-        'You have been downgraded to Basic membership. Your VIP benefits will end at the next billing cycle.',
+        'You have been downgraded to Basic membership. Your premium benefits will end at the next billing cycle.',
         [{ text: 'OK', style: 'default' }]
       );
     } catch {
@@ -97,49 +92,27 @@ export default function MembershipScreen() {
         'There was an issue updating your membership. Please try again.',
         [{ text: 'OK', style: 'default' }]
       );
-    } finally {
-      setIsProcessing(false);
     }
   }, [updateProfile]);
 
-  const handleMembershipToggle = useCallback(async (newTier: MembershipTier) => {
-    if (newTier === currentTier) return;
+  const handlePlanSelection = useCallback(async (selectedTier: MembershipTier) => {
+    if (selectedTier === currentTier) return;
     
-    if (newTier === 'vip') {
-      // Check if user has payment methods
-      if (methods.length === 0) {
-        Alert.alert(
-          'Payment Method Required',
-          'Please add a payment method before upgrading to VIP membership.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Add Payment Method', onPress: () => router.push('/payment-methods') }
-          ]
-        );
-        return;
-      }
-
-      // Show confirmation for VIP upgrade
-      Alert.alert(
-        'Upgrade to VIP',
-        'You will be charged $10/month for VIP membership. This includes highlighted loads, priority placement, and premium support.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Upgrade', onPress: () => processUpgrade() }
-        ]
-      );
+    if (selectedTier !== 'basic') {
+      // Navigate to payment methods with selected plan
+      router.push(`/payment-methods?plan=${selectedTier}`);
     } else {
       // Downgrade to Basic
       Alert.alert(
         'Downgrade to Basic',
-        'You will lose VIP benefits including highlighted loads and priority placement. Continue?',
+        'You will lose premium benefits including unlimited applications and priority placement. Continue?',
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Downgrade', onPress: () => processDowngrade() }
         ]
       );
     }
-  }, [currentTier, methods.length, router, processUpgrade, processDowngrade]);
+  }, [currentTier, router, processDowngrade]);
 
 
 
@@ -151,7 +124,9 @@ export default function MembershipScreen() {
         {/* Current Status */}
         <View style={styles.statusCard}>
           <View style={styles.statusHeader}>
-            {isVip ? (
+            {currentTier === 'enterprise' ? (
+              <Crown color={theme.colors.secondary} size={24} />
+            ) : currentTier === 'pro' ? (
               <Crown color={theme.colors.warning} size={24} />
             ) : (
               <Star color={theme.colors.gray} size={24} />
@@ -159,59 +134,32 @@ export default function MembershipScreen() {
             <View style={styles.statusInfo}>
               <Text style={styles.statusTitle}>Current Plan</Text>
               <Text style={styles.statusPlan}>
-                {isVip ? 'VIP Member' : 'Basic Member'}
+                {currentTier === 'enterprise' ? 'Enterprise Member' : 
+                 currentTier === 'pro' ? 'Pro Member' : 'Basic Member'}
               </Text>
             </View>
-            {isVip && (
-              <View style={styles.vipBadge}>
-                <Text style={styles.vipBadgeText}>VIP</Text>
+            {isPremium && (
+              <View style={[
+                styles.vipBadge,
+                currentTier === 'enterprise' && { backgroundColor: theme.colors.secondary }
+              ]}>
+                <Text style={styles.vipBadgeText}>
+                  {currentTier === 'enterprise' ? 'ENT' : 'PRO'}
+                </Text>
               </View>
             )}
           </View>
           <Text style={styles.statusDescription}>
-            {isVip 
-              ? 'You have access to all premium features including highlighted loads and priority placement.'
-              : 'You have access to basic load board features. Upgrade to VIP for premium benefits.'
+            {currentTier === 'enterprise'
+              ? 'You have access to all enterprise features including fleet management and dedicated support.'
+              : currentTier === 'pro'
+              ? 'You have access to all pro features including unlimited applications and priority placement.'
+              : 'You have access to basic load board features. Upgrade for premium benefits.'
             }
           </Text>
         </View>
 
-        {/* Membership Toggle */}
-        <View style={styles.toggleCard}>
-          <Text style={styles.sectionTitle}>Membership Options</Text>
-          
-          <View style={styles.toggleContainer}>
-            <View style={styles.toggleOption}>
-              <View style={styles.toggleInfo}>
-                <Text style={styles.toggleTitle}>Basic</Text>
-                <Text style={styles.togglePrice}>Free</Text>
-              </View>
-              <Switch
-                testID="basicToggle"
-                value={!isVip}
-                onValueChange={() => handleMembershipToggle('basic')}
-                disabled={isProcessing}
-                thumbColor={Platform.OS === 'android' ? (!isVip ? theme.colors.white : '#f4f3f4') : undefined}
-                trackColor={{ false: '#D1D5DB', true: theme.colors.primary }}
-              />
-            </View>
-            
-            <View style={styles.toggleOption}>
-              <View style={styles.toggleInfo}>
-                <Text style={styles.toggleTitle}>VIP</Text>
-                <Text style={styles.togglePrice}>$10/month</Text>
-              </View>
-              <Switch
-                testID="vipToggle"
-                value={isVip}
-                onValueChange={() => handleMembershipToggle('vip')}
-                disabled={isProcessing}
-                thumbColor={Platform.OS === 'android' ? (isVip ? theme.colors.white : '#f4f3f4') : undefined}
-                trackColor={{ false: '#D1D5DB', true: theme.colors.warning }}
-              />
-            </View>
-          </View>
-        </View>
+
 
         {/* Plan Comparison */}
         <View style={styles.plansContainer}>
@@ -226,12 +174,18 @@ export default function MembershipScreen() {
               <View style={styles.planHeader}>
                 <View style={styles.planTitleContainer}>
                   <Text style={styles.planName}>{plan.name}</Text>
+                  {plan.popular && (
+                    <View style={styles.popularBadge}>
+                      <Star color={theme.colors.white} size={12} />
+                      <Text style={styles.popularBadgeText}>Most Popular</Text>
+                    </View>
+                  )}
                   <Text style={styles.planPrice}>{plan.price}</Text>
                 </View>
                 {currentTier === plan.tier && (
                   <View style={styles.activeBadge}>
                     <Check color={theme.colors.white} size={16} />
-                    <Text style={styles.activeBadgeText}>Active</Text>
+                    <Text style={styles.activeBadgeText}>Current</Text>
                   </View>
                 )}
               </View>
@@ -239,13 +193,31 @@ export default function MembershipScreen() {
               <Text style={styles.planDescription}>{plan.description}</Text>
               
               <View style={styles.featuresContainer}>
-                {plan.features.map((feature, index) => (
-                  <View key={index} style={styles.featureRow}>
+                {plan.features.map((feature) => (
+                  <View key={feature} style={styles.featureRow}>
                     <Check color={theme.colors.success} size={16} />
                     <Text style={styles.featureText}>{feature}</Text>
                   </View>
                 ))}
               </View>
+              
+              {currentTier !== plan.tier && (
+                <TouchableOpacity 
+                  style={[
+                    styles.selectPlanButton,
+                    plan.highlighted && styles.selectPlanButtonHighlighted
+                  ]}
+                  onPress={() => handlePlanSelection(plan.tier)}
+                  testID={`selectPlan-${plan.tier}`}
+                >
+                  <Text style={[
+                    styles.selectPlanText,
+                    plan.highlighted && styles.selectPlanTextHighlighted
+                  ]}>
+                    {plan.tier === 'basic' ? 'Downgrade' : 'Select Plan'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ))}
         </View>
@@ -261,7 +233,7 @@ export default function MembershipScreen() {
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
-          VIP membership is billed monthly. You can upgrade or downgrade at any time. 
+          Premium memberships are billed monthly. You can upgrade or downgrade at any time. 
           By upgrading, you agree to our Terms of Service and Privacy Policy.
         </Text>
       </ScrollView>
@@ -340,27 +312,38 @@ const styles = StyleSheet.create({
     color: theme.colors.dark,
     marginBottom: theme.spacing.md,
   },
-  toggleContainer: {
-    gap: theme.spacing.md as unknown as number,
-  },
-  toggleOption: {
+  popularBadge: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    justifyContent: 'space-between' as const,
-    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.warning,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4 as unknown as number,
+    marginBottom: 8,
   },
-  toggleInfo: {
-    flex: 1,
+  popularBadgeText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700' as const,
   },
-  toggleTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '600' as const,
-    color: theme.colors.dark,
-    marginBottom: 2,
+  selectPlanButton: {
+    backgroundColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center' as const,
+    marginTop: theme.spacing.md,
   },
-  togglePrice: {
+  selectPlanButtonHighlighted: {
+    backgroundColor: theme.colors.primary,
+  },
+  selectPlanText: {
     fontSize: theme.fontSize.md,
+    fontWeight: '600' as const,
     color: theme.colors.gray,
+  },
+  selectPlanTextHighlighted: {
+    color: theme.colors.white,
   },
   plansContainer: {
     marginBottom: theme.spacing.lg,

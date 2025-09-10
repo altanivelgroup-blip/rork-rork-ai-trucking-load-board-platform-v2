@@ -27,7 +27,7 @@ export interface User {
   name: string;
   phone: string;
   company?: string;
-  membershipTier: 'basic' | 'pro' | 'business';
+  membershipTier: 'basic' | 'pro' | 'enterprise';
   createdAt: Date;
 }
 

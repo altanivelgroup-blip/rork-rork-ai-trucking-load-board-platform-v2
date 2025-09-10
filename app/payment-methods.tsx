@@ -6,12 +6,12 @@ import { theme } from '@/constants/theme';
 import { usePayments } from '@/hooks/usePayments';
 import { useAuth } from '@/hooks/useAuth';
 
-type PlanId = 'basic' | 'pro' | 'business';
+type PlanId = 'basic' | 'pro' | 'enterprise';
 
 const PLAN_META: Record<PlanId, { label: string; price: string; period: string; description: string }> = {
-  basic: { label: 'Basic', price: '$5', period: '/month', description: 'Starter tier' },
+  basic: { label: 'Basic', price: 'Free', period: '', description: 'Essential features' },
   pro: { label: 'Pro', price: '$49', period: '/month', description: 'Most popular' },
-  business: { label: 'Business', price: '$99.99', period: '/month', description: 'For teams' },
+  enterprise: { label: 'Enterprise', price: '$99', period: '/month', description: 'For fleets' },
 };
 
 export default function PaymentMethodsScreen() {
@@ -22,15 +22,15 @@ export default function PaymentMethodsScreen() {
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const selectedPlan: PlanId | undefined = useMemo(() => {
     const p = (params.plan ?? '').toString().toLowerCase();
-    const allowed: PlanId[] = ['basic', 'pro', 'business'];
+    const allowed: PlanId[] = ['basic', 'pro', 'enterprise'];
     if (allowed.includes(p as PlanId)) return p as PlanId;
     return undefined;
   }, [params.plan]);
 
   const activePlan: PlanId | undefined = useMemo(() => {
     const tier = user?.membershipTier;
-    const allowed: PlanId[] = ['basic', 'pro', 'business'];
-    return allowed.includes((tier as PlanId) ?? 'basic') ? (tier as PlanId) : undefined;
+    const allowed: PlanId[] = ['basic', 'pro', 'enterprise'];
+    return allowed.includes((tier as PlanId) ?? 'basic') ? (tier as PlanId) : 'basic';
   }, [user?.membershipTier]);
 
   const effectivePlan: PlanId | undefined = selectedPlan ?? activePlan;
@@ -46,7 +46,7 @@ export default function PaymentMethodsScreen() {
     }
   }, [selectedPlan]);
   const isLockedFromActive = !selectedPlan && !!activePlan;
-  const { methods, services, setDefault, deleteMethod, isHydrating, toggleService } = usePayments();
+  const { methods, services, setDefault, deleteMethod, toggleService } = usePayments();
 
   const iconForType = useCallback((type: string) => {
     switch (type) {
@@ -91,17 +91,19 @@ export default function PaymentMethodsScreen() {
         {!!effectivePlan && (
           <View style={styles.planBanner} testID="selectedPlanBanner">
             <View style={styles.planIconWrap}>
-              {effectivePlan === 'pro' ? (
+              {effectivePlan === 'enterprise' ? (
+                <Crown color={theme.colors.secondary} size={20} />
+              ) : effectivePlan === 'pro' ? (
                 <Zap color={theme.colors.warning} size={20} />
               ) : (
-                <Crown color={effectivePlan === 'business' ? theme.colors.secondary : theme.colors.primary} size={20} />
+                <Crown color={theme.colors.primary} size={20} />
               )}
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={styles.planBannerContent}>
               <Text style={styles.planBannerTitle}>{isLockedFromActive ? 'Active Plan' : 'Locked Plan'}</Text>
               <Text style={styles.planBannerSubtitle}>
                 {PLAN_META[effectivePlan].label} {PLAN_META[effectivePlan].price}
-                <Text style={{ color: theme.colors.gray }}> {PLAN_META[effectivePlan].period}</Text>
+                <Text style={styles.planBannerPeriod}> {PLAN_META[effectivePlan].period}</Text>
               </Text>
               <Text style={styles.planBannerHint}>
                 {isLockedFromActive ? 'This is your current subscription. Plan selection is locked.' : 'Plan is locked from ?plan. You can confirm below.'}
@@ -148,7 +150,7 @@ export default function PaymentMethodsScreen() {
           </View>
         ))}
 
-        <Text style={[styles.sectionTitle, { marginTop: theme.spacing.xl }]}>Payment Services</Text>
+        <Text style={[styles.sectionTitle, styles.servicesTitle]}>Payment Services</Text>
         <Text style={styles.sectionSubtitle}>Enable additional payment features to get paid faster</Text>
 
         <ServiceToggle
@@ -192,7 +194,7 @@ export default function PaymentMethodsScreen() {
           onValueChange={(v) => toggleService('crypto', v)}
         />
 
-        <View style={{ height: 120 }} />
+        <View style={styles.bottomSpacer} />
       </ScrollView>
 
       {!!effectivePlan && (
@@ -247,7 +249,7 @@ export default function PaymentMethodsScreen() {
                   Alert.alert('Success', `Subscribed to ${PLAN_META[effectivePlan].label}.`, [
                     { text: 'OK', onPress: () => router.back() },
                   ]);
-                } catch (e) {
+                } catch {
                   Alert.alert('Error', 'Could not update membership. Please try again.');
                 } finally {
                   setIsConfirming(false);
@@ -333,4 +335,8 @@ const styles = StyleSheet.create({
   footerNote: { marginTop: 4, fontSize: theme.fontSize.xs, color: theme.colors.gray },
   confirmBtn: { backgroundColor: theme.colors.secondary, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12 },
   confirmText: { color: theme.colors.white, fontWeight: '800' as const },
+  planBannerContent: { flex: 1 },
+  planBannerPeriod: { color: theme.colors.gray },
+  bottomSpacer: { height: 120 },
+  servicesTitle: { marginTop: theme.spacing.xl },
 });
