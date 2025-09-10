@@ -8,10 +8,8 @@ export default function IndexScreen() {
 
   useEffect(() => {
     console.log('[Index] Forcing redirect to login on refresh/navigation');
-    const timer = setTimeout(() => {
-      router.replace('/(auth)/login');
-    }, 100);
-    return () => clearTimeout(timer);
+    // Immediate redirect for faster startup
+    router.replace('/(auth)/login');
   }, [router]);
 
   return (

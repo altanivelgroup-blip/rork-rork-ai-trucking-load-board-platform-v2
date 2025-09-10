@@ -37,37 +37,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       try {
         console.log('[auth] initializing...');
         
-        // First, try to authenticate with Firebase anonymously
-        const firebaseAuthSuccess = await ensureFirebaseAuth();
-        
-        if (!isMounted) return;
-        
-        if (firebaseAuthSuccess) {
-          console.log('[auth] Firebase authentication successful');
-          setIsFirebaseAuthenticated(true);
-          
-          // Set up Firebase auth state listener
-          unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-            if (!isMounted) return;
-            
-            if (firebaseUser) {
-              console.log('[auth] Firebase user state changed:', firebaseUser.uid);
-              setUserId(firebaseUser.uid);
-              setIsFirebaseAuthenticated(true);
-            } else {
-              console.log('[auth] Firebase user signed out');
-              setUserId(null);
-              setIsFirebaseAuthenticated(false);
-            }
-          });
-        } else {
-          console.log('[auth] Firebase authentication failed');
-          if (isMounted) {
-            toast.show('Sign-in failed, please refresh.', 'error');
-          }
-        }
-        
-        // Load cached user profile
+        // Load cached user profile first (non-blocking)
         const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
         
         if (!isMounted) return;
@@ -78,30 +48,59 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         } else {
           console.log('[auth] no cached user found');
         }
+        
+        // Set loading to false immediately to unblock UI
+        setIsLoading(false);
+        
+        // Try Firebase auth in background (non-blocking)
+        ensureFirebaseAuth().then((firebaseAuthSuccess) => {
+          if (!isMounted) return;
+          
+          if (firebaseAuthSuccess) {
+            console.log('[auth] Firebase authentication successful');
+            setIsFirebaseAuthenticated(true);
+            
+            // Set up Firebase auth state listener
+            unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+              if (!isMounted) return;
+              
+              if (firebaseUser) {
+                console.log('[auth] Firebase user state changed:', firebaseUser.uid);
+                setUserId(firebaseUser.uid);
+                setIsFirebaseAuthenticated(true);
+              } else {
+                console.log('[auth] Firebase user signed out');
+                setUserId(null);
+                setIsFirebaseAuthenticated(false);
+              }
+            });
+          } else {
+            console.log('[auth] Firebase authentication failed, continuing without it');
+            // Don't show error toast - just continue without Firebase
+          }
+        }).catch((e) => {
+          console.warn('[auth] Firebase init failed, continuing without it:', e);
+        });
+        
       } catch (e) {
         console.error('[auth] init error', e);
         if (isMounted) {
-          toast.show('Sign-in failed, please refresh.', 'error');
-        }
-      } finally {
-        if (isMounted) {
-          console.log('[auth] initialization complete');
-          setIsLoading(false);
+          setIsLoading(false); // Always unblock UI
         }
       }
     };
     
-    const timer = setTimeout(init, 50);
+    // Start immediately without delay
+    init();
     
     return () => {
       isMounted = false;
-      clearTimeout(timer);
       // Clean up Firebase auth listener
       if (unsubscribeAuth) {
         unsubscribeAuth();
       }
     };
-  }, [toast]);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     console.log('[auth] login attempt for', email);

@@ -94,7 +94,7 @@ export function getFirebase() {
   return { app, auth, db, storage };
 }
 
-// Ensure we have an authenticated user
+// Ensure we have an authenticated user (non-blocking for faster app startup)
 export async function ensureFirebaseAuth(): Promise<boolean> {
   try {
     if (auth?.currentUser) {
@@ -104,9 +104,8 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
 
     console.log("[AUTH] Attempting anonymous sign-in...");
 
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    const timeoutMs = 6000;
+    // Reduced timeout for faster startup
+    const timeoutMs = 2000;
     const timer = new Promise<never>((_, reject) => setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout' }), timeoutMs));
 
     const result = await Promise.race([
@@ -123,21 +122,12 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     return false;
   } catch (error: any) {
     const code = error?.code ?? 'unknown';
-    console.error("[AUTH ERROR] Sign-in failed:", {
+    console.warn("[AUTH] Sign-in failed, proceeding without Firebase:", {
       code,
-      message: error?.message,
-      projectId: firebaseConfig.projectId,
-      apiKey: firebaseConfig.apiKey ? 'present' : 'missing'
+      message: error?.message
     });
 
-    if (code === 'auth/api-key-not-valid') {
-      console.error("[AUTH ERROR] Invalid API key. Please check Firebase project configuration.");
-    } else if (code === 'auth/operation-not-allowed') {
-      console.error("[AUTH ERROR] Anonymous authentication is not enabled in Firebase Console.");
-    } else if (code === 'timeout' || code === 'unavailable') {
-      console.warn('[AUTH] Network unavailable or timed out. Proceeding without Firebase auth.');
-    }
-
+    // Don't block app startup - just proceed without Firebase
     return false;
   }
 }

@@ -393,30 +393,43 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
 
   useEffect(() => {
     let mounted = true;
+    
+    // Start Firestore listener in background (non-blocking)
     const start = async () => {
       try {
         if (!online) return;
-        const authed = await ensureFirebaseAuth();
+        
+        // Try Firebase auth with short timeout
+        const authed = await Promise.race([
+          ensureFirebaseAuth(),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1000))
+        ]);
+        
         const { db } = getFirebase();
         if (!mounted || !authed || !db) return;
+        
         if (unsubscribeRef.current) {
           unsubscribeRef.current();
           unsubscribeRef.current = null;
         }
+        
         const baseConstraints: QueryConstraint[] = [
           where('status', '==', LOAD_STATUS.OPEN),
           where('isArchived', '==', false),
           limit(50),
         ];
+        
         const qOrdered = query(
           collection(db, LOADS_COLLECTION),
           ...baseConstraints,
           orderBy('clientCreatedAt', 'desc'),
         );
+        
         const qUnordered = query(
           collection(db, LOADS_COLLECTION),
           ...baseConstraints,
         );
+        
         unsubscribeRef.current = onSnapshot(qOrdered, async (snap) => {
           try {
             const docs = snap.docs.map((doc) => {
@@ -494,7 +507,10 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
         console.warn('[Loads] Firestore listener failed', e);
       }
     };
-    start();
+    
+    // Start in background without blocking
+    setTimeout(start, 100);
+    
     return () => {
       mounted = false;
       if (unsubscribeRef.current) {
