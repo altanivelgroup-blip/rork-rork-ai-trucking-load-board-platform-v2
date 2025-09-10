@@ -8,6 +8,8 @@ interface StartupInitializerProps {
 
 export function StartupInitializer({ children }: StartupInitializerProps) {
   const [isInitializing, setIsInitializing] = useState(true);
+  
+  console.log('[StartupInitializer] Component rendered, isInitializing:', isInitializing);
 
   useEffect(() => {
     let isMounted = true;
@@ -49,6 +51,7 @@ export function StartupInitializer({ children }: StartupInitializerProps) {
 
   // Show minimal loading screen during initialization
   if (isInitializing) {
+    console.log('[StartupInitializer] Showing loading screen');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0b5fff" />
@@ -58,6 +61,7 @@ export function StartupInitializer({ children }: StartupInitializerProps) {
   }
 
   // Render the app
+  console.log('[StartupInitializer] Rendering children');
   return <>{children}</>;
 }
 

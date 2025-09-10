@@ -30,6 +30,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  
+  console.log('[useAuth] Hook called - ensuring consistent hook order');
 
   // Load cached user data - always called, never conditional
   useEffect(() => {
@@ -62,7 +64,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
     };
     
-    loadCachedUser();
+    // Add small delay to prevent race conditions
+    setTimeout(loadCachedUser, 10);
     
     return () => {
       isMounted = false;
@@ -71,14 +74,17 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   // Firebase auth setup - always called to maintain hook order
   useEffect(() => {
-    // Only setup Firebase after initial load is complete
-    if (!isInitialized) return;
-    
     let isMounted = true;
     let unsubscribe: (() => void) | undefined;
     
     const setupFirebaseAuth = async () => {
       try {
+        // Only setup Firebase after initial load is complete
+        if (!isInitialized) {
+          console.log('[auth] Waiting for initialization...');
+          return;
+        }
+        
         console.log('[auth] Setting up Firebase auth...');
         await ensureFirebaseAuth();
         
@@ -254,6 +260,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [user]);
 
+  // Always compute the same value structure to maintain consistency
   const value = useMemo(() => ({
     user,
     userId,

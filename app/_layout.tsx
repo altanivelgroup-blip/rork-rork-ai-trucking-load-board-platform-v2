@@ -183,7 +183,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  console.log("[RootLayout] rendering");
+  console.log("[RootLayout] rendering - starting provider chain");
 
   return (
     <GlobalErrorBoundary>
@@ -195,20 +195,20 @@ export default function RootLayout() {
                 <StartupInitializer>
                   <View style={styles.appContainer}>
                     <AuthProvider>
-                      <LoadsProvider>
+                      <SettingsProvider>
                         <PaymentsProvider>
                           <MaintenanceProvider>
-                            <SettingsProvider>
-                              <PostLoadProvider>
+                            <PostLoadProvider>
+                              <LoadsProvider>
                                 <AutoArriveProvider>
                                   <RootLayoutNav />
                                   <AutoArriveSheet />
                                 </AutoArriveProvider>
-                              </PostLoadProvider>
-                            </SettingsProvider>
+                              </LoadsProvider>
+                            </PostLoadProvider>
                           </MaintenanceProvider>
                         </PaymentsProvider>
-                      </LoadsProvider>
+                      </SettingsProvider>
                     </AuthProvider>
                   </View>
                 </StartupInitializer>

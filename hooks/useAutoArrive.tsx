@@ -142,7 +142,7 @@ export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveS
         console.warn('[AutoArrive] stop error', e);
       }
     };
-  }, [currentLoad?.id, currentLoad?.origin?.lat, currentLoad?.origin?.lng, arrivedPickups, startWatching, stopWatching, openSheet, triggerHaptic]);
+  }, [currentLoad, arrivedPickups, startWatching, stopWatching, openSheet, triggerHaptic, persist]);
 
   return useMemo(() => ({
     arrivedPickups,
