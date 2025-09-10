@@ -151,20 +151,24 @@ export default function DriverProfileScreen() {
 
   const handleTypeChange = useCallback((type: 'truck' | 'trailer') => {
     console.log('[DriverProfile] Primary vehicle type changed to:', type);
+    console.log('[DriverProfile] Current formData.primaryVehicleType:', formData.primaryVehicleType);
     setFormData(prev => ({ 
       ...prev, 
       primaryVehicleType: type,
       primaryVehicleSubtype: '' // Reset subtype when type changes
     }));
-  }, []);
+    console.log('[DriverProfile] After setFormData called');
+  }, [formData.primaryVehicleType]);
 
   const handleSubtypeChange = useCallback((subtype: AnySubtype) => {
     console.log('[DriverProfile] Primary vehicle subtype changed to:', subtype);
+    console.log('[DriverProfile] Current formData.primaryVehicleSubtype:', formData.primaryVehicleSubtype);
     setFormData(prev => ({ 
       ...prev, 
       primaryVehicleSubtype: String(subtype)
     }));
-  }, []);
+    console.log('[DriverProfile] After subtype setFormData called');
+  }, [formData.primaryVehicleSubtype]);
 
 
 
@@ -365,6 +369,12 @@ export default function DriverProfileScreen() {
             onSubtypeChange={handleSubtypeChange}
             testIDPrefix="primary-vehicle"
           />
+          
+          {/* Debug Info */}
+          <View style={styles.debugInfo}>
+            <Text style={styles.debugText}>Debug: Type = {formData.primaryVehicleType}</Text>
+            <Text style={styles.debugText}>Debug: Subtype = {formData.primaryVehicleSubtype || '(none)'}</Text>
+          </View>
         </View>
 
         {/* Vehicle Information */}
@@ -938,5 +948,15 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '600',
   },
-
+  debugInfo: {
+    backgroundColor: theme.colors.lightGray,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.sm,
+  },
+  debugText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    fontFamily: 'monospace',
+  },
 });
