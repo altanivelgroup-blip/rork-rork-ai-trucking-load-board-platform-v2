@@ -462,10 +462,12 @@ export default function CSVBulkUploadScreen() {
   // Transform parsed row to Firestore document format
   const toFirestoreDoc = useCallback((parsedRow: NormalizedPreviewRow, templateType: TemplateType, bulkImportId: string): any => {
     const baseDoc = {
-      status: 'open',
+      status: 'OPEN',
       createdBy: user?.id || 'unknown',
       createdAt: serverTimestamp(),
       bulkImportId,
+      isArchived: false,
+      clientCreatedAt: Date.now(),
     };
 
     if (templateType === 'simple') {
@@ -909,9 +911,14 @@ export default function CSVBulkUploadScreen() {
       // Store the last bulk import ID for easy access
       try {
         await AsyncStorage.setItem('lastBulkImportId', bulkImportId);
+        console.log(`[BULK UPLOAD] Stored lastBulkImportId: ${bulkImportId}`);
       } catch (error) {
         console.warn('[BULK UPLOAD] Failed to store last bulk import ID:', error);
       }
+      
+      // Force refresh loads to show the newly imported loads
+      console.log('[BULK UPLOAD] Triggering loads refresh...');
+      // Note: The loads will be automatically refreshed by the Firestore listener in useLoads
       
     } catch (error: any) {
       console.error('Import error:', error);
