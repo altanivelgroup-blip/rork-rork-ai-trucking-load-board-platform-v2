@@ -180,6 +180,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       assignedDriverId: raw.assignedDriverId ? String(raw.assignedDriverId) : undefined,
       isBackhaul: Boolean(raw.isBackhaul),
       aiScore: typeof raw.aiScore === 'number' ? raw.aiScore : undefined,
+      bulkImportId: raw.bulkImportId ? String(raw.bulkImportId) : undefined,
     };
   }, []);
 
@@ -286,6 +287,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
           description: String(d?.title ?? ''),
           special_requirements: undefined,
           isBackhaul: false,
+          bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
         };
       };
 
@@ -439,6 +441,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
                 description: String(d?.title ?? ''),
                 special_requirements: undefined,
                 isBackhaul: false,
+                bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
               };
               return mapped;
             }).filter((x): x is Load => x !== null);
@@ -474,6 +477,7 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
                   description: String(d?.title ?? ''),
                   special_requirements: undefined,
                   isBackhaul: false,
+                  bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
                 };
                 return mapped;
               }).filter((x): x is Load => x !== null);

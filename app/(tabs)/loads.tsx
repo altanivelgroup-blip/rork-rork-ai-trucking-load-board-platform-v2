@@ -154,31 +154,34 @@ export default function LoadsScreen() {
                 )}
               </TouchableOpacity>
               
-              {/* Last Import Filter Chip */}
-              {lastBulkImportId && (
-                <TouchableOpacity
-                  style={[
-                    styles.equipmentFilterChip,
-                    styles.lastImportFilterChip,
-                    showLastImportOnly && styles.lastImportFilterChipActive
-                  ]}
-                  onPress={() => {
+              {/* Source: Bulk (last import) Filter Chip */}
+              <TouchableOpacity
+                style={[
+                  styles.equipmentFilterChip,
+                  styles.lastImportFilterChip,
+                  showLastImportOnly && styles.lastImportFilterChipActive,
+                  !lastBulkImportId && styles.lastImportFilterChipDisabled
+                ]}
+                onPress={() => {
+                  if (lastBulkImportId) {
                     setShowLastImportOnly(!showLastImportOnly);
                     if (showBulkOnly) setShowBulkOnly(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.equipmentFilterText,
-                    styles.lastImportFilterText,
-                    showLastImportOnly && styles.equipmentFilterTextActive
-                  ]}>
-                    Last Import
-                  </Text>
-                  {showLastImportOnly && (
-                    <X size={14} color={theme.colors.white} />
-                  )}
-                </TouchableOpacity>
-              )}
+                  }
+                }}
+                disabled={!lastBulkImportId}
+              >
+                <Text style={[
+                  styles.equipmentFilterText,
+                  styles.lastImportFilterText,
+                  showLastImportOnly && styles.equipmentFilterTextActive,
+                  !lastBulkImportId && styles.lastImportFilterTextDisabled
+                ]}>
+                  Source: Bulk (last import)
+                </Text>
+                {showLastImportOnly && lastBulkImportId && (
+                  <X size={14} color={theme.colors.white} />
+                )}
+              </TouchableOpacity>
               
               {equipmentTypes.map((type) => {
                 const isSelected = selectedEquipmentType === type;
@@ -569,6 +572,15 @@ const styles = StyleSheet.create({
   },
   lastImportFilterText: {
     color: theme.colors.white,
+  },
+  lastImportFilterChipDisabled: {
+    backgroundColor: theme.colors.gray,
+    borderColor: theme.colors.gray,
+    opacity: 0.5,
+  },
+  lastImportFilterTextDisabled: {
+    color: theme.colors.white,
+    opacity: 0.7,
   },
 
 });
