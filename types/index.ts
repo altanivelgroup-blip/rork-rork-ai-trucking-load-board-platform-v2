@@ -41,6 +41,11 @@ export interface FuelProfile {
 
 export type FuelKind = 'diesel' | 'gas';
 
+export interface PrimaryVehicle {
+  type: 'truck' | 'trailer';
+  subtype: string;
+}
+
 export interface Driver extends User {
   role: 'driver';
   cdlNumber: string;
@@ -59,6 +64,7 @@ export interface Driver extends User {
   trailerInfo?: string;
   verificationStatus?: 'unverified' | 'pending' | 'verified';
   fuelProfile?: FuelProfile;
+  primaryVehicle?: PrimaryVehicle;
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleYear?: number | null;
