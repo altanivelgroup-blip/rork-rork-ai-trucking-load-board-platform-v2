@@ -10,8 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType } from '@/types';
-import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
-import { AnySubtype } from '@/constants/vehicleOptions';
+
 
 
 // Options moved to shared constants to keep logic in sync
@@ -53,8 +52,7 @@ export default function DriverProfileScreen() {
     trailerPolicyNumber: '',
     trailerGvwrLbs: '',
     trailerType: 'flatbed',
-    vehicleType: 'truck' as 'truck' | 'trailer',
-    vehicleSubtype: 'pickup' as string,
+
     
     // Company Info
     companyName: '',
@@ -121,8 +119,7 @@ export default function DriverProfileScreen() {
         trailerPolicyNumber: user.trailerPolicyNumber || '',
         trailerGvwrLbs: user.trailerGvwrLbs?.toString() || '',
         trailerType: user.trailerType || 'flatbed',
-        vehicleType: 'truck' as 'truck' | 'trailer',
-        vehicleSubtype: user.vehicleSubtype || 'pickup',
+
         
         // Company Info
         companyName: user.companyName || '',
@@ -138,18 +135,7 @@ export default function DriverProfileScreen() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleVehicleTypeChange = (type: 'truck' | 'trailer') => {
-    const defaultSubtype = type === 'truck' ? 'pickup' : 'flatbed';
-    setFormData(prev => ({ 
-      ...prev, 
-      vehicleType: type,
-      vehicleSubtype: defaultSubtype
-    }));
-  };
 
-  const handleVehicleSubtypeChange = (subtype: AnySubtype) => {
-    setFormData(prev => ({ ...prev, vehicleSubtype: String(subtype) }));
-  };
 
   const toggleFuelType = () => {
     setFormData(prev => ({ 
@@ -233,7 +219,7 @@ export default function DriverProfileScreen() {
         trailerPolicyNumber: formData.trailerPolicyNumber,
         trailerGvwrLbs: formData.trailerGvwrLbs ? parseInt(formData.trailerGvwrLbs) : null,
         trailerType: formData.trailerType as VehicleType,
-        vehicleSubtype: formData.vehicleSubtype,
+
         companyName: formData.companyName,
         mcNumber: formData.mcNumber,
         dotNumber: formData.dotNumber,
@@ -375,13 +361,7 @@ export default function DriverProfileScreen() {
             />
           </View>
 
-          <TypeSubtypeSelector
-            type={formData.vehicleType}
-            subtype={formData.vehicleSubtype}
-            onTypeChange={handleVehicleTypeChange}
-            onSubtypeChange={handleVehicleSubtypeChange}
-            testIDPrefix="vehicle"
-          />
+
           
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1 }]}>
