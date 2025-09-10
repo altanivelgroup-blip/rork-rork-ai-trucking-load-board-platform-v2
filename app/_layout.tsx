@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import React, { useMemo, useCallback } from "react";
-import { View } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -29,6 +29,16 @@ const queryClient = new QueryClient({
       staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
     },
+  },
+});
+
+const styles = StyleSheet.create({
+  rootContainer: {
+    flex: 1,
+  },
+  appContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
   },
 });
 
@@ -173,10 +183,10 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary safeRoute="/(auth)/login">
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={styles.rootContainer}>
         <trpc.Provider client={trpcClient} queryClient={queryClient}>
           <QueryClientProvider client={queryClient}>
-          <View style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+          <View style={styles.appContainer}>
             <AuthProvider>
               <LoadsProvider>
                 <PaymentsProvider>
