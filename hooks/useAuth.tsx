@@ -215,6 +215,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           trailerPolicyNumber: (updates as any).trailerPolicyNumber ?? updated.trailerPolicyNumber ?? null,
           trailerGvwrLbs: (updates as any).trailerGvwrLbs ?? updated.trailerGvwrLbs ?? null,
           trailerType: (updates as any).trailerType ?? updated.trailerType ?? null,
+          vehicleSubtype: (updates as any).vehicleSubtype ?? updated.vehicleSubtype ?? null,
           companyName: (updates as any).companyName ?? updated.companyName ?? null,
           mcNumber: (updates as any).mcNumber ?? updated.mcNumber ?? null,
           dotNumber: (updates as any).dotNumber ?? updated.dotNumber ?? null,
