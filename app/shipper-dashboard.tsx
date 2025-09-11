@@ -1173,11 +1173,7 @@ export default function ShipperDashboard() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.headerBar}>
-        <TouchableOpacity onPress={handleGoBack} style={styles.backButton} testID="back-button">
-          <ArrowLeft size={24} color={theme.colors.dark} />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Shipper Dashboard</Text>
-        <View style={styles.headerSpacer} />
       </View>
       
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -1407,7 +1403,7 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     backgroundColor: theme.colors.white,
