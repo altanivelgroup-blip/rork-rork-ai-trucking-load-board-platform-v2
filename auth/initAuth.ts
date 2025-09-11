@@ -3,6 +3,11 @@ import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence, s
 import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { getFirebase } from '@/utils/firebase';
 
+// add at top
+const ALLOW_GUEST =
+  typeof process !== "undefined" &&
+  process.env?.EXPO_PUBLIC_ALLOW_GUEST_LOGIN === "true";
+
 // Track initialization state
 let isInitialized = false;
 let initPromise: Promise<void> | null = null;
@@ -55,14 +60,19 @@ async function performInitAuth(): Promise<void> {
     // 2) Only create an anonymous user if there is NO current user.
     //    This prevents a new UID on every load.
     if (!auth.currentUser) {
-      console.log('[InitAuth] No current user, signing in anonymously...');
-      
-      try {
-        const result = await signInAnonymously(auth);
-        console.log('[InitAuth] Anonymous sign-in successful:', result.user.uid);
-      } catch (signInError: any) {
-        console.warn('[InitAuth] Anonymous sign-in failed:', signInError.message);
-        // Don't throw here - app can still work without auth
+      // ❗ Only create an anonymous session if explicitly allowed
+      if (ALLOW_GUEST) {
+        console.log('[InitAuth] No current user, signing in anonymously...');
+        
+        try {
+          const result = await signInAnonymously(auth);
+          console.log('[InitAuth] Anonymous sign-in successful:', result.user.uid);
+        } catch (signInError: any) {
+          console.warn('[InitAuth] Anonymous sign-in failed:', signInError.message);
+          // Don't throw here - app can still work without auth
+        }
+      } else {
+        console.log('[InitAuth] Guest login disabled. Waiting for real sign-in...');
       }
     } else {
       console.log('[InitAuth] User already authenticated:', auth.currentUser.uid);
