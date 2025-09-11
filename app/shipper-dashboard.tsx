@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2, Crown, Settings } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2, Crown } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { getFirebase } from '@/utils/firebase';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp, where, writeBatch, Timestamp } from 'firebase/firestore';
+import { doc, getDocFromServer, onSnapshot, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as Clipboard from 'expo-clipboard';
 import { TextInput, Switch } from 'react-native';
@@ -379,16 +379,21 @@ function MigrateLoadsOwnershipPanel() {
 function MembershipPill({ membership, onManage }: { membership?: UserInfo['membership']; onManage: () => void }) {
   const formatDate = (timestamp: Timestamp | null) => {
     if (!timestamp) return '';
-    const date = timestamp.toDate();
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    try {
+      const date = timestamp.toDate();
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.warn('[formatDate] Error formatting timestamp:', error);
+      return 'Invalid date';
+    }
   };
 
-  const plan = membership?.plan ?? 'free';
-  const status = membership?.status ?? (plan === 'free' ? 'inactive' : 'inactive');
+  const plan = (membership?.plan ?? 'free').toLowerCase();
+  const status = (membership?.status ?? (plan === 'free' ? 'inactive' : 'inactive')).toLowerCase();
   const expiresAt = membership?.expiresAt ?? null;
   const provider = membership?.provider ?? null;
 
@@ -481,6 +486,59 @@ function MembershipBanner({ membership }: { membership?: UserInfo['membership'] 
   );
 }
 
+function MembershipDebugPanel({ membership, loading }: { membership?: UserInfo['membership']; loading: boolean }) {
+  const showDevTools = process.env.EXPO_PUBLIC_SHOW_DEV_TOOLS === 'true';
+  
+  if (!showDevTools) {
+    return null;
+  }
+
+  const formatTimestamp = (timestamp: Timestamp | null) => {
+    if (!timestamp) return 'null';
+    try {
+      return timestamp.toDate().toISOString();
+    } catch {
+      return 'Invalid timestamp';
+    }
+  };
+
+  // Compute UI state
+  const plan = (membership?.plan ?? 'free').toLowerCase();
+  const status = (membership?.status ?? (plan === 'free' ? 'inactive' : 'inactive')).toLowerCase();
+  const expiresMs = membership?.expiresAt?.toMillis?.() ?? null;
+  const isActive = status === 'active' && !!expiresMs && expiresMs > Date.now();
+  const isExpiredPaid = (plan !== 'free') && !!expiresMs && expiresMs <= Date.now();
+  const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+
+  return (
+    <View style={styles.debugPanel}>
+      <Text style={styles.debugTitle}>Membership Debug (Dev Only)</Text>
+      
+      <View style={styles.debugSection}>
+        <Text style={styles.debugSectionTitle}>Raw Firestore Values:</Text>
+        <Text style={styles.debugText}>Loading: {loading ? 'true' : 'false'}</Text>
+        <Text style={styles.debugText}>plan: {membership?.plan ?? 'undefined'}</Text>
+        <Text style={styles.debugText}>status: {membership?.status ?? 'undefined'}</Text>
+        <Text style={styles.debugText}>provider: {membership?.provider ?? 'undefined'}</Text>
+        <Text style={styles.debugText}>lastTxnId: {membership?.lastTxnId ?? 'undefined'}</Text>
+        <Text style={styles.debugText}>expiresAt: {formatTimestamp(membership?.expiresAt ?? null)}</Text>
+        <Text style={styles.debugText}>startedAt: {formatTimestamp(membership?.startedAt ?? null)}</Text>
+      </View>
+      
+      <View style={styles.debugSection}>
+        <Text style={styles.debugSectionTitle}>Computed UI State:</Text>
+        <Text style={styles.debugText}>plan (normalized): &ldquo;{plan}&rdquo;</Text>
+        <Text style={styles.debugText}>status (normalized): &ldquo;{status}&rdquo;</Text>
+        <Text style={styles.debugText}>planLabel: &ldquo;{planLabel}&rdquo;</Text>
+        <Text style={styles.debugText}>expiresMs: {expiresMs ?? 'null'}</Text>
+        <Text style={styles.debugText}>isActive: {isActive ? 'true' : 'false'}</Text>
+        <Text style={styles.debugText}>isExpiredPaid: {isExpiredPaid ? 'true' : 'false'}</Text>
+        <Text style={styles.debugText}>now: {Date.now()}</Text>
+      </View>
+    </View>
+  );
+}
+
 function UpgradeButton() {
   const router = useRouter();
   const showPayments = process.env.EXPO_PUBLIC_ENABLE_PAYMENTS === 'true';
@@ -504,12 +562,6 @@ function UpgradeButton() {
 function TestLoginWriteButton() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [firebaseUser, setFirebaseUser] = useState<any>(null);
-
-  useEffect(() => {
-    const auth = getAuth();
-    setFirebaseUser(auth.currentUser);
-  }, []);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -602,19 +654,49 @@ function UserInfoRow() {
 
       try {
         const { db } = getFirebase();
-        const userDoc = await getDoc(doc(db, 'users', uid));
+        const userDocRef = doc(db, 'users', uid);
         
-        if (userDoc.exists()) {
-          setUserInfo(userDoc.data() as UserInfo);
+        // First fetch from server (fresh data)
+        console.log('[UserInfoRow] Fetching fresh membership data from server...');
+        const serverDoc = await getDocFromServer(userDocRef);
+        
+        if (serverDoc.exists()) {
+          setUserInfo(serverDoc.data() as UserInfo);
+          console.log('[UserInfoRow] Fresh membership data loaded:', serverDoc.data()?.membership);
         }
+        
+        // Then attach live listener for updates
+        const unsubscribe = onSnapshot(userDocRef, (doc) => {
+          if (doc.exists()) {
+            setUserInfo(doc.data() as UserInfo);
+            console.log('[UserInfoRow] Live membership update:', doc.data()?.membership);
+          }
+        }, (error) => {
+          console.warn('[UserInfoRow] Live listener error:', error);
+        });
+        
+        return unsubscribe;
       } catch (error) {
         console.warn('[UserInfoRow] Failed to fetch user info:', error);
+        // Fallback to default free membership
+        setUserInfo({ membership: { plan: 'free', status: 'inactive' } });
       } finally {
         setLoading(false);
       }
     }
 
-    fetchUserInfo();
+    const cleanup = fetchUserInfo();
+    
+    // Cleanup listener on unmount
+    return () => {
+      if (cleanup && typeof cleanup.then === 'function') {
+        cleanup.then((unsubscribe) => {
+          if (typeof unsubscribe === 'function') {
+            unsubscribe();
+          }
+        });
+      }
+    };
   }, [userId, firebaseUser?.uid]);
 
   const handleCopyUID = async () => {
@@ -701,6 +783,8 @@ function UserInfoRow() {
         </TouchableOpacity>
       </View>
       
+      <MembershipDebugPanel membership={userInfo?.membership} loading={loading} />
+      
       {toastVisible && (
         <View style={styles.toast}>
           <Text style={styles.toastText}>UID copied</Text>
@@ -745,32 +829,58 @@ export default function ShipperDashboard() {
   const { loads } = useLoads();
   const { user, userId } = useAuth();
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [membershipLoading, setMembershipLoading] = useState(true);
   
-  // Fetch membership data
+  // Fetch membership data (server-fresh)
   useEffect(() => {
     async function fetchMembership() {
       const uid = userId || user?.id;
       if (!uid) {
-        setMembershipLoading(false);
         return;
       }
 
       try {
         const { db } = getFirebase();
-        const userDoc = await getDoc(doc(db, 'users', uid));
+        const userDocRef = doc(db, 'users', uid);
         
-        if (userDoc.exists()) {
-          setUserInfo(userDoc.data() as UserInfo);
+        // First fetch from server (fresh data)
+        console.log('[ShipperDashboard] Fetching fresh membership data from server...');
+        const serverDoc = await getDocFromServer(userDocRef);
+        
+        if (serverDoc.exists()) {
+          setUserInfo(serverDoc.data() as UserInfo);
+          console.log('[ShipperDashboard] Fresh membership data loaded:', serverDoc.data()?.membership);
         }
+        
+        // Then attach live listener for updates
+        const unsubscribe = onSnapshot(userDocRef, (doc) => {
+          if (doc.exists()) {
+            setUserInfo(doc.data() as UserInfo);
+            console.log('[ShipperDashboard] Live membership update:', doc.data()?.membership);
+          }
+        }, (error) => {
+          console.warn('[ShipperDashboard] Live listener error:', error);
+        });
+        
+        return unsubscribe;
       } catch (error) {
         console.warn('[ShipperDashboard] Failed to fetch membership:', error);
-      } finally {
-        setMembershipLoading(false);
+        // Fallback to default free membership
+        setUserInfo({ membership: { plan: 'free', status: 'inactive' } });
       }
     }
 
-    fetchMembership();
+    const cleanup = fetchMembership();
+    
+    // Cleanup listener on unmount
+    return () => {
+      if (cleanup && typeof cleanup.then === 'function') {
+        cleanup.then((unsubscribe) => {
+          if (typeof unsubscribe === 'function') {
+            unsubscribe();
+          }
+        });
+      }
+    };
   }, [userId, user?.id]);
   
   const shipperLoads = useMemo(() => {
@@ -886,8 +996,8 @@ export default function ShipperDashboard() {
   }, [router]);
   
   // Compute membership status for gating features
-  const plan = userInfo?.membership?.plan ?? 'free';
-  const status = userInfo?.membership?.status ?? 'inactive';
+  const plan = (userInfo?.membership?.plan ?? 'free').toLowerCase();
+  const status = (userInfo?.membership?.status ?? 'inactive').toLowerCase();
   const expiresAt = userInfo?.membership?.expiresAt ?? null;
   const now = Date.now();
   const expiresMs = expiresAt?.toMillis?.() ?? null;
@@ -904,9 +1014,7 @@ export default function ShipperDashboard() {
     router.push('/csv-bulk-upload');
   }, [router, isActiveMembership, plan]);
 
-  const handleUpgrade = useCallback(() => {
-    router.push('/upgrade');
-  }, [router]);
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -1876,5 +1984,34 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: theme.spacing.sm,
     overflow: 'hidden',
+  },
+  debugPanel: {
+    backgroundColor: '#fef3c7',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    marginTop: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+  },
+  debugTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: '#92400e',
+    marginBottom: theme.spacing.xs,
+  },
+  debugSection: {
+    marginBottom: theme.spacing.xs,
+  },
+  debugSectionTitle: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 2,
+  },
+  debugText: {
+    fontSize: theme.fontSize.xs,
+    color: '#92400e',
+    fontFamily: 'monospace',
+    lineHeight: 14,
   },
 });
