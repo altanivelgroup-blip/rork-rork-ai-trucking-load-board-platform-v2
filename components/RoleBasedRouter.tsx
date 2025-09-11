@@ -26,7 +26,7 @@ export function RoleBasedRouter({ children }: { children: React.ReactNode }) {
 
     // Always redirect unauthenticated users to login
     if (!isAuthenticated) {
-      if (!inAuthGroup && currentPath !== '' && currentPath !== 'index') {
+      if (!inAuthGroup) {
         console.log('[RoleBasedRouter] Redirecting to login - not authenticated');
         router.replace('/(auth)/login');
       }

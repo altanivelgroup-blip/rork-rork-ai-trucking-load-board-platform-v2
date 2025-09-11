@@ -9,18 +9,26 @@ export default function IndexScreen() {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    console.log('[Index] App launched - redirecting to login');
+    console.log('[Index] App launched - redirecting to login immediately');
     
-    // Always redirect to login as the first screen
-    const timer = setTimeout(() => {
-      try {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
+    // Immediately redirect to login as the first screen
+    try {
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.warn('[Index] Navigation error:', error);
+      // Fallback with minimal delay if immediate navigation fails
+      timeoutId = setTimeout(() => {
         router.replace('/(auth)/login');
-      } catch (error) {
-        console.warn('[Index] Navigation error:', error);
+      }, 50);
+    }
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
-    }, 100);
-
-    return () => clearTimeout(timer);
+    };
   }, [router]);
 
   return (
