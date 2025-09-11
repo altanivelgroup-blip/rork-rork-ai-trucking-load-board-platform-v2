@@ -5,68 +5,55 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DollarSign, TrendingUp, Download, CreditCard, ArrowUpRight, ArrowDownRight, Trash2 } from 'lucide-react-native';
+import { DollarSign, TrendingUp, Download, CreditCard, ArrowUpRight, ArrowDownRight, Trash2, Calendar, BarChart3, Fuel, Minus } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
+import { useWallet, Transaction } from '@/hooks/useWallet';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import WithdrawalModal from '@/components/WithdrawalModal';
 
 import { Link } from 'expo-router';
 
-const mockTransactions = [
-  {
-    id: 'withdrawal-1',
-    amount: -500,
-    type: 'withdrawal' as const,
-    description: 'Bank Transfer',
-    date: new Date('2025-01-14'),
-    isLoad: false,
-  },
-  {
-    id: 'fee-1',
-    amount: -50,
-    type: 'fee' as const,
-    description: 'Platform Fee',
-    date: new Date('2025-01-12'),
-    isLoad: false,
-  },
-];
-
 export default function WalletScreen() {
   const { user } = useAuth();
-  const { loads } = useLoads();
   const { deleteCompletedLoadWithToast } = useLoadsWithToast();
-  const wallet = user?.wallet;
+  const {
+    balance,
+    pendingEarnings,
+    totalEarnings,
+    totalWithdrawn,
+    transactions,
+    monthlyStats,
+    isLoading,
+    withdraw,
+    calculatePlatformFee,
+    getNetEarnings,
+  } = useWallet();
+  
   const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
+  const [withdrawalModalVisible, setWithdrawalModalVisible] = useState<boolean>(false);
   const [transactionToDelete, setTransactionToDelete] = useState<{ id: string; description: string } | null>(null);
 
-  // Get completed loads for this driver
-  const completedLoads = useMemo(() => {
-    return loads.filter(load => 
-      load.status === 'delivered' && 
-      load.assignedDriverId === user?.id
-    );
-  }, [loads, user?.id]);
-
-  // Convert completed loads to transaction format
-  const loadTransactions = useMemo(() => {
-    return completedLoads.map(load => ({
-      id: load.id,
-      amount: load.rate || 0,
-      type: 'earning' as const,
-      description: `${load.description || 'Load'} - ${load.origin?.city || 'Unknown'} to ${load.destination?.city || 'Unknown'}`,
-      date: load.deliveryDate ? new Date(load.deliveryDate) : new Date(),
-      isLoad: true,
-    }));
-  }, [completedLoads]);
-
-  // Combine and sort all transactions
-  const allTransactions = useMemo(() => {
-    return [...loadTransactions, ...mockTransactions]
-      .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [loadTransactions]);
+  // Get current month stats
+  const currentDate = new Date();
+  const currentMonthStats = useMemo(() => {
+    return monthlyStats.find(stats => 
+      stats.year === currentDate.getFullYear() && 
+      new Date(`${stats.month} 1, ${stats.year}`).getMonth() === currentDate.getMonth()
+    ) || {
+      totalLoads: 0,
+      totalEarnings: 0,
+      totalMiles: 0,
+      avgPerMile: 0,
+      totalFuelCost: 0,
+      netProfit: 0,
+      platformFees: 0,
+    };
+  }, [monthlyStats, currentDate]);
 
   const handleDeleteTransaction = useCallback((transactionId: string, description: string) => {
     setTransactionToDelete({ id: transactionId, description });
@@ -90,6 +77,21 @@ export default function WalletScreen() {
     setTransactionToDelete(null);
   }, []);
 
+  const handleWithdraw = useCallback(async (amount: number, method: string) => {
+    await withdraw(amount, method);
+  }, [withdraw]);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading wallet...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -109,7 +111,7 @@ export default function WalletScreen() {
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Available Balance</Text>
           <Text style={styles.balanceAmount}>
-            ${wallet?.balance.toLocaleString() || '0'}
+            ${balance.toLocaleString()}
           </Text>
           
           <View style={styles.balanceDetails}>
@@ -117,7 +119,7 @@ export default function WalletScreen() {
               <TrendingUp size={16} color={theme.colors.warning} />
               <Text style={styles.balanceItemLabel}>Pending</Text>
               <Text style={styles.balanceItemAmount}>
-                ${wallet?.pendingEarnings.toLocaleString() || '0'}
+                ${pendingEarnings.toLocaleString()}
               </Text>
             </View>
             
@@ -125,13 +127,25 @@ export default function WalletScreen() {
               <DollarSign size={16} color={theme.colors.success} />
               <Text style={styles.balanceItemLabel}>Total Earned</Text>
               <Text style={styles.balanceItemAmount}>
-                ${wallet?.totalEarnings.toLocaleString() || '0'}
+                ${totalEarnings.toLocaleString()}
+              </Text>
+            </View>
+            
+            <View style={styles.balanceItem}>
+              <Minus size={16} color={theme.colors.danger} />
+              <Text style={styles.balanceItemLabel}>Withdrawn</Text>
+              <Text style={styles.balanceItemAmount}>
+                ${totalWithdrawn.toLocaleString()}
               </Text>
             </View>
           </View>
 
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => setWithdrawalModalVisible(true)}
+              disabled={balance <= 0}
+            >
               <Download size={20} color={theme.colors.white} />
               <Text style={styles.actionButtonText}>Withdraw</Text>
             </TouchableOpacity>
@@ -150,13 +164,15 @@ export default function WalletScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Transactions</Text>
           
-          {allTransactions.map((transaction) => (
+          {transactions.slice(0, 10).map((transaction) => (
             <View key={transaction.id} style={styles.transactionCard}>
               <View style={styles.transactionIcon}>
                 {transaction.type === 'earning' ? (
                   <ArrowDownRight size={20} color={theme.colors.success} />
-                ) : (
+                ) : transaction.type === 'withdrawal' ? (
                   <ArrowUpRight size={20} color={theme.colors.danger} />
+                ) : (
+                  <Minus size={20} color={theme.colors.warning} />
                 )}
               </View>
               
@@ -164,23 +180,40 @@ export default function WalletScreen() {
                 <Text style={styles.transactionDescription}>
                   {transaction.description}
                 </Text>
-                <Text style={styles.transactionDate}>
-                  {transaction.date.toLocaleDateString()}
-                </Text>
+                <View style={styles.transactionMeta}>
+                  <Text style={styles.transactionDate}>
+                    {transaction.date.toLocaleDateString()}
+                  </Text>
+                  {transaction.type === 'earning' && transaction.feeAmount && (
+                    <Text style={styles.feeText}>
+                      Fee: ${transaction.feeAmount.toFixed(2)}
+                    </Text>
+                  )}
+                  {transaction.status === 'pending' && (
+                    <Text style={styles.pendingText}>Pending</Text>
+                  )}
+                </View>
               </View>
               
-              <Text
-                style={[
-                  styles.transactionAmount,
-                  transaction.type === 'earning'
-                    ? styles.amountPositive
-                    : styles.amountNegative,
-                ]}
-              >
-                {transaction.type === 'earning' ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
-              </Text>
+              <View style={styles.amountContainer}>
+                <Text
+                  style={[
+                    styles.transactionAmount,
+                    transaction.type === 'earning'
+                      ? styles.amountPositive
+                      : styles.amountNegative,
+                  ]}
+                >
+                  {transaction.type === 'earning' ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
+                </Text>
+                {transaction.type === 'earning' && transaction.netAmount && (
+                  <Text style={styles.netAmount}>
+                    Net: ${transaction.netAmount.toFixed(2)}
+                  </Text>
+                )}
+              </View>
               
-              {(transaction as any).isLoad && (
+              {transaction.loadId && (
                 <TouchableOpacity
                   onPress={() => handleDeleteTransaction(transaction.id, transaction.description)}
                   style={styles.deleteButton}
@@ -197,24 +230,65 @@ export default function WalletScreen() {
           <Text style={styles.statsTitle}>This Month</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>12</Text>
+              <Text style={styles.statValue}>{currentMonthStats.totalLoads}</Text>
               <Text style={styles.statLabel}>Loads Completed</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>$18.5k</Text>
-              <Text style={styles.statLabel}>Total Earnings</Text>
+              <Text style={styles.statValue}>
+                ${currentMonthStats.totalEarnings > 1000 
+                  ? `${(currentMonthStats.totalEarnings / 1000).toFixed(1)}k` 
+                  : currentMonthStats.totalEarnings.toFixed(0)}
+              </Text>
+              <Text style={styles.statLabel}>Gross Earnings</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>8,450</Text>
+              <Text style={styles.statValue}>{currentMonthStats.totalMiles.toLocaleString()}</Text>
               <Text style={styles.statLabel}>Miles Driven</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>$2.19</Text>
+              <Text style={styles.statValue}>${currentMonthStats.avgPerMile.toFixed(2)}</Text>
               <Text style={styles.statLabel}>Avg Per Mile</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>
+                ${currentMonthStats.netProfit > 1000 
+                  ? `${(currentMonthStats.netProfit / 1000).toFixed(1)}k` 
+                  : currentMonthStats.netProfit.toFixed(0)}
+              </Text>
+              <Text style={styles.statLabel}>Net Profit</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>${currentMonthStats.platformFees.toFixed(0)}</Text>
+              <Text style={styles.statLabel}>Platform Fees</Text>
             </View>
           </View>
         </View>
+        
+        {monthlyStats.length > 1 && (
+          <View style={styles.statsContainer}>
+            <Text style={styles.statsTitle}>Monthly History</Text>
+            {monthlyStats.slice(1, 4).map((stats, index) => (
+              <View key={`${stats.year}-${stats.month}`} style={styles.monthlyCard}>
+                <View style={styles.monthlyHeader}>
+                  <Text style={styles.monthlyTitle}>{stats.month} {stats.year}</Text>
+                  <Text style={styles.monthlyEarnings}>${stats.netProfit.toLocaleString()}</Text>
+                </View>
+                <View style={styles.monthlyDetails}>
+                  <Text style={styles.monthlyDetail}>{stats.totalLoads} loads • {stats.totalMiles.toLocaleString()} miles</Text>
+                  <Text style={styles.monthlyDetail}>${stats.avgPerMile.toFixed(2)}/mile • ${stats.platformFees.toFixed(0)} fees</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
+      
+      <WithdrawalModal
+        visible={withdrawalModalVisible}
+        onClose={() => setWithdrawalModalVisible(false)}
+        onWithdraw={handleWithdraw}
+        availableBalance={balance}
+      />
       
       <ConfirmationModal
         visible={deleteModalVisible}
@@ -417,5 +491,69 @@ const styles = StyleSheet.create({
     padding: theme.spacing.xs,
     borderRadius: theme.borderRadius.sm,
     backgroundColor: '#fef2f2',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  loadingText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+    marginTop: theme.spacing.md,
+  },
+  transactionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  feeText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.warning,
+    marginLeft: theme.spacing.sm,
+  },
+  pendingText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.warning,
+    marginLeft: theme.spacing.sm,
+    fontWeight: '600',
+  },
+  amountContainer: {
+    alignItems: 'flex-end',
+  },
+  netAmount: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginTop: 2,
+  },
+  monthlyCard: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.sm,
+  },
+  monthlyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  monthlyTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  monthlyEarnings: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.success,
+  },
+  monthlyDetails: {
+    gap: 4,
+  },
+  monthlyDetail: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
   },
 });
