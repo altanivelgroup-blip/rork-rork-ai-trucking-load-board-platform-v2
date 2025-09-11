@@ -904,12 +904,22 @@ export default function ShipperDashboard() {
     router.push('/upgrade');
   }, [router]);
   
+  // Get membership status for simple display
+  const plan = userInfo?.membership?.plan ?? "free";
+  const status = userInfo?.membership?.status ?? "inactive";
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Shipper Dashboard</Text>
           <Text style={styles.subtitle}>Manage your loads and track performance</Text>
+          
+          {/* Simple membership status display */}
+          <Text style={status === "active" ? styles.pillGreen : styles.pillGray}>
+            {plan.charAt(0).toUpperCase() + plan.slice(1)} • {status.charAt(0).toUpperCase() + status.slice(1)}
+          </Text>
+          
           <UserInfoRow />
           <TestLoginWriteButton />
           <LoginHistoryDropdown />
@@ -1854,5 +1864,29 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'center',
     maxWidth: 120,
+  },
+  pillGreen: {
+    backgroundColor: '#10b981',
+    color: theme.colors.white,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing.sm,
+    overflow: 'hidden',
+  },
+  pillGray: {
+    backgroundColor: '#6b7280',
+    color: theme.colors.white,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing.sm,
+    overflow: 'hidden',
   },
 });
