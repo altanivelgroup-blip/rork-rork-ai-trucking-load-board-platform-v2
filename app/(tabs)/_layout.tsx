@@ -59,6 +59,13 @@ export default function TabsLayout() {
       {isShipper && (
         <>
           <Tabs.Screen
+            name="shipper"
+            options={{
+              title: 'Shipper',
+              tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
+            }}
+          />
+          <Tabs.Screen
             name="shipper-post"
             options={{
               title: 'Post Loads',
@@ -83,13 +90,15 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Hidden tabs */}
-      <Tabs.Screen
-        name="shipper"
-        options={{
-          href: null,
-        }}
-      />
+      {/* Hidden tabs - only hide shipper tab for non-shippers */}
+      {!isShipper && (
+        <Tabs.Screen
+          name="shipper"
+          options={{
+            href: null,
+          }}
+        />
+      )}
       <Tabs.Screen
         name="admin"
         options={{
