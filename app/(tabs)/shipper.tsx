@@ -1,8 +1,9 @@
 import React, { memo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Crown, PlusCircle, BarChart3, Upload, Package, DollarSign, FileText, Settings } from 'lucide-react-native';
+import { Crown, PlusCircle, BarChart3, Upload, Package, DollarSign, Settings } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
@@ -22,6 +23,7 @@ const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { ti
 export default function ShipperHome() {
   const router = useRouter();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const isShipper = user?.role === 'shipper';
   
   // Always call hooks in the same order
@@ -44,11 +46,29 @@ export default function ShipperHome() {
     router.push('/shipper-dashboard');
   }, [router]);
 
-
-
   const goCsvBulkUpload = useCallback(() => {
     console.log('shipper.goCsvBulkUpload');
     router.push('/csv-bulk-upload');
+  }, [router]);
+
+  const goAiTools = useCallback(() => {
+    console.log('shipper.goAiTools');
+    router.push('/ai-tools');
+  }, [router]);
+
+  const goIncreaseRevenue = useCallback(() => {
+    console.log('shipper.goIncreaseRevenue');
+    router.push('/increase-revenue');
+  }, [router]);
+
+  const goAdvancedSecurity = useCallback(() => {
+    console.log('shipper.goAdvancedSecurity');
+    router.push('/advance-security');
+  }, [router]);
+
+  const goPhotoUploadTest = useCallback(() => {
+    console.log('shipper.goPhotoUploadTest');
+    router.push('/photo-uploader-demo');
   }, [router]);
   
   // Redirect non-shippers
@@ -65,9 +85,9 @@ export default function ShipperHome() {
   return (
     <View style={styles.container} testID="shipper-home-container">
       <Stack.Screen options={{ title: 'Shipper' }} />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.heading}>Shipper Tools</Text>
-        <Text style={styles.subheading}>Manage your loads and operations</Text>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top }]} showsVerticalScrollIndicator={false}>
+        <Text style={styles.heading}>Welcome, Shipper</Text>
+        <Text style={styles.subheading}>Quick actions and tools</Text>
 
         {/* Quick Stats */}
         <View style={styles.statsRow}>
@@ -88,12 +108,14 @@ export default function ShipperHome() {
           </View>
         </View>
 
-        <Tile title="Shipper Dashboard" subtitle="View analytics and performance metrics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
-        <Tile title="Post a Load" subtitle="Create a new shipment posting" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
-        <Tile title="Bulk Upload" subtitle="Import multiple loads from CSV" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
-        <Tile title="Load Templates" subtitle="Manage and reuse load templates" onPress={() => router.push('/load-templates')} Icon={FileText} testID="tile-load-templates" />
-        <Tile title="Shipper Profile" subtitle="Manage company info and settings" onPress={() => router.push('/shipper-profile')} Icon={Settings} testID="tile-shipper-profile" />
-        <Tile title="Membership" subtitle="Upgrade for premium features" onPress={goMembership} Icon={Crown} testID="tile-membership" />
+        <Tile title="Shipper Dashboard" subtitle="View your loads and analytics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
+        <Tile title="Post a Load" subtitle="Create a new shipment" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
+        <Tile title="CSV Bulk Upload" subtitle="Upload loads from CSV file" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
+        <Tile title="Add Photo Test" subtitle="Quick test for photo upload" onPress={goPhotoUploadTest} Icon={Package} testID="tile-add-photo-test" />
+        <Tile title="AI Tools" subtitle="Draft posts, quotes and more" onPress={goAiTools} Icon={Crown} testID="tile-ai-tools" />
+        <Tile title="Increase Revenue" subtitle="Tips and premium placement" onPress={goIncreaseRevenue} Icon={BarChart3} testID="tile-increase-revenue" />
+        <Tile title="Advanced Security" subtitle="Protect posts and payments" onPress={goAdvancedSecurity} Icon={Settings} testID="tile-advanced-security" />
+        <Tile title="Membership" subtitle="Upgrade for more features" onPress={goMembership} Icon={Crown} testID="tile-membership" />
       </ScrollView>
     </View>
   );
