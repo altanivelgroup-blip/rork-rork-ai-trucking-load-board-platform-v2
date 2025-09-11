@@ -40,12 +40,21 @@ export default function LoginScreen() {
 
 
 
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+
   const loginOrLink = useCallback(async (email: string, password: string) => {
     const { auth } = getFirebase();
 
-    // Guard: simple validation so we don't silently fall back
+    // Guard: validate email format and password
     if (!email?.trim() || !password?.trim()) {
       throw new Error('Email and password required.');
+    }
+
+    if (!isValidEmail(email)) {
+      throw new Error('Please enter a valid email address.');
     }
 
     const u = auth.currentUser;
@@ -75,7 +84,15 @@ export default function LoginScreen() {
     try {
       const { auth } = getFirebase();
       
-      if (email?.trim() && password?.trim()) {
+      // Check if user wants to login with credentials
+      const hasCredentials = email?.trim() && password?.trim();
+      
+      if (hasCredentials) {
+        // Validate email format before attempting Firebase auth
+        if (!isValidEmail(email)) {
+          throw new Error('Please enter a valid email address.');
+        }
+        
         // Use login/link functionality to preserve anonymous UID
         await loginOrLink(email, password);
         
