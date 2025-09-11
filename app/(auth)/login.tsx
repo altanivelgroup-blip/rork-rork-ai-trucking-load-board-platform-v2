@@ -17,7 +17,12 @@ import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { moderateScale } from '@/src/ui/scale';
-import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  signInAnonymously, 
+  EmailAuthProvider, 
+  linkWithCredential 
+} from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
 
 
@@ -33,16 +38,44 @@ export default function LoginScreen() {
 
 
 
+  const loginOrLink = useCallback(async (email: string, password: string) => {
+    const { auth } = getFirebase();
+
+    // Guard: simple validation so we don't silently fall back
+    if (!email?.trim() || !password?.trim()) {
+      throw new Error('Email and password required.');
+    }
+
+    const u = auth.currentUser;
+    try {
+      if (u && u.isAnonymous) {
+        // ✅ Convert the *current* anon user into an email user (keeps the UID)
+        console.log('[login] linking anonymous user to email/password, uid:', u.uid);
+        const cred = EmailAuthProvider.credential(email.trim(), password.trim());
+        const res = await linkWithCredential(u, cred);
+        console.log('[login] linked anon → email, uid:', res.user.uid);
+        return res.user;
+      } else {
+        // ✅ Normal email sign-in
+        console.log('[login] normal email sign-in for:', email);
+        const res = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+        console.log('[login] signed in with email, uid:', res.user.uid);
+        return res.user;
+      }
+    } catch (e: any) {
+      console.warn('[login] login/link error:', e?.code, e?.message);
+      throw e; // Re-throw to handle in UI
+    }
+  }, []);
+
   const handleLogin = useCallback(async () => {
     setIsLoading(true);
     try {
       const { auth } = getFirebase();
       
       if (email?.trim() && password?.trim()) {
-        // Real email/password sign-in
-        console.log('[login] attempting email/password login for', email);
-        const result = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
-        console.log('[login] signed in with email:', result.user.email, 'uid:', result.user.uid);
+        // Use login/link functionality to preserve anonymous UID
+        const user = await loginOrLink(email, password);
         
         // Update local auth state
         await login(email, password);
@@ -69,7 +102,7 @@ export default function LoginScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, login, router]);
+  }, [email, password, login, router, loginOrLink]);
 
   return (
     <SafeAreaView style={styles.container} testID="login-safe">
