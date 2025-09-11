@@ -38,6 +38,7 @@ interface UserInfo {
     provider?: string;
     lastTxnId?: string;
     startedAt?: Timestamp;
+    isActive?: boolean;
   };
 }
 
@@ -574,6 +575,7 @@ function DevActivateProButton() {
       await setDoc(doc(db, 'users', uid), {
         membership: {
           plan: 'pro',
+          isActive: true,
           status: 'active',
           provider: 'manual',
           lastTxnId: `DEV-${Date.now()}`,
@@ -875,32 +877,23 @@ function UserInfoRow() {
     );
   }
 
-  // Compute UI state
+  // Compute UI state (single boolean isActive)
   const plan = (userInfo?.membership?.plan ?? 'free').toLowerCase();
-  const status = (userInfo?.membership?.status ?? (plan === 'free' ? 'inactive' : 'inactive')).toLowerCase();
-  const expiresAt = userInfo?.membership?.expiresAt ?? null;
-  const provider = userInfo?.membership?.provider ?? null;
-  const now = Date.now();
-  const expiresMs = expiresAt?.toMillis?.() ?? null;
-  const isActive = status === 'active' && !!expiresMs && expiresMs > now;
-  const isExpiredPaid = (plan !== 'free') && !!expiresMs && expiresMs <= now;
+  const active = !!userInfo?.membership?.isActive && plan !== 'free';
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
-  const expiresStr = expiresAt ? formatDate(expiresAt) : null;
   
-  const statusText = isActive ? 'Active' : isExpiredPaid ? 'Expired' : 'Inactive';
+  const statusText = active ? 'Active' : 'Inactive';
 
   return (
     <>
       <View style={styles.statusBlock}>
-        {(() => {
-          const color = plan === 'enterprise' && isActive ? 'blue' : (isActive ? 'green' : 'gray');
-          const pillText = userInfo?.membership?.plan
-            ? `${planLabel} • ${status.charAt(0).toUpperCase() + status.slice(1)}`
-            : 'Free • Inactive';
-          return (
-            <SafePill color={color as any} label={pillText} />
-          );
-        })()}
+        <SafePill
+          label={active ? `${planLabel} • Active` : 'Free • Inactive'}
+          variant={active ? 'active' : 'free'}
+        />
+        <SafeLine>
+          {active ? 'Membership active' : 'Not active'}
+        </SafeLine>
       </View>
       
       <MembershipBanner membership={userInfo?.membership} />
@@ -1128,22 +1121,18 @@ export default function ShipperDashboard() {
     router.push('/post-load');
   }, [router]);
   
-  // Compute membership status for gating features
+  // Compute membership status for gating features (single boolean)
   const plan = (userInfo?.membership?.plan ?? 'free').toLowerCase();
-  const status = (userInfo?.membership?.status ?? 'inactive').toLowerCase();
-  const expiresAt = userInfo?.membership?.expiresAt ?? null;
-  const now = Date.now();
-  const expiresMs = expiresAt?.toMillis?.() ?? null;
-  const isActiveMembership = status === 'active' && !!expiresMs && expiresMs > now;
+  const activeMembership = !!userInfo?.membership?.isActive && plan !== 'free';
   
   const handleBulkUpload = useCallback(() => {
-    if (!isActiveMembership || plan === 'free') {
+    if (!activeMembership) {
       router.push('/shipper-membership');
       return;
     }
     
     router.push('/csv-bulk-upload');
-  }, [router, isActiveMembership, plan]);
+  }, [router, activeMembership]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -1286,7 +1275,7 @@ export default function ShipperDashboard() {
             <View style={styles.sectionTitleContainer}>
               <Text style={styles.sectionTitle}>Your Loads</Text>
               {(() => {
-                if (isActiveMembership && plan === 'pro') {
+                if (activeMembership && plan === 'pro') {
                   return <Text style={styles.loadsBadge}>Pro: 50 loads/mo</Text>;
                 }
                 return <Text style={styles.loadsBadge}>Free: 3 loads/mo</Text>;
@@ -1294,7 +1283,7 @@ export default function ShipperDashboard() {
             </View>
             <View style={styles.actionButtons}>
               {(() => {
-                const canUseBulkUpload = isActiveMembership && plan !== 'free';
+                const canUseBulkUpload = activeMembership;
                 
                 return (
                   <View style={styles.bulkUploadContainer}>
@@ -1307,7 +1296,7 @@ export default function ShipperDashboard() {
                       <Text style={styles.bulkBtnText}>Bulk Upload</Text>
                     </TouchableOpacity>
                     {!canUseBulkUpload && (
-                      <Text style={styles.bulkUploadNote}>Bulk Upload is available on Pro or Enterprise.</Text>
+                      <SafeLine>Bulk Upload is available on Pro or Enterprise.</SafeLine>
                     )}
                   </View>
                 );
