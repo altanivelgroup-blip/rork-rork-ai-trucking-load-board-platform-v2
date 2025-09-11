@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, User, Truck, Package, Wallet, MapPin } from 'lucide-react-native';
+import { Home, User, Truck, Package, MapPin } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -66,16 +66,7 @@ export default function TabsLayout() {
           }}
         />
       )}
-      {isDriver && (
-        <Tabs.Screen
-          name="wallet"
-          options={{
-            title: 'Wallet',
-            href: '/wallet',
-            tabBarIcon: ({ color, size }) => <Wallet color={color} size={size} />,
-          }}
-        />
-      )}
+
       <Tabs.Screen
         name="admin"
         options={{
