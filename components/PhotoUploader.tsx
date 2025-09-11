@@ -254,10 +254,29 @@ export function PhotoUploader({
   const loadPhotos = useCallback(async () => {
     try {
       console.log('[PhotoUploader] Loading photos for', entityType, entityId);
+      
+      // Check if we have proper authentication first
+      const authSuccess = await ensureFirebaseAuth();
+      if (!authSuccess) {
+        console.warn('[PhotoUploader] No authentication, starting with empty photos');
+        setState((prev) => ({ ...prev, loading: false }));
+        return;
+      }
+
       const { db } = getFirebase();
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
       const docRef = doc(db, collectionName, entityId);
-      const snap = await getDoc(docRef);
+      
+      // Add timeout to prevent hanging
+      const timeoutMs = 5000;
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Firestore read timeout')), timeoutMs)
+      );
+      
+      const snap = await Promise.race([
+        getDoc(docRef),
+        timeoutPromise
+      ]);
 
       if (snap.exists()) {
         const data = snap.data() as { photos?: string[]; primaryPhoto?: string };
@@ -269,12 +288,30 @@ export function PhotoUploader({
         }));
         const primaryPhoto = data.primaryPhoto ?? (photos[0]?.url ?? '');
         setState((prev) => ({ ...prev, photos, primaryPhoto, loading: false }));
+        console.log('[PhotoUploader] Successfully loaded', photos.length, 'photos');
       } else {
+        console.log('[PhotoUploader] Document does not exist, starting with empty photos');
         setState((prev) => ({ ...prev, loading: false }));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[PhotoUploader] Error loading photos:', error);
-      toast.show('Failed to load photos', 'error');
+      
+      // Handle specific Firebase errors gracefully
+      if (error?.code === 'permission-denied') {
+        console.warn('[PhotoUploader] Permission denied - this is expected for new documents or anonymous users');
+        toast.show('Starting with empty photos (permission limited)', 'warning');
+      } else if (error?.code === 'unavailable') {
+        console.warn('[PhotoUploader] Firebase unavailable - network issue');
+        toast.show('Network issue - starting with empty photos', 'warning');
+      } else if (error?.message?.includes('timeout')) {
+        console.warn('[PhotoUploader] Firestore read timeout');
+        toast.show('Loading timeout - starting with empty photos', 'warning');
+      } else {
+        console.warn('[PhotoUploader] Unexpected error:', error?.code || 'unknown', error?.message);
+        toast.show('Could not load existing photos', 'warning');
+      }
+      
+      // Always continue with empty state rather than blocking the UI
       setState(prev => ({ ...prev, loading: false }));
     }
   }, [entityType, entityId, toast]);
