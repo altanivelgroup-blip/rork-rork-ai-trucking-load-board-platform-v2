@@ -146,22 +146,53 @@ export default function ShipperHome() {
         <Text style={styles.heading}>Welcome, Shipper</Text>
         <Text style={styles.subheading}>Quick actions and tools</Text>
 
-        {/* Quick Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Package size={20} color={theme.colors.primary} />
-            <Text style={styles.statValue}>{stats.totalLoads}</Text>
-            <Text style={styles.statLabel}>Posted</Text>
+        {/* Dashboard Section */}
+        <View style={styles.dashboardSection}>
+          <View style={styles.dashboardHeader}>
+            <Text style={styles.dashboardTitle}>Dashboard Overview</Text>
+            <TouchableOpacity onPress={goShipperDashboard} style={styles.viewAnalyticsButton}>
+              <BarChart3 size={16} color={theme.colors.primary} />
+              <Text style={styles.viewAnalyticsText}>View Analytics</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.statCard}>
-            <DollarSign size={20} color={theme.colors.success} />
-            <Text style={styles.statValue}>${stats.totalRevenue.toLocaleString()}</Text>
-            <Text style={styles.statLabel}>Revenue</Text>
+          
+          {/* Quick Stats */}
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Package size={20} color={theme.colors.primary} />
+              <Text style={styles.statValue}>{stats.totalLoads}</Text>
+              <Text style={styles.statLabel}>Posted</Text>
+            </View>
+            <View style={styles.statCard}>
+              <DollarSign size={20} color={theme.colors.success} />
+              <Text style={styles.statValue}>${stats.totalRevenue.toLocaleString()}</Text>
+              <Text style={styles.statLabel}>Revenue</Text>
+            </View>
+            <View style={styles.statCard}>
+              <BarChart3 size={20} color={theme.colors.warning} />
+              <Text style={styles.statValue}>{stats.activeLoads}</Text>
+              <Text style={styles.statLabel}>Active</Text>
+            </View>
           </View>
-          <View style={styles.statCard}>
-            <BarChart3 size={20} color={theme.colors.warning} />
-            <Text style={styles.statValue}>{stats.activeLoads}</Text>
-            <Text style={styles.statLabel}>Active</Text>
+          
+          {/* Performance Summary */}
+          <View style={styles.performanceSummary}>
+            <View style={styles.performanceItem}>
+              <Text style={styles.performanceLabel}>Completion Rate</Text>
+              <Text style={styles.performanceValue}>{Math.round((stats.totalLoads > 0 ? (myLoads.filter(l => l.status === 'delivered').length / stats.totalLoads) * 100 : 0))}%</Text>
+            </View>
+            <View style={styles.performanceItem}>
+              <Text style={styles.performanceLabel}>Avg Rate</Text>
+              <Text style={styles.performanceValue}>${Math.round(stats.totalLoads > 0 ? stats.totalRevenue / stats.totalLoads : 0)}</Text>
+            </View>
+            <View style={styles.performanceItem}>
+              <Text style={styles.performanceLabel}>This Month</Text>
+              <Text style={styles.performanceValue}>{myLoads.filter(l => {
+                const now = new Date();
+                const loadDate = l.pickupDate ? new Date(l.pickupDate) : new Date();
+                return loadDate.getMonth() === now.getMonth() && loadDate.getFullYear() === now.getFullYear();
+              }).length} loads</Text>
+            </View>
           </View>
         </View>
 
@@ -284,10 +315,66 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     fontSize: theme.fontSize.sm,
   },
+  dashboardSection: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  dashboardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  dashboardTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  viewAnalyticsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.lightGray,
+    gap: theme.spacing.xs,
+  },
+  viewAnalyticsText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
   statsRow: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+  },
+  performanceSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.lightGray,
+  },
+  performanceItem: {
+    alignItems: 'center',
+  },
+  performanceLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginBottom: 2,
+  },
+  performanceValue: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.dark,
   },
   statCard: {
     flex: 1,
