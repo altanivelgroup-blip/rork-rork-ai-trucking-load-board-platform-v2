@@ -13,6 +13,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   isFirebaseAuthenticated: boolean;
+  hasSignedInThisSession: boolean;
   login: (email: string, password: string, role?: UserRole) => Promise<void>;
   register: (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper>) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -31,10 +32,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [hasSignedInThisSession, setHasSignedInThisSession] = useState<boolean>(false);
   
   console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // Load cached user data - always called, never conditional
+  // Load cached user data but don't auto-authenticate - always called, never conditional
   useEffect(() => {
     let isMounted = true;
     
@@ -46,10 +48,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         if (!isMounted) return;
         
         if (cached) {
-          console.log('[auth] found cached user');
-          const cachedUser = JSON.parse(cached);
-          setUser(cachedUser);
-          setIsAnonymous(false);
+          console.log('[auth] found cached user - but not auto-authenticating');
+          // Don't set the user yet - require explicit sign-in
+          // const cachedUser = JSON.parse(cached);
+          // setUser(cachedUser);
+          // setIsAnonymous(false);
         } else {
           console.log('[auth] no cached user found');
         }
@@ -129,58 +132,28 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const login = useCallback(async (email: string, password: string, role: UserRole = 'driver') => {
     console.log('[auth] login attempt for', email, 'as', role);
     try {
-      await ensureFirebaseAuth();
-      const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
-      
+      // First check if we have cached data for this email/role combination
+      const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
       let mockUser: Driver | Shipper;
       
-      if (role === 'shipper') {
-        mockUser = {
-          id: uid,
-          role: 'shipper',
-          email,
-          name: email === 'guest@example.com' ? 'Guest Shipper' : 'Test Shipper',
-          phone: '',
-          membershipTier: 'basic',
-          createdAt: new Date(),
-          companyName: 'Test Logistics',
-          mcNumber: 'MC123456',
-          dotNumber: 'DOT789012',
-          verificationStatus: 'verified',
-          totalLoadsPosted: 45,
-          activeLoads: 12,
-          completedLoads: 33,
-          totalRevenue: 125000,
-          avgRating: 4.6,
-        } as Shipper;
+      if (cached) {
+        const cachedUser = JSON.parse(cached);
+        if (cachedUser.email === email && cachedUser.role === role) {
+          console.log('[auth] using cached user data for', email);
+          mockUser = cachedUser;
+        } else {
+          console.log('[auth] cached user mismatch, creating new user');
+          mockUser = await createNewUser(email, role);
+        }
       } else {
-        mockUser = {
-          id: uid,
-          role: 'driver',
-          email,
-          name: email === 'guest@example.com' ? 'Guest Driver' : 'Test Driver',
-          phone: '',
-          membershipTier: 'basic',
-          createdAt: new Date(),
-          cdlNumber: '',
-          vehicleTypes: [],
-          rating: 4.8,
-          completedLoads: 24,
-          documents: [],
-          wallet: {
-            balance: 2450,
-            pendingEarnings: 850,
-            totalEarnings: 12500,
-            transactions: [],
-          },
-          isAvailable: true,
-          verificationStatus: 'verified',
-        } as Driver;
+        console.log('[auth] no cached data, creating new user');
+        mockUser = await createNewUser(email, role);
       }
       
       setUser(mockUser);
-      setUserId(uid);
+      setUserId(mockUser.id);
       setIsAnonymous(email === 'guest@example.com');
+      setHasSignedInThisSession(true);
       await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
       console.log('[auth] login successful as', role);
     } catch (error) {
@@ -188,6 +161,55 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       throw error;
     }
   }, []);
+  
+  const createNewUser = async (email: string, role: UserRole): Promise<Driver | Shipper> => {
+    await ensureFirebaseAuth();
+    const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
+    
+    if (role === 'shipper') {
+      return {
+        id: uid,
+        role: 'shipper',
+        email,
+        name: email === 'guest@example.com' ? 'Guest Shipper' : 'Test Shipper',
+        phone: '',
+        membershipTier: 'basic',
+        createdAt: new Date(),
+        companyName: 'Test Logistics',
+        mcNumber: 'MC123456',
+        dotNumber: 'DOT789012',
+        verificationStatus: 'verified',
+        totalLoadsPosted: 45,
+        activeLoads: 12,
+        completedLoads: 33,
+        totalRevenue: 125000,
+        avgRating: 4.6,
+      } as Shipper;
+    } else {
+      return {
+        id: uid,
+        role: 'driver',
+        email,
+        name: email === 'guest@example.com' ? 'Guest Driver' : 'Test Driver',
+        phone: '',
+        membershipTier: 'basic',
+        createdAt: new Date(),
+        cdlNumber: '',
+        vehicleTypes: [],
+        rating: 4.8,
+        completedLoads: 24,
+        documents: [],
+        wallet: {
+          balance: 2450,
+          pendingEarnings: 850,
+          totalEarnings: 12500,
+          transactions: [],
+        },
+        isAvailable: true,
+        verificationStatus: 'verified',
+      } as Driver;
+    }
+  };
 
   const register = useCallback(async (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper>) => {
     console.log('[auth] register attempt for', email, 'as', role);
@@ -241,6 +263,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
     setUser(mockUser);
     setIsAnonymous(false);
+    setHasSignedInThisSession(true);
     await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
     console.log('[auth] registration successful as', role);
   }, []);
@@ -249,6 +272,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     await AsyncStorage.removeItem(USER_STORAGE_KEY);
     setUser(null);
     setIsAnonymous(true);
+    setHasSignedInThisSession(false);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -383,8 +407,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       user,
       userId,
       isLoading,
-      isAuthenticated: !!user && !isAnonymous, // Only authenticated if user exists AND not anonymous
+      isAuthenticated: !!user && !isAnonymous && hasSignedInThisSession, // Only authenticated if user exists AND not anonymous AND signed in this session
       isFirebaseAuthenticated,
+      hasSignedInThisSession,
       login,
       register,
       resetPassword,
@@ -393,7 +418,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       switchRole,
     };
     return result;
-  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, login, register, resetPassword, logout, updateProfile, switchRole]);
+  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile, switchRole]);
 
   return value;
 });
