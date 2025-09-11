@@ -1,5 +1,7 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import SafePill from '@/components/SafePill';
+import SafeLine from '@/components/SafeLine';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
@@ -439,17 +441,10 @@ function MembershipPill({ membership, onManage }: { membership?: UserInfo['membe
 
   return (
     <View style={styles.membershipContainer}>
-      <View style={[styles.membershipPill, pillStyle]}>
-        {icon && <Text style={styles.membershipPillIcon}>{icon}</Text>}
-        <Text style={[styles.membershipPillText, textStyle]}>
-          {label}
-        </Text>
-      </View>
+      <SafePill label={`${icon ? `${icon} ` : ''}${label}`} variant={pillVariant as 'active' | 'expired' | 'free'} />
       
       <View style={styles.membershipSubtext}>
-        <Text style={styles.membershipRenewal}>
-          {subtext}
-        </Text>
+        <SafeLine style={styles.membershipRenewal}>{subtext}</SafeLine>
         <TouchableOpacity onPress={onManage} style={styles.manageLink}>
           <Text style={styles.manageLinkText}>Manage</Text>
         </TouchableOpacity>
@@ -878,11 +873,9 @@ function UserInfoRow() {
     return (
       <>
         <View style={styles.membershipContainer}>
-          <View style={[styles.membershipPill, styles.membershipPillFree]}>
-            <Text style={[styles.membershipPillText, styles.membershipPillTextFree]}>Free</Text>
-          </View>
+          <SafePill label="Free" variant="free" />
           <View style={styles.membershipSubtext}>
-            <Text style={styles.membershipRenewal}>{subtextNoUser}</Text>
+            <SafeLine style={styles.membershipRenewal}>{subtextNoUser}</SafeLine>
             <TouchableOpacity onPress={() => router.push('/shipper-membership')} style={styles.manageLink}>
               <Text style={styles.manageLinkText}>Manage</Text>
             </TouchableOpacity>
@@ -924,42 +917,24 @@ function UserInfoRow() {
     if (loading) {
       // Show neutral gray pill while loading
       return (
-        <View style={[styles.membershipPill, styles.membershipPillFree]}>
-          <Text style={[styles.membershipPillText, styles.membershipPillTextFree]}>
-            Free
-          </Text>
-        </View>
+        <SafePill label="Free" variant="free" />
       );
     }
 
     if (isActive) {
       // Green pill for active plans
       return (
-        <View style={[styles.membershipPill, styles.membershipPillActive]}>
-          <Text style={styles.membershipPillIcon}>✅</Text>
-          <Text style={[styles.membershipPillText, styles.membershipPillTextActive]}>
-            {planLabel} • Active
-          </Text>
-        </View>
+        <SafePill label={`✅ ${planLabel} • Active`} variant="active" />
       );
     } else if (isExpiredPaid) {
       // Amber pill for expired paid plans
       return (
-        <View style={[styles.membershipPill, styles.membershipPillExpired]}>
-          <Text style={styles.membershipPillIcon}>⏰</Text>
-          <Text style={[styles.membershipPillText, styles.membershipPillTextExpired]}>
-            {planLabel} • Expired
-          </Text>
-        </View>
+        <SafePill label={`⏰ ${planLabel} • Expired`} variant="expired" />
       );
     } else {
       // Gray pill for free
       return (
-        <View style={[styles.membershipPill, styles.membershipPillFree]}>
-          <Text style={[styles.membershipPillText, styles.membershipPillTextFree]}>
-            Free
-          </Text>
-        </View>
+        <SafePill label="Free" variant="free" />
       );
     }
   };
@@ -972,9 +947,7 @@ function UserInfoRow() {
         
         {/* Subtext */}
         <View style={styles.membershipSubtext}>
-          <Text style={styles.membershipRenewal}>
-            {subtext}
-          </Text>
+          <SafeLine style={styles.membershipRenewal}>{subtext}</SafeLine>
           <TouchableOpacity onPress={() => router.push('/shipper-membership')} style={styles.manageLink}>
             <Text style={styles.manageLinkText}>Manage</Text>
           </TouchableOpacity>
