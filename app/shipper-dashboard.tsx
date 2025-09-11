@@ -1392,7 +1392,7 @@ export default function ShipperDashboard() {
                       <Text style={styles.bulkBtnText}>Bulk Upload</Text>
                     </TouchableOpacity>
                     {!canUseBulkUpload && (
-                      <Text style={styles.bulkUploadNote}>Bulk Upload is available on Pro or Enterprise</Text>
+                      <Text style={styles.bulkUploadNote}>Bulk Upload is available on Pro or Enterprise.</Text>
                     )}
                   </View>
                 );
