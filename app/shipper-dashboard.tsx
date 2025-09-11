@@ -486,8 +486,9 @@ function MembershipBanner({ membership }: { membership?: UserInfo['membership'] 
   );
 }
 
-function MembershipDebugPanel({ membership, loading }: { membership?: UserInfo['membership']; loading: boolean }) {
+function MembershipDebugPanel({ membership, loading, uid }: { membership?: UserInfo['membership']; loading: boolean; uid: string }) {
   const showDevTools = process.env.EXPO_PUBLIC_SHOW_DEV_TOOLS === 'true';
+  const [collapsed, setCollapsed] = useState(false);
   
   if (!showDevTools) {
     return null;
@@ -502,6 +503,20 @@ function MembershipDebugPanel({ membership, loading }: { membership?: UserInfo['
     }
   };
 
+  const formatDateForDisplay = (timestamp: Timestamp | null) => {
+    if (!timestamp) return 'null';
+    try {
+      const date = timestamp.toDate();
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
   // Compute UI state
   const plan = (membership?.plan ?? 'free').toLowerCase();
   const status = (membership?.status ?? (plan === 'free' ? 'inactive' : 'inactive')).toLowerCase();
@@ -512,29 +527,43 @@ function MembershipDebugPanel({ membership, loading }: { membership?: UserInfo['
 
   return (
     <View style={styles.debugPanel}>
-      <Text style={styles.debugTitle}>Membership Debug (Dev Only)</Text>
+      <TouchableOpacity 
+        style={styles.debugHeader}
+        onPress={() => setCollapsed(!collapsed)}
+      >
+        <Text style={styles.debugTitle}>Membership Debug</Text>
+        {collapsed ? (
+          <ChevronRight size={16} color="#92400e" />
+        ) : (
+          <ChevronDown size={16} color="#92400e" />
+        )}
+      </TouchableOpacity>
       
-      <View style={styles.debugSection}>
-        <Text style={styles.debugSectionTitle}>Raw Firestore Values:</Text>
-        <Text style={styles.debugText}>Loading: {loading ? 'true' : 'false'}</Text>
-        <Text style={styles.debugText}>plan: {membership?.plan ?? 'undefined'}</Text>
-        <Text style={styles.debugText}>status: {membership?.status ?? 'undefined'}</Text>
-        <Text style={styles.debugText}>provider: {membership?.provider ?? 'undefined'}</Text>
-        <Text style={styles.debugText}>lastTxnId: {membership?.lastTxnId ?? 'undefined'}</Text>
-        <Text style={styles.debugText}>expiresAt: {formatTimestamp(membership?.expiresAt ?? null)}</Text>
-        <Text style={styles.debugText}>startedAt: {formatTimestamp(membership?.startedAt ?? null)}</Text>
-      </View>
-      
-      <View style={styles.debugSection}>
-        <Text style={styles.debugSectionTitle}>Computed UI State:</Text>
-        <Text style={styles.debugText}>plan (normalized): &ldquo;{plan}&rdquo;</Text>
-        <Text style={styles.debugText}>status (normalized): &ldquo;{status}&rdquo;</Text>
-        <Text style={styles.debugText}>planLabel: &ldquo;{planLabel}&rdquo;</Text>
-        <Text style={styles.debugText}>expiresMs: {expiresMs ?? 'null'}</Text>
-        <Text style={styles.debugText}>isActive: {isActive ? 'true' : 'false'}</Text>
-        <Text style={styles.debugText}>isExpiredPaid: {isExpiredPaid ? 'true' : 'false'}</Text>
-        <Text style={styles.debugText}>now: {Date.now()}</Text>
-      </View>
+      {!collapsed && (
+        <>
+          <View style={styles.debugSection}>
+            <Text style={styles.debugSectionTitle}>Auth & Doc Info:</Text>
+            <Text style={styles.debugText}>Auth UID: {uid}</Text>
+            <Text style={styles.debugText}>Doc path: users/{uid}</Text>
+          </View>
+          
+          <View style={styles.debugSection}>
+            <Text style={styles.debugSectionTitle}>Raw Membership JSON:</Text>
+            <Text style={styles.debugText}>
+              {JSON.stringify(membership || {}, null, 2)}
+            </Text>
+          </View>
+          
+          <View style={styles.debugSection}>
+            <Text style={styles.debugSectionTitle}>Computed UI State:</Text>
+            <Text style={styles.debugText}>plan: &ldquo;{plan}&rdquo;</Text>
+            <Text style={styles.debugText}>status: &ldquo;{status}&rdquo;</Text>
+            <Text style={styles.debugText}>isActive: {isActive ? 'true' : 'false'}</Text>
+            <Text style={styles.debugText}>isExpiredPaid: {isExpiredPaid ? 'true' : 'false'}</Text>
+            <Text style={styles.debugText}>expiresAt: {formatDateForDisplay(membership?.expiresAt ?? null)}</Text>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -661,8 +690,26 @@ function UserInfoRow() {
         const serverDoc = await getDocFromServer(userDocRef);
         
         if (serverDoc.exists()) {
-          setUserInfo(serverDoc.data() as UserInfo);
-          console.log('[UserInfoRow] Fresh membership data loaded:', serverDoc.data()?.membership);
+          const data = serverDoc.data() as UserInfo;
+          setUserInfo(data);
+          console.log('[UserInfoRow] Fresh membership data loaded:', data?.membership);
+          // Console log the snapshot data for debugging
+          console.log('[UserInfoRow] Full snapshot data:', {
+            authUID: uid,
+            docPath: `users/${uid}`,
+            rawMembership: data?.membership,
+            computed: {
+              plan: (data?.membership?.plan ?? 'free').toLowerCase(),
+              status: (data?.membership?.status ?? 'inactive').toLowerCase(),
+              isActive: data?.membership?.status === 'active' && 
+                       data?.membership?.expiresAt && 
+                       data?.membership?.expiresAt.toMillis() > Date.now(),
+              isExpiredPaid: (data?.membership?.plan !== 'free') && 
+                            data?.membership?.expiresAt && 
+                            data?.membership?.expiresAt.toMillis() <= Date.now(),
+              expiresAt: data?.membership?.expiresAt ? formatDate(data?.membership?.expiresAt) : null
+            }
+          });
         }
         
         // Then attach live listener for updates
@@ -698,6 +745,21 @@ function UserInfoRow() {
       }
     };
   }, [userId, firebaseUser?.uid]);
+
+  const formatDate = (timestamp: Timestamp | null) => {
+    if (!timestamp) return '';
+    try {
+      const date = timestamp.toDate();
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.warn('[formatDate] Error formatting timestamp:', error);
+      return 'Invalid date';
+    }
+  };
 
   const handleCopyUID = async () => {
     const uid = userId || firebaseUser?.uid;
@@ -749,30 +811,97 @@ function UserInfoRow() {
   };
 
   const uid = userId || firebaseUser?.uid;
-  if (!uid || loading) {
+  
+  // Show loading state with neutral gray pill
+  if (!uid) {
     return null;
   }
 
-  const plan = userInfo?.membership?.plan ?? 'free';
-  const status = userInfo?.membership?.status ?? 'inactive';
+  // Compute UI state
+  const plan = (userInfo?.membership?.plan ?? 'free').toLowerCase();
+  const status = (userInfo?.membership?.status ?? (plan === 'free' ? 'inactive' : 'inactive')).toLowerCase();
   const expiresAt = userInfo?.membership?.expiresAt ?? null;
+  const provider = userInfo?.membership?.provider ?? null;
   const now = Date.now();
   const expiresMs = expiresAt?.toMillis?.() ?? null;
   const isActive = status === 'active' && !!expiresMs && expiresMs > now;
   const isExpiredPaid = (plan !== 'free') && !!expiresMs && expiresMs <= now;
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
   
+  const subtext = isActive
+    ? `Renews ${formatDate(expiresAt)}${provider ? ` • via ${provider}` : ''}`
+    : isExpiredPaid
+      ? `Expired ${formatDate(expiresAt)}${provider ? ` • via ${provider}` : ''}`
+      : `Not active${provider ? ` • via ${provider}` : ''}`;
+  
   const statusText = isActive ? 'Active' : isExpiredPaid ? 'Expired' : 'Inactive';
+
+  // Render plan pill
+  const renderPlanPill = () => {
+    if (loading) {
+      // Show neutral gray pill while loading
+      return (
+        <View style={[styles.membershipPill, styles.membershipPillFree]}>
+          <Text style={[styles.membershipPillText, styles.membershipPillTextFree]}>
+            Free
+          </Text>
+        </View>
+      );
+    }
+
+    if (isActive) {
+      // Green pill for active plans
+      return (
+        <View style={[styles.membershipPill, styles.membershipPillActive]}>
+          <Text style={styles.membershipPillIcon}>✅</Text>
+          <Text style={[styles.membershipPillText, styles.membershipPillTextActive]}>
+            {planLabel} • Active
+          </Text>
+        </View>
+      );
+    } else if (isExpiredPaid) {
+      // Amber pill for expired paid plans
+      return (
+        <View style={[styles.membershipPill, styles.membershipPillExpired]}>
+          <Text style={styles.membershipPillIcon}>⏰</Text>
+          <Text style={[styles.membershipPillText, styles.membershipPillTextExpired]}>
+            {planLabel} • Expired
+          </Text>
+        </View>
+      );
+    } else {
+      // Gray pill for free
+      return (
+        <View style={[styles.membershipPill, styles.membershipPillFree]}>
+          <Text style={[styles.membershipPillText, styles.membershipPillTextFree]}>
+            Free
+          </Text>
+        </View>
+      );
+    }
+  };
 
   return (
     <>
-      <MembershipPill 
-        membership={userInfo?.membership} 
-        onManage={() => router.push('/shipper-membership')}
-      />
+      {/* Plan pill */}
+      <View style={styles.membershipContainer}>
+        {renderPlanPill()}
+        
+        {/* Subtext */}
+        <View style={styles.membershipSubtext}>
+          <Text style={styles.membershipRenewal}>
+            {subtext}
+          </Text>
+          <TouchableOpacity onPress={() => router.push('/shipper-membership')} style={styles.manageLink}>
+            <Text style={styles.manageLinkText}>Manage</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       
+      {/* Banner for inactive paid plans */}
       <MembershipBanner membership={userInfo?.membership} />
       
+      {/* Signed-in line */}
       <View style={styles.userInfoRow}>
         <Text style={styles.userInfoText}>
           Signed in: {formatUID(uid)} • Last login: {formatLastLogin()} • Plan: {planLabel} • Status: {statusText}
@@ -783,7 +912,8 @@ function UserInfoRow() {
         </TouchableOpacity>
       </View>
       
-      <MembershipDebugPanel membership={userInfo?.membership} loading={loading} />
+      {/* Membership Debug Panel (dev only) */}
+      <MembershipDebugPanel membership={userInfo?.membership} loading={loading} uid={uid} />
       
       {toastVisible && (
         <View style={styles.toast}>
@@ -1993,11 +2123,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f59e0b',
   },
+  debugHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.xs,
+  },
   debugTitle: {
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
     color: '#92400e',
-    marginBottom: theme.spacing.xs,
   },
   debugSection: {
     marginBottom: theme.spacing.xs,
