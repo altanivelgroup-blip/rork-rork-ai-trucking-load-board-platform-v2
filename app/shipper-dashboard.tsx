@@ -393,6 +393,7 @@ function MembershipPill({ membership, onManage }: { membership?: UserInfo['membe
   const provider = membership?.provider;
 
   const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
+  const isExpiredPaid = plan !== 'free' && expiresAt && expiresAt.toMillis() <= Date.now();
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
   
   const renewalText = isActive 
@@ -401,23 +402,40 @@ function MembershipPill({ membership, onManage }: { membership?: UserInfo['membe
       ? `Expired ${formatDate(expiresAt)}`
       : 'Not active';
 
-  const pillStyle = isActive 
+  // Determine pill variant
+  const pillVariant = isActive ? 'active' : isExpiredPaid ? 'expired' : 'free';
+  
+  const pillStyle = pillVariant === 'active' 
     ? styles.membershipPillActive
-    : plan === 'free'
-      ? styles.membershipPillFree
-      : styles.membershipPillExpired;
+    : pillVariant === 'expired'
+      ? styles.membershipPillExpired
+      : styles.membershipPillFree;
 
-  const textStyle = isActive 
+  const textStyle = pillVariant === 'active' 
     ? styles.membershipPillTextActive
-    : plan === 'free'
-      ? styles.membershipPillTextFree
-      : styles.membershipPillTextExpired;
+    : pillVariant === 'expired'
+      ? styles.membershipPillTextExpired
+      : styles.membershipPillTextFree;
+
+  // Icon and label based on variant
+  const getIconAndLabel = () => {
+    if (pillVariant === 'active') {
+      return { icon: '✅', label: `${planLabel} • Active` };
+    } else if (pillVariant === 'expired') {
+      return { icon: '⏰', label: `${planLabel} • Expired` };
+    } else {
+      return { icon: null, label: 'Free' };
+    }
+  };
+
+  const { icon, label } = getIconAndLabel();
 
   return (
     <View style={styles.membershipContainer}>
       <View style={[styles.membershipPill, pillStyle]}>
+        {icon && <Text style={styles.membershipPillIcon}>{icon}</Text>}
         <Text style={[styles.membershipPillText, textStyle]}>
-          {planLabel}{isActive ? ' • Active' : plan !== 'free' ? ' • Expired' : ''}
+          {label}
         </Text>
       </View>
       
@@ -1731,33 +1749,39 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
   },
   membershipPill: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: 999,
     alignSelf: 'flex-start',
     marginBottom: theme.spacing.xs,
   },
   membershipPillActive: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#059669',
   },
   membershipPillFree: {
     backgroundColor: '#f3f4f6',
   },
   membershipPillExpired: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: '#fbbf24',
+  },
+  membershipPillIcon: {
+    fontSize: 12,
   },
   membershipPillText: {
     fontSize: theme.fontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   membershipPillTextActive: {
-    color: '#16a34a',
+    color: theme.colors.white,
   },
   membershipPillTextFree: {
     color: '#6b7280',
   },
   membershipPillTextExpired: {
-    color: '#d97706',
+    color: theme.colors.white,
   },
   membershipSubtext: {
     flexDirection: 'row',
