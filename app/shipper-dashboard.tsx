@@ -1163,7 +1163,11 @@ export default function ShipperDashboard() {
 
   const handleGoBack = useCallback(() => {
     // Navigate back to shipper tab
-    router.push('/(tabs)/shipper');
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/shipper');
+    }
   }, [router]);
 
   return (
@@ -1180,6 +1184,15 @@ export default function ShipperDashboard() {
         <View style={styles.header}>
           <Text style={styles.title}>Shipper Dashboard</Text>
           <Text style={styles.subtitle}>Manage your loads and track performance</Text>
+          
+          {/* Quick Navigation to Shipper Page */}
+          <TouchableOpacity 
+            onPress={() => router.push('/(tabs)/shipper')}
+            style={styles.quickNavButton}
+            testID="go-to-shipper-page"
+          >
+            <Text style={styles.quickNavButtonText}>← Back to Shipper Tools</Text>
+          </TouchableOpacity>
           
           <UserInfoRow />
           <TestLoginWriteButton />
@@ -2248,5 +2261,18 @@ const styles = StyleSheet.create({
     color: '#92400e',
     fontFamily: 'monospace',
     lineHeight: 14,
+  },
+  quickNavButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    marginTop: theme.spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  quickNavButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
   },
 });
