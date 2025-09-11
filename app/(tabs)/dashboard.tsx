@@ -574,6 +574,12 @@ export default function DashboardScreen() {
                 >
                   <Text style={styles.shipperActionText}>Bulk Upload</Text>
                 </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.shipperActionButton}
+                  onPress={() => router.push('/shipper-dashboard')}
+                >
+                  <Text style={styles.shipperActionText}>Analytics</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}

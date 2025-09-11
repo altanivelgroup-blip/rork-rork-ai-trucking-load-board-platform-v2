@@ -6,7 +6,7 @@ import ConfirmationModal from '@/components/ConfirmationModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2, Crown } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2, Crown, ArrowLeft } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { getFirebase } from '@/utils/firebase';
@@ -1161,8 +1161,21 @@ export default function ShipperDashboard() {
     router.push('/csv-bulk-upload');
   }, [router, activeMembership]);
 
+  const handleGoBack = useCallback(() => {
+    // Navigate back to shipper tab
+    router.push('/(tabs)/shipper');
+  }, [router]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={handleGoBack} style={styles.backButton} testID="back-button">
+          <ArrowLeft size={24} color={theme.colors.dark} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Analytics Dashboard</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Shipper Dashboard</Text>
@@ -1387,6 +1400,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.lightGray,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  backButton: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.lightGray,
+  },
+  headerTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  headerSpacer: {
+    width: 40, // Same width as back button to center title
   },
   content: {
     padding: theme.spacing.lg,
