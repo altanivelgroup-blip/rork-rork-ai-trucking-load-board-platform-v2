@@ -1,10 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
-import { Home, Search, User, Truck, Package } from 'lucide-react-native';
+import { Home, User, Truck, Package, Wallet, MapPin } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function TabsLayout() {
+  const { user } = useAuth();
+  const isDriver = user?.role === 'driver';
+
   return (
     <Tabs
       initialRouteName="dashboard"
@@ -13,9 +16,6 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.gray,
         tabBarStyle: {
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-          paddingTop: 6,
           backgroundColor: theme.colors.white,
           borderTopWidth: 1,
           borderTopColor: theme.colors.border,
@@ -29,24 +29,26 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Dashboard',
+          title: isDriver ? 'Dashboard' : 'Home',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="loads"
         options={{
-          title: 'Loads',
+          title: isDriver ? 'AI Loads' : 'My Loads',
           tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
         }}
       />
-      <Tabs.Screen
-        name="service-finder"
-        options={{
-          title: 'Service Finder',
-          tabBarIcon: ({ color, size }) => <Search color={color} size={size} />,
-        }}
-      />
+      {isDriver && (
+        <Tabs.Screen
+          name="service-finder"
+          options={{
+            title: 'Services',
+            tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
+          }}
+        />
+      )}
       <Tabs.Screen
         name="profile"
         options={{
@@ -54,13 +56,26 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />
-      <Tabs.Screen
-        name="shipper"
-        options={{
-          title: 'Shipper',
-          tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
-        }}
-      />
+      {/* Hide shipper tab for drivers, hide service-finder for shippers */}
+      {!isDriver && (
+        <Tabs.Screen
+          name="shipper"
+          options={{
+            title: 'Tools',
+            tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
+          }}
+        />
+      )}
+      {isDriver && (
+        <Tabs.Screen
+          name="wallet"
+          options={{
+            title: 'Wallet',
+            href: '/wallet',
+            tabBarIcon: ({ color, size }) => <Wallet color={color} size={size} />,
+          }}
+        />
+      )}
       <Tabs.Screen
         name="admin"
         options={{

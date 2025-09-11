@@ -67,6 +67,8 @@ export default function DashboardScreen() {
   console.log('[Dashboard] rendering');
   const { user, isLoading } = useAuth();
   const { loads: actualLoads, filteredLoads } = useLoads();
+  const isDriver = user?.role === 'driver';
+  const isShipper = user?.role === 'shipper';
   const router = useRouter();
   const [backhaulOn, setBackhaulOn] = useState<boolean>(false);
   const [origin, setOrigin] = useState<string>('');
@@ -177,7 +179,7 @@ export default function DashboardScreen() {
       const maxRpm = loads.reduce((m, l) => Math.max(m, Number(l.ratePerMile ?? 0)), 0) || 1;
       const radius = Number(radiusMiles ?? 50) || 50;
       const fav: any = (user as any)?.favoriteLanes ?? [];
-      const truckPref: string | null = (user?.vehicleTypes && user.vehicleTypes.length > 0 ? user.vehicleTypes[0] : null) as any;
+      const truckPref: string | null = ((user as any)?.vehicleTypes && (user as any).vehicleTypes.length > 0 ? (user as any).vehicleTypes[0] : null) as any;
       const cur = currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null;
       const laneKey = (o?: any, d?: any) => {
         const oc = `${o?.city ?? ''}`.toLowerCase();
@@ -227,7 +229,7 @@ export default function DashboardScreen() {
           prefs: {
             homeBase: (user as any)?.homeBase ?? null,
             favoriteLanes: (user as any)?.favoriteLanes ?? [],
-            truckType: (user?.vehicleTypes && user.vehicleTypes.length > 0 ? user.vehicleTypes[0] : null),
+            truckType: ((user as any)?.vehicleTypes && (user as any).vehicleTypes.length > 0 ? (user as any).vehicleTypes[0] : null),
           },
           context: {
             currentLocation: currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null,
@@ -365,8 +367,12 @@ export default function DashboardScreen() {
             resizeMode="cover"
           >
             <View style={styles.heroOverlay} />
-            <Text style={styles.heroTitle} testID="dashboard-hero-title" allowFontScaling={false}>LoadRun</Text>
-            <Text style={styles.heroSubtitle} testID="dashboard-hero-subtitle">AI Load Board for Car Haulers</Text>
+            <Text style={styles.heroTitle} testID="dashboard-hero-title" allowFontScaling={false}>
+            {isDriver ? 'LoadRun Driver' : isShipper ? 'LoadRun Shipper' : 'LoadRun'}
+          </Text>
+          <Text style={styles.heroSubtitle} testID="dashboard-hero-subtitle">
+            {isDriver ? 'AI-Powered Load Matching' : isShipper ? 'Bulk Load Management' : 'AI Load Board for Car Haulers'}
+          </Text>
             {weather?.tempF != null ? (
               <View style={styles.weatherPill} testID="dashboard-weather-pill">
                 <WeatherIcon size={moderateScale(16)} color={theme.colors.white} />
@@ -387,52 +393,76 @@ export default function DashboardScreen() {
           </View>
 
           <View style={styles.statsRow}>
-            <View style={styles.statCard} testID="stat-available-loads">
-              <Truck size={moderateScale(20)} color={theme.colors.primary} />
-              <Text style={styles.statValue} allowFontScaling={false}>{actualLoads?.length ?? 0}</Text>
-              <Text style={styles.statLabel} allowFontScaling={false}>Available Loads</Text>
-            </View>
-            <View style={styles.statCard} testID="stat-rating">
-              <Star size={moderateScale(20)} color={theme.colors.warning} />
-              <Text style={styles.statValue} allowFontScaling={false}>{user?.rating?.toString() ?? '4.8'}</Text>
-              <Text style={styles.statLabel} allowFontScaling={false}>Your Rating</Text>
-            </View>
-            <View style={styles.statCard} testID="stat-completed">
-              <Package size={moderateScale(20)} color={theme.colors.gray} />
-              <Text style={styles.statValue} allowFontScaling={false}>{user?.completedLoads ?? 24}</Text>
-              <Text style={styles.statLabel} allowFontScaling={false}>Completed</Text>
-            </View>
+            {isDriver ? (
+              <>
+                <View style={styles.statCard} testID="stat-available-loads">
+                  <Truck size={moderateScale(20)} color={theme.colors.primary} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{actualLoads?.length ?? 0}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Available Loads</Text>
+                </View>
+                <View style={styles.statCard} testID="stat-rating">
+                  <Star size={moderateScale(20)} color={theme.colors.warning} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{user?.rating?.toString() ?? '4.8'}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Your Rating</Text>
+                </View>
+                <View style={styles.statCard} testID="stat-completed">
+                  <Package size={moderateScale(20)} color={theme.colors.gray} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{user?.completedLoads ?? 24}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Completed</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.statCard} testID="stat-posted-loads">
+                  <Package size={moderateScale(20)} color={theme.colors.primary} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{(user as any)?.totalLoadsPosted ?? 0}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Posted Loads</Text>
+                </View>
+                <View style={styles.statCard} testID="stat-active-loads">
+                  <Truck size={moderateScale(20)} color={theme.colors.warning} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{(user as any)?.activeLoads ?? 0}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Active Loads</Text>
+                </View>
+                <View style={styles.statCard} testID="stat-revenue">
+                  <Star size={moderateScale(20)} color={theme.colors.gray} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{formatUSD((user as any)?.totalRevenue ?? 0)}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Revenue</Text>
+                </View>
+              </>
+            )}
           </View>
 
-          <View style={styles.describeLoadRow}>
-            <TextInput
-              testID="describe-load-input"
-              value={nlQuery}
-              onChangeText={handleNlQueryChange}
-              placeholder={'Describe your load'}
-              placeholderTextColor={theme.colors.gray}
-              returnKeyType="search"
-              onSubmitEditing={onSubmitNlSearch}
-              style={styles.describeInput}
-              accessibilityLabel="Natural language search"
-            />
-            <VoiceCapture
-              onTranscribed={handleVoiceTranscribed}
-              size="sm"
-              testID="describe-load-voice-capture"
-            />
-            <TouchableOpacity
-              onPress={onSubmitNlSearch}
-              testID="describe-load-ai-intelligence"
-              style={styles.applyButton}
-            >
-              <Text style={styles.applyButtonText} allowFontScaling={false}>
-                AI LOADS
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {isDriver && (
+            <View style={styles.describeLoadRow}>
+              <TextInput
+                testID="describe-load-input"
+                value={nlQuery}
+                onChangeText={handleNlQueryChange}
+                placeholder={'Describe your ideal load'}
+                placeholderTextColor={theme.colors.gray}
+                returnKeyType="search"
+                onSubmitEditing={onSubmitNlSearch}
+                style={styles.describeInput}
+                accessibilityLabel="Natural language search"
+              />
+              <VoiceCapture
+                onTranscribed={handleVoiceTranscribed}
+                size="sm"
+                testID="describe-load-voice-capture"
+              />
+              <TouchableOpacity
+                onPress={onSubmitNlSearch}
+                testID="describe-load-ai-intelligence"
+                style={styles.applyButton}
+              >
+                <Text style={styles.applyButtonText} allowFontScaling={false}>
+                  AI LOADS
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-          {AI_COPILOT_CHIPS_ENABLED ? (
+          {AI_COPILOT_CHIPS_ENABLED && isDriver ? (
             <View style={styles.filtersRow}>
               <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
                 <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
@@ -464,7 +494,9 @@ export default function DashboardScreen() {
 
           <View style={styles.sectionHeader}>
             {isHydrating && <Text style={styles.viewAllText}>Loading preferences…</Text>}
-            <Text style={styles.sectionTitle}>Recent Loads</Text>
+            <Text style={styles.sectionTitle}>
+              {isDriver ? 'AI Recommended Loads' : 'Recent Loads'}
+            </Text>
             <TouchableOpacity onPress={handleViewAll} accessibilityRole="button">
               <View style={styles.viewAllRow}>
                 <Text style={styles.viewAllText} allowFontScaling={false}>View All</Text>
@@ -497,32 +529,54 @@ export default function DashboardScreen() {
             )) ?? []}
           </View>
 
-          <View style={styles.backhaulCard} testID="backhaul-toggle-card">
-            <View style={styles.backhaulRow}>
-              <MapPin size={moderateScale(18)} color="#1D4ED8" />
-              <Text style={styles.backhaulTitle} allowFontScaling={false}>Backhaul near delivery (50mi)</Text>
+          {isDriver && (
+            <View style={styles.backhaulCard} testID="backhaul-toggle-card">
+              <View style={styles.backhaulRow}>
+                <MapPin size={moderateScale(18)} color="#1D4ED8" />
+                <Text style={styles.backhaulTitle} allowFontScaling={false}>Backhaul near delivery (50mi)</Text>
+              </View>
+              <Text style={styles.backhaulSub} numberOfLines={2}>
+                {lastDelivery ? `${lastDelivery.city}, ${lastDelivery.state}` : 'No recent delivery found'}
+              </Text>
+              <View style={styles.toggleRow}>
+                <Text style={styles.toggleLabel} allowFontScaling={false}>Show backhaul loads</Text>
+                <Switch
+                  value={backhaulOn}
+                  onValueChange={(val) => {
+                    if (val && !lastDelivery) {
+                      console.log('Backhaul: cannot enable without a recent delivery');
+                      return;
+                    }
+                    toggleBackhaul(val);
+                  }}
+                  trackColor={{ false: theme.colors.gray, true: '#EA580C' }}
+                  thumbColor={theme.colors.white}
+                  disabled={false}
+                  testID="backhaul-switch"
+                />
+              </View>
             </View>
-            <Text style={styles.backhaulSub} numberOfLines={2}>
-              {lastDelivery ? `${lastDelivery.city}, ${lastDelivery.state}` : 'No recent delivery found'}
-            </Text>
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel} allowFontScaling={false}>Show backhaul loads</Text>
-              <Switch
-                value={backhaulOn}
-                onValueChange={(val) => {
-                  if (val && !lastDelivery) {
-                    console.log('Backhaul: cannot enable without a recent delivery');
-                    return;
-                  }
-                  toggleBackhaul(val);
-                }}
-                trackColor={{ false: theme.colors.gray, true: '#EA580C' }}
-                thumbColor={theme.colors.white}
-                disabled={false}
-                testID="backhaul-switch"
-              />
+          )}
+
+          {isShipper && (
+            <View style={styles.shipperActionsCard}>
+              <Text style={styles.shipperActionsTitle}>Quick Actions</Text>
+              <View style={styles.shipperActionsRow}>
+                <TouchableOpacity 
+                  style={styles.shipperActionButton}
+                  onPress={() => router.push('/post-load')}
+                >
+                  <Text style={styles.shipperActionText}>Post Load</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.shipperActionButton}
+                  onPress={() => router.push('/csv-bulk-upload')}
+                >
+                  <Text style={styles.shipperActionText}>Bulk Upload</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
         </ScrollView>
       )}
     </Screen>
@@ -857,5 +911,42 @@ const styles = StyleSheet.create({
     minWidth: moderateScale(96),
     fontSize: font(16),
     minHeight: 44,
+  },
+  shipperActionsCard: {
+    backgroundColor: theme.colors.white,
+    marginHorizontal: moderateScale(theme.spacing.lg),
+    marginTop: moderateScale(theme.spacing.sm),
+    padding: moderateScale(theme.spacing.lg),
+    borderRadius: moderateScale(theme.borderRadius.md),
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  shipperActionsTitle: {
+    fontSize: font(18),
+    fontWeight: '700',
+    color: theme.colors.dark,
+    marginBottom: moderateScale(theme.spacing.md),
+  },
+  shipperActionsRow: {
+    flexDirection: 'row',
+    gap: moderateScale(theme.spacing.md),
+  },
+  shipperActionButton: {
+    flex: 1,
+    backgroundColor: theme.colors.primary,
+    paddingVertical: moderateScale(theme.spacing.md),
+    paddingHorizontal: moderateScale(theme.spacing.sm),
+    borderRadius: moderateScale(theme.borderRadius.md),
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  shipperActionText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+    fontSize: font(14),
   },
 });

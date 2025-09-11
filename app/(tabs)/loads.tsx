@@ -2,16 +2,22 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { DollarSign, Filter, Phone, Mail, Plus, X } from 'lucide-react-native';
-import { useLoads } from '@/hooks/useLoads';
+import { DollarSign, Filter, Phone, Mail, Plus, X, Upload, Trash2 } from 'lucide-react-native';
+import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
 import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/hooks/useAuth';
+import ConfirmationModal from '@/components/ConfirmationModal';
 
 export default function LoadsScreen() {
   const router = useRouter();
   const { show } = useToast();
-  const { filteredLoads, isLoading, refreshLoads, filters, setFilters } = useLoads();
+  const { user } = useAuth();
+  const { filteredLoads, isLoading, refreshLoads, filters, setFilters, deleteLoad } = useLoads();
+  const { deleteLoadWithToast } = useLoadsWithToast();
+  const isDriver = user?.role === 'driver';
+  const isShipper = user?.role === 'shipper';
   
   const [showFiltersModal, setShowFiltersModal] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -19,11 +25,16 @@ export default function LoadsScreen() {
   const [showBulkOnly, setShowBulkOnly] = useState<boolean>(false);
   const [showLastImportOnly, setShowLastImportOnly] = useState<boolean>(false);
   const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ visible: boolean; loadId: string | null }>({ visible: false, loadId: null });
   
   const equipmentTypes = ['Backhaul', 'Flatbed', 'Reefer', 'Box Truck', 'Car Hauler', 'Enclosed Trailer'];
-  const sortingOptions = ['Highest $/mi', 'Near me', 'Lightest', 'New Today', 'AI for Loads', 'AI Backhaul'];
+  const sortingOptions = isDriver 
+    ? ['Highest $/mi', 'Near me', 'Lightest', 'New Today', 'AI for Loads', 'AI Backhaul']
+    : ['Newest First', 'Highest Rate', 'Bulk Imports', 'Active Only'];
   const [selectedEquipmentType, setSelectedEquipmentType] = useState<string>('Backhaul');
-  const [selectedSortOptions, setSelectedSortOptions] = useState<string[]>(['Near me', 'New Today', 'AI for Loads', 'AI Backhaul']);
+  const [selectedSortOptions, setSelectedSortOptions] = useState<string[]>(
+    isDriver ? ['Near me', 'New Today', 'AI for Loads', 'AI Backhaul'] : ['Newest First', 'Active Only']
+  );
 
   
   const loads = useMemo(() => {
@@ -103,6 +114,19 @@ export default function LoadsScreen() {
     router.push('/ai-loads');
   };
   
+  const handleDeleteLoad = useCallback(async (loadId: string) => {
+    try {
+      await deleteLoadWithToast(loadId);
+      setDeleteConfirmModal({ visible: false, loadId: null });
+    } catch (error) {
+      console.error('Failed to delete load:', error);
+    }
+  }, [deleteLoadWithToast]);
+  
+  const confirmDeleteLoad = useCallback((loadId: string) => {
+    setDeleteConfirmModal({ visible: true, loadId });
+  }, []);
+  
   // Load last bulk import ID on component mount
   useEffect(() => {
     const loadLastBulkImportId = async () => {
@@ -121,7 +145,25 @@ export default function LoadsScreen() {
   
   return (
     <>
-      <Stack.Screen options={{ title: 'Available Loads' }} />
+      <Stack.Screen options={{ 
+        title: isDriver ? 'AI Loads' : isShipper ? 'My Loads' : 'Loads',
+        headerRight: isShipper ? () => (
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => router.push('/post-load')}
+            >
+              <Plus size={20} color={theme.colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => router.push('/csv-bulk-upload')}
+            >
+              <Upload size={20} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </View>
+        ) : undefined
+      }} />
       <View style={styles.container}>
         {/* Header Controls */}
         <View style={styles.headerControls}>
@@ -130,60 +172,65 @@ export default function LoadsScreen() {
           {/* Equipment Type Filters */}
           <View style={styles.equipmentFilters}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.equipmentFiltersContent}>
-              {/* Bulk Filter Chip */}
-              <TouchableOpacity
-                style={[
-                  styles.equipmentFilterChip,
-                  styles.bulkFilterChip,
-                  showBulkOnly && styles.bulkFilterChipActive
-                ]}
-                onPress={() => {
-                  setShowBulkOnly(!showBulkOnly);
-                  if (showLastImportOnly) setShowLastImportOnly(false);
-                }}
-              >
-                <Text style={[
-                  styles.equipmentFilterText,
-                  styles.bulkFilterText,
-                  showBulkOnly && styles.equipmentFilterTextActive
-                ]}>
-                  Bulk Import
-                </Text>
-                {showBulkOnly && (
-                  <X size={14} color={theme.colors.white} />
-                )}
-              </TouchableOpacity>
+              {/* Bulk Filter Chip - Only show for shippers */}
+              {isShipper && (
+                <TouchableOpacity
+                  style={[
+                    styles.equipmentFilterChip,
+                    styles.bulkFilterChip,
+                    showBulkOnly && styles.bulkFilterChipActive
+                  ]}
+                  onPress={() => {
+                    setShowBulkOnly(!showBulkOnly);
+                    if (showLastImportOnly) setShowLastImportOnly(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.equipmentFilterText,
+                    styles.bulkFilterText,
+                    showBulkOnly && styles.equipmentFilterTextActive
+                  ]}>
+                    Bulk Import
+                  </Text>
+                  {showBulkOnly && (
+                    <X size={14} color={theme.colors.white} />
+                  )}
+                </TouchableOpacity>
+              )}
               
-              {/* Source: Bulk (last import) Filter Chip */}
-              <TouchableOpacity
-                style={[
-                  styles.equipmentFilterChip,
-                  styles.lastImportFilterChip,
-                  showLastImportOnly && styles.lastImportFilterChipActive,
-                  !lastBulkImportId && styles.lastImportFilterChipDisabled
-                ]}
-                onPress={() => {
-                  if (lastBulkImportId) {
-                    setShowLastImportOnly(!showLastImportOnly);
-                    if (showBulkOnly) setShowBulkOnly(false);
-                  }
-                }}
-                disabled={!lastBulkImportId}
-              >
-                <Text style={[
-                  styles.equipmentFilterText,
-                  styles.lastImportFilterText,
-                  showLastImportOnly && styles.equipmentFilterTextActive,
-                  !lastBulkImportId && styles.lastImportFilterTextDisabled
-                ]}>
-                  Source: Bulk (last import)
-                </Text>
-                {showLastImportOnly && lastBulkImportId && (
-                  <X size={14} color={theme.colors.white} />
-                )}
-              </TouchableOpacity>
+              {/* Source: Bulk (last import) Filter Chip - Only show for shippers */}
+              {isShipper && (
+                <TouchableOpacity
+                  style={[
+                    styles.equipmentFilterChip,
+                    styles.lastImportFilterChip,
+                    showLastImportOnly && styles.lastImportFilterChipActive,
+                    !lastBulkImportId && styles.lastImportFilterChipDisabled
+                  ]}
+                  onPress={() => {
+                    if (lastBulkImportId) {
+                      setShowLastImportOnly(!showLastImportOnly);
+                      if (showBulkOnly) setShowBulkOnly(false);
+                    }
+                  }}
+                  disabled={!lastBulkImportId}
+                >
+                  <Text style={[
+                    styles.equipmentFilterText,
+                    styles.lastImportFilterText,
+                    showLastImportOnly && styles.equipmentFilterTextActive,
+                    !lastBulkImportId && styles.lastImportFilterTextDisabled
+                  ]}>
+                    Source: Bulk (last import)
+                  </Text>
+                  {showLastImportOnly && lastBulkImportId && (
+                    <X size={14} color={theme.colors.white} />
+                  )}
+                </TouchableOpacity>
+              )}
               
-              {equipmentTypes.map((type) => {
+              {/* Equipment type filters - show for drivers */}
+              {isDriver && equipmentTypes.map((type) => {
                 const isSelected = selectedEquipmentType === type;
                 const isBackhaul = type === 'Backhaul';
                 return (
@@ -237,7 +284,9 @@ export default function LoadsScreen() {
 
         </View>
         
-        <Text style={styles.debugBanner}>debug: {loads.length} loads</Text>
+        <Text style={styles.debugBanner}>
+          {isDriver ? `${loads.length} available loads` : `${loads.length} posted loads`}
+        </Text>
         
         <ScrollView 
           contentContainerStyle={styles.content}
@@ -252,8 +301,33 @@ export default function LoadsScreen() {
             </View>
           ) : loads.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No active loads match your filters</Text>
-              <Text style={styles.emptySubtitle}>Try adjusting your filters or check back later</Text>
+              <Text style={styles.emptyTitle}>
+                {isDriver ? 'No loads match your filters' : 'No loads posted yet'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {isDriver 
+                  ? 'Try adjusting your filters or check back later' 
+                  : 'Start by posting your first load or importing from CSV'
+                }
+              </Text>
+              {isShipper && (
+                <View style={styles.emptyActions}>
+                  <TouchableOpacity 
+                    style={styles.emptyActionButton}
+                    onPress={() => router.push('/post-load')}
+                  >
+                    <Plus size={20} color={theme.colors.white} />
+                    <Text style={styles.emptyActionText}>Post Load</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.emptyActionButton, styles.emptyActionButtonSecondary]}
+                    onPress={() => router.push('/csv-bulk-upload')}
+                  >
+                    <Upload size={20} color={theme.colors.primary} />
+                    <Text style={[styles.emptyActionText, styles.emptyActionTextSecondary]}>Bulk Upload</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           ) : (
             loads.map((load: any) => {
@@ -302,24 +376,34 @@ export default function LoadsScreen() {
                   
                   {/* Action buttons */}
                   <View style={styles.loadActions}>
-                    {load.shipperName && (
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => handleCall('555-0123')}
-                        testID={`call-${load.id}`}
-                      >
-                        <Phone size={16} color={theme.colors.primary} />
-                        <Text style={styles.actionButtonText}>Call</Text>
-                      </TouchableOpacity>
+                    {isDriver && load.shipperName && (
+                      <>
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={() => handleCall('555-0123')}
+                          testID={`call-${load.id}`}
+                        >
+                          <Phone size={16} color={theme.colors.primary} />
+                          <Text style={styles.actionButtonText}>Call</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={() => handleEmail('contact@example.com')}
+                          testID={`email-${load.id}`}
+                        >
+                          <Mail size={16} color={theme.colors.primary} />
+                          <Text style={styles.actionButtonText}>Email</Text>
+                        </TouchableOpacity>
+                      </>
                     )}
-                    {load.shipperName && (
+                    {isShipper && (
                       <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => handleEmail('contact@example.com')}
-                        testID={`email-${load.id}`}
+                        style={[styles.actionButton, styles.deleteButton]}
+                        onPress={() => confirmDeleteLoad(load.id)}
+                        testID={`delete-${load.id}`}
                       >
-                        <Mail size={16} color={theme.colors.primary} />
-                        <Text style={styles.actionButtonText}>Email</Text>
+                        <Trash2 size={16} color="#EF4444" />
+                        <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -337,6 +421,16 @@ export default function LoadsScreen() {
             onApplyFilters={handleApplyFilters}
           />
         )}
+        
+        <ConfirmationModal
+          visible={deleteConfirmModal.visible}
+          title="Delete Load"
+          message="Are you sure you want to delete this load? This action cannot be undone and will remove it from all connected dashboards."
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={() => deleteConfirmModal.loadId && handleDeleteLoad(deleteConfirmModal.loadId)}
+          onCancel={() => setDeleteConfirmModal({ visible: false, loadId: null })}
+        />
       </View>
     </>
   );
@@ -581,6 +675,47 @@ const styles = StyleSheet.create({
   lastImportFilterTextDisabled: {
     color: theme.colors.white,
     opacity: 0.7,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  headerButton: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+  },
+  emptyActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.lg,
+  },
+  emptyActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+  },
+  emptyActionButtonSecondary: {
+    backgroundColor: theme.colors.white,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  emptyActionText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  emptyActionTextSecondary: {
+    color: theme.colors.primary,
+  },
+  deleteButton: {
+    borderColor: '#EF4444',
+  },
+  deleteButtonText: {
+    color: '#EF4444',
   },
 
 });

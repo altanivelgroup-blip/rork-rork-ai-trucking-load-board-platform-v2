@@ -2,7 +2,8 @@ import React, { memo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Crown, PlusCircle, Shield, TrendingUp, Bot, BarChart3, Upload, ImagePlus } from 'lucide-react-native';
+import { Crown, PlusCircle, Shield, TrendingUp, Bot, BarChart3, Upload, ImagePlus, Package, DollarSign } from 'lucide-react-native';
+import { useAuth } from '@/hooks/useAuth';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
   return (
@@ -20,7 +21,10 @@ const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { ti
 
 export default function ShipperHome() {
   const router = useRouter();
-
+  const { user } = useAuth();
+  const isShipper = user?.role === 'shipper';
+  
+  // Always call hooks in the same order
   const goMembership = useCallback(() => {
     console.log('shipper.goMembership');
     router.push('/shipper-membership');
@@ -59,27 +63,51 @@ export default function ShipperHome() {
     console.log('shipper.goCsvBulkUpload');
     router.push('/csv-bulk-upload');
   }, [router]);
-
-  const goAddPhotoTest = useCallback(() => {
-    console.log('shipper.goAddPhotoTest');
-    router.push('/add-photo-test');
-  }, [router]);
+  
+  // Redirect non-shippers
+  React.useEffect(() => {
+    if (user && !isShipper) {
+      router.replace('/(tabs)/dashboard');
+    }
+  }, [user, isShipper, router]);
+  
+  if (!isShipper) {
+    return null;
+  }
 
   return (
     <View style={styles.container} testID="shipper-home-container">
       <Stack.Screen options={{ title: 'Shipper' }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.heading}>Welcome, Shipper</Text>
-        <Text style={styles.subheading}>Quick actions and tools</Text>
+        <Text style={styles.heading}>Shipper Tools</Text>
+        <Text style={styles.subheading}>Manage your loads and operations</Text>
 
-        <Tile title="Shipper Dashboard" subtitle="View your loads and analytics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
-        <Tile title="Post a Load" subtitle="Create a new shipment" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
-        <Tile title="CSV Bulk Upload" subtitle="Upload loads from CSV file" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
-        <Tile title="Add Photo Test" subtitle="Quick test for photo upload" onPress={goAddPhotoTest} Icon={ImagePlus} testID="tile-add-photo-test" />
-        <Tile title="AI Tools" subtitle="Draft posts, quotes and more" onPress={goAiTools} Icon={Bot} testID="tile-ai-tools" />
-        <Tile title="Increase Revenue" subtitle="Tips and premium placement" onPress={goIncreaseRevenue} Icon={TrendingUp} testID="tile-increase-revenue" />
-        <Tile title="Advanced Security" subtitle="Protect posts and payments" onPress={goAdvancedSecurity} Icon={Shield} testID="tile-advanced-security" />
-        <Tile title="Membership" subtitle="Upgrade for more features" onPress={goMembership} Icon={Crown} testID="tile-membership" />
+        {/* Quick Stats */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Package size={20} color={theme.colors.primary} />
+            <Text style={styles.statValue}>{(user as any)?.totalLoadsPosted ?? 0}</Text>
+            <Text style={styles.statLabel}>Posted</Text>
+          </View>
+          <View style={styles.statCard}>
+            <DollarSign size={20} color={theme.colors.success} />
+            <Text style={styles.statValue}>${((user as any)?.totalRevenue ?? 0).toLocaleString()}</Text>
+            <Text style={styles.statLabel}>Revenue</Text>
+          </View>
+          <View style={styles.statCard}>
+            <BarChart3 size={20} color={theme.colors.warning} />
+            <Text style={styles.statValue}>{(user as any)?.activeLoads ?? 0}</Text>
+            <Text style={styles.statLabel}>Active</Text>
+          </View>
+        </View>
+
+        <Tile title="Analytics Dashboard" subtitle="View performance and load metrics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
+        <Tile title="Post a Load" subtitle="Create a new shipment posting" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
+        <Tile title="Bulk Upload" subtitle="Import multiple loads from CSV" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
+        <Tile title="AI Tools" subtitle="Auto-generate descriptions and quotes" onPress={goAiTools} Icon={Bot} testID="tile-ai-tools" />
+        <Tile title="Increase Revenue" subtitle="Premium placement and optimization" onPress={goIncreaseRevenue} Icon={TrendingUp} testID="tile-increase-revenue" />
+        <Tile title="Advanced Security" subtitle="Protect your postings and payments" onPress={goAdvancedSecurity} Icon={Shield} testID="tile-advanced-security" />
+        <Tile title="Membership" subtitle="Unlock bulk features and analytics" onPress={goMembership} Icon={Crown} testID="tile-membership" />
       </ScrollView>
     </View>
   );
@@ -139,5 +167,33 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: theme.colors.gray,
     fontSize: theme.fontSize.sm,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  statValue: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.dark,
+    marginTop: theme.spacing.xs,
+  },
+  statLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginTop: 2,
   },
 });

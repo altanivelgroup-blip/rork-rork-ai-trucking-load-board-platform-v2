@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { RoleSwitcher } from '@/components/RoleSwitcher';
 import { 
   User, 
   Settings, 
@@ -18,7 +19,9 @@ import {
   ChevronRight,
   Truck,
   Wallet,
-  Wrench
+  Wrench,
+  BarChart3,
+  Upload
 } from 'lucide-react-native';
 
 type ProfileOption = {
@@ -35,6 +38,8 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
+  const isDriver = user?.role === 'driver';
+  const isShipper = user?.role === 'shipper';
 
   const handleLogout = () => {
     Alert.alert(
@@ -54,7 +59,7 @@ export default function ProfileScreen() {
     );
   };
 
-  const profileOptions: ProfileOption[] = [
+  const driverOptions: ProfileOption[] = [
     {
       id: 'driver-profile',
       title: 'Edit Profile',
@@ -80,29 +85,59 @@ export default function ProfileScreen() {
       showChevron: true
     },
     {
-      id: 'membership',
-      title: 'Membership',
-      subtitle: 'Manage your subscription',
-      icon: <Crown size={20} color={theme.colors.warning} />,
-      route: '/membership',
-      showChevron: true
-    },
-    {
       id: 'wallet',
       title: 'Wallet',
-      subtitle: 'Balance and payouts',
+      subtitle: 'Balance, earnings, and payouts',
       icon: <Wallet size={20} color={theme.colors.success} />,
       route: '/wallet',
       showChevron: true
     },
     {
+      id: 'membership',
+      title: 'Membership',
+      subtitle: 'Upgrade for AI features',
+      icon: <Crown size={20} color={theme.colors.warning} />,
+      route: '/membership',
+      showChevron: true
+    },
+  ];
+
+  const shipperOptions: ProfileOption[] = [
+    {
+      id: 'shipper-dashboard',
+      title: 'Analytics Dashboard',
+      subtitle: 'View load performance and metrics',
+      icon: <BarChart3 size={20} color={theme.colors.primary} />,
+      route: '/shipper-dashboard',
+      showChevron: true
+    },
+    {
+      id: 'bulk-upload',
+      title: 'Bulk Upload',
+      subtitle: 'Import loads from CSV',
+      icon: <Upload size={20} color={theme.colors.secondary} />,
+      route: '/csv-bulk-upload',
+      showChevron: true
+    },
+    {
+      id: 'shipper-membership',
+      title: 'Shipper Membership',
+      subtitle: 'Premium posting features',
+      icon: <Crown size={20} color={theme.colors.warning} />,
+      route: '/shipper-membership',
+      showChevron: true
+    },
+    {
       id: 'payment-methods',
       title: 'Payment Methods',
-      subtitle: 'Manage cards and billing',
+      subtitle: 'Manage billing and payments',
       icon: <CreditCard size={20} color={theme.colors.success} />,
       route: '/payment-methods',
       showChevron: true
     },
+  ];
+
+  const commonOptions: ProfileOption[] = [
     {
       id: 'notifications',
       title: 'Notifications',
@@ -152,6 +187,8 @@ export default function ProfileScreen() {
     }
   ];
 
+  const profileOptions = isDriver ? [...driverOptions, ...commonOptions] : [...shipperOptions, ...commonOptions];
+
   const handleOptionPress = (option: ProfileOption) => {
     if (option.action) {
       option.action();
@@ -170,11 +207,18 @@ export default function ProfileScreen() {
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{user?.name || 'User'}</Text>
             <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleBadgeText}>
+                {isDriver ? 'Driver' : isShipper ? 'Shipper' : 'User'}
+              </Text>
+            </View>
             {user?.company && (
               <Text style={styles.profileCompany}>{user.company}</Text>
             )}
           </View>
         </View>
+
+        <RoleSwitcher />
 
         <View style={styles.optionsContainer}>
           {profileOptions.map((option) => (
@@ -301,5 +345,20 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
+  },
+  roleBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  roleBadgeText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.white,
+    textTransform: 'uppercase',
   },
 });
