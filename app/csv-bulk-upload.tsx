@@ -29,6 +29,7 @@ import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
 import { BulkImportSession } from '@/types';
+import DuplicateCheckerModal from '@/components/DuplicateCheckerModal';
 
 
 type TemplateType = 'simple' | 'standard' | 'complete';
@@ -128,6 +129,8 @@ export default function CSVBulkUploadScreen() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [skippedRowsData, setSkippedRowsData] = useState<NormalizedPreviewRow[]>([]);
+  const [showDuplicateChecker, setShowDuplicateChecker] = useState(false);
+  const [duplicateCheckLoads, setDuplicateCheckLoads] = useState<any[]>([]);
   const toast = useToast();
   
   const PAGE_SIZE = 20;
@@ -622,6 +625,26 @@ export default function CSVBulkUploadScreen() {
       const duplicateCount = normalizedWithDuplicateCheck.filter(r => r.status === 'duplicate').length;
       
       console.log(`[CSV PROCESSING] Processed ${normalizedWithDuplicateCheck.length} rows: ${validCount} valid, ${invalidCount} invalid, ${duplicateCount} duplicates`);
+      
+      // Prepare data for AI duplicate checker
+      const validLoads = normalizedWithDuplicateCheck
+        .filter(row => row.status === 'valid')
+        .map(row => ({
+          title: row.title || undefined,
+          origin: row.origin || '',
+          destination: row.destination || '',
+          pickupDate: row.pickupDate || undefined,
+          deliveryDate: row.deliveryDate || undefined,
+          rate: row.rate || 0,
+          equipmentType: row.equipmentType || undefined,
+        }));
+      
+      setDuplicateCheckLoads(validLoads);
+      
+      // Auto-show duplicate checker if we have valid loads
+      if (validLoads.length > 1) {
+        setShowDuplicateChecker(true);
+      }
       
     } catch (error: any) {
       console.error('[CSV PROCESSING] Error:', error);
@@ -1329,7 +1352,7 @@ export default function CSVBulkUploadScreen() {
                 <Eye size={16} color={theme.colors.white} />
               )}
               <Text style={styles.actionButtonText}>
-                {isLoading ? 'Processing...' : 'Preview & Validate'}
+                {isLoading ? 'Processing...' : 'AI Check & Preview'}
               </Text>
             </TouchableOpacity>
             
@@ -1684,6 +1707,34 @@ export default function CSVBulkUploadScreen() {
           </View>
         )}
       </ScrollView>
+      
+      {/* AI Duplicate Checker Modal */}
+      <DuplicateCheckerModal
+        visible={showDuplicateChecker}
+        onClose={() => setShowDuplicateChecker(false)}
+        loads={duplicateCheckLoads}
+        onResolved={(resolvedLoads, removedIndices) => {
+          console.log('[DUPLICATE CHECKER] Resolved:', { resolvedLoads: resolvedLoads.length, removed: removedIndices.length });
+          
+          // Update normalized rows to reflect duplicate resolutions
+          const updatedRows = normalizedRows.map((row, index) => {
+            if (removedIndices.includes(index)) {
+              return {
+                ...row,
+                status: 'duplicate' as const,
+                errors: [...row.errors, 'Marked as duplicate by AI checker']
+              };
+            }
+            return row;
+          });
+          
+          setNormalizedRows(updatedRows);
+          setShowDuplicateChecker(false);
+          
+          const remainingValid = updatedRows.filter(r => r.status === 'valid').length;
+          showToast(`AI analysis complete. ${remainingValid} unique loads ready for import.`, 'success');
+        }}
+      />
     </View>
   );
 }
