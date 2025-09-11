@@ -13,47 +13,54 @@ export function RoleBasedRouter({ children }: { children: React.ReactNode }) {
     const inAuthGroup = segments[0] === '(auth)';
     const inTabsGroup = segments[0] === '(tabs)';
     const onShipperDashboard = segments[0] === 'shipper-dashboard';
+    const currentPath = segments.join('/');
 
     console.log('[RoleBasedRouter] Navigation check:', {
       isAuthenticated,
       userRole: user?.role,
-      segments: segments.join('/'),
+      segments: currentPath,
       inAuthGroup,
       inTabsGroup,
       onShipperDashboard,
     });
 
+    // Always redirect unauthenticated users to login
     if (!isAuthenticated) {
-      // User is not authenticated, redirect to auth
-      if (!inAuthGroup) {
+      if (!inAuthGroup && currentPath !== '' && currentPath !== 'index') {
         console.log('[RoleBasedRouter] Redirecting to login - not authenticated');
         router.replace('/(auth)/login');
       }
       return;
     }
 
-    // User is authenticated
+    // User is authenticated - ensure they have a role set
+    if (!user?.role) {
+      console.log('[RoleBasedRouter] User authenticated but no role set, redirecting to login');
+      router.replace('/(auth)/login');
+      return;
+    }
+
+    // User is authenticated with role - redirect from auth pages to appropriate dashboard
     if (inAuthGroup) {
-      // User is authenticated but in auth group, redirect based on role
-      if (user?.role === 'shipper') {
-        console.log('[RoleBasedRouter] Redirecting shipper to dashboard');
+      if (user.role === 'shipper') {
+        console.log('[RoleBasedRouter] Redirecting authenticated shipper to dashboard');
         router.replace('/shipper-dashboard');
       } else {
-        console.log('[RoleBasedRouter] Redirecting driver to tabs');
+        console.log('[RoleBasedRouter] Redirecting authenticated driver to dashboard');
         router.replace('/(tabs)/dashboard');
       }
       return;
     }
 
-    // Check if user is in the wrong dashboard for their role
-    if (user?.role === 'shipper' && inTabsGroup) {
-      console.log('[RoleBasedRouter] Shipper in driver area, redirecting');
+    // Ensure users are in the correct dashboard for their role
+    if (user.role === 'shipper' && inTabsGroup) {
+      console.log('[RoleBasedRouter] Shipper in driver area, redirecting to shipper dashboard');
       router.replace('/shipper-dashboard');
       return;
     }
 
-    if (user?.role === 'driver' && onShipperDashboard) {
-      console.log('[RoleBasedRouter] Driver in shipper area, redirecting');
+    if (user.role === 'driver' && onShipperDashboard) {
+      console.log('[RoleBasedRouter] Driver in shipper area, redirecting to driver dashboard');
       router.replace('/(tabs)/dashboard');
       return;
     }

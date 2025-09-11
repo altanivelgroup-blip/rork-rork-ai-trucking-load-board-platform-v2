@@ -77,7 +77,7 @@ export default function LoginScreen() {
       
       if (email?.trim() && password?.trim()) {
         // Use login/link functionality to preserve anonymous UID
-        const user = await loginOrLink(email, password);
+        await loginOrLink(email, password);
         
         // Update local auth state with selected role
         await login(email, password, selectedRole);
@@ -148,7 +148,7 @@ export default function LoginScreen() {
 
           <View style={styles.form}>
             <View style={styles.roleSelector}>
-              <Text style={styles.roleSelectorLabel}>I am a:</Text>
+              <Text style={styles.roleSelectorLabel}>I am a: <Text style={styles.requiredAsterisk}>*</Text></Text>
               <View style={styles.roleButtons}>
                 <TouchableOpacity
                   style={[styles.roleButton, selectedRole === 'driver' && styles.roleButtonActive]}
@@ -366,5 +366,9 @@ const styles = StyleSheet.create({
   },
   roleButtonTextActive: {
     color: theme.colors.white,
+  },
+  requiredAsterisk: {
+    color: theme.colors.danger,
+    fontSize: theme.fontSize.md,
   },
 });

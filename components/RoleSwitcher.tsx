@@ -18,12 +18,11 @@ export function RoleSwitcher() {
 
     Alert.alert(
       'Switch Role',
-      `Are you sure you want to switch from ${user.role} to ${newRole}? This will migrate your shared data but reset role-specific information.`,
+      `Switching to ${newRole === 'shipper' ? 'Shipper' : 'Driver'} will adjust your dashboard and available features. Your account data will be preserved. Confirm?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Switch',
-          style: 'destructive',
+          text: 'Confirm Switch',
           onPress: async () => {
             setIsLoading(true);
             try {
