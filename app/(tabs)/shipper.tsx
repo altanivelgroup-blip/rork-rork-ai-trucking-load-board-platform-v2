@@ -2,7 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Crown, PlusCircle, Shield, TrendingUp, Bot, BarChart3, Upload, ImagePlus, Package, DollarSign } from 'lucide-react-native';
+import { Crown, PlusCircle, BarChart3, Upload, Package, DollarSign, FileText, Settings } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
@@ -44,20 +44,7 @@ export default function ShipperHome() {
     router.push('/shipper-dashboard');
   }, [router]);
 
-  const goAiTools = useCallback(() => {
-    console.log('shipper.goAiTools');
-    router.push('/ai-tools');
-  }, [router]);
 
-  const goIncreaseRevenue = useCallback(() => {
-    console.log('shipper.goIncreaseRevenue');
-    router.push('/increase-revenue');
-  }, [router]);
-
-  const goAdvancedSecurity = useCallback(() => {
-    console.log('shipper.goAdvancedSecurity');
-    router.push('/advance-security');
-  }, [router]);
 
   const goCsvBulkUpload = useCallback(() => {
     console.log('shipper.goCsvBulkUpload');
@@ -101,13 +88,12 @@ export default function ShipperHome() {
           </View>
         </View>
 
-        <Tile title="Analytics Dashboard" subtitle="View performance and load metrics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
+        <Tile title="Shipper Dashboard" subtitle="View analytics and performance metrics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
         <Tile title="Post a Load" subtitle="Create a new shipment posting" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
         <Tile title="Bulk Upload" subtitle="Import multiple loads from CSV" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
-        <Tile title="AI Tools" subtitle="Auto-generate descriptions and quotes" onPress={goAiTools} Icon={Bot} testID="tile-ai-tools" />
-        <Tile title="Increase Revenue" subtitle="Premium placement and optimization" onPress={goIncreaseRevenue} Icon={TrendingUp} testID="tile-increase-revenue" />
-        <Tile title="Advanced Security" subtitle="Protect your postings and payments" onPress={goAdvancedSecurity} Icon={Shield} testID="tile-advanced-security" />
-        <Tile title="Membership" subtitle="Unlock bulk features and analytics" onPress={goMembership} Icon={Crown} testID="tile-membership" />
+        <Tile title="Load Templates" subtitle="Manage and reuse load templates" onPress={() => router.push('/load-templates')} Icon={FileText} testID="tile-load-templates" />
+        <Tile title="Shipper Profile" subtitle="Manage company info and settings" onPress={() => router.push('/shipper-profile')} Icon={Settings} testID="tile-shipper-profile" />
+        <Tile title="Membership" subtitle="Upgrade for premium features" onPress={goMembership} Icon={Crown} testID="tile-membership" />
       </ScrollView>
     </View>
   );
