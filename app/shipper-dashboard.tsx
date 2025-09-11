@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, Switch } from 'react-native';
 import SafePill from '@/components/SafePill';
 import SafeLine from '@/components/SafeLine';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,9 +12,6 @@ import { getFirebase } from '@/utils/firebase';
 import { doc, getDocFromServer, onSnapshot, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as Clipboard from 'expo-clipboard';
-import { TextInput, Switch } from 'react-native';
-
-
 
 interface LoadRowProps {
   id: string;
@@ -402,49 +399,28 @@ function MembershipPill({ membership, onManage }: { membership?: UserInfo['membe
   const now = Date.now();
   const expiresMs = expiresAt?.toMillis?.() ?? null;
   const isActive = status === 'active' && !!expiresMs && expiresMs > now;
-  const isExpiredPaid = (plan !== 'free') && !!expiresMs && expiresMs <= now;
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
-  
-  const subtext = isActive
-    ? `Renews ${formatDate(expiresAt)}${provider ? ` • via ${provider}` : ''}`
+  const expiresStr = expiresAt ? formatDate(expiresAt) : null;
+  const isExpiredPaid = plan !== 'free' && !!expiresAt && expiresAt.toMillis() <= Date.now();
+
+  const variant = (isActive ? 'active' : isExpiredPaid ? 'expired' : 'free') as 'active' | 'expired' | 'free';
+  const pillText = isActive
+    ? `${planLabel} • Active`
     : isExpiredPaid
-      ? `Expired ${formatDate(expiresAt)}${provider ? ` • via ${provider}` : ''}`
-      : `Not active${provider ? ` • via ${provider}` : ''}`;
-
-  // Determine pill variant
-  const pillVariant = isActive ? 'active' : isExpiredPaid ? 'expired' : 'free';
-  
-  const pillStyle = pillVariant === 'active' 
-    ? styles.membershipPillActive
-    : pillVariant === 'expired'
-      ? styles.membershipPillExpired
-      : styles.membershipPillFree;
-
-  const textStyle = pillVariant === 'active' 
-    ? styles.membershipPillTextActive
-    : pillVariant === 'expired'
-      ? styles.membershipPillTextExpired
-      : styles.membershipPillTextFree;
-
-  // Icon and label based on variant
-  const getIconAndLabel = () => {
-    if (pillVariant === 'active') {
-      return { icon: '✅', label: `${planLabel} • Active` };
-    } else if (pillVariant === 'expired') {
-      return { icon: '⏰', label: `${planLabel} • Expired` };
-    } else {
-      return { icon: null, label: 'Free' };
-    }
-  };
-
-  const { icon, label } = getIconAndLabel();
+    ? `${planLabel} • Expired`
+    : 'Free';
 
   return (
     <View style={styles.membershipContainer}>
-      <SafePill label={`${icon ? `${icon} ` : ''}${label}`} variant={pillVariant as 'active' | 'expired' | 'free'} />
-      
+      <SafePill label={pillText} variant={variant} />
       <View style={styles.membershipSubtext}>
-        <SafeLine style={styles.membershipRenewal}>{subtext}</SafeLine>
+        <SafeLine style={styles.membershipRenewal}>
+          {isActive
+            ? `Renews ${expiresStr}${provider ? ` • via ${provider}` : ''}`
+            : isExpiredPaid
+            ? `Expired ${expiresStr}${provider ? ` • via ${provider}` : ''}`
+            : `Not active${provider ? ` • via ${provider}` : ''}`}
+        </SafeLine>
         <TouchableOpacity onPress={onManage} style={styles.manageLink}>
           <Text style={styles.manageLinkText}>Manage</Text>
         </TouchableOpacity>
@@ -551,8 +527,8 @@ function MembershipDebugPanel({ membership, loading, uid }: { membership?: UserI
           
           <View style={styles.debugSection}>
             <Text style={styles.debugSectionTitle}>Computed UI State:</Text>
-            <Text style={styles.debugText}>plan: &ldquo;{plan}&rdquo;</Text>
-            <Text style={styles.debugText}>status: &ldquo;{status}&rdquo;</Text>
+            <Text style={styles.debugText}>plan: “{plan}”</Text>
+            <Text style={styles.debugText}>status: “{status}”</Text>
             <Text style={styles.debugText}>isActive: {isActive ? 'true' : 'false'}</Text>
             <Text style={styles.debugText}>isExpiredPaid: {isExpiredPaid ? 'true' : 'false'}</Text>
             <Text style={styles.debugText}>expiresAt: {formatDateForDisplay(membership?.expiresAt ?? null)}</Text>
@@ -868,14 +844,13 @@ function UserInfoRow() {
   // Show default Free/Inactive when no UID
   if (!uid) {
     const planLabel = 'Free';
-    const subtextNoUser = 'Not active';
 
     return (
       <>
         <View style={styles.membershipContainer}>
           <SafePill label="Free" variant="free" />
           <View style={styles.membershipSubtext}>
-            <SafeLine style={styles.membershipRenewal}>{subtextNoUser}</SafeLine>
+            <Text style={styles.membershipRenewal}>Not active</Text>
             <TouchableOpacity onPress={() => router.push('/shipper-membership')} style={styles.manageLink}>
               <Text style={styles.manageLinkText}>Manage</Text>
             </TouchableOpacity>
@@ -903,61 +878,40 @@ function UserInfoRow() {
   const isActive = status === 'active' && !!expiresMs && expiresMs > now;
   const isExpiredPaid = (plan !== 'free') && !!expiresMs && expiresMs <= now;
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
-  
-  const subtext = isActive
-    ? `Renews ${formatDate(expiresAt)}${provider ? ` • via ${provider}` : ''}`
-    : isExpiredPaid
-      ? `Expired ${formatDate(expiresAt)}${provider ? ` • via ${provider}` : ''}`
-      : `Not active${provider ? ` • via ${provider}` : ''}`;
+  const expiresStr = expiresAt ? formatDate(expiresAt) : null;
   
   const statusText = isActive ? 'Active' : isExpiredPaid ? 'Expired' : 'Inactive';
 
-  // Render plan pill
-  const renderPlanPill = () => {
-    if (loading) {
-      // Show neutral gray pill while loading
-      return (
-        <SafePill label="Free" variant="free" />
-      );
-    }
-
-    if (isActive) {
-      // Green pill for active plans
-      return (
-        <SafePill label={`✅ ${planLabel} • Active`} variant="active" />
-      );
-    } else if (isExpiredPaid) {
-      // Amber pill for expired paid plans
-      return (
-        <SafePill label={`⏰ ${planLabel} • Expired`} variant="expired" />
-      );
-    } else {
-      // Gray pill for free
-      return (
-        <SafePill label="Free" variant="free" />
-      );
-    }
-  };
-
   return (
     <>
-      {/* Plan pill */}
       <View style={styles.membershipContainer}>
-        {renderPlanPill()}
-        
-        {/* Subtext */}
+        {(() => {
+          const variant = (isActive ? 'active' : isExpiredPaid ? 'expired' : 'free') as 'active' | 'expired' | 'free';
+          const pillText = isActive
+            ? `${planLabel} • Active`
+            : isExpiredPaid
+            ? `${planLabel} • Expired`
+            : 'Free';
+          return (
+            <SafePill label={pillText} variant={variant} />
+          );
+        })()}
         <View style={styles.membershipSubtext}>
-          <SafeLine style={styles.membershipRenewal}>{subtext}</SafeLine>
+          <SafeLine style={styles.membershipRenewal}>
+            {isActive
+              ? `Renews ${expiresStr}${provider ? ` • via ${provider}` : ''}`
+              : isExpiredPaid
+              ? `Expired ${expiresStr}${provider ? ` • via ${provider}` : ''}`
+              : `Not active${provider ? ` • via ${provider}` : ''}`}
+          </SafeLine>
           <TouchableOpacity onPress={() => router.push('/shipper-membership')} style={styles.manageLink}>
             <Text style={styles.manageLinkText}>Manage</Text>
           </TouchableOpacity>
         </View>
       </View>
       
-      {/* Banner for inactive paid plans */}
       <MembershipBanner membership={userInfo?.membership} />
       
-      {/* Signed-in line */}
       <View style={styles.userInfoRow}>
         <Text style={styles.userInfoText}>
           Signed in: {formatUID(uid)} • Last login: {formatLastLogin()} • Plan: {planLabel} • Status: {statusText}
@@ -968,7 +922,6 @@ function UserInfoRow() {
         </TouchableOpacity>
       </View>
       
-      {/* Membership Debug Panel (dev only) */}
       <MembershipDebugPanel membership={userInfo?.membership} loading={loading} uid={uid} />
       
       {toastVisible && (
@@ -1164,7 +1117,8 @@ export default function ShipperDashboard() {
   
   const handleViewLoad = useCallback((loadId: string) => {
     console.log('Viewing load:', loadId);
-    router.push({ pathname: '/load-details', params: { loadId } });
+    const routerLocal = router; // ensure stable dep
+    routerLocal.push({ pathname: '/load-details', params: { loadId } });
   }, [router]);
   
   const handleEditLoad = useCallback((loadId: string) => {
@@ -1190,9 +1144,7 @@ export default function ShipperDashboard() {
   const isActiveMembership = status === 'active' && !!expiresMs && expiresMs > now;
   
   const handleBulkUpload = useCallback(() => {
-    // Check membership before allowing bulk upload
     if (!isActiveMembership || plan === 'free') {
-      // Show tooltip or navigate to membership page
       router.push('/shipper-membership');
       return;
     }
@@ -1200,16 +1152,12 @@ export default function ShipperDashboard() {
     router.push('/csv-bulk-upload');
   }, [router, isActiveMembership, plan]);
 
-
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Shipper Dashboard</Text>
           <Text style={styles.subtitle}>Manage your loads and track performance</Text>
-          
-          {/* Membership pill - will be replaced by UserInfoRow component */}
           
           <UserInfoRow />
           <TestLoginWriteButton />
@@ -1298,7 +1246,7 @@ export default function ShipperDashboard() {
               <Text style={styles.chartSubtitle}>Last 6 months</Text>
             </View>
             <View style={styles.chart}>
-              {analytics.monthlyRevenue.map((item, index) => {
+              {analytics.monthlyRevenue.map((item) => {
                 const maxRevenue = Math.max(...analytics.monthlyRevenue.map(r => r.revenue));
                 const height = (item.revenue / maxRevenue) * 80;
                 return (
@@ -1375,7 +1323,6 @@ export default function ShipperDashboard() {
               </TouchableOpacity>
             </View>
             
-            {/* Debug button - remove in production */}
             <TouchableOpacity
               style={styles.debugButton}
               onPress={() => router.push('/debug-bulk-upload')}
@@ -1388,7 +1335,7 @@ export default function ShipperDashboard() {
             <View style={styles.emptyState}>
               <Package size={48} color={theme.colors.gray} />
               <Text style={styles.emptyTitle}>No loads posted yet</Text>
-              <Text style={styles.emptySubtitle}>Use the &ldquo;Post New Load&rdquo; button above to get started</Text>
+              <Text style={styles.emptySubtitle}>Use the “Post New Load” button above to get started</Text>
             </View>
           ) : (
             <View style={styles.loadsList}>
@@ -2068,13 +2015,13 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
   },
   membershipPillActive: {
-    backgroundColor: '#059669', // emerald-600
+    backgroundColor: '#059669',
   },
   membershipPillFree: {
-    backgroundColor: '#f3f4f6', // gray-100
+    backgroundColor: '#f3f4f6',
   },
   membershipPillExpired: {
-    backgroundColor: '#fef3c7', // amber-100
+    backgroundColor: '#fef3c7',
   },
   membershipPillIcon: {
     fontSize: 12,
@@ -2090,7 +2037,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   membershipPillTextExpired: {
-    color: '#92400e', // amber-800
+    color: '#92400e',
   },
   membershipSubtext: {
     flexDirection: 'row',
