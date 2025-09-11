@@ -568,6 +568,64 @@ function MembershipDebugPanel({ membership, loading, uid }: { membership?: UserI
   );
 }
 
+function DevActivateProButton() {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const showDevTools = process.env.EXPO_PUBLIC_SHOW_DEV_TOOLS === 'true';
+
+  const handleActivate = async () => {
+    try {
+      setLoading(true);
+      const auth = getAuth();
+      const u = auth.currentUser;
+      if (!u) {
+        setToast('Sign in required');
+        return;
+      }
+      const { db } = getFirebase();
+      const uid = u.uid;
+      const expiresAt = Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await setDoc(doc(db, 'users', uid), {
+        membership: {
+          plan: 'pro',
+          status: 'active',
+          provider: 'manual',
+          lastTxnId: `DEV-${Date.now()}`,
+          startedAt: serverTimestamp(),
+          expiresAt,
+        }
+      }, { merge: true });
+      setToast('✅ Pro activated (dev) — Pill should turn green');
+    } catch (err: any) {
+      console.warn('[DevActivateProButton] Error:', err);
+      setToast(`Failed: ${err?.message ?? 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+      setTimeout(() => setToast(null), 3500);
+    }
+  };
+
+  if (!showDevTools) return null;
+
+  return (
+    <>
+      <TouchableOpacity
+        onPress={handleActivate}
+        style={[styles.devProButton, loading && styles.devProButtonDisabled]}
+        disabled={loading}
+        testID="dev-activate-pro-button"
+      >
+        <Text style={styles.devProButtonText}>{loading ? 'Activating…' : 'Dev: Set Pro Active (30d)'}</Text>
+      </TouchableOpacity>
+      {toast && (
+        <View style={styles.testToast}>
+          <Text style={styles.testToastText}>{toast}</Text>
+        </View>
+      )}
+    </>
+  );
+}
+
 function UpgradeButton() {
   const router = useRouter();
   const showPayments = process.env.EXPO_PUBLIC_ENABLE_PAYMENTS === 'true';
@@ -1182,6 +1240,7 @@ export default function ShipperDashboard() {
           
           <UserInfoRow />
           <TestLoginWriteButton />
+          <DevActivateProButton />
           <LoginHistoryDropdown />
           <MigrateLoadsOwnershipPanel />
           <UpgradeButton />
@@ -2004,6 +2063,22 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
+  },
+  devProButton: {
+    backgroundColor: '#059669',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  devProButtonDisabled: {
+    opacity: 0.6,
+  },
+  devProButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
   },
   membershipContainer: {
     marginTop: theme.spacing.sm,
