@@ -81,6 +81,12 @@ export default function IndexScreen() {
           <TouchableOpacity style={styles.navButton} onPress={handleManualDashboard}>
             <Text style={styles.navButtonText}>Go to Dashboard</Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.navButton, { backgroundColor: theme.colors.secondary }]} 
+            onPress={() => router.push('/api-sanity-check')}
+          >
+            <Text style={styles.navButtonText}>API Health Check</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
