@@ -2,11 +2,12 @@ import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput, Switch } from 'react-native';
 import SafePill from '@/components/SafePill';
 import SafeLine from '@/components/SafeLine';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
 import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2, Crown } from 'lucide-react-native';
-import { useLoads } from '@/hooks/useLoads';
+import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { getFirebase } from '@/utils/firebase';
 import { doc, getDocFromServer, onSnapshot, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp, where, writeBatch, Timestamp } from 'firebase/firestore';
@@ -952,8 +953,11 @@ function LoadRow({ id, title, originCity, destinationCity, rate, status, onView,
 export default function ShipperDashboard() {
   const router = useRouter();
   const { loads } = useLoads();
+  const { deleteLoadWithToast } = useLoadsWithToast();
   const { user, userId } = useAuth();
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
+  const [loadToDelete, setLoadToDelete] = useState<{ id: string; title: string } | null>(null);
   
   // Fetch membership data (server-fresh)
   useEffect(() => {
@@ -1113,8 +1117,31 @@ export default function ShipperDashboard() {
   }, []);
   
   const handleDeleteLoad = useCallback((loadId: string) => {
-    console.log('Deleting load:', loadId);
-    // Implement delete functionality
+    const load = shipperLoads.find(l => l.id === loadId);
+    if (load) {
+      setLoadToDelete({
+        id: loadId,
+        title: load.description || 'Untitled Load'
+      });
+      setDeleteModalVisible(true);
+    }
+  }, [shipperLoads]);
+
+  const confirmDeleteLoad = useCallback(async () => {
+    if (!loadToDelete) return;
+    
+    try {
+      await deleteLoadWithToast(loadToDelete.id);
+      setDeleteModalVisible(false);
+      setLoadToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete load:', error);
+    }
+  }, [loadToDelete, deleteLoadWithToast]);
+
+  const cancelDeleteLoad = useCallback(() => {
+    setDeleteModalVisible(false);
+    setLoadToDelete(null);
   }, []);
   
   const handlePostNewLoad = useCallback(() => {
@@ -1340,6 +1367,18 @@ export default function ShipperDashboard() {
           )}
         </View>
       </ScrollView>
+      
+      <ConfirmationModal
+        visible={deleteModalVisible}
+        title="Delete Load"
+        message={`Are you sure you want to delete "${loadToDelete?.title}"? This will remove the load and update all analytics. This action cannot be undone.`}
+        confirmText="Delete Load"
+        cancelText="Cancel"
+        confirmColor="#ef4444"
+        onConfirm={confirmDeleteLoad}
+        onCancel={cancelDeleteLoad}
+        testID="delete-load-modal"
+      />
     </SafeAreaView>
   );
 }

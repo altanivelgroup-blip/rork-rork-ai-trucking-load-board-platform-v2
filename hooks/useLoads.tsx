@@ -39,6 +39,8 @@ interface LoadsState {
   refreshLoads: () => Promise<void>;
   addLoad: (load: Load) => Promise<void>;
   addLoadsBulk: (incoming: Load[]) => Promise<void>;
+  deleteLoad: (loadId: string) => Promise<void>;
+  deleteCompletedLoad: (loadId: string) => Promise<void>;
 }
 
 export interface LoadsWithToast {
@@ -46,6 +48,8 @@ export interface LoadsWithToast {
   refreshLoadsWithToast: () => Promise<void>;
   addLoadWithToast: (load: Load) => Promise<void>;
   addLoadsBulkWithToast: (incoming: Load[]) => Promise<void>;
+  deleteLoadWithToast: (loadId: string) => Promise<void>;
+  deleteCompletedLoadWithToast: (loadId: string) => Promise<void>;
 }
 
 function haversineMiles(a: GeoPoint, b: GeoPoint): number {
@@ -361,6 +365,81 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
     }
   }, [mergeUniqueById, reviveLoad, isExpired]);
 
+  const deleteLoad = useCallback(async (loadId: string) => {
+    setIsLoading(true);
+    try {
+      if (!online) {
+        console.log('[Loads] Offline: delete will sync later');
+      }
+      
+      // Try Firebase delete first
+      try {
+        const authed = await ensureFirebaseAuth();
+        const { db } = getFirebase();
+        if (authed && db) {
+          const { deleteDoc, doc } = await import('firebase/firestore');
+          await deleteDoc(doc(db, 'loads', loadId));
+          console.log('[Loads] Load deleted from Firebase:', loadId);
+        }
+      } catch (firebaseError) {
+        console.warn('[Loads] Firebase delete failed, continuing with local delete:', firebaseError);
+      }
+      
+      // Remove from local state
+      setLoads(prevLoads => prevLoads.filter(load => load.id !== loadId));
+      
+      // Remove from AsyncStorage
+      try {
+        const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+        if (existingLoads) {
+          const parsedRaw: any[] = JSON.parse(existingLoads);
+          const updated = parsedRaw.filter(load => String(load.id) !== loadId);
+          await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
+          console.log('[Loads] Load removed from AsyncStorage:', loadId);
+        }
+      } catch (storageError) {
+        console.warn('[Loads] Failed to remove from AsyncStorage:', storageError);
+      }
+      
+      console.log('[Loads] Load deleted successfully:', loadId);
+    } catch (error) {
+      console.error('Failed to delete load:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [online]);
+
+  const deleteCompletedLoad = useCallback(async (loadId: string) => {
+    setIsLoading(true);
+    try {
+      // For completed loads, we only remove from local history
+      // Don't delete from Firebase as it affects shipper analytics
+      
+      // Remove from local state
+      setLoads(prevLoads => prevLoads.filter(load => load.id !== loadId));
+      
+      // Remove from accepted loads history
+      try {
+        const acceptedLoads = await AsyncStorage.getItem('acceptedLoads');
+        if (acceptedLoads) {
+          const accepted = JSON.parse(acceptedLoads);
+          const updated = accepted.filter((id: string) => id !== loadId);
+          await AsyncStorage.setItem('acceptedLoads', JSON.stringify(updated));
+        }
+      } catch (storageError) {
+        console.warn('[Loads] Failed to remove from accepted loads history:', storageError);
+      }
+      
+      console.log('[Loads] Completed load removed from history:', loadId);
+    } catch (error) {
+      console.error('Failed to delete completed load:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const setFiltersCallback = useCallback((newFilters: LoadFilters) => {
     setFilters(newFilters);
   }, []);
@@ -589,16 +668,18 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
       refreshLoads,
       addLoad,
       addLoadsBulk,
+      deleteLoad,
+      deleteCompletedLoad,
     };
     return result;
-  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk]);
+  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad]);
 
   return value;
 });
 
 export function useLoadsWithToast(): LoadsWithToast {
   // Always call hooks in the same order
-  const { acceptLoad, refreshLoads, addLoad, addLoadsBulk } = useLoads();
+  const { acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad } = useLoads();
   const { show } = useToast();
   const { online } = useOnlineStatus();
 
@@ -647,10 +728,32 @@ export function useLoadsWithToast(): LoadsWithToast {
     }
   }, [addLoadsBulk, show]);
 
+  const deleteLoadWithToast = useCallback(async (loadId: string) => {
+    try {
+      await deleteLoad(loadId);
+      show('Load deleted', 'success', 1800);
+    } catch (error) {
+      show('Failed to delete load', 'error', 2400);
+      throw error;
+    }
+  }, [deleteLoad, show]);
+
+  const deleteCompletedLoadWithToast = useCallback(async (loadId: string) => {
+    try {
+      await deleteCompletedLoad(loadId);
+      show('Load removed from history', 'success', 1800);
+    } catch (error) {
+      show('Failed to remove load', 'error', 2400);
+      throw error;
+    }
+  }, [deleteCompletedLoad, show]);
+
   return {
     acceptLoadWithToast,
     refreshLoadsWithToast,
     addLoadWithToast,
     addLoadsBulkWithToast,
+    deleteLoadWithToast,
+    deleteCompletedLoadWithToast,
   };
 }

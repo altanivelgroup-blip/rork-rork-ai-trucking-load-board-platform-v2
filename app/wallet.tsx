@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,46 +7,88 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DollarSign, TrendingUp, Download, CreditCard, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
+import { DollarSign, TrendingUp, Download, CreditCard, ArrowUpRight, ArrowDownRight, Trash2 } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
+import ConfirmationModal from '@/components/ConfirmationModal';
 
 import { Link } from 'expo-router';
 
+const mockTransactions = [
+  {
+    id: 'withdrawal-1',
+    amount: -500,
+    type: 'withdrawal' as const,
+    description: 'Bank Transfer',
+    date: new Date('2025-01-14'),
+    isLoad: false,
+  },
+  {
+    id: 'fee-1',
+    amount: -50,
+    type: 'fee' as const,
+    description: 'Platform Fee',
+    date: new Date('2025-01-12'),
+    isLoad: false,
+  },
+];
+
 export default function WalletScreen() {
   const { user } = useAuth();
+  const { loads } = useLoads();
+  const { deleteCompletedLoadWithToast } = useLoadsWithToast();
   const wallet = user?.wallet;
+  const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<{ id: string; description: string } | null>(null);
 
-  const mockTransactions = [
-    {
-      id: '1',
-      amount: 2800,
+  // Get completed loads for this driver
+  const completedLoads = useMemo(() => {
+    return loads.filter(load => 
+      load.status === 'delivered' && 
+      load.assignedDriverId === user?.id
+    );
+  }, [loads, user?.id]);
+
+  // Convert completed loads to transaction format
+  const loadTransactions = useMemo(() => {
+    return completedLoads.map(load => ({
+      id: load.id,
+      amount: load.rate || 0,
       type: 'earning' as const,
-      description: 'Load #1234 - LA to Phoenix',
-      date: new Date('2025-01-15'),
-    },
-    {
-      id: '2',
-      amount: -500,
-      type: 'withdrawal' as const,
-      description: 'Bank Transfer',
-      date: new Date('2025-01-14'),
-    },
-    {
-      id: '3',
-      amount: 3500,
-      type: 'earning' as const,
-      description: 'Load #1233 - SF to Portland',
-      date: new Date('2025-01-13'),
-    },
-    {
-      id: '4',
-      amount: -50,
-      type: 'fee' as const,
-      description: 'Platform Fee',
-      date: new Date('2025-01-12'),
-    },
-  ];
+      description: `${load.description || 'Load'} - ${load.origin?.city || 'Unknown'} to ${load.destination?.city || 'Unknown'}`,
+      date: load.deliveryDate ? new Date(load.deliveryDate) : new Date(),
+      isLoad: true,
+    }));
+  }, [completedLoads]);
+
+  // Combine and sort all transactions
+  const allTransactions = useMemo(() => {
+    return [...loadTransactions, ...mockTransactions]
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [loadTransactions]);
+
+  const handleDeleteTransaction = useCallback((transactionId: string, description: string) => {
+    setTransactionToDelete({ id: transactionId, description });
+    setDeleteModalVisible(true);
+  }, []);
+
+  const confirmDeleteTransaction = useCallback(async () => {
+    if (!transactionToDelete) return;
+    
+    try {
+      await deleteCompletedLoadWithToast(transactionToDelete.id);
+      setDeleteModalVisible(false);
+      setTransactionToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete completed load:', error);
+    }
+  }, [transactionToDelete, deleteCompletedLoadWithToast]);
+
+  const cancelDeleteTransaction = useCallback(() => {
+    setDeleteModalVisible(false);
+    setTransactionToDelete(null);
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -108,7 +150,7 @@ export default function WalletScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Transactions</Text>
           
-          {mockTransactions.map((transaction) => (
+          {allTransactions.map((transaction) => (
             <View key={transaction.id} style={styles.transactionCard}>
               <View style={styles.transactionIcon}>
                 {transaction.type === 'earning' ? (
@@ -137,6 +179,16 @@ export default function WalletScreen() {
               >
                 {transaction.type === 'earning' ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
               </Text>
+              
+              {(transaction as any).isLoad && (
+                <TouchableOpacity
+                  onPress={() => handleDeleteTransaction(transaction.id, transaction.description)}
+                  style={styles.deleteButton}
+                  testID={`delete-transaction-${transaction.id}`}
+                >
+                  <Trash2 size={16} color="#ef4444" />
+                </TouchableOpacity>
+              )}
             </View>
           ))}
         </View>
@@ -163,6 +215,18 @@ export default function WalletScreen() {
           </View>
         </View>
       </ScrollView>
+      
+      <ConfirmationModal
+        visible={deleteModalVisible}
+        title="Remove Load from History"
+        message={`Are you sure you want to remove "${transactionToDelete?.description}" from your wallet history? This will clean up your earnings view but won't affect the shipper's records.`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        confirmColor="#ef4444"
+        onConfirm={confirmDeleteTransaction}
+        onCancel={cancelDeleteTransaction}
+        testID="delete-transaction-modal"
+      />
     </SafeAreaView>
   );
 }
@@ -294,6 +358,7 @@ const styles = StyleSheet.create({
   transactionAmount: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
+    marginRight: theme.spacing.sm,
   },
   amountPositive: {
     color: theme.colors.success,
@@ -347,5 +412,10 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
     textAlign: 'center',
+  },
+  deleteButton: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: '#fef2f2',
   },
 });
