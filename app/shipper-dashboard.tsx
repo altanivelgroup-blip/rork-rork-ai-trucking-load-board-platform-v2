@@ -539,6 +539,21 @@ function MembershipDebugPanel({ membership, loading, uid }: { membership?: UserI
   );
 }
 
+function TestPillsPreview() {
+  const showDevTools = process.env.EXPO_PUBLIC_SHOW_DEV_TOOLS === 'true';
+  if (!showDevTools) return null;
+  return (
+    <View style={styles.testPillsContainer} testID="test-pills-preview">
+      <SafeLine style={styles.testPillsTitle}>Pill Preview (test-only)</SafeLine>
+      <View style={styles.testPillsRow}>
+        <SafePill color={'green'} label={'Pro • Active'} />
+        <SafePill color={'amber'} label={'Pro • Expired'} />
+        <SafePill color={'gray'} label={'Free • Inactive'} />
+      </View>
+    </View>
+  );
+}
+
 function DevActivateProButton() {
   const [loading, setLoading] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -1140,6 +1155,7 @@ export default function ShipperDashboard() {
           <UserInfoRow />
           <TestLoginWriteButton />
           <DevActivateProButton />
+          <TestPillsPreview />
           <LoginHistoryDropdown />
           <MigrateLoadsOwnershipPanel />
           <UpgradeButton />
@@ -2118,6 +2134,22 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: theme.spacing.sm,
     overflow: 'hidden',
+  },
+  testPillsContainer: {
+    marginTop: theme.spacing.xs,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  testPillsTitle: {
+    marginBottom: theme.spacing.xs,
+  },
+  testPillsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    alignItems: 'center',
   },
   debugPanel: {
     backgroundColor: '#fef3c7',
