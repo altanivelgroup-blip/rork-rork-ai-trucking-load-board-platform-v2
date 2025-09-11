@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2, Crown } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2, Crown, Settings } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { getFirebase } from '@/utils/firebase';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as Clipboard from 'expo-clipboard';
 import { TextInput, Switch } from 'react-native';
@@ -32,6 +32,14 @@ interface UserInfo {
   authCreationTime?: string | null;
   isAnonymous?: boolean;
   device?: string;
+  membership?: {
+    plan?: 'free' | 'pro' | 'enterprise';
+    status?: 'active' | 'inactive' | 'canceled';
+    expiresAt?: Timestamp | null;
+    provider?: string;
+    lastTxnId?: string;
+    startedAt?: Timestamp;
+  };
 }
 
 interface LoginHistoryItem {
@@ -368,6 +376,91 @@ function MigrateLoadsOwnershipPanel() {
   );
 }
 
+function MembershipPill({ membership, onManage }: { membership?: UserInfo['membership']; onManage: () => void }) {
+  const formatDate = (timestamp: Timestamp | null) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate();
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const plan = membership?.plan || 'free';
+  const status = membership?.status || 'inactive';
+  const expiresAt = membership?.expiresAt;
+  const provider = membership?.provider;
+
+  const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
+  const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+  
+  const renewalText = isActive 
+    ? `Renews ${formatDate(expiresAt)}`
+    : expiresAt 
+      ? `Expired ${formatDate(expiresAt)}`
+      : 'Not active';
+
+  const pillStyle = isActive 
+    ? styles.membershipPillActive
+    : plan === 'free'
+      ? styles.membershipPillFree
+      : styles.membershipPillExpired;
+
+  const textStyle = isActive 
+    ? styles.membershipPillTextActive
+    : plan === 'free'
+      ? styles.membershipPillTextFree
+      : styles.membershipPillTextExpired;
+
+  return (
+    <View style={styles.membershipContainer}>
+      <View style={[styles.membershipPill, pillStyle]}>
+        <Text style={[styles.membershipPillText, textStyle]}>
+          {planLabel}{isActive ? ' • Active' : plan !== 'free' ? ' • Expired' : ''}
+        </Text>
+      </View>
+      
+      <View style={styles.membershipSubtext}>
+        <Text style={styles.membershipRenewal}>
+          {renewalText}{provider ? ` • via ${provider}` : ''}
+        </Text>
+        <TouchableOpacity onPress={onManage} style={styles.manageLink}>
+          <Text style={styles.manageLinkText}>Manage</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function MembershipBanner({ membership }: { membership?: UserInfo['membership'] }) {
+  const router = useRouter();
+  const plan = membership?.plan || 'free';
+  const status = membership?.status || 'inactive';
+  const expiresAt = membership?.expiresAt;
+  
+  const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
+  const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+  
+  if (isActive || plan === 'free') {
+    return null;
+  }
+
+  return (
+    <View style={styles.membershipBanner}>
+      <Text style={styles.membershipBannerText}>
+        Your {planLabel} plan is not active. Tap Manage to renew.
+      </Text>
+      <TouchableOpacity 
+        onPress={() => router.push('/shipper-membership')}
+        style={styles.membershipBannerButton}
+      >
+        <Text style={styles.membershipBannerButtonText}>Manage</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function UpgradeButton() {
   const router = useRouter();
   const showPayments = process.env.EXPO_PUBLIC_ENABLE_PAYMENTS === 'true';
@@ -471,6 +564,7 @@ function UserInfoRow() {
   const [loading, setLoading] = useState(true);
   const [toastVisible, setToastVisible] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
+  const router = useRouter();
 
   useEffect(() => {
     // Get current Firebase user
@@ -557,11 +651,30 @@ function UserInfoRow() {
     return null;
   }
 
+  const plan = userInfo?.membership?.plan || 'free';
+  const status = userInfo?.membership?.status || 'inactive';
+  const expiresAt = userInfo?.membership?.expiresAt;
+  const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
+  const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+  
+  const renewalText = isActive 
+    ? `Renews ${expiresAt?.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    : expiresAt 
+      ? `Expired ${expiresAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : 'Not active';
+
   return (
     <>
+      <MembershipPill 
+        membership={userInfo?.membership} 
+        onManage={() => router.push('/shipper-membership')}
+      />
+      
+      <MembershipBanner membership={userInfo?.membership} />
+      
       <View style={styles.userInfoRow}>
         <Text style={styles.userInfoText}>
-          Signed in: {formatUID(uid)} • Last login: {formatLastLogin()}
+          Signed in: {formatUID(uid)} • Last login: {formatLastLogin()} • Plan: {planLabel} • {renewalText}
         </Text>
         <TouchableOpacity onPress={handleCopyUID} style={styles.copyButton} testID="copy-uid-button">
           <Copy size={12} color={theme.colors.gray} />
@@ -612,6 +725,34 @@ export default function ShipperDashboard() {
   const router = useRouter();
   const { loads } = useLoads();
   const { user, userId } = useAuth();
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [membershipLoading, setMembershipLoading] = useState(true);
+  
+  // Fetch membership data
+  useEffect(() => {
+    async function fetchMembership() {
+      const uid = userId || user?.id;
+      if (!uid) {
+        setMembershipLoading(false);
+        return;
+      }
+
+      try {
+        const { db } = getFirebase();
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        
+        if (userDoc.exists()) {
+          setUserInfo(userDoc.data() as UserInfo);
+        }
+      } catch (error) {
+        console.warn('[ShipperDashboard] Failed to fetch membership:', error);
+      } finally {
+        setMembershipLoading(false);
+      }
+    }
+
+    fetchMembership();
+  }, [userId, user?.id]);
   
   const shipperLoads = useMemo(() => {
     const uid = userId || user?.id || null;
@@ -726,8 +867,20 @@ export default function ShipperDashboard() {
   }, [router]);
   
   const handleBulkUpload = useCallback(() => {
+    // Check membership before allowing bulk upload
+    const plan = userInfo?.membership?.plan || 'free';
+    const status = userInfo?.membership?.status || 'inactive';
+    const expiresAt = userInfo?.membership?.expiresAt;
+    const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
+    
+    if (!isActive || plan === 'free') {
+      // Show tooltip or navigate to membership page
+      router.push('/shipper-membership');
+      return;
+    }
+    
     router.push('/csv-bulk-upload');
-  }, [router]);
+  }, [router, userInfo?.membership]);
 
   const handleUpgrade = useCallback(() => {
     router.push('/upgrade');
@@ -868,12 +1021,44 @@ export default function ShipperDashboard() {
         
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your Loads</Text>
+            <View style={styles.sectionTitleContainer}>
+              <Text style={styles.sectionTitle}>Your Loads</Text>
+              {(() => {
+                const plan = userInfo?.membership?.plan || 'free';
+                const status = userInfo?.membership?.status || 'inactive';
+                const expiresAt = userInfo?.membership?.expiresAt;
+                const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
+                
+                if (isActive && plan === 'pro') {
+                  return <Text style={styles.loadsBadge}>Pro: 50 loads/mo</Text>;
+                }
+                return <Text style={styles.loadsBadge}>Free: 3 loads/mo</Text>;
+              })()} 
+            </View>
             <View style={styles.actionButtons}>
-              <TouchableOpacity onPress={handleBulkUpload} style={styles.bulkBtn}>
-                <Upload size={16} color={theme.colors.white} />
-                <Text style={styles.bulkBtnText}>Bulk Upload</Text>
-              </TouchableOpacity>
+              {(() => {
+                const plan = userInfo?.membership?.plan || 'free';
+                const status = userInfo?.membership?.status || 'inactive';
+                const expiresAt = userInfo?.membership?.expiresAt;
+                const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
+                const canUseBulkUpload = isActive && plan !== 'free';
+                
+                return (
+                  <View style={styles.bulkUploadContainer}>
+                    <TouchableOpacity 
+                      onPress={handleBulkUpload} 
+                      style={[styles.bulkBtn, !canUseBulkUpload && styles.bulkBtnDisabled]}
+                      disabled={!canUseBulkUpload}
+                    >
+                      <Upload size={16} color={theme.colors.white} />
+                      <Text style={styles.bulkBtnText}>Bulk Upload</Text>
+                    </TouchableOpacity>
+                    {!canUseBulkUpload && (
+                      <Text style={styles.bulkUploadNote}>Bulk Upload is available on Pro or Enterprise</Text>
+                    )}
+                  </View>
+                );
+              })()} 
               <TouchableOpacity onPress={handlePostNewLoad} style={styles.postBtn}>
                 <Text style={styles.postBtnText}>Post New Load</Text>
               </TouchableOpacity>
@@ -1540,5 +1725,110 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
+  },
+  membershipContainer: {
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  membershipPill: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+    marginBottom: theme.spacing.xs,
+  },
+  membershipPillActive: {
+    backgroundColor: '#dcfce7',
+  },
+  membershipPillFree: {
+    backgroundColor: '#f3f4f6',
+  },
+  membershipPillExpired: {
+    backgroundColor: '#fef3c7',
+  },
+  membershipPillText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+  },
+  membershipPillTextActive: {
+    color: '#16a34a',
+  },
+  membershipPillTextFree: {
+    color: '#6b7280',
+  },
+  membershipPillTextExpired: {
+    color: '#d97706',
+  },
+  membershipSubtext: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  membershipRenewal: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  manageLink: {
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+  },
+  manageLinkText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  membershipBanner: {
+    backgroundColor: '#fef3c7',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  membershipBannerText: {
+    fontSize: theme.fontSize.sm,
+    color: '#92400e',
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  membershipBannerButton: {
+    backgroundColor: '#d97706',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+  },
+  membershipBannerButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+  },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  loadsBadge: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    backgroundColor: theme.colors.lightGray,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+  },
+  bulkUploadContainer: {
+    alignItems: 'center',
+  },
+  bulkBtnDisabled: {
+    backgroundColor: '#9ca3af',
+    opacity: 0.6,
+  },
+  bulkUploadNote: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginTop: 2,
+    textAlign: 'center',
+    maxWidth: 120,
   },
 });
