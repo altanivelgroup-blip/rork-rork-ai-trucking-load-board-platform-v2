@@ -83,12 +83,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     
     const setupFirebaseAuth = async () => {
       try {
-        // Only setup Firebase after initial load is complete
-        if (!isInitialized) {
-          console.log('[auth] Waiting for initialization...');
-          return;
-        }
-        
         console.log('[auth] Setting up Firebase auth...');
         await ensureFirebaseAuth();
         
@@ -119,7 +113,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
     };
     
-    setupFirebaseAuth();
+    // Only setup Firebase after initialization is complete
+    if (isInitialized) {
+      setupFirebaseAuth();
+    }
     
     return () => {
       isMounted = false;

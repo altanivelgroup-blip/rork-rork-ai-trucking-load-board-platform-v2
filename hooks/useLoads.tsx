@@ -680,17 +680,16 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
 export const LoadsProvider = LoadsProviderInternal;
 
 export function useLoads(): LoadsState {
-  try {
-    const context = useLoadsInternal();
-    if (!context) {
-      console.warn('[useLoads] Context is null, returning default state');
-      return getDefaultLoadsState();
-    }
-    return context;
-  } catch (error) {
-    console.error('[useLoads] Error accessing context:', error);
+  // Always call the hook first to maintain hook order
+  const context = useLoadsInternal();
+  
+  // Then handle the error cases
+  if (!context) {
+    console.warn('[useLoads] Context is null, returning default state');
     return getDefaultLoadsState();
   }
+  
+  return context;
 }
 
 function getDefaultLoadsState(): LoadsState {
