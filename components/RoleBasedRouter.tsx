@@ -61,11 +61,18 @@ export function RoleBasedRouter({ children }: { children: React.ReactNode }) {
     }
 
     // Ensure users are in the correct dashboard for their role
-    // Allow shippers to access shipper-specific tabs, but redirect from driver-only tabs
+    // Redirect shippers from dashboard to shipper page, and from driver-only tabs
     if (user.role === 'shipper' && inTabsGroup) {
       const segmentsArray = Array.from(segments);
       const currentTab = segmentsArray.length > 1 ? segmentsArray[1] : null; // Get the specific tab name
-      const shipperAllowedTabs = ['dashboard', 'shipper', 'shipper-post', 'shipper-analytics', 'profile'];
+      const shipperAllowedTabs = ['shipper', 'shipper-post', 'shipper-analytics', 'profile'];
+      
+      // Redirect shippers from dashboard to shipper page
+      if (currentTab === 'dashboard') {
+        console.log('[RoleBasedRouter] Shipper accessing dashboard, redirecting to shipper page');
+        router.replace('/(tabs)/shipper');
+        return;
+      }
       
       if (currentTab && !shipperAllowedTabs.includes(currentTab)) {
         console.log('[RoleBasedRouter] Shipper accessing driver-only tab, redirecting to shipper page');

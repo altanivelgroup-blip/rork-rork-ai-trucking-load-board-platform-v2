@@ -11,7 +11,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      initialRouteName="dashboard"
+      initialRouteName={isShipper ? "shipper" : "dashboard"}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -27,13 +27,16 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: isDriver ? 'Dashboard' : isShipper ? 'Dashboard' : 'Home',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-        }}
-      />
+      {/* Dashboard tab - only show for drivers */}
+      {isDriver && (
+        <Tabs.Screen
+          name="dashboard"
+          options={{
+            title: 'Dashboard',
+            tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+          }}
+        />
+      )}
       
       {/* Driver-specific tabs */}
       {isDriver && (
@@ -90,10 +93,18 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Hidden tabs - only hide shipper tab for non-shippers */}
+      {/* Hidden tabs */}
       {!isShipper && (
         <Tabs.Screen
           name="shipper"
+          options={{
+            href: null,
+          }}
+        />
+      )}
+      {!isDriver && (
+        <Tabs.Screen
+          name="dashboard"
           options={{
             href: null,
           }}
