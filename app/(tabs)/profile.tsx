@@ -187,7 +187,7 @@ export default function ProfileScreen() {
     }
   ];
 
-  const profileOptions = isDriver ? [...driverOptions, ...commonOptions] : [...shipperOptions, ...commonOptions];
+  const profileOptions = isDriver ? [...driverOptions, ...commonOptions] : isShipper ? [...shipperOptions, ...commonOptions] : commonOptions;
 
   const handleOptionPress = (option: ProfileOption) => {
     if (option.action) {
@@ -209,7 +209,7 @@ export default function ProfileScreen() {
             <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
-                {isDriver ? 'Driver' : isShipper ? 'Shipper' : 'User'}
+                {isDriver ? 'DRIVER' : isShipper ? 'SHIPPER' : 'USER'}
               </Text>
             </View>
             {user?.company && (
