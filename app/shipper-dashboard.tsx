@@ -1176,23 +1176,13 @@ export default function ShipperDashboard() {
         <TouchableOpacity onPress={handleGoBack} style={styles.backButton} testID="back-button">
           <ArrowLeft size={24} color={theme.colors.dark} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Analytics Dashboard</Text>
+        <Text style={styles.headerTitle}>Shipper Dashboard</Text>
         <View style={styles.headerSpacer} />
       </View>
       
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Shipper Dashboard</Text>
           <Text style={styles.subtitle}>Manage your loads and track performance</Text>
-          
-          {/* Quick Navigation to Shipper Page */}
-          <TouchableOpacity 
-            onPress={() => router.push('/(tabs)/shipper')}
-            style={styles.quickNavButton}
-            testID="go-to-shipper-page"
-          >
-            <Text style={styles.quickNavButtonText}>← Back to Main Shipper Page</Text>
-          </TouchableOpacity>
           
           <UserInfoRow />
           <TestLoginWriteButton />
