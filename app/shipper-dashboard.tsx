@@ -387,20 +387,22 @@ function MembershipPill({ membership, onManage }: { membership?: UserInfo['membe
     });
   };
 
-  const plan = membership?.plan || 'free';
-  const status = membership?.status || 'inactive';
-  const expiresAt = membership?.expiresAt;
-  const provider = membership?.provider;
+  const plan = membership?.plan ?? 'free';
+  const status = membership?.status ?? (plan === 'free' ? 'inactive' : 'inactive');
+  const expiresAt = membership?.expiresAt ?? null;
+  const provider = membership?.provider ?? null;
 
-  const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
-  const isExpiredPaid = plan !== 'free' && expiresAt && expiresAt.toMillis() <= Date.now();
+  const now = Date.now();
+  const expiresMs = expiresAt?.toMillis?.() ?? null;
+  const isActive = status === 'active' && !!expiresMs && expiresMs > now;
+  const isExpiredPaid = (plan !== 'free') && !!expiresMs && expiresMs <= now;
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
   
-  const renewalText = isActive 
-    ? `Renews ${formatDate(expiresAt)}`
-    : expiresAt 
-      ? `Expired ${formatDate(expiresAt)}`
-      : 'Not active';
+  const subtext = isActive
+    ? `Renews ${formatDate(expiresAt)}${provider ? ` • via ${provider}` : ''}`
+    : isExpiredPaid
+      ? `Expired ${formatDate(expiresAt)}${provider ? ` • via ${provider}` : ''}`
+      : `Not active${provider ? ` • via ${provider}` : ''}`;
 
   // Determine pill variant
   const pillVariant = isActive ? 'active' : isExpiredPaid ? 'expired' : 'free';
@@ -441,7 +443,7 @@ function MembershipPill({ membership, onManage }: { membership?: UserInfo['membe
       
       <View style={styles.membershipSubtext}>
         <Text style={styles.membershipRenewal}>
-          {renewalText}{provider ? ` • via ${provider}` : ''}
+          {subtext}
         </Text>
         <TouchableOpacity onPress={onManage} style={styles.manageLink}>
           <Text style={styles.manageLinkText}>Manage</Text>
@@ -669,17 +671,16 @@ function UserInfoRow() {
     return null;
   }
 
-  const plan = userInfo?.membership?.plan || 'free';
-  const status = userInfo?.membership?.status || 'inactive';
-  const expiresAt = userInfo?.membership?.expiresAt;
-  const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
+  const plan = userInfo?.membership?.plan ?? 'free';
+  const status = userInfo?.membership?.status ?? 'inactive';
+  const expiresAt = userInfo?.membership?.expiresAt ?? null;
+  const now = Date.now();
+  const expiresMs = expiresAt?.toMillis?.() ?? null;
+  const isActive = status === 'active' && !!expiresMs && expiresMs > now;
+  const isExpiredPaid = (plan !== 'free') && !!expiresMs && expiresMs <= now;
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
   
-  const renewalText = isActive 
-    ? `Renews ${expiresAt?.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-    : expiresAt 
-      ? `Expired ${expiresAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-      : 'Not active';
+  const statusText = isActive ? 'Active' : isExpiredPaid ? 'Expired' : 'Inactive';
 
   return (
     <>
@@ -692,7 +693,7 @@ function UserInfoRow() {
       
       <View style={styles.userInfoRow}>
         <Text style={styles.userInfoText}>
-          Signed in: {formatUID(uid)} • Last login: {formatLastLogin()} • Plan: {planLabel} • {renewalText}
+          Signed in: {formatUID(uid)} • Last login: {formatLastLogin()} • Plan: {planLabel} • Status: {statusText}
         </Text>
         <TouchableOpacity onPress={handleCopyUID} style={styles.copyButton} testID="copy-uid-button">
           <Copy size={12} color={theme.colors.gray} />
@@ -884,29 +885,28 @@ export default function ShipperDashboard() {
     router.push('/post-load');
   }, [router]);
   
+  // Compute membership status for gating features
+  const plan = userInfo?.membership?.plan ?? 'free';
+  const status = userInfo?.membership?.status ?? 'inactive';
+  const expiresAt = userInfo?.membership?.expiresAt ?? null;
+  const now = Date.now();
+  const expiresMs = expiresAt?.toMillis?.() ?? null;
+  const isActiveMembership = status === 'active' && !!expiresMs && expiresMs > now;
+  
   const handleBulkUpload = useCallback(() => {
     // Check membership before allowing bulk upload
-    const plan = userInfo?.membership?.plan || 'free';
-    const status = userInfo?.membership?.status || 'inactive';
-    const expiresAt = userInfo?.membership?.expiresAt;
-    const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
-    
-    if (!isActive || plan === 'free') {
+    if (!isActiveMembership || plan === 'free') {
       // Show tooltip or navigate to membership page
       router.push('/shipper-membership');
       return;
     }
     
     router.push('/csv-bulk-upload');
-  }, [router, userInfo?.membership]);
+  }, [router, isActiveMembership, plan]);
 
   const handleUpgrade = useCallback(() => {
     router.push('/upgrade');
   }, [router]);
-  
-  // Get membership status for simple display
-  const plan = userInfo?.membership?.plan ?? "free";
-  const status = userInfo?.membership?.status ?? "inactive";
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -915,10 +915,7 @@ export default function ShipperDashboard() {
           <Text style={styles.title}>Shipper Dashboard</Text>
           <Text style={styles.subtitle}>Manage your loads and track performance</Text>
           
-          {/* Simple membership status display */}
-          <Text style={status === "active" ? styles.pillGreen : styles.pillGray}>
-            {plan.charAt(0).toUpperCase() + plan.slice(1)} • {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Text>
+          {/* Membership pill - will be replaced by UserInfoRow component */}
           
           <UserInfoRow />
           <TestLoginWriteButton />
@@ -1052,12 +1049,7 @@ export default function ShipperDashboard() {
             <View style={styles.sectionTitleContainer}>
               <Text style={styles.sectionTitle}>Your Loads</Text>
               {(() => {
-                const plan = userInfo?.membership?.plan || 'free';
-                const status = userInfo?.membership?.status || 'inactive';
-                const expiresAt = userInfo?.membership?.expiresAt;
-                const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
-                
-                if (isActive && plan === 'pro') {
+                if (isActiveMembership && plan === 'pro') {
                   return <Text style={styles.loadsBadge}>Pro: 50 loads/mo</Text>;
                 }
                 return <Text style={styles.loadsBadge}>Free: 3 loads/mo</Text>;
@@ -1065,11 +1057,7 @@ export default function ShipperDashboard() {
             </View>
             <View style={styles.actionButtons}>
               {(() => {
-                const plan = userInfo?.membership?.plan || 'free';
-                const status = userInfo?.membership?.status || 'inactive';
-                const expiresAt = userInfo?.membership?.expiresAt;
-                const isActive = status === 'active' && expiresAt && expiresAt.toMillis() > Date.now();
-                const canUseBulkUpload = isActive && plan !== 'free';
+                const canUseBulkUpload = isActiveMembership && plan !== 'free';
                 
                 return (
                   <View style={styles.bulkUploadContainer}>
@@ -1769,13 +1757,13 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
   },
   membershipPillActive: {
-    backgroundColor: '#059669',
+    backgroundColor: '#059669', // emerald-600
   },
   membershipPillFree: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f3f4f6', // gray-100
   },
   membershipPillExpired: {
-    backgroundColor: '#fbbf24',
+    backgroundColor: '#fef3c7', // amber-100
   },
   membershipPillIcon: {
     fontSize: 12,
@@ -1791,7 +1779,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   membershipPillTextExpired: {
-    color: theme.colors.white,
+    color: '#92400e', // amber-800
   },
   membershipSubtext: {
     flexDirection: 'row',
