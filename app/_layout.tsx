@@ -178,6 +178,7 @@ function RootLayoutNav() {
       <Stack.Screen name="dev-bulk-tools" options={{ title: "Bulk Tools (Dev)" }} />
       <Stack.Screen name="csv-bulk-upload" options={{ title: "CSV Bulk Upload" }} />
       <Stack.Screen name="debug-bulk-upload" options={{ title: "Debug Bulk Upload" }} />
+      <Stack.Screen name="upgrade" options={{ title: "Upgrade Membership" }} />
     </Stack>
   );
 }

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2 } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2, Crown } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { getFirebase } from '@/utils/firebase';
@@ -368,6 +368,26 @@ function MigrateLoadsOwnershipPanel() {
   );
 }
 
+function UpgradeButton() {
+  const router = useRouter();
+  const showPayments = process.env.EXPO_PUBLIC_ENABLE_PAYMENTS === 'true';
+  
+  if (!showPayments) {
+    return null;
+  }
+
+  return (
+    <TouchableOpacity 
+      onPress={() => router.push('/upgrade')}
+      style={styles.upgradeButton}
+      testID="upgrade-button"
+    >
+      <Crown size={16} color={theme.colors.white} />
+      <Text style={styles.upgradeButtonText}>Upgrade Membership</Text>
+    </TouchableOpacity>
+  );
+}
+
 function TestLoginWriteButton() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -708,6 +728,10 @@ export default function ShipperDashboard() {
   const handleBulkUpload = useCallback(() => {
     router.push('/csv-bulk-upload');
   }, [router]);
+
+  const handleUpgrade = useCallback(() => {
+    router.push('/upgrade');
+  }, [router]);
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -719,6 +743,7 @@ export default function ShipperDashboard() {
           <TestLoginWriteButton />
           <LoginHistoryDropdown />
           <MigrateLoadsOwnershipPanel />
+          <UpgradeButton />
         </View>
         
         <View style={styles.statsGrid}>
@@ -1499,5 +1524,21 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  upgradeButton: {
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  upgradeButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
   },
 });

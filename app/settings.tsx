@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert } from 'react-native';
 import { Stack, Link } from 'expo-router';
-import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info, Phone } from 'lucide-react-native';
+import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info, Phone, Crown } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -165,6 +165,19 @@ export default function SettingsScreen() {
 
         <SectionTitle>Billing & Payments</SectionTitle>
         <View style={styles.card}>
+          {process.env.EXPO_PUBLIC_ENABLE_PAYMENTS === 'true' && (
+            <Link href="/upgrade" asChild>
+              <TouchableOpacity style={styles.row} testID="settings-upgrade">
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconWrap}><Crown color={theme.colors.primary} size={20} /></View>
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowTitle}>Upgrade Membership</Text>
+                    <Text style={styles.rowSubtitle}>Unlock premium features and benefits</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </Link>
+          )}
           <Link href="/payment-methods" asChild>
             <TouchableOpacity style={styles.row} testID="settings-payment-methods">
               <View style={styles.rowLeft}>
