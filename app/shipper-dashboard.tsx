@@ -841,25 +841,17 @@ function UserInfoRow() {
 
   const uid = userId || firebaseUser?.uid;
   
-  // Show default Free/Inactive when no UID
+  // Show default when no UID — status block must only use SafeLine/SafePill
   if (!uid) {
-    const planLabel = 'Free';
-
     return (
       <>
-        <View style={styles.membershipContainer}>
-          <SafePill label="Free" variant="free" />
-          <View style={styles.membershipSubtext}>
-            <Text style={styles.membershipRenewal}>Not active</Text>
-            <TouchableOpacity onPress={() => router.push('/shipper-membership')} style={styles.manageLink}>
-              <Text style={styles.manageLinkText}>Manage</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.statusBlock}>
+          <SafeLine>No UID — Not active</SafeLine>
         </View>
 
         <View style={styles.userInfoRow}>
           <Text style={styles.userInfoText}>
-            Signed in: Guest • Last login: Unknown • Plan: {planLabel} • Status: Inactive
+            Signed in: Guest • Last login: Unknown • Plan: Free • Status: Inactive
           </Text>
         </View>
 
@@ -884,30 +876,16 @@ function UserInfoRow() {
 
   return (
     <>
-      <View style={styles.membershipContainer}>
+      <View style={styles.statusBlock}>
         {(() => {
-          const variant = (isActive ? 'active' : isExpiredPaid ? 'expired' : 'free') as 'active' | 'expired' | 'free';
-          const pillText = isActive
-            ? `${planLabel} • Active`
-            : isExpiredPaid
-            ? `${planLabel} • Expired`
-            : 'Free';
+          const color = plan === 'enterprise' && isActive ? 'blue' : (isActive ? 'green' : 'gray');
+          const pillText = userInfo?.membership?.plan
+            ? `${planLabel} • ${status.charAt(0).toUpperCase() + status.slice(1)}`
+            : 'Free • Inactive';
           return (
-            <SafePill label={pillText} variant={variant} />
+            <SafePill color={color as any} label={pillText} />
           );
         })()}
-        <View style={styles.membershipSubtext}>
-          <SafeLine style={styles.membershipRenewal}>
-            {isActive
-              ? `Renews ${expiresStr}${provider ? ` • via ${provider}` : ''}`
-              : isExpiredPaid
-              ? `Expired ${expiresStr}${provider ? ` • via ${provider}` : ''}`
-              : `Not active${provider ? ` • via ${provider}` : ''}`}
-          </SafeLine>
-          <TouchableOpacity onPress={() => router.push('/shipper-membership')} style={styles.manageLink}>
-            <Text style={styles.manageLinkText}>Manage</Text>
-          </TouchableOpacity>
-        </View>
       </View>
       
       <MembershipBanner membership={userInfo?.membership} />
@@ -2001,6 +1979,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   membershipContainer: {
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  statusBlock: {
+    flexDirection: 'column',
+    gap: 4,
     marginTop: theme.spacing.sm,
     marginBottom: theme.spacing.xs,
   },
