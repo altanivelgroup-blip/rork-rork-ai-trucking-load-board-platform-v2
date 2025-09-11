@@ -1,30 +1,31 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Driver } from '@/types';
+import { Driver, Shipper, UserRole } from '@/types';
 import { auth, ensureFirebaseAuth, db } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AuthState {
-  user: Driver | null;
+  user: Driver | Shipper | null;
   userId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   isFirebaseAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, profile?: Partial<Driver>) => Promise<void>;
+  login: (email: string, password: string, role?: UserRole) => Promise<void>;
+  register: (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper>) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<Driver>) => Promise<void>;
+  updateProfile: (updates: Partial<Driver | Shipper>) => Promise<void>;
+  switchRole: (newRole: UserRole) => Promise<void>;
 }
 
-const DRIVER_STORAGE_KEY = 'auth:user:driver';
+const USER_STORAGE_KEY = 'auth:user:profile';
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   // Always call all hooks in the same order - never conditionally
-  const [user, setUser] = useState<Driver | null>(null);
+  const [user, setUser] = useState<Driver | Shipper | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
@@ -40,7 +41,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     const loadCachedUser = async () => {
       try {
         console.log('[auth] loading cached user...');
-        const cached = await AsyncStorage.getItem(DRIVER_STORAGE_KEY);
+        const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
         
         if (!isMounted) return;
         
@@ -125,145 +126,255 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     };
   }, [isInitialized, user]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    console.log('[auth] login attempt for', email);
+  const login = useCallback(async (email: string, password: string, role: UserRole = 'driver') => {
+    console.log('[auth] login attempt for', email, 'as', role);
     try {
       await ensureFirebaseAuth();
       const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
-      const mockUser: Driver = {
-        id: uid,
-        role: 'driver',
-        email,
-        name: email === 'guest@example.com' ? 'Guest User' : 'Test Driver',
-        phone: '',
-        membershipTier: 'basic',
-        createdAt: new Date(),
-        cdlNumber: '',
-        vehicleTypes: [],
-        rating: 4.8,
-        completedLoads: 24,
-        documents: [],
-        wallet: {
-          balance: 2450,
-          pendingEarnings: 850,
-          totalEarnings: 12500,
-          transactions: [],
-        },
-        isAvailable: true,
-        verificationStatus: 'verified',
-      } as Driver;
+      
+      let mockUser: Driver | Shipper;
+      
+      if (role === 'shipper') {
+        mockUser = {
+          id: uid,
+          role: 'shipper',
+          email,
+          name: email === 'guest@example.com' ? 'Guest Shipper' : 'Test Shipper',
+          phone: '',
+          membershipTier: 'basic',
+          createdAt: new Date(),
+          companyName: 'Test Logistics',
+          mcNumber: 'MC123456',
+          dotNumber: 'DOT789012',
+          verificationStatus: 'verified',
+          totalLoadsPosted: 45,
+          activeLoads: 12,
+          completedLoads: 33,
+          totalRevenue: 125000,
+          avgRating: 4.6,
+        } as Shipper;
+      } else {
+        mockUser = {
+          id: uid,
+          role: 'driver',
+          email,
+          name: email === 'guest@example.com' ? 'Guest Driver' : 'Test Driver',
+          phone: '',
+          membershipTier: 'basic',
+          createdAt: new Date(),
+          cdlNumber: '',
+          vehicleTypes: [],
+          rating: 4.8,
+          completedLoads: 24,
+          documents: [],
+          wallet: {
+            balance: 2450,
+            pendingEarnings: 850,
+            totalEarnings: 12500,
+            transactions: [],
+          },
+          isAvailable: true,
+          verificationStatus: 'verified',
+        } as Driver;
+      }
       
       setUser(mockUser);
       setUserId(uid);
-      setIsAnonymous(email === 'guest@example.com'); // Mark as anonymous for guest users
-      await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
-      console.log('[auth] login successful');
+      setIsAnonymous(email === 'guest@example.com');
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
+      console.log('[auth] login successful as', role);
     } catch (error) {
       console.error('[auth] login failed:', error);
       throw error;
     }
   }, []);
 
-  const register = useCallback(async (email: string, password: string, profile?: Partial<Driver>) => {
+  const register = useCallback(async (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper>) => {
+    console.log('[auth] register attempt for', email, 'as', role);
     await ensureFirebaseAuth();
     const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
-    const mockUser: Driver = {
-      id: uid,
-      role: 'driver',
-      email,
-      name: profile?.name ?? 'New Driver',
-      phone: profile?.phone ?? '',
-      membershipTier: 'basic',
-      createdAt: new Date(),
-      cdlNumber: '',
-      vehicleTypes: [],
-      rating: 0,
-      completedLoads: 0,
-      documents: [],
-      wallet: {
-        balance: 0,
-        pendingEarnings: 0,
-        totalEarnings: 0,
-        transactions: [],
-      },
-      isAvailable: true,
-      verificationStatus: 'unverified',
-      company: profile?.company ?? '',
-    } as unknown as Driver;
+    
+    let mockUser: Driver | Shipper;
+    
+    if (role === 'shipper') {
+      mockUser = {
+        id: uid,
+        role: 'shipper',
+        email,
+        name: profile?.name ?? 'New Shipper',
+        phone: profile?.phone ?? '',
+        membershipTier: 'basic',
+        createdAt: new Date(),
+        companyName: (profile as Partial<Shipper>)?.companyName ?? 'New Company',
+        verificationStatus: 'unverified',
+        totalLoadsPosted: 0,
+        activeLoads: 0,
+        completedLoads: 0,
+        totalRevenue: 0,
+        avgRating: 0,
+      } as Shipper;
+    } else {
+      mockUser = {
+        id: uid,
+        role: 'driver',
+        email,
+        name: profile?.name ?? 'New Driver',
+        phone: profile?.phone ?? '',
+        membershipTier: 'basic',
+        createdAt: new Date(),
+        cdlNumber: '',
+        vehicleTypes: [],
+        rating: 0,
+        completedLoads: 0,
+        documents: [],
+        wallet: {
+          balance: 0,
+          pendingEarnings: 0,
+          totalEarnings: 0,
+          transactions: [],
+        },
+        isAvailable: true,
+        verificationStatus: 'unverified',
+        company: profile?.company ?? '',
+      } as Driver;
+    }
 
     setUser(mockUser);
-    setIsAnonymous(false); // Mark as not anonymous when user registers
-    await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(mockUser));
+    setIsAnonymous(false);
+    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
+    console.log('[auth] registration successful as', role);
   }, []);
 
   const logout = useCallback(async () => {
-    await AsyncStorage.removeItem(DRIVER_STORAGE_KEY);
+    await AsyncStorage.removeItem(USER_STORAGE_KEY);
     setUser(null);
-    setIsAnonymous(true); // Reset to anonymous on logout
+    setIsAnonymous(true);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
     console.log('Password reset requested for:', email);
   }, []);
 
-  const updateProfile = useCallback(async (updates: Partial<Driver>) => {
+  const updateProfile = useCallback(async (updates: Partial<Driver | Shipper>) => {
     if (!user) {
       console.log('[auth] updateProfile called but no user found');
       return;
     }
     console.log('[auth] updateProfile called with updates:', JSON.stringify(updates, null, 2));
-    const updated: Driver = { ...user, ...updates } as Driver;
+    const updated = { ...user, ...updates } as Driver | Shipper;
     console.log('[auth] updated user object:', JSON.stringify(updated, null, 2));
     setUser(updated);
-    await AsyncStorage.setItem(DRIVER_STORAGE_KEY, JSON.stringify(updated));
+    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
     console.log('[auth] profile saved to AsyncStorage');
 
     try {
       await ensureFirebaseAuth();
       if (auth?.currentUser?.uid) {
         const uid = auth.currentUser.uid;
-        const ref = doc(db, 'drivers', uid);
+        const collection = user.role === 'driver' ? 'drivers' : 'shippers';
+        const ref = doc(db, collection, uid);
         const payload: Record<string, unknown> = {
           displayName: updated.name ?? '',
           email: updated.email ?? '',
           phone: (updated as any).phone ?? null,
           company: (updated as any).company ?? null,
-          primaryVehicle: (updates as any).primaryVehicle ?? updated.primaryVehicle ?? null,
-          vehicleMake: (updates as any).vehicleMake ?? updated.vehicleMake ?? null,
-          vehicleModel: (updates as any).vehicleModel ?? updated.vehicleModel ?? null,
-          vehicleYear: (updates as any).vehicleYear ?? updated.vehicleYear ?? null,
-          fuelType: (updates as any).fuelType ?? updated.fuelType ?? null,
-          mpgRated: (updates as any).mpgRated ?? updated.mpgRated ?? null,
-          vin: (updates as any).vin ?? updated.vin ?? null,
-          plate: (updates as any).plate ?? updated.plate ?? null,
-          tankGallons: (updates as any).tankGallons ?? (updated.tankGallons ?? null),
-          gvwrLbs: (updates as any).gvwrLbs ?? (updated.gvwrLbs ?? null),
-          trailerMake: (updates as any).trailerMake ?? updated.trailerMake ?? null,
-          trailerModel: (updates as any).trailerModel ?? updated.trailerModel ?? null,
-          trailerYear: (updates as any).trailerYear ?? updated.trailerYear ?? null,
-          trailerVin: (updates as any).trailerVin ?? updated.trailerVin ?? null,
-          trailerPlate: (updates as any).trailerPlate ?? updated.trailerPlate ?? null,
-          trailerInsuranceCarrier: (updates as any).trailerInsuranceCarrier ?? updated.trailerInsuranceCarrier ?? null,
-          trailerPolicyNumber: (updates as any).trailerPolicyNumber ?? updated.trailerPolicyNumber ?? null,
-          trailerGvwrLbs: (updates as any).trailerGvwrLbs ?? updated.trailerGvwrLbs ?? null,
-          trailerType: (updates as any).trailerType ?? updated.trailerType ?? null,
-          vehicleSubtype: (updates as any).vehicleSubtype ?? updated.vehicleSubtype ?? null,
-          companyName: (updates as any).companyName ?? updated.companyName ?? null,
-          mcNumber: (updates as any).mcNumber ?? updated.mcNumber ?? null,
-          dotNumber: (updates as any).dotNumber ?? updated.dotNumber ?? null,
-          insuranceCarrier: (updates as any).insuranceCarrier ?? updated.insuranceCarrier ?? null,
-          policyNumber: (updates as any).policyNumber ?? updated.policyNumber ?? null,
+          role: updated.role,
+          primaryVehicle: (updates as any).primaryVehicle ?? (updated as any).primaryVehicle ?? null,
+          vehicleMake: (updates as any).vehicleMake ?? (updated as any).vehicleMake ?? null,
+          vehicleModel: (updates as any).vehicleModel ?? (updated as any).vehicleModel ?? null,
+          vehicleYear: (updates as any).vehicleYear ?? (updated as any).vehicleYear ?? null,
+          fuelType: (updates as any).fuelType ?? (updated as any).fuelType ?? null,
+          mpgRated: (updates as any).mpgRated ?? (updated as any).mpgRated ?? null,
+          vin: (updates as any).vin ?? (updated as any).vin ?? null,
+          plate: (updates as any).plate ?? (updated as any).plate ?? null,
+          tankGallons: (updates as any).tankGallons ?? ((updated as any).tankGallons ?? null),
+          gvwrLbs: (updates as any).gvwrLbs ?? ((updated as any).gvwrLbs ?? null),
+          trailerMake: (updates as any).trailerMake ?? (updated as any).trailerMake ?? null,
+          trailerModel: (updates as any).trailerModel ?? (updated as any).trailerModel ?? null,
+          trailerYear: (updates as any).trailerYear ?? (updated as any).trailerYear ?? null,
+          trailerVin: (updates as any).trailerVin ?? (updated as any).trailerVin ?? null,
+          trailerPlate: (updates as any).trailerPlate ?? (updated as any).trailerPlate ?? null,
+          trailerInsuranceCarrier: (updates as any).trailerInsuranceCarrier ?? (updated as any).trailerInsuranceCarrier ?? null,
+          trailerPolicyNumber: (updates as any).trailerPolicyNumber ?? (updated as any).trailerPolicyNumber ?? null,
+          trailerGvwrLbs: (updates as any).trailerGvwrLbs ?? (updated as any).trailerGvwrLbs ?? null,
+          trailerType: (updates as any).trailerType ?? (updated as any).trailerType ?? null,
+          vehicleSubtype: (updates as any).vehicleSubtype ?? (updated as any).vehicleSubtype ?? null,
+          companyName: (updates as any).companyName ?? (updated as any).companyName ?? null,
+          mcNumber: (updates as any).mcNumber ?? (updated as any).mcNumber ?? null,
+          dotNumber: (updates as any).dotNumber ?? (updated as any).dotNumber ?? null,
+          insuranceCarrier: (updates as any).insuranceCarrier ?? (updated as any).insuranceCarrier ?? null,
+          policyNumber: (updates as any).policyNumber ?? (updated as any).policyNumber ?? null,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp(),
         };
         await setDoc(ref, payload, { merge: true });
-        console.log('[auth] driver profile persisted to Firestore');
+        console.log(`[auth] ${user.role} profile persisted to Firestore`);
       } else {
         console.log('[auth] no firebase uid, skipped Firestore write');
       }
     } catch (err) {
       console.warn('[auth] Firestore write failed, cached locally only', err);
     }
+  }, [user]);
+
+  const switchRole = useCallback(async (newRole: UserRole) => {
+    if (!user) {
+      console.log('[auth] switchRole called but no user found');
+      return;
+    }
+    
+    console.log('[auth] switching role from', user.role, 'to', newRole);
+    
+    // Create new user object with the new role
+    let newUser: Driver | Shipper;
+    
+    if (newRole === 'shipper') {
+      newUser = {
+        id: user.id,
+        role: 'shipper',
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        company: user.company,
+        membershipTier: user.membershipTier,
+        createdAt: user.createdAt,
+        companyName: (user as any).companyName || 'New Company',
+        verificationStatus: 'unverified',
+        totalLoadsPosted: 0,
+        activeLoads: 0,
+        completedLoads: 0,
+        totalRevenue: 0,
+        avgRating: 0,
+      } as Shipper;
+    } else {
+      newUser = {
+        id: user.id,
+        role: 'driver',
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        company: user.company,
+        membershipTier: user.membershipTier,
+        createdAt: user.createdAt,
+        cdlNumber: '',
+        vehicleTypes: [],
+        rating: 0,
+        completedLoads: 0,
+        documents: [],
+        wallet: {
+          balance: 0,
+          pendingEarnings: 0,
+          totalEarnings: 0,
+          transactions: [],
+        },
+        isAvailable: true,
+        verificationStatus: 'unverified',
+      } as Driver;
+    }
+    
+    setUser(newUser);
+    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+    console.log('[auth] role switch successful to', newRole);
   }, [user]);
 
   // Always compute the same value structure to maintain consistency
@@ -279,9 +390,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       resetPassword,
       logout,
       updateProfile,
+      switchRole,
     };
     return result;
-  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, login, register, resetPassword, logout, updateProfile]);
+  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, login, register, resetPassword, logout, updateProfile, switchRole]);
 
   return value;
 });

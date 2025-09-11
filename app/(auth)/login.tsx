@@ -12,11 +12,12 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock } from 'lucide-react-native';
+import { Mail, Lock, Users, Truck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { moderateScale } from '@/src/ui/scale';
+import { UserRole } from '@/types';
 import { 
   signInWithEmailAndPassword, 
   signInAnonymously, 
@@ -32,6 +33,7 @@ const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attac
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('driver');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
   const { login } = useAuth();
@@ -77,11 +79,15 @@ export default function LoginScreen() {
         // Use login/link functionality to preserve anonymous UID
         const user = await loginOrLink(email, password);
         
-        // Update local auth state
-        await login(email, password);
+        // Update local auth state with selected role
+        await login(email, password, selectedRole);
         
-        console.log('[login] success, navigating to dashboard');
-        router.replace('/(tabs)/dashboard');
+        console.log('[login] success, navigating based on role');
+        if (selectedRole === 'shipper') {
+          router.replace('/shipper-dashboard');
+        } else {
+          router.replace('/(tabs)/dashboard');
+        }
         return;
       }
       
@@ -91,10 +97,14 @@ export default function LoginScreen() {
       console.log('[login] signed in anonymously. uid:', result.user.uid);
       
       // Update local auth state with anonymous user
-      await login('guest@example.com', 'guest');
+      await login('guest@example.com', 'guest', selectedRole);
       
-      console.log('[login] anonymous success, navigating to dashboard');
-      router.replace('/(tabs)/dashboard');
+      console.log('[login] anonymous success, navigating based on role');
+      if (selectedRole === 'shipper') {
+        router.replace('/shipper-dashboard');
+      } else {
+        router.replace('/(tabs)/dashboard');
+      }
     } catch (error: any) {
       console.error('[login] failed:', error?.code, error?.message);
       // Show user-friendly error message instead of silently failing
@@ -102,7 +112,7 @@ export default function LoginScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, login, router, loginOrLink]);
+  }, [email, password, selectedRole, login, router, loginOrLink]);
 
   return (
     <SafeAreaView style={styles.container} testID="login-safe">
@@ -137,6 +147,28 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.form}>
+            <View style={styles.roleSelector}>
+              <Text style={styles.roleSelectorLabel}>I am a:</Text>
+              <View style={styles.roleButtons}>
+                <TouchableOpacity
+                  style={[styles.roleButton, selectedRole === 'driver' && styles.roleButtonActive]}
+                  onPress={() => setSelectedRole('driver')}
+                  testID="role-driver"
+                >
+                  <Truck size={20} color={selectedRole === 'driver' ? theme.colors.white : theme.colors.primary} />
+                  <Text style={[styles.roleButtonText, selectedRole === 'driver' && styles.roleButtonTextActive]}>Driver</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.roleButton, selectedRole === 'shipper' && styles.roleButtonActive]}
+                  onPress={() => setSelectedRole('shipper')}
+                  testID="role-shipper"
+                >
+                  <Users size={20} color={selectedRole === 'shipper' ? theme.colors.white : theme.colors.primary} />
+                  <Text style={[styles.roleButtonText, selectedRole === 'shipper' && styles.roleButtonTextActive]}>Shipper</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             <View style={styles.inputContainer}>
               <Mail size={20} color={theme.colors.gray} style={styles.inputIcon} />
               <TextInput
@@ -176,7 +208,7 @@ export default function LoginScreen() {
                 <ActivityIndicator color={theme.colors.white} />
               ) : (
                 <Text style={styles.loginButtonText}>
-                  {email?.trim() && password?.trim() ? 'Login' : 'Continue as Guest'}
+                  {email?.trim() && password?.trim() ? `Login as ${selectedRole}` : `Continue as Guest ${selectedRole}`}
                 </Text>
               )}
             </TouchableOpacity>
@@ -296,5 +328,43 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
+  },
+  roleSelector: {
+    marginBottom: theme.spacing.md,
+  },
+  roleSelectorLabel: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  roleButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  roleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.white,
+    gap: theme.spacing.xs,
+  },
+  roleButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  roleButtonText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  roleButtonTextActive: {
+    color: theme.colors.white,
   },
 });

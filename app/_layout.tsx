@@ -20,6 +20,7 @@ import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
 import { StartupInitializer } from "@/components/StartupInitializer";
+import { RoleBasedRouter } from "@/components/RoleBasedRouter";
 import { theme } from "@/constants/theme";
 
 // Firebase is available but not used for auth in this app
@@ -196,20 +197,22 @@ export default function RootLayout() {
                 <StartupInitializer>
                   <View style={styles.appContainer}>
                     <AuthProvider>
-                      <SettingsProvider>
-                        <PaymentsProvider>
-                          <MaintenanceProvider>
-                            <LoadsProvider>
-                              <PostLoadProvider>
-                                <AutoArriveProvider>
-                                  <RootLayoutNav />
-                                  <AutoArriveSheet />
-                                </AutoArriveProvider>
-                              </PostLoadProvider>
-                            </LoadsProvider>
-                          </MaintenanceProvider>
-                        </PaymentsProvider>
-                      </SettingsProvider>
+                      <RoleBasedRouter>
+                        <SettingsProvider>
+                          <PaymentsProvider>
+                            <MaintenanceProvider>
+                              <LoadsProvider>
+                                <PostLoadProvider>
+                                  <AutoArriveProvider>
+                                    <RootLayoutNav />
+                                    <AutoArriveSheet />
+                                  </AutoArriveProvider>
+                                </PostLoadProvider>
+                              </LoadsProvider>
+                            </MaintenanceProvider>
+                          </PaymentsProvider>
+                        </SettingsProvider>
+                      </RoleBasedRouter>
                     </AuthProvider>
                   </View>
                 </StartupInitializer>

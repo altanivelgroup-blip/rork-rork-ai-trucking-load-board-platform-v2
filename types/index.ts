@@ -31,6 +31,21 @@ export interface User {
   createdAt: Date;
 }
 
+export interface Shipper extends User {
+  role: 'shipper';
+  companyName: string;
+  mcNumber?: string;
+  dotNumber?: string;
+  insuranceCarrier?: string;
+  insurancePolicy?: string;
+  verificationStatus?: 'unverified' | 'pending' | 'verified';
+  totalLoadsPosted: number;
+  activeLoads: number;
+  completedLoads: number;
+  totalRevenue: number;
+  avgRating: number;
+}
+
 export interface FuelProfile {
   vehicleType: VehicleType;
   averageMpg: number;

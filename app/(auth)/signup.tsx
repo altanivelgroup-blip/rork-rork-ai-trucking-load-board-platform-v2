@@ -1,13 +1,14 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UserPlus, Mail, Lock, Phone, Building } from 'lucide-react-native';
+import { UserPlus, Mail, Lock, Phone, Building, Users, Truck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { moderateScale } from '@/src/ui/scale';
 import { Dimensions } from 'react-native';
+import { UserRole } from '@/types';
 
 const { width: screenWidth } = Dimensions.get('window');
 const isTablet = screenWidth >= 768;
@@ -22,6 +23,7 @@ export default function SignUpScreen() {
   const [name, setName] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [company, setCompany] = useState<string>('');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('driver');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const handleSignUp = useCallback(async () => {
@@ -31,16 +33,21 @@ export default function SignUpScreen() {
     }
     setIsLoading(true);
     try {
-      console.log('[signup] creating account for', email);
-      await register(email, password, { name, phone, company });
-      router.replace('/(auth)/driver-vehicle-setup');
+      console.log('[signup] creating account for', email, 'as', selectedRole);
+      await register(email, password, selectedRole, { name, phone, company });
+      
+      if (selectedRole === 'shipper') {
+        router.replace('/shipper-dashboard');
+      } else {
+        router.replace('/(auth)/driver-vehicle-setup');
+      }
     } catch (e) {
       console.error('[signup] error', e);
       Alert.alert('Sign Up Failed', 'Please check your details and try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, name, phone, company, register, router]);
+  }, [email, password, name, phone, company, selectedRole, register, router]);
 
   return (
     <>
@@ -63,6 +70,28 @@ export default function SignUpScreen() {
           </View>
 
           <View style={styles.form}>
+            <View style={styles.roleSelector}>
+              <Text style={styles.roleSelectorLabel}>I am a:</Text>
+              <View style={styles.roleButtons}>
+                <TouchableOpacity
+                  style={[styles.roleButton, selectedRole === 'driver' && styles.roleButtonActive]}
+                  onPress={() => setSelectedRole('driver')}
+                  testID="role-driver"
+                >
+                  <Truck size={20} color={selectedRole === 'driver' ? theme.colors.white : theme.colors.primary} />
+                  <Text style={[styles.roleButtonText, selectedRole === 'driver' && styles.roleButtonTextActive]}>Driver</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.roleButton, selectedRole === 'shipper' && styles.roleButtonActive]}
+                  onPress={() => setSelectedRole('shipper')}
+                  testID="role-shipper"
+                >
+                  <Users size={20} color={selectedRole === 'shipper' ? theme.colors.white : theme.colors.primary} />
+                  <Text style={[styles.roleButtonText, selectedRole === 'shipper' && styles.roleButtonTextActive]}>Shipper</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             <View style={styles.inputContainer}>
               <Mail size={20} color={theme.colors.gray} style={styles.inputIcon} />
               <TextInput style={styles.input} placeholder="Email" placeholderTextColor={theme.colors.gray} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
@@ -81,10 +110,16 @@ export default function SignUpScreen() {
             </View>
             <View style={styles.inputContainer}>
               <Building size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput style={styles.input} placeholder="Company (optional)" placeholderTextColor={theme.colors.gray} value={company} onChangeText={setCompany} />
+              <TextInput 
+                style={styles.input} 
+                placeholder={selectedRole === 'shipper' ? 'Company Name' : 'Company (optional)'} 
+                placeholderTextColor={theme.colors.gray} 
+                value={company} 
+                onChangeText={setCompany} 
+              />
             </View>
             <TouchableOpacity style={styles.cta} onPress={handleSignUp} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color={theme.colors.white} /> : <Text style={styles.ctaText}>Create Account</Text>}
+              {isLoading ? <ActivityIndicator color={theme.colors.white} /> : <Text style={styles.ctaText}>Create {selectedRole} Account</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.replace('/(auth)/login')} style={styles.secondary}>
               <Text style={styles.secondaryText}>Already have an account? Log in</Text>
@@ -127,4 +162,42 @@ const styles = StyleSheet.create({
   ctaText: { color: theme.colors.white, fontSize: theme.fontSize.md, fontWeight: '700' },
   secondary: { alignItems: 'center', marginTop: theme.spacing.md },
   secondaryText: { color: theme.colors.primary },
+  roleSelector: {
+    marginBottom: theme.spacing.md,
+  },
+  roleSelectorLabel: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  roleButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  roleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.white,
+    gap: theme.spacing.xs,
+  },
+  roleButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  roleButtonText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  roleButtonTextActive: {
+    color: theme.colors.white,
+  },
 });
