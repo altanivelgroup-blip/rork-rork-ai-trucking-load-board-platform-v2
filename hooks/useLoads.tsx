@@ -65,7 +65,7 @@ function haversineMiles(a: GeoPoint, b: GeoPoint): number {
   return R * c;
 }
 
-export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
+const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(() => {
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -676,6 +676,43 @@ export const [LoadsProvider, useLoads] = createContextHook<LoadsState>(() => {
 
   return value;
 });
+
+export const LoadsProvider = LoadsProviderInternal;
+
+export function useLoads(): LoadsState {
+  try {
+    const context = useLoadsInternal();
+    if (!context) {
+      console.warn('[useLoads] Context is null, returning default state');
+      return getDefaultLoadsState();
+    }
+    return context;
+  } catch (error) {
+    console.error('[useLoads] Error accessing context:', error);
+    return getDefaultLoadsState();
+  }
+}
+
+function getDefaultLoadsState(): LoadsState {
+  return {
+    loads: [],
+    filters: {},
+    isLoading: false,
+    filteredLoads: [],
+    aiRecommendedLoads: [],
+    currentLoad: undefined,
+    favorites: {},
+    isFavorited: () => false,
+    toggleFavorite: async () => {},
+    setFilters: () => {},
+    acceptLoad: async () => {},
+    refreshLoads: async () => {},
+    addLoad: async () => {},
+    addLoadsBulk: async () => {},
+    deleteLoad: async () => {},
+    deleteCompletedLoad: async () => {},
+  };
+}
 
 export function useLoadsWithToast(): LoadsWithToast {
   // Always call hooks in the same order
