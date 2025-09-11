@@ -3,13 +3,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight } from 'lucide-react-native';
+import { Truck, DollarSign, Package, Eye, Edit, Trash2, BarChart3, Clock, Target, AlertTriangle, MapPin, Upload, Copy, ChevronDown, ChevronRight, RefreshCw, Undo2 } from 'lucide-react-native';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { getFirebase } from '@/utils/firebase';
-import { doc, getDoc, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, limit, getDocs, setDoc, addDoc, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as Clipboard from 'expo-clipboard';
+import { TextInput, Switch } from 'react-native';
 
 
 
@@ -133,6 +134,237 @@ function LoginHistoryDropdown() {
         </View>
       )}
     </View>
+  );
+}
+
+function MigrateLoadsOwnershipPanel() {
+  const { userId } = useAuth();
+  const [fromUIDs, setFromUIDs] = useState<string>('');
+  const [dryRun, setDryRun] = useState<boolean>(true);
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [results, setResults] = useState<string>('');
+  const [lastMigrationBatchId, setLastMigrationBatchId] = useState<string | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 4000);
+  };
+
+  const toUID = userId || getAuth().currentUser?.uid || '';
+
+  const runMigration = async () => {
+    if (!toUID) {
+      showToast('No current user UID available');
+      return;
+    }
+
+    const fromUIDsList = fromUIDs.split(',').map(uid => uid.trim()).filter(uid => uid.length > 0);
+    if (fromUIDsList.length === 0) {
+      showToast('Please enter at least one From UID');
+      return;
+    }
+
+    setIsRunning(true);
+    setResults('');
+    
+    try {
+      const { db } = getFirebase();
+      const migrationBatchId = `mig_${Date.now()}`;
+      
+      // Query loads where createdBy in fromUIDs and status != "deleted"
+      const loadsRef = collection(db, 'loads');
+      const q = query(
+        loadsRef,
+        where('createdBy', 'in', fromUIDsList.slice(0, 10)), // Firestore 'in' limit is 10
+        where('status', '!=', 'deleted')
+      );
+      
+      const snapshot = await getDocs(q);
+      const totalLoads = snapshot.size;
+      
+      if (totalLoads > 5000) {
+        setResults('❌ Too many results — add more specific From UIDs.');
+        return;
+      }
+      
+      if (dryRun) {
+        setResults(`✅ Dry Run: Would update ${totalLoads} loads`);
+        return;
+      }
+      
+      // Real migration
+      let updatedCount = 0;
+      const batchSize = 300;
+      const docs = snapshot.docs;
+      
+      for (let i = 0; i < docs.length; i += batchSize) {
+        const batch = writeBatch(db);
+        const batchDocs = docs.slice(i, i + batchSize);
+        
+        batchDocs.forEach((docSnap) => {
+          const data = docSnap.data();
+          const docRef = doc(db, 'loads', docSnap.id);
+          
+          batch.update(docRef, {
+            createdBy: toUID,
+            migratedFrom: data.createdBy,
+            migratedAt: serverTimestamp(),
+            migrationBatchId: migrationBatchId
+          });
+        });
+        
+        await batch.commit();
+        updatedCount += batchDocs.length;
+        
+        setResults(`Updated ${updatedCount} / ${totalLoads}`);
+      }
+      
+      setLastMigrationBatchId(migrationBatchId);
+      setResults(`✅ Migrated ${totalLoads} loads • Batch ${migrationBatchId}`);
+      
+    } catch (error: any) {
+      console.warn('[MigrateLoads] Error:', error);
+      setResults(`❌ Error: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const undoLastMigration = async () => {
+    if (!lastMigrationBatchId) {
+      showToast('No migration to undo');
+      return;
+    }
+
+    setIsRunning(true);
+    
+    try {
+      const { db } = getFirebase();
+      
+      // Query loads with the last migration batch ID
+      const loadsRef = collection(db, 'loads');
+      const q = query(loadsRef, where('migrationBatchId', '==', lastMigrationBatchId));
+      
+      const snapshot = await getDocs(q);
+      // const totalLoads = snapshot.size;
+      
+      let revertedCount = 0;
+      const batchSize = 300;
+      const docs = snapshot.docs;
+      
+      for (let i = 0; i < docs.length; i += batchSize) {
+        const batch = writeBatch(db);
+        const batchDocs = docs.slice(i, i + batchSize);
+        
+        batchDocs.forEach((docSnap) => {
+          const data = docSnap.data();
+          const docRef = doc(db, 'loads', docSnap.id);
+          
+          if (data.migratedFrom) {
+            batch.update(docRef, {
+              createdBy: data.migratedFrom,
+              revertedAt: serverTimestamp(),
+              revertedFromBatchId: lastMigrationBatchId
+            });
+          }
+        });
+        
+        await batch.commit();
+        revertedCount += batchDocs.length;
+      }
+      
+      setResults(`↩️ Reverted ${revertedCount} loads`);
+      setLastMigrationBatchId(null);
+      
+    } catch (error: any) {
+      console.warn('[UndoMigration] Error:', error);
+      setResults(`❌ Undo Error: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  // Hide panel when EXPO_PUBLIC_SHOW_DEV_TOOLS !== 'true'
+  const showDevTools = process.env.EXPO_PUBLIC_SHOW_DEV_TOOLS === 'true';
+  if (!showDevTools) {
+    return null;
+  }
+
+  return (
+    <>
+      <View style={styles.migrationPanel}>
+        <Text style={styles.migrationTitle}>Migrate Loads Ownership</Text>
+        
+        <View style={styles.migrationField}>
+          <Text style={styles.migrationLabel}>From UIDs (comma-separated):</Text>
+          <TextInput
+            style={styles.migrationInput}
+            value={fromUIDs}
+            onChangeText={setFromUIDs}
+            placeholder="uid1, uid2, uid3..."
+            multiline
+            testID="from-uids-input"
+          />
+        </View>
+        
+        <View style={styles.migrationField}>
+          <Text style={styles.migrationLabel}>To UID (current user):</Text>
+          <Text style={styles.migrationReadonly}>{toUID || 'No user logged in'}</Text>
+        </View>
+        
+        <View style={styles.migrationToggle}>
+          <Text style={styles.migrationLabel}>Dry Run (no writes):</Text>
+          <Switch
+            value={dryRun}
+            onValueChange={setDryRun}
+            testID="dry-run-toggle"
+          />
+        </View>
+        
+        <View style={styles.migrationButtons}>
+          <TouchableOpacity
+            style={[styles.migrationButton, isRunning && styles.migrationButtonDisabled]}
+            onPress={runMigration}
+            disabled={isRunning}
+            testID="run-migration-button"
+          >
+            {isRunning ? (
+              <RefreshCw size={14} color={theme.colors.white} />
+            ) : null}
+            <Text style={styles.migrationButtonText}>
+              {isRunning ? 'Running...' : 'Run Migration'}
+            </Text>
+          </TouchableOpacity>
+          
+          {lastMigrationBatchId && (
+            <TouchableOpacity
+              style={[styles.undoButton, isRunning && styles.migrationButtonDisabled]}
+              onPress={undoLastMigration}
+              disabled={isRunning}
+              testID="undo-migration-button"
+            >
+              <Undo2 size={14} color={theme.colors.white} />
+              <Text style={styles.undoButtonText}>Undo last migration</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {results ? (
+          <View style={styles.migrationResults}>
+            <Text style={styles.migrationResultsText}>{results}</Text>
+          </View>
+        ) : null}
+      </View>
+      
+      {toastVisible && (
+        <View style={styles.migrationToast}>
+          <Text style={styles.migrationToastText}>{toastMessage}</Text>
+        </View>
+      )}
+    </>
   );
 }
 
@@ -486,6 +718,7 @@ export default function ShipperDashboard() {
           <UserInfoRow />
           <TestLoginWriteButton />
           <LoginHistoryDropdown />
+          <MigrateLoadsOwnershipPanel />
         </View>
         
         <View style={styles.statsGrid}>
@@ -1138,6 +1371,130 @@ const styles = StyleSheet.create({
     maxWidth: '80%',
   },
   testToastText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  migrationPanel: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    marginTop: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  migrationTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.md,
+  },
+  migrationField: {
+    marginBottom: theme.spacing.sm,
+  },
+  migrationLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+  },
+  migrationInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.sm,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.dark,
+    backgroundColor: theme.colors.white,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  migrationReadonly: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    fontFamily: 'monospace',
+    backgroundColor: '#f9fafb',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  migrationToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.md,
+  },
+  migrationButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  migrationButton: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    flex: 1,
+  },
+  migrationButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  migrationButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+  },
+  undoButton: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    flex: 1,
+  },
+  undoButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+  },
+  migrationResults: {
+    backgroundColor: '#f9fafb',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    minHeight: 40,
+  },
+  migrationResultsText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.dark,
+    fontFamily: 'monospace',
+  },
+  migrationToast: {
+    position: 'absolute',
+    top: 140,
+    left: '50%',
+    transform: [{ translateX: -50 }],
+    backgroundColor: theme.colors.dark,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    zIndex: 1002,
+    maxWidth: '80%',
+  },
+  migrationToastText: {
     color: theme.colors.white,
     fontSize: theme.fontSize.sm,
     fontWeight: '500',
