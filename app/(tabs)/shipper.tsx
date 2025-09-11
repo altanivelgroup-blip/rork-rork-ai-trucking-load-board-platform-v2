@@ -1,10 +1,11 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Crown, PlusCircle, BarChart3, Upload, Package, DollarSign, Settings } from 'lucide-react-native';
+import { Crown, PlusCircle, BarChart3, Upload, Package, DollarSign, Settings, Eye, FileText, Zap, RefreshCw } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
+import { useLoads } from '@/hooks/useLoads';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
   return (
@@ -22,9 +23,55 @@ const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { ti
 
 export default function ShipperHome() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, userId } = useAuth();
+  const { loads, isLoading } = useLoads();
+  
+  // Helper function to get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'available':
+      case 'OPEN':
+        return '#10b981';
+      case 'in-transit':
+        return '#f59e0b';
+      case 'delivered':
+        return '#6b7280';
+      default:
+        return '#6b7280';
+    }
+  };
+  
+  // Manual refresh function
+  const handleRefresh = useCallback(() => {
+    console.log('Refreshing loads...');
+    // In a real app, you would call a refresh function here
+    // For now, we'll just log it
+  }, []);
   const insets = useSafeAreaInsets();
   const isShipper = user?.role === 'shipper';
+  
+  // Filter loads posted by this shipper
+  const myLoads = useMemo(() => {
+    const uid = userId || user?.id || null;
+    if (!uid) return [];
+    
+    return loads.filter(load => {
+      const isOwner = load.shipperId === uid || 
+                     (load as any).createdBy === uid ||
+                     (load as any).userId === uid;
+      return isOwner;
+    });
+  }, [loads, user?.id, userId]);
+  
+  // Calculate quick stats
+  const stats = useMemo(() => {
+    const totalLoads = myLoads.length;
+    const activeLoads = myLoads.filter(l => l.status === 'available' || l.status === 'in-transit').length;
+    const completedLoads = myLoads.filter(l => l.status === 'delivered').length;
+    const totalRevenue = myLoads.reduce((sum, l) => sum + (l.rate || 0), 0);
+    
+    return { totalLoads, activeLoads, completedLoads, totalRevenue };
+  }, [myLoads]);
   
   // Always call hooks in the same order
   const goMembership = useCallback(() => {
@@ -44,6 +91,16 @@ export default function ShipperHome() {
   const goShipperDashboard = useCallback(() => {
     console.log('shipper.goShipperDashboard');
     router.push('/shipper-dashboard');
+  }, [router]);
+  
+  const goMyLoads = useCallback(() => {
+    console.log('shipper.goMyLoads');
+    router.push('/loads');
+  }, [router]);
+  
+  const goLoadTemplates = useCallback(() => {
+    console.log('shipper.goLoadTemplates');
+    router.push('/load-templates');
   }, [router]);
 
   const goCsvBulkUpload = useCallback(() => {
@@ -66,10 +123,7 @@ export default function ShipperHome() {
     router.push('/advance-security');
   }, [router]);
 
-  const goPhotoUploadTest = useCallback(() => {
-    console.log('shipper.goPhotoUploadTest');
-    router.push('/photo-uploader-demo');
-  }, [router]);
+  // Removed unused goPhotoUploadTest function
   
   // Redirect non-shippers
   React.useEffect(() => {
@@ -85,7 +139,10 @@ export default function ShipperHome() {
   return (
     <View style={styles.container} testID="shipper-home-container">
       <Stack.Screen options={{ title: 'Shipper' }} />
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top }]} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top }]} 
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.heading}>Welcome, Shipper</Text>
         <Text style={styles.subheading}>Quick actions and tools</Text>
 
@@ -93,27 +150,78 @@ export default function ShipperHome() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Package size={20} color={theme.colors.primary} />
-            <Text style={styles.statValue}>{(user as any)?.totalLoadsPosted ?? 0}</Text>
+            <Text style={styles.statValue}>{stats.totalLoads}</Text>
             <Text style={styles.statLabel}>Posted</Text>
           </View>
           <View style={styles.statCard}>
             <DollarSign size={20} color={theme.colors.success} />
-            <Text style={styles.statValue}>${((user as any)?.totalRevenue ?? 0).toLocaleString()}</Text>
+            <Text style={styles.statValue}>${stats.totalRevenue.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Revenue</Text>
           </View>
           <View style={styles.statCard}>
             <BarChart3 size={20} color={theme.colors.warning} />
-            <Text style={styles.statValue}>{(user as any)?.activeLoads ?? 0}</Text>
+            <Text style={styles.statValue}>{stats.activeLoads}</Text>
             <Text style={styles.statLabel}>Active</Text>
           </View>
         </View>
 
-        <Tile title="Shipper Dashboard" subtitle="View your loads and analytics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
+        {/* Main Actions */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Post & Manage Loads</Text>
+        </View>
         <Tile title="Post a Load" subtitle="Create a new shipment" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
         <Tile title="CSV Bulk Upload" subtitle="Upload loads from CSV file" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
-        <Tile title="Add Photo Test" subtitle="Quick test for photo upload" onPress={goPhotoUploadTest} Icon={Package} testID="tile-add-photo-test" />
-        <Tile title="AI Tools" subtitle="Draft posts, quotes and more" onPress={goAiTools} Icon={Crown} testID="tile-ai-tools" />
-        <Tile title="Increase Revenue" subtitle="Tips and premium placement" onPress={goIncreaseRevenue} Icon={BarChart3} testID="tile-increase-revenue" />
+        <Tile title="Load Templates" subtitle="Save and reuse configurations" onPress={goLoadTemplates} Icon={FileText} testID="tile-load-templates" />
+        
+        {/* My Loads Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>My Loads</Text>
+          <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+            <RefreshCw size={16} color={theme.colors.primary} />
+            <Text style={styles.refreshText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {myLoads.length === 0 ? (
+          <View style={styles.emptyLoadsCard}>
+            <Package size={32} color={theme.colors.gray} />
+            <Text style={styles.emptyLoadsTitle}>No loads posted yet</Text>
+            <Text style={styles.emptyLoadsSubtitle}>Tap &quot;Post a Load&quot; above to get started</Text>
+          </View>
+        ) : (
+          <View style={styles.loadsPreview}>
+            {myLoads.slice(0, 3).map((load) => (
+              <View key={load.id} style={styles.loadPreviewCard}>
+                <View style={styles.loadPreviewHeader}>
+                  <Text style={styles.loadPreviewTitle} numberOfLines={1}>
+                    {load.description || 'Untitled Load'}
+                  </Text>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(load.status) }]}>
+                    <Text style={styles.statusText}>{load.status}</Text>
+                  </View>
+                </View>
+                <Text style={styles.loadPreviewRoute}>
+                  {load.origin?.city || 'Unknown'} → {load.destination?.city || 'Unknown'}
+                </Text>
+                <Text style={styles.loadPreviewRate}>${(load.rate || 0).toLocaleString()}</Text>
+              </View>
+            ))}
+            {myLoads.length > 3 && (
+              <TouchableOpacity onPress={goMyLoads} style={styles.viewAllButton}>
+                <Text style={styles.viewAllText}>View All {myLoads.length} Loads</Text>
+                <Eye size={16} color={theme.colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        
+        {/* Tools & Features */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Tools & Features</Text>
+        </View>
+        <Tile title="AI Tools" subtitle="Draft posts, quotes and more" onPress={goAiTools} Icon={Zap} testID="tile-ai-tools" />
+        <Tile title="Analytics Dashboard" subtitle="View detailed performance metrics" onPress={goShipperDashboard} Icon={BarChart3} testID="tile-shipper-dashboard" />
+        <Tile title="Increase Revenue" subtitle="Tips and premium placement" onPress={goIncreaseRevenue} Icon={DollarSign} testID="tile-increase-revenue" />
         <Tile title="Advanced Security" subtitle="Protect posts and payments" onPress={goAdvancedSecurity} Icon={Settings} testID="tile-advanced-security" />
         <Tile title="Membership" subtitle="Upgrade for more features" onPress={goMembership} Icon={Crown} testID="tile-membership" />
       </ScrollView>
@@ -203,5 +311,117 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: theme.colors.gray,
     marginTop: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.lightGray,
+    gap: theme.spacing.xs,
+  },
+  refreshText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  emptyLoadsCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  emptyLoadsTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginTop: theme.spacing.sm,
+  },
+  emptyLoadsSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  loadsPreview: {
+    marginTop: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  loadPreviewCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  loadPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  loadPreviewTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  statusBadge: {
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statusText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  loadPreviewRoute: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: theme.spacing.xs,
+  },
+  loadPreviewRate: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  viewAllText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
 });

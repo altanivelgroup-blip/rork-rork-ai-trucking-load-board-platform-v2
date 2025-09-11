@@ -48,11 +48,11 @@ export function RoleBasedRouter({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // User is authenticated with role - redirect from auth pages to appropriate dashboard
+    // User is authenticated with role - redirect from auth pages to appropriate main page
     if (inAuthGroup) {
       if (user.role === 'shipper') {
-        console.log('[RoleBasedRouter] Redirecting authenticated shipper to dashboard');
-        router.replace('/shipper-dashboard');
+        console.log('[RoleBasedRouter] Redirecting authenticated shipper to shipper page');
+        router.replace('/(tabs)/shipper');
       } else {
         console.log('[RoleBasedRouter] Redirecting authenticated driver to dashboard');
         router.replace('/(tabs)/dashboard');
@@ -68,8 +68,8 @@ export function RoleBasedRouter({ children }: { children: React.ReactNode }) {
       const shipperAllowedTabs = ['dashboard', 'shipper', 'shipper-post', 'shipper-analytics', 'profile'];
       
       if (currentTab && !shipperAllowedTabs.includes(currentTab)) {
-        console.log('[RoleBasedRouter] Shipper accessing driver-only tab, redirecting to shipper dashboard');
-        router.replace('/shipper-dashboard');
+        console.log('[RoleBasedRouter] Shipper accessing driver-only tab, redirecting to shipper page');
+        router.replace('/(tabs)/shipper');
         return;
       }
     }

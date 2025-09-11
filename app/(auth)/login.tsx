@@ -101,7 +101,7 @@ export default function LoginScreen() {
         
         console.log('[login] success, navigating based on role');
         if (selectedRole === 'shipper') {
-          router.replace('/shipper-dashboard');
+          router.replace('/(tabs)/shipper');
         } else {
           router.replace('/(tabs)/dashboard');
         }
@@ -118,7 +118,7 @@ export default function LoginScreen() {
       
       console.log('[login] anonymous success, navigating based on role');
       if (selectedRole === 'shipper') {
-        router.replace('/shipper-dashboard');
+        router.replace('/(tabs)/shipper');
       } else {
         router.replace('/(tabs)/dashboard');
       }

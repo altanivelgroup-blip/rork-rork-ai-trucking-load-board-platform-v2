@@ -1191,7 +1191,7 @@ export default function ShipperDashboard() {
             style={styles.quickNavButton}
             testID="go-to-shipper-page"
           >
-            <Text style={styles.quickNavButtonText}>← Back to Shipper Tools</Text>
+            <Text style={styles.quickNavButtonText}>← Back to Main Shipper Page</Text>
           </TouchableOpacity>
           
           <UserInfoRow />
