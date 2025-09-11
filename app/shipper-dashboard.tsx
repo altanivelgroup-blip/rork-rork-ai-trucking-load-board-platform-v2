@@ -812,9 +812,34 @@ function UserInfoRow() {
 
   const uid = userId || firebaseUser?.uid;
   
-  // Show loading state with neutral gray pill
+  // Show default Free/Inactive when no UID
   if (!uid) {
-    return null;
+    const planLabel = 'Free';
+    const subtextNoUser = 'Not active';
+
+    return (
+      <>
+        <View style={styles.membershipContainer}>
+          <View style={[styles.membershipPill, styles.membershipPillFree]}>
+            <Text style={[styles.membershipPillText, styles.membershipPillTextFree]}>Free</Text>
+          </View>
+          <View style={styles.membershipSubtext}>
+            <Text style={styles.membershipRenewal}>{subtextNoUser}</Text>
+            <TouchableOpacity onPress={() => router.push('/shipper-membership')} style={styles.manageLink}>
+              <Text style={styles.manageLinkText}>Manage</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.userInfoRow}>
+          <Text style={styles.userInfoText}>
+            Signed in: Guest • Last login: Unknown • Plan: {planLabel} • Status: Inactive
+          </Text>
+        </View>
+
+        <MembershipDebugPanel membership={{ plan: 'free', status: 'inactive', expiresAt: null }} loading={false} uid={'(none)'} />
+      </>
+    );
   }
 
   // Compute UI state
