@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './useAuth';
 import { useLoads } from './useLoads';
+import { calculateLoadCostBreakdown, formatNetCurrency, formatEarningsBreakdown } from '@/utils/fuelCostCalculator';
 
 export type TransactionType = 'earning' | 'withdrawal' | 'fee' | 'bonus' | 'fuel_advance' | 'deposit';
 
@@ -18,6 +19,14 @@ export interface Transaction {
   netAmount?: number;
   milesDriven?: number;
   fuelCost?: number;
+  grossAmount?: number;
+  costBreakdown?: {
+    grossEarnings: number;
+    fuelCost: number;
+    platformFee: number;
+    netEarnings: number;
+    netPerMile: number;
+  };
 }
 
 export interface MonthlyStats {
@@ -30,6 +39,8 @@ export interface MonthlyStats {
   totalFuelCost: number;
   netProfit: number;
   platformFees: number;
+  avgNetPerMile: number;
+  profitMargin: number;
 }
 
 export interface WalletState {
@@ -108,25 +119,33 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
       load.assignedDriverId === user.id
     );
 
-    // Add transactions for new completed loads
+    // Add transactions for new completed loads with enhanced cost breakdown
     completedLoads.forEach(load => {
       const existingTransaction = transactions.find(t => t.loadId === load.id);
       if (!existingTransaction && load.rate) {
-        const platformFee = calculatePlatformFee(load.rate);
-        const netAmount = load.rate - platformFee;
+        // Calculate comprehensive cost breakdown including fuel
+        const costBreakdown = calculateLoadCostBreakdown(load, user as any);
         
         const newTransaction: Transaction = {
           id: `load_${load.id}`,
-          amount: load.rate,
+          amount: costBreakdown.netEarnings, // Use net earnings as the main amount
+          grossAmount: costBreakdown.grossEarnings,
           type: 'earning',
           description: `${load.description || 'Load'} - ${load.origin?.city || 'Unknown'} to ${load.destination?.city || 'Unknown'}`,
           date: load.deliveryDate ? new Date(load.deliveryDate) : new Date(),
           loadId: load.id,
           status: 'completed',
-          feeAmount: platformFee,
-          netAmount,
+          feeAmount: costBreakdown.platformFee,
+          netAmount: costBreakdown.netEarnings,
           milesDriven: load.distance || 0,
-          fuelCost: (load as any).estimatedFuelCost || 0,
+          fuelCost: costBreakdown.fuelCost,
+          costBreakdown: {
+            grossEarnings: costBreakdown.grossEarnings,
+            fuelCost: costBreakdown.fuelCost,
+            platformFee: costBreakdown.platformFee,
+            netEarnings: costBreakdown.netEarnings,
+            netPerMile: costBreakdown.netPerMile,
+          },
         };
 
         addTransaction(newTransaction);
@@ -214,6 +233,8 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
           totalFuelCost: 0,
           netProfit: 0,
           platformFees: 0,
+          avgNetPerMile: 0,
+          profitMargin: 0,
         });
       }
 
@@ -221,7 +242,7 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
       
       if (transaction.type === 'earning') {
         stats.totalLoads += 1;
-        stats.totalEarnings += transaction.amount;
+        stats.totalEarnings += transaction.grossAmount || transaction.amount;
         stats.totalMiles += transaction.milesDriven || 0;
         stats.totalFuelCost += transaction.fuelCost || 0;
         stats.platformFees += transaction.feeAmount || 0;
@@ -229,10 +250,14 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
       }
     });
 
-    // Calculate average per mile
+    // Calculate averages and profit margins
     statsMap.forEach(stats => {
       if (stats.totalMiles > 0) {
         stats.avgPerMile = Math.round((stats.totalEarnings / stats.totalMiles) * 100) / 100;
+        stats.avgNetPerMile = Math.round((stats.netProfit / stats.totalMiles) * 100) / 100;
+      }
+      if (stats.totalEarnings > 0) {
+        stats.profitMargin = Math.round((stats.netProfit / stats.totalEarnings) * 100 * 100) / 100;
       }
     });
 
@@ -290,21 +315,30 @@ function generateSeedTransactions(): Transaction[] {
     const date = new Date(now.getTime() - (i * 3 * 24 * 60 * 60 * 1000)); // Every 3 days
     const grossAmount = 1200 + Math.random() * 2000; // $1200-$3200
     const platformFee = Math.round(grossAmount * PLATFORM_FEE_RATE * 100) / 100;
-    const netAmount = grossAmount - platformFee;
     const miles = 300 + Math.random() * 500; // 300-800 miles
     const fuelCost = miles * (3.5 + Math.random() * 1.5) * 0.15; // Rough fuel cost calculation
+    const netAmount = grossAmount - platformFee - fuelCost;
+    const netPerMile = miles > 0 ? netAmount / miles : 0;
     
     transactions.push({
       id: `seed_${i}`,
-      amount: grossAmount,
+      amount: Math.round(netAmount * 100) / 100, // Use net as main amount
+      grossAmount,
       type: 'earning',
       description: `Load ${i + 1} - ${getRandomCity()} to ${getRandomCity()}`,
       date,
       status: 'completed',
       feeAmount: platformFee,
-      netAmount,
+      netAmount: Math.round(netAmount * 100) / 100,
       milesDriven: Math.round(miles),
       fuelCost: Math.round(fuelCost * 100) / 100,
+      costBreakdown: {
+        grossEarnings: grossAmount,
+        fuelCost: Math.round(fuelCost * 100) / 100,
+        platformFee,
+        netEarnings: Math.round(netAmount * 100) / 100,
+        netPerMile: Math.round(netPerMile * 100) / 100,
+      },
     });
   }
   
@@ -338,7 +372,7 @@ function calculateBalanceFromTransactions(transactions: Transaction[]) {
   
   transactions.forEach(transaction => {
     if (transaction.type === 'earning') {
-      total += transaction.amount;
+      total += transaction.grossAmount || transaction.amount;
       if (transaction.status === 'completed') {
         available += transaction.netAmount || transaction.amount;
       } else {

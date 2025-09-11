@@ -8,11 +8,12 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DollarSign, TrendingUp, Download, CreditCard, ArrowUpRight, ArrowDownRight, Trash2, Calendar, BarChart3, Fuel, Minus } from 'lucide-react-native';
+import { DollarSign, TrendingUp, Download, CreditCard, ArrowUpRight, ArrowDownRight, Trash2, Calendar, BarChart3, Fuel, Minus, Calculator } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useWallet, Transaction } from '@/hooks/useWallet';
+import { formatNetCurrency } from '@/utils/fuelCostCalculator';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import WithdrawalModal from '@/components/WithdrawalModal';
 
@@ -52,6 +53,8 @@ export default function WalletScreen() {
       totalFuelCost: 0,
       netProfit: 0,
       platformFees: 0,
+      avgNetPerMile: 0,
+      profitMargin: 0,
     };
   }, [monthlyStats, currentDate]);
 
@@ -109,9 +112,12 @@ export default function WalletScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <Text style={styles.balanceLabel}>Net Available Balance</Text>
           <Text style={styles.balanceAmount}>
             ${balance.toLocaleString()}
+          </Text>
+          <Text style={styles.balanceSubtext}>
+            After fuel costs and platform fees
           </Text>
           
           <View style={styles.balanceDetails}>
@@ -125,17 +131,17 @@ export default function WalletScreen() {
             
             <View style={styles.balanceItem}>
               <DollarSign size={16} color={theme.colors.success} />
-              <Text style={styles.balanceItemLabel}>Total Earned</Text>
+              <Text style={styles.balanceItemLabel}>Gross Earned</Text>
               <Text style={styles.balanceItemAmount}>
                 ${totalEarnings.toLocaleString()}
               </Text>
             </View>
             
             <View style={styles.balanceItem}>
-              <Minus size={16} color={theme.colors.danger} />
-              <Text style={styles.balanceItemLabel}>Withdrawn</Text>
+              <Calculator size={16} color={theme.colors.primary} />
+              <Text style={styles.balanceItemLabel}>Net Balance</Text>
               <Text style={styles.balanceItemAmount}>
-                ${totalWithdrawn.toLocaleString()}
+                ${balance.toLocaleString()}
               </Text>
             </View>
           </View>
@@ -184,7 +190,12 @@ export default function WalletScreen() {
                   <Text style={styles.transactionDate}>
                     {transaction.date.toLocaleDateString()}
                   </Text>
-                  {transaction.type === 'earning' && transaction.feeAmount && (
+                  {transaction.type === 'earning' && transaction.costBreakdown && (
+                    <Text style={styles.costBreakdownText}>
+                      {formatNetCurrency(transaction.costBreakdown.grossEarnings)} - {formatNetCurrency(transaction.costBreakdown.fuelCost)} fuel - {formatNetCurrency(transaction.costBreakdown.platformFee)} fees
+                    </Text>
+                  )}
+                  {transaction.type === 'earning' && transaction.feeAmount && !transaction.costBreakdown && (
                     <Text style={styles.feeText}>
                       Fee: ${transaction.feeAmount.toFixed(2)}
                     </Text>
@@ -196,20 +207,36 @@ export default function WalletScreen() {
               </View>
               
               <View style={styles.amountContainer}>
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    transaction.type === 'earning'
-                      ? styles.amountPositive
-                      : styles.amountNegative,
-                  ]}
-                >
-                  {transaction.type === 'earning' ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
-                </Text>
-                {transaction.type === 'earning' && transaction.netAmount && (
-                  <Text style={styles.netAmount}>
-                    Net: ${transaction.netAmount.toFixed(2)}
-                  </Text>
+                {transaction.type === 'earning' && transaction.costBreakdown ? (
+                  <>
+                    <Text style={styles.grossAmount}>
+                      {formatNetCurrency(transaction.costBreakdown.grossEarnings)} gross
+                    </Text>
+                    <Text style={[styles.transactionAmount, styles.amountPositive]}>
+                      +{formatNetCurrency(transaction.costBreakdown.netEarnings)} net
+                    </Text>
+                    <Text style={styles.netPerMileText}>
+                      ${transaction.costBreakdown.netPerMile.toFixed(2)}/mi net
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text
+                      style={[
+                        styles.transactionAmount,
+                        transaction.type === 'earning'
+                          ? styles.amountPositive
+                          : styles.amountNegative,
+                      ]}
+                    >
+                      {transaction.type === 'earning' ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
+                    </Text>
+                    {transaction.type === 'earning' && transaction.netAmount && (
+                      <Text style={styles.netAmount}>
+                        Net: ${transaction.netAmount.toFixed(2)}
+                      </Text>
+                    )}
+                  </>
                 )}
               </View>
               
@@ -247,7 +274,19 @@ export default function WalletScreen() {
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statValue}>${currentMonthStats.avgPerMile.toFixed(2)}</Text>
-              <Text style={styles.statLabel}>Avg Per Mile</Text>
+              <Text style={styles.statLabel}>Gross Per Mile</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>${currentMonthStats.avgNetPerMile.toFixed(2)}</Text>
+              <Text style={styles.statLabel}>Net Per Mile</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>
+                ${currentMonthStats.totalFuelCost > 1000 
+                  ? `${(currentMonthStats.totalFuelCost / 1000).toFixed(1)}k` 
+                  : currentMonthStats.totalFuelCost.toFixed(0)}
+              </Text>
+              <Text style={styles.statLabel}>Fuel Costs</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statValue}>
@@ -258,8 +297,8 @@ export default function WalletScreen() {
               <Text style={styles.statLabel}>Net Profit</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>${currentMonthStats.platformFees.toFixed(0)}</Text>
-              <Text style={styles.statLabel}>Platform Fees</Text>
+              <Text style={styles.statValue}>{currentMonthStats.profitMargin.toFixed(1)}%</Text>
+              <Text style={styles.statLabel}>Profit Margin</Text>
             </View>
           </View>
         </View>
@@ -275,7 +314,8 @@ export default function WalletScreen() {
                 </View>
                 <View style={styles.monthlyDetails}>
                   <Text style={styles.monthlyDetail}>{stats.totalLoads} loads • {stats.totalMiles.toLocaleString()} miles</Text>
-                  <Text style={styles.monthlyDetail}>${stats.avgPerMile.toFixed(2)}/mile • ${stats.platformFees.toFixed(0)} fees</Text>
+                  <Text style={styles.monthlyDetail}>${stats.avgNetPerMile.toFixed(2)}/mi net • {stats.profitMargin.toFixed(1)}% margin</Text>
+                  <Text style={styles.monthlyDetail}>${stats.totalFuelCost.toFixed(0)} fuel • ${stats.platformFees.toFixed(0)} fees</Text>
                 </View>
               </View>
             ))}
@@ -555,5 +595,29 @@ const styles = StyleSheet.create({
   monthlyDetail: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
+  },
+  balanceSubtext: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.white,
+    opacity: 0.7,
+    marginBottom: theme.spacing.md,
+  },
+  costBreakdownText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginLeft: theme.spacing.sm,
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  grossAmount: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: 2,
+  },
+  netPerMileText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primary,
+    marginTop: 2,
+    fontWeight: '600',
   },
 });
