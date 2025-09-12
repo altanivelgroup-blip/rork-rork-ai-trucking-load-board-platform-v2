@@ -1,7 +1,7 @@
 import React, { useMemo, memo, useCallback } from 'react';
 import { View, Text, StyleSheet, Platform, Pressable } from 'react-native';
 import { MapPin, DollarSign, Package, TrendingUp, Fuel, Heart } from 'lucide-react-native';
-import { Load } from '@/types';
+import { Load, Driver } from '@/types';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { estimateFuelForLoad, formatCurrency, simpleFuelMetrics } from '@/utils/fuel';
@@ -20,7 +20,8 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
   const vehicleColor = theme.colors[load.vehicleType as keyof typeof theme.colors] || theme.colors.primary;
   const fuel = useMemo(() => {
     try {
-      return estimateFuelForLoad(load, user);
+      const driverUser = user?.role === 'driver' ? user as Driver : null;
+      return estimateFuelForLoad(load, driverUser);
     } catch (e) {
       console.log('[LoadCard] fuel estimate error', e);
       return undefined;
@@ -29,7 +30,8 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
 
   const simple = useMemo(() => {
     try {
-      return simpleFuelMetrics({ rate: load.rate, distance: load.distance, vehicleType: load.vehicleType }, user ?? undefined);
+      const driverUser = user?.role === 'driver' ? user as Driver : undefined;
+      return simpleFuelMetrics({ rate: load.rate, distance: load.distance, vehicleType: load.vehicleType }, driverUser);
     } catch (e) {
       console.log('[LoadCard] simple fuel metrics error', e);
       return undefined;
