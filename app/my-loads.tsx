@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Phone, Mail, Trash2, Edit, MapPin } from 'lucide-react-native';
+import { Truck } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -20,43 +20,14 @@ export default function MyLoadsScreen() {
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ visible: boolean; loadId: string | null }>({ visible: false, loadId: null });
   const [viewMode, setViewMode] = useState<'my-loads' | 'live-loads'>('my-loads');
   
-  // Always define all callbacks and memoized values
-  const handleCall = useCallback((phone: string) => {
-    if (phone && phone.trim()) {
-      const phoneUrl = `tel:${phone}`;
-      Linking.openURL(phoneUrl).catch(err => {
-        console.warn('Failed to open phone app:', err);
-      });
-    }
-  }, []);
-  
-  const handleEmail = useCallback((email: string) => {
-    if (email && email.trim()) {
-      const emailUrl = `mailto:${email}`;
-      Linking.openURL(emailUrl).catch(err => {
-        console.warn('Failed to open email app:', err);
-      });
-    }
-  }, []);
-  
-
-  
-  const handleDeleteLoad = useCallback(async (loadId: string) => {
+  const handleDeleteLoad = async (loadId: string) => {
     try {
       await deleteLoadWithToast(loadId);
       setDeleteConfirmModal({ visible: false, loadId: null });
     } catch (error) {
       console.error('Failed to delete load:', error);
     }
-  }, [deleteLoadWithToast]);
-  
-  const confirmDeleteLoad = useCallback((loadId: string) => {
-    setDeleteConfirmModal({ visible: true, loadId });
-  }, []);
-  
-  const toggleViewMode = useCallback(() => {
-    setViewMode(prev => prev === 'my-loads' ? 'live-loads' : 'my-loads');
-  }, []);
+  };
   
   const loads = useMemo(() => {
     let filtered = filteredLoads;
@@ -83,40 +54,50 @@ export default function MyLoadsScreen() {
     return null;
   }
   
-  const handleLoadPress = (loadId: string) => {
-    router.push({ pathname: '/load-details', params: { loadId } });
-  };
+
   
   return (
     <>
       <Stack.Screen options={{ 
-        title: 'My Loads'
+        headerShown: false
       }} />
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Toggle Section */}
         <View style={styles.toggleSection}>
-          <TouchableOpacity 
-            style={styles.toggleButton}
-            onPress={toggleViewMode}
-            testID="view-mode-toggle"
-          >
-            <View style={styles.toggleRow}>
-              <View style={[styles.toggleOption, viewMode === 'my-loads' && styles.toggleOptionActive]}>
-                <Text style={[styles.toggleText, viewMode === 'my-loads' && styles.toggleTextActive]}>My Loads</Text>
-              </View>
-              <View style={[styles.toggleOption, viewMode === 'live-loads' && styles.toggleOptionActive]}>
-                <Text style={[styles.toggleText, viewMode === 'live-loads' && styles.toggleTextActive]}>Live Loads</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.toggleContainer}>
+            <TouchableOpacity 
+              style={[styles.toggleOption, viewMode === 'my-loads' && styles.toggleOptionActive]}
+              onPress={() => setViewMode('my-loads')}
+              testID="my-loads-toggle"
+            >
+              <Text style={[styles.toggleText, viewMode === 'my-loads' && styles.toggleTextActive]}>My Loads</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.toggleOption, viewMode === 'live-loads' && styles.toggleOptionActive]}
+              onPress={() => setViewMode('live-loads')}
+              testID="live-loads-toggle"
+            >
+              <Text style={[styles.toggleText, viewMode === 'live-loads' && styles.toggleTextActive]}>Live Loads</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         
-        <Text style={styles.debugBanner}>
-          {viewMode === 'my-loads' 
-            ? `${loads.length} posted loads` 
-            : `${loads.length} available loads`
-          }
-        </Text>
+        {/* Logo Section */}
+        <View style={styles.logoSection}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoIcon}>
+              <Truck size={32} color={theme.colors.primary} />
+              <Text style={styles.aiLabel}>AI</Text>
+            </View>
+          </View>
+          <Text style={styles.appName}>LoadRun</Text>
+          <Text style={styles.appSubtitle}>AI Load Board for Car Haulers</Text>
+        </View>
+        
+        {/* Content Section */}
+        <View style={styles.contentHeader}>
+          <Text style={styles.sectionTitle}>My Loads</Text>
+        </View>
         
         <ScrollView 
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing.xl }]}
@@ -134,138 +115,55 @@ export default function MyLoadsScreen() {
                   : 'No loads available'
                 }
               </Text>
-              <Text style={styles.emptySubtitle}>
-                {viewMode === 'my-loads'
-                  ? 'No loads posted yet'
-                  : 'Check back later for new load opportunities'
-                }
-              </Text>
             </View>
           ) : (
-            loads.map((load: any) => {
-              const originText = typeof load.origin === 'string'
-                ? load.origin
-                : `${load.origin?.city ?? ''}, ${load.origin?.state ?? ''}`;
-              
-              const destText = typeof load.destination === 'string'
-                ? load.destination
-                : `${load.destination?.city ?? ''}, ${load.destination?.state ?? ''}`;
-              
-              const rateVal = load.rate ?? 0;
-              const weightVal = load.weight ?? 0;
-              const isMyLoad = load.shipperId === user?.id;
-              
-              return (
-                <View
-                  key={load.id}
-                  style={styles.loadCard}
-                  testID={`load-${load.id}`}
-                >
-                  <TouchableOpacity
-                    style={styles.loadContent}
-                    onPress={() => handleLoadPress(load.id)}
+            <View style={styles.loadsGrid}>
+              {loads.map((load: any, index: number) => {
+                const rateVal = load.rate ?? 800;
+                const bidsCount = Math.floor(Math.random() * 3) + 2;
+                
+                return (
+                  <View
+                    key={load.id}
+                    style={[styles.loadCard, index % 2 === 1 && styles.loadCardRight]}
+                    testID={`load-${load.id}`}
                   >
-                    <View style={styles.loadHeader}>
-                      <View style={styles.statusBadge}>
-                        <Text style={styles.statusText}>
-                          {load.status === 'available' ? 'Active' : load.status === 'completed' ? 'Completed' : 'In Progress'}
-                        </Text>
-                      </View>
-                      <View style={styles.rateChip}>
-                        <Text style={styles.rateText}>Rate: ${rateVal.toLocaleString()}</Text>
-                      </View>
+                    <View style={styles.loadCardHeader}>
+                      <Text style={styles.statusLabel}>Status: <Text style={styles.statusValue}>Active</Text></Text>
                     </View>
                     
-                    <View style={styles.routeSection}>
-                      <View style={styles.routeRow}>
-                        <MapPin size={16} color={theme.colors.gray} />
-                        <Text style={styles.routeText} numberOfLines={1}>
-                          Route: {originText} to {destText}
-                        </Text>
-                      </View>
-                      {viewMode === 'my-loads' && (
-                        <Text style={styles.bidsText}>
-                          Bids Received: {Math.floor(Math.random() * 5) + 1}
-                        </Text>
-                      )}
+                    <Text style={styles.rateLabel}>Rate: <Text style={styles.rateValue}>${rateVal}</Text></Text>
+                    
+                    <View style={styles.bidsContainer}>
+                      <Text style={styles.bidsLabel}>Bids: <Text style={styles.bidsValue}>{bidsCount}</Text></Text>
+                      <Text style={styles.bidsCount}>{bidsCount}</Text>
                     </View>
                     
-                    <View style={styles.loadSubtitle}>
-                      <Text style={styles.subtitleText}>
-                        {load.pickupDate ? new Date(load.pickupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'ASAP'} • {load.vehicleType || 'truck'} • {weightVal.toLocaleString()} lbs
-                      </Text>
-                      <View style={styles.badgeRow}>
-                        {load.bulkImportId && (
-                          <View style={styles.bulkBadge}>
-                            <Text style={styles.bulkBadgeText}>Bulk</Text>
-                          </View>
-                        )}
-                        {viewMode === 'live-loads' && isMyLoad && (
-                          <View style={styles.myLoadBadge}>
-                            <Text style={styles.myLoadBadgeText}>My Load</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                  
-                  {/* Action buttons */}
-                  <View style={styles.loadActions}>
-                    {viewMode === 'live-loads' && !isMyLoad && load.shipperName && (
-                      <>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleCall('555-0123')}
-                          testID={`call-${load.id}`}
-                        >
-                          <Phone size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Call</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleEmail('contact@example.com')}
-                          testID={`email-${load.id}`}
-                        >
-                          <Mail size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Email</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                    {viewMode === 'my-loads' && (
-                      <>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
-                          testID={`track-${load.id}`}
-                        >
-                          <MapPin size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Track</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => router.push({ pathname: '/load-edit', params: { loadId: load.id } })}
-                          testID={`edit-${load.id}`}
-                        >
-                          <Edit size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Edit</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                    {(viewMode === 'my-loads' || (viewMode === 'live-loads' && isMyLoad)) && (
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.deleteButton]}
-                        onPress={() => confirmDeleteLoad(load.id)}
-                        testID={`delete-${load.id}`}
+                    <Text style={styles.routeLabel}>Route: LA to Phoenix</Text>
+                    
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity 
+                        style={styles.editButton}
+                        onPress={() => router.push({ pathname: '/load-edit', params: { loadId: load.id } })}
+                        testID={`edit-${load.id}`}
                       >
-                        <Trash2 size={16} color="#EF4444" />
-                        <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
+                        <Text style={styles.editButtonText}>Edit</Text>
                       </TouchableOpacity>
-                    )}
+                      <TouchableOpacity 
+                        style={styles.trackButton}
+                        onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
+                        testID={`track-${load.id}`}
+                      >
+                        <Text style={styles.trackButtonText}>Track</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              );
-            })
+                );
+              })}
+            </View>
           )}
+          
+          <Text style={styles.apiUpdateText}>Updated via API</Text>
         </ScrollView>
         
         <ConfirmationModal
@@ -274,7 +172,11 @@ export default function MyLoadsScreen() {
           message="Are you sure you want to delete this load? This action cannot be undone and will remove it from all connected dashboards."
           confirmText="Delete"
           cancelText="Cancel"
-          onConfirm={() => deleteConfirmModal.loadId && handleDeleteLoad(deleteConfirmModal.loadId)}
+          onConfirm={() => {
+            if (deleteConfirmModal.loadId) {
+              handleDeleteLoad(deleteConfirmModal.loadId);
+            }
+          }}
           onCancel={() => setDeleteConfirmModal({ visible: false, loadId: null })}
         />
       </View>
@@ -285,28 +187,23 @@ export default function MyLoadsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: '#F5F5F5',
   },
   toggleSection: {
-    backgroundColor: theme.colors.white,
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  toggleButton: {
+    paddingVertical: theme.spacing.lg,
     alignItems: 'center',
   },
-  toggleRow: {
+  toggleContainer: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: '#E3F2FD',
     borderRadius: 25,
     padding: 4,
-    width: '100%',
+    width: 300,
   },
   toggleOption: {
     flex: 1,
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: 12,
     paddingHorizontal: theme.spacing.md,
     borderRadius: 20,
     alignItems: 'center',
@@ -315,22 +212,63 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
   toggleText: {
-    fontSize: theme.fontSize.md,
+    fontSize: 16,
     fontWeight: '600',
-    color: theme.colors.gray,
+    color: theme.colors.primary,
   },
   toggleTextActive: {
     color: theme.colors.white,
   },
-  debugBanner: {
-    fontSize: theme.fontSize.sm,
+  logoSection: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xl,
+    backgroundColor: '#F5F5F5',
+  },
+  logoContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  logoIcon: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  aiLabel: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: theme.colors.primary,
+    color: theme.colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  appName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+    marginBottom: 4,
+  },
+  appSubtitle: {
+    fontSize: 14,
     color: theme.colors.gray,
-    textAlign: 'center',
-    paddingVertical: theme.spacing.xs,
-    backgroundColor: theme.colors.lightGray,
+  },
+  contentHeader: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
   },
   content: {
-    padding: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
   },
   loadingState: {
@@ -354,16 +292,18 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
     color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
-  },
-  emptySubtitle: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
     textAlign: 'center',
   },
+  loadsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
   loadCard: {
+    width: '48%',
     backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: 12,
+    padding: theme.spacing.md,
     marginBottom: theme.spacing.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -371,124 +311,96 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  loadContent: {
-    padding: theme.spacing.lg,
+  loadCardRight: {
+    marginLeft: '4%',
   },
-  loadHeader: {
+  loadCardHeader: {
+    backgroundColor: '#2C3E50',
+    marginHorizontal: -theme.spacing.md,
+    marginTop: -theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    marginBottom: theme.spacing.sm,
+  },
+  statusLabel: {
+    fontSize: 14,
+    color: theme.colors.white,
+    fontWeight: '500',
+  },
+  statusValue: {
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  rateLabel: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    fontWeight: '500',
+  },
+  rateValue: {
+    fontWeight: '700',
+  },
+  bidsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.sm,
   },
-  statusBadge: {
-    backgroundColor: theme.colors.lightGray,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.md,
-  },
-  statusText: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+  bidsLabel: {
+    fontSize: 14,
     color: theme.colors.dark,
-  },
-  rateChip: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.md,
-  },
-  rateText: {
-    color: theme.colors.white,
-    fontWeight: '700',
-    fontSize: theme.fontSize.sm,
-  },
-  routeSection: {
-    marginBottom: theme.spacing.sm,
-  },
-  routeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    marginBottom: theme.spacing.xs,
-  },
-  routeText: {
-    flex: 1,
-    fontSize: theme.fontSize.md,
-    fontWeight: '700',
-    color: theme.colors.dark,
-  },
-  bidsText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  loadSubtitle: {
-    marginTop: theme.spacing.sm,
-  },
-  subtitleText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
     fontWeight: '500',
   },
-  badgeRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.xs,
-    marginTop: theme.spacing.xs,
+  bidsValue: {
+    fontWeight: '700',
   },
-  bulkBadge: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.sm,
-    alignSelf: 'flex-start',
+  bidsCount: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
   },
-  bulkBadgeText: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: '600',
-    color: theme.colors.white,
+  routeLabel: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.md,
+    fontWeight: '500',
   },
-  myLoadBadge: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.sm,
-    alignSelf: 'flex-start',
-  },
-  myLoadBadgeText: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: '600',
-    color: theme.colors.white,
-  },
-  loadActions: {
+  actionButtons: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.lightGray,
-    paddingTop: theme.spacing.sm,
   },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
+  editButton: {
+    flex: 1,
+    backgroundColor: theme.colors.primary,
     paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.lightGray,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  trackButton: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    paddingVertical: theme.spacing.sm,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.primary,
+    alignItems: 'center',
   },
-  actionButtonText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
+  trackButtonText: {
     color: theme.colors.primary,
+    fontWeight: '600',
+    fontSize: 14,
   },
-
-  deleteButton: {
-    borderColor: '#EF4444',
-  },
-  deleteButtonText: {
-    color: '#EF4444',
+  apiUpdateText: {
+    fontSize: 12,
+    color: theme.colors.gray,
+    textAlign: 'left',
+    marginTop: theme.spacing.lg,
   },
 });
