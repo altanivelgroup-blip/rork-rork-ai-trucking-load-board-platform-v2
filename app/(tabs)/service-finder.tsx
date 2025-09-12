@@ -168,13 +168,11 @@ export default function ServiceFinderScreen() {
     }
   }, [query, coords, radiusMiles]);
 
-  const handleServiceSelect = useCallback((service: string) => {
+  const handleServiceSelect = useCallback(async (service: string) => {
     setQuery(service);
     setDropdownVisible(false);
-    // Auto-search after selection
-    setTimeout(() => {
-      handleSearchWithQuery(service);
-    }, 100);
+    // Auto-search after selection with loading state
+    await handleSearchWithQuery(service);
   }, [handleSearchWithQuery]);
 
   const handleSearch = useCallback(async () => {
@@ -469,6 +467,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 8,
     alignItems: 'center',
+    zIndex: 1000,
   },
   pill: {
     backgroundColor: '#FF8C42',
@@ -508,6 +507,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     width: '100%',
+    maxHeight: 300,
+    zIndex: 1000,
   },
   menuItem: {
     paddingHorizontal: 16,
