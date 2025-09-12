@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
@@ -21,13 +21,9 @@ import {
   ChevronDown,
   Activity,
   Truck,
-  MapPin,
   AlertCircle,
-  CheckCircle,
-  PieChart
+  CheckCircle
 } from 'lucide-react-native';
-
-const { width: screenWidth } = Dimensions.get('window');
 
 type MetricCard = {
   id: string;
@@ -65,7 +61,7 @@ export default function ShipperAnalyticsScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('monthly');
   const [showPeriodDropdown, setShowPeriodDropdown] = useState<boolean>(false);
   const [liveData, setLiveData] = useState<any>({});
-  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [, setChartData] = useState<ChartData[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
   const [userActivityData, setUserActivityData] = useState<UserActivityData[]>([]);
   
@@ -92,32 +88,88 @@ export default function ShipperAnalyticsScreen() {
     }
   }, [isAdmin]);
 
-  // Initialize chart data
+  // Initialize chart data based on selected period
   useEffect(() => {
     if (isAdmin) {
-      // Revenue trend data
-      setRevenueData([
-        { month: 'Jan', revenue: 45000, loads: 120 },
-        { month: 'Feb', revenue: 52000, loads: 135 },
-        { month: 'Mar', revenue: 48000, loads: 128 },
-        { month: 'Apr', revenue: 61000, loads: 155 },
-        { month: 'May', revenue: 58000, loads: 148 },
-        { month: 'Jun', revenue: 67000, loads: 172 }
-      ]);
+      // Generate data based on selected period
+      let revenueDataSet: RevenueData[] = [];
+      let chartDataSet: ChartData[] = [];
+      
+      if (selectedPeriod === 'daily') {
+        // Last 7 days data
+        revenueDataSet = [
+          { month: 'Mon', revenue: 1500, loads: 4 },
+          { month: 'Tue', revenue: 2200, loads: 6 },
+          { month: 'Wed', revenue: 1800, loads: 5 },
+          { month: 'Thu', revenue: 2800, loads: 8 },
+          { month: 'Fri', revenue: 3200, loads: 9 },
+          { month: 'Sat', revenue: 2100, loads: 6 },
+          { month: 'Sun', revenue: 1900, loads: 5 }
+        ];
+        chartDataSet = [
+          { label: 'Total Loads', value: 43, color: '#3B82F6' },
+          { label: 'Completed', value: 38, color: '#10B981' },
+          { label: 'In Progress', value: 3, color: '#F59E0B' },
+          { label: 'Cancelled', value: 2, color: '#EF4444' }
+        ];
+      } else if (selectedPeriod === 'weekly') {
+        // Last 8 weeks data
+        revenueDataSet = [
+          { month: 'W1', revenue: 12000, loads: 32 },
+          { month: 'W2', revenue: 15000, loads: 38 },
+          { month: 'W3', revenue: 11000, loads: 29 },
+          { month: 'W4', revenue: 18000, loads: 45 },
+          { month: 'W5', revenue: 16000, loads: 42 },
+          { month: 'W6', revenue: 19000, loads: 48 },
+          { month: 'W7', revenue: 14000, loads: 35 },
+          { month: 'W8', revenue: 17000, loads: 43 }
+        ];
+        chartDataSet = [
+          { label: 'Total Loads', value: 312, color: '#3B82F6' },
+          { label: 'Completed', value: 289, color: '#10B981' },
+          { label: 'In Progress', value: 15, color: '#F59E0B' },
+          { label: 'Cancelled', value: 8, color: '#EF4444' }
+        ];
+      } else if (selectedPeriod === 'monthly') {
+        // Last 6 months data
+        revenueDataSet = [
+          { month: 'Jan', revenue: 45000, loads: 120 },
+          { month: 'Feb', revenue: 52000, loads: 135 },
+          { month: 'Mar', revenue: 48000, loads: 128 },
+          { month: 'Apr', revenue: 61000, loads: 155 },
+          { month: 'May', revenue: 58000, loads: 148 },
+          { month: 'Jun', revenue: 67000, loads: 172 }
+        ];
+        chartDataSet = [
+          { label: 'Total Loads', value: 1250, color: '#3B82F6' },
+          { label: 'Completed', value: 1180, color: '#10B981' },
+          { label: 'In Progress', value: 45, color: '#F59E0B' },
+          { label: 'Cancelled', value: 25, color: '#EF4444' }
+        ];
+      } else if (selectedPeriod === 'quarterly') {
+        // Last 4 quarters data
+        revenueDataSet = [
+          { month: 'Q1', revenue: 145000, loads: 383 },
+          { month: 'Q2', revenue: 186000, loads: 475 },
+          { month: 'Q3', revenue: 167000, loads: 428 },
+          { month: 'Q4', revenue: 203000, loads: 512 }
+        ];
+        chartDataSet = [
+          { label: 'Total Loads', value: 1798, color: '#3B82F6' },
+          { label: 'Completed', value: 1689, color: '#10B981' },
+          { label: 'In Progress', value: 67, color: '#F59E0B' },
+          { label: 'Cancelled', value: 42, color: '#EF4444' }
+        ];
+      }
+      
+      setRevenueData(revenueDataSet);
+      setChartData(chartDataSet);
 
-      // User activity distribution
+      // User activity distribution (remains consistent across periods)
       setUserActivityData([
         { type: 'Drivers', percentage: 68.43, color: '#3B82F6' },
         { type: 'Shippers', percentage: 23, color: '#10B981' },
         { type: 'Admins', percentage: 8.57, color: '#F59E0B' }
-      ]);
-
-      // Key metrics chart data
-      setChartData([
-        { label: 'Total Loads', value: 1250, color: '#3B82F6' },
-        { label: 'Completed', value: 1180, color: '#10B981' },
-        { label: 'In Progress', value: 45, color: '#F59E0B' },
-        { label: 'Cancelled', value: 25, color: '#EF4444' }
       ]);
     }
   }, [isAdmin, selectedPeriod]);
@@ -133,36 +185,55 @@ export default function ShipperAnalyticsScreen() {
     const multiplier = selectedPeriod === 'daily' ? 0.03 : selectedPeriod === 'weekly' ? 0.23 : selectedPeriod === 'monthly' ? 1 : 3;
     
     if (isAdmin) {
+      // Calculate dynamic metrics based on period and live data
+      const totalRevenue = revenueData.reduce((sum, item) => sum + item.revenue, 0);
+      const totalLoads = revenueData.reduce((sum, item) => sum + item.loads, 0);
+      const avgRate = totalLoads > 0 ? Math.floor(totalRevenue / totalLoads) : 0;
+      
+      // Period-specific comparison text
+      const comparisonText = selectedPeriod === 'daily' ? 'vs yesterday' : 
+                           selectedPeriod === 'weekly' ? 'vs last week' :
+                           selectedPeriod === 'monthly' ? 'vs last month' :
+                           'vs last quarter';
+      
       return [
         {
           id: 'revenue',
           title: 'Total Revenue',
-          value: `${Math.floor(187000 * multiplier).toLocaleString()}`,
-          change: '+18% vs last month',
+          value: `${totalRevenue.toLocaleString()}`,
+          change: `+${selectedPeriod === 'daily' ? '8.2' : selectedPeriod === 'weekly' ? '12.5' : selectedPeriod === 'monthly' ? '18' : '22.3'}% ${comparisonText}`,
           isPositive: true,
           icon: DollarSign
         },
         {
           id: 'avgRate',
-          title: 'Avg Rate',
-          value: `${Math.floor(3740 * multiplier)}`,
-          change: '+5% vs last month',
+          title: 'Avg Rate per Load',
+          value: `${avgRate.toLocaleString()}`,
+          change: `+${selectedPeriod === 'daily' ? '2.1' : selectedPeriod === 'weekly' ? '3.8' : selectedPeriod === 'monthly' ? '5' : '7.2'}% ${comparisonText}`,
           isPositive: true,
           icon: TrendingUp
+        },
+        {
+          id: 'loads',
+          title: 'Total Loads',
+          value: `${totalLoads.toLocaleString()}`,
+          change: `+${selectedPeriod === 'daily' ? '5' : selectedPeriod === 'weekly' ? '8' : selectedPeriod === 'monthly' ? '15' : '28'}% ${comparisonText}`,
+          isPositive: true,
+          icon: Package
         },
         {
           id: 'completion',
           title: 'Load Completion Rate',
           value: '94.2%',
-          change: '+2.1%',
+          change: `+${selectedPeriod === 'daily' ? '0.8' : selectedPeriod === 'weekly' ? '1.2' : selectedPeriod === 'monthly' ? '2.1' : '3.5'}%`,
           isPositive: true,
           icon: BarChart3
         },
         {
           id: 'deliveryTime',
           title: 'Average Delivery Time',
-          value: '2.3 days',
-          change: '-0.2 days',
+          value: selectedPeriod === 'daily' ? '8.5 hrs' : selectedPeriod === 'weekly' ? '1.8 days' : '2.3 days',
+          change: selectedPeriod === 'daily' ? '-1.2 hrs' : selectedPeriod === 'weekly' ? '-0.3 days' : '-0.2 days',
           isPositive: true,
           icon: Clock
         },
@@ -177,10 +248,18 @@ export default function ShipperAnalyticsScreen() {
         {
           id: 'users',
           title: 'Active Users',
-          value: `${Math.floor(1250 * multiplier)}`,
-          change: '+12.3%',
+          value: `${Math.floor((liveData.activeUsers || 247) * (selectedPeriod === 'daily' ? 0.8 : selectedPeriod === 'weekly' ? 0.9 : 1))}`,
+          change: `+${selectedPeriod === 'daily' ? '5.2' : selectedPeriod === 'weekly' ? '8.7' : selectedPeriod === 'monthly' ? '12.3' : '18.9'}%`,
           isPositive: true,
           icon: Users
+        },
+        {
+          id: 'errors',
+          title: 'System Errors',
+          value: `${selectedPeriod === 'daily' ? '2' : selectedPeriod === 'weekly' ? '8' : selectedPeriod === 'monthly' ? '23' : '67'}`,
+          change: `${selectedPeriod === 'daily' ? '-1' : selectedPeriod === 'weekly' ? '-3' : selectedPeriod === 'monthly' ? '-8' : '-15'} ${comparisonText}`,
+          isPositive: true,
+          icon: AlertCircle
         }
       ];
     } else {
@@ -235,7 +314,7 @@ export default function ShipperAnalyticsScreen() {
         }
       ];
     }
-  }, [user, selectedPeriod, isAdmin]);
+  }, [user, selectedPeriod, isAdmin, revenueData, liveData.activeUsers]);
 
   if (!isShipper && !isAdmin) {
     return null;
@@ -330,10 +409,28 @@ export default function ShipperAnalyticsScreen() {
             <View style={styles.chartHeader}>
               <Text style={styles.sectionTitle}>Revenue Trends</Text>
               <View style={styles.chartPeriodSelector}>
-                <TouchableOpacity style={[styles.periodTab, selectedPeriod === 'monthly' && styles.periodTabActive]}>
+                <TouchableOpacity 
+                  style={[styles.periodTab, selectedPeriod === 'daily' && styles.periodTabActive]}
+                  onPress={() => setSelectedPeriod('daily')}
+                >
+                  <Text style={[styles.periodTabText, selectedPeriod === 'daily' && styles.periodTabTextActive]}>Daily</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.periodTab, selectedPeriod === 'weekly' && styles.periodTabActive]}
+                  onPress={() => setSelectedPeriod('weekly')}
+                >
+                  <Text style={[styles.periodTabText, selectedPeriod === 'weekly' && styles.periodTabTextActive]}>Weekly</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.periodTab, selectedPeriod === 'monthly' && styles.periodTabActive]}
+                  onPress={() => setSelectedPeriod('monthly')}
+                >
                   <Text style={[styles.periodTabText, selectedPeriod === 'monthly' && styles.periodTabTextActive]}>Monthly</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.periodTab, selectedPeriod === 'quarterly' && styles.periodTabActive]}>
+                <TouchableOpacity 
+                  style={[styles.periodTab, selectedPeriod === 'quarterly' && styles.periodTabActive]}
+                  onPress={() => setSelectedPeriod('quarterly')}
+                >
                   <Text style={[styles.periodTabText, selectedPeriod === 'quarterly' && styles.periodTabTextActive]}>Quarterly</Text>
                 </TouchableOpacity>
               </View>
@@ -342,16 +439,48 @@ export default function ShipperAnalyticsScreen() {
             {/* Bar Chart */}
             <View style={styles.chartContainer}>
               <View style={styles.chartYAxis}>
-                <Text style={styles.yAxisLabel}>80k</Text>
-                <Text style={styles.yAxisLabel}>60k</Text>
-                <Text style={styles.yAxisLabel}>40k</Text>
-                <Text style={styles.yAxisLabel}>20k</Text>
-                <Text style={styles.yAxisLabel}>0</Text>
+                {selectedPeriod === 'daily' ? (
+                  <>
+                    <Text style={styles.yAxisLabel}>4k</Text>
+                    <Text style={styles.yAxisLabel}>3k</Text>
+                    <Text style={styles.yAxisLabel}>2k</Text>
+                    <Text style={styles.yAxisLabel}>1k</Text>
+                    <Text style={styles.yAxisLabel}>0</Text>
+                  </>
+                ) : selectedPeriod === 'weekly' ? (
+                  <>
+                    <Text style={styles.yAxisLabel}>20k</Text>
+                    <Text style={styles.yAxisLabel}>15k</Text>
+                    <Text style={styles.yAxisLabel}>10k</Text>
+                    <Text style={styles.yAxisLabel}>5k</Text>
+                    <Text style={styles.yAxisLabel}>0</Text>
+                  </>
+                ) : selectedPeriod === 'quarterly' ? (
+                  <>
+                    <Text style={styles.yAxisLabel}>250k</Text>
+                    <Text style={styles.yAxisLabel}>200k</Text>
+                    <Text style={styles.yAxisLabel}>150k</Text>
+                    <Text style={styles.yAxisLabel}>100k</Text>
+                    <Text style={styles.yAxisLabel}>0</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.yAxisLabel}>80k</Text>
+                    <Text style={styles.yAxisLabel}>60k</Text>
+                    <Text style={styles.yAxisLabel}>40k</Text>
+                    <Text style={styles.yAxisLabel}>20k</Text>
+                    <Text style={styles.yAxisLabel}>0</Text>
+                  </>
+                )}
               </View>
               <View style={styles.chartArea}>
                 <View style={styles.barsContainer}>
                   {revenueData.map((item, index) => {
-                    const height = (item.revenue / 70000) * 120;
+                    // Dynamic height calculation based on period
+                    const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
+                                     selectedPeriod === 'weekly' ? 20000 :
+                                     selectedPeriod === 'quarterly' ? 250000 : 70000;
+                    const height = (item.revenue / maxRevenue) * 120;
                     return (
                       <View key={item.month} style={styles.barGroup}>
                         <View style={[styles.bar, { height, backgroundColor: '#3B82F6' }]} />
@@ -379,9 +508,12 @@ export default function ShipperAnalyticsScreen() {
                 <Text style={styles.chartTitle}>Revenues</Text>
                 <View style={styles.lineChartContainer}>
                   <View style={styles.lineChart}>
-                    {revenueData.map((item, index) => {
-                      const x = (index / (revenueData.length - 1)) * 100;
-                      const y = 100 - (item.revenue / 70000) * 80;
+                    {revenueData.slice(0, 6).map((item, index) => {
+                      const x = (index / Math.max(revenueData.slice(0, 6).length - 1, 1)) * 100;
+                      const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
+                                       selectedPeriod === 'weekly' ? 20000 :
+                                       selectedPeriod === 'quarterly' ? 250000 : 70000;
+                      const y = 100 - (item.revenue / maxRevenue) * 80;
                       return (
                         <View 
                           key={item.month}
@@ -395,8 +527,8 @@ export default function ShipperAnalyticsScreen() {
                     <View style={styles.trendLine} />
                   </View>
                   <View style={styles.lineChartLabels}>
-                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map(month => (
-                      <Text key={month} style={styles.lineChartLabel}>{month}</Text>
+                    {revenueData.slice(0, 6).map(item => (
+                      <Text key={item.month} style={styles.lineChartLabel}>{item.month}</Text>
                     ))}
                   </View>
                 </View>
@@ -408,7 +540,6 @@ export default function ShipperAnalyticsScreen() {
                 <View style={styles.pieChartContainer}>
                   <View style={styles.pieChart}>
                     {userActivityData.map((item, index) => {
-                      const angle = (item.percentage / 100) * 360;
                       return (
                         <View 
                           key={item.type}
@@ -476,8 +607,8 @@ export default function ShipperAnalyticsScreen() {
                 { metric: 'Total Loads', avg: '34,17', rev1: '48,800', rev2: '20%', completion: '1.9%', collection: '16330' },
                 { metric: 'Total Loads', avg: '159,56', rev1: '45,000', rev2: '1.34', completion: '1.8%', collection: '26560' },
                 { metric: 'Total Loads', avg: '122,45', rev1: '92,800', rev2: '1.3%', completion: '1.3%', collection: '21530' }
-              ].map((row, index) => (
-                <View key={index} style={styles.tableRow}>
+              ].map((row, rowIndex) => (
+                <View key={rowIndex} style={styles.tableRow}>
                   <View style={[styles.tableCell, { flex: 2 }]}>
                     <View style={styles.tableCellContent}>
                       <View style={styles.metricDot} />
