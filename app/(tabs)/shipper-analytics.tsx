@@ -508,23 +508,104 @@ export default function ShipperAnalyticsScreen() {
                 <Text style={styles.chartTitle}>Revenues</Text>
                 <View style={styles.lineChartContainer}>
                   <View style={styles.lineChart}>
-                    {revenueData.slice(0, 6).map((item, index) => {
-                      const x = (index / Math.max(revenueData.slice(0, 6).length - 1, 1)) * 100;
-                      const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
-                                       selectedPeriod === 'weekly' ? 20000 :
-                                       selectedPeriod === 'quarterly' ? 250000 : 70000;
-                      const y = 100 - (item.revenue / maxRevenue) * 80;
-                      return (
-                        <View 
-                          key={item.month}
-                          style={[
-                            styles.dataPoint,
-                            { left: `${x}%`, top: `${y}%` }
-                          ]} 
-                        />
-                      );
-                    })}
-                    <View style={styles.trendLine} />
+                    {/* Y-axis labels */}
+                    <View style={styles.yAxisLabels}>
+                      {selectedPeriod === 'daily' ? (
+                        <>
+                          <Text style={styles.yAxisText}>4k</Text>
+                          <Text style={styles.yAxisText}>3k</Text>
+                          <Text style={styles.yAxisText}>2k</Text>
+                          <Text style={styles.yAxisText}>1k</Text>
+                          <Text style={styles.yAxisText}>0</Text>
+                        </>
+                      ) : selectedPeriod === 'weekly' ? (
+                        <>
+                          <Text style={styles.yAxisText}>20k</Text>
+                          <Text style={styles.yAxisText}>15k</Text>
+                          <Text style={styles.yAxisText}>10k</Text>
+                          <Text style={styles.yAxisText}>5k</Text>
+                          <Text style={styles.yAxisText}>0</Text>
+                        </>
+                      ) : selectedPeriod === 'quarterly' ? (
+                        <>
+                          <Text style={styles.yAxisText}>250k</Text>
+                          <Text style={styles.yAxisText}>200k</Text>
+                          <Text style={styles.yAxisText}>150k</Text>
+                          <Text style={styles.yAxisText}>100k</Text>
+                          <Text style={styles.yAxisText}>0</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.yAxisText}>80k</Text>
+                          <Text style={styles.yAxisText}>60k</Text>
+                          <Text style={styles.yAxisText}>40k</Text>
+                          <Text style={styles.yAxisText}>20k</Text>
+                          <Text style={styles.yAxisText}>0</Text>
+                        </>
+                      )}
+                    </View>
+                    
+                    {/* Chart area with connected line */}
+                    <View style={styles.chartPlotArea}>
+                      {/* Grid lines */}
+                      {[0, 1, 2, 3, 4].map(i => (
+                        <View key={`grid-${i}`} style={[styles.gridLine, { top: `${i * 20}%` }]} />
+                      ))}
+                      
+                      {/* Connected line path */}
+                      <View style={styles.lineContainer}>
+                        {revenueData.slice(0, 6).map((item, index) => {
+                          if (index === 0) return null;
+                          
+                          const prevItem = revenueData[index - 1];
+                          const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
+                                           selectedPeriod === 'weekly' ? 20000 :
+                                           selectedPeriod === 'quarterly' ? 250000 : 70000;
+                          
+                          const x1 = ((index - 1) / Math.max(revenueData.slice(0, 6).length - 1, 1)) * 100;
+                          const y1 = 100 - (prevItem.revenue / maxRevenue) * 80;
+                          const x2 = (index / Math.max(revenueData.slice(0, 6).length - 1, 1)) * 100;
+                          const y2 = 100 - (item.revenue / maxRevenue) * 80;
+                          
+                          const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+                          const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+                          
+                          return (
+                            <View
+                              key={`line-${index}`}
+                              style={[
+                                styles.lineSegment,
+                                {
+                                  left: `${x1}%`,
+                                  top: `${y1}%`,
+                                  width: `${length}%`,
+                                  transform: [{ rotate: `${angle}deg` }]
+                                }
+                              ]}
+                            />
+                          );
+                        })}
+                        
+                        {/* Data points */}
+                        {revenueData.slice(0, 6).map((item, index) => {
+                          const x = (index / Math.max(revenueData.slice(0, 6).length - 1, 1)) * 100;
+                          const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
+                                           selectedPeriod === 'weekly' ? 20000 :
+                                           selectedPeriod === 'quarterly' ? 250000 : 70000;
+                          const y = 100 - (item.revenue / maxRevenue) * 80;
+                          
+                          return (
+                            <View 
+                              key={item.month}
+                              style={[
+                                styles.dataPoint,
+                                { left: `${x}%`, top: `${y}%` }
+                              ]} 
+                            />
+                          );
+                        })}
+                      </View>
+                    </View>
                   </View>
                   <View style={styles.lineChartLabels}>
                     {revenueData.slice(0, 6).map(item => (
@@ -1605,5 +1686,38 @@ const styles = StyleSheet.create({
   activityTime: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.gray,
+  },
+  yAxisLabels: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 30,
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingRight: 8,
+    paddingVertical: 10,
+  },
+  yAxisText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  chartPlotArea: {
+    flex: 1,
+    marginLeft: 35,
+    position: 'relative',
+  },
+  lineContainer: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    bottom: 10,
+  },
+  lineSegment: {
+    position: 'absolute',
+    height: 2,
+    backgroundColor: '#3B82F6',
+    transformOrigin: '0 50%',
   },
 });
