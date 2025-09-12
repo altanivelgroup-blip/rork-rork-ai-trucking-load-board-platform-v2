@@ -563,23 +563,21 @@ export default function ShipperAnalyticsScreen() {
                                            selectedPeriod === 'weekly' ? 20000 :
                                            selectedPeriod === 'quarterly' ? 250000 : 80000;
                           
-                          // Calculate positions with proper spacing
+                          // Calculate positions with proper spacing - use actual container dimensions
                           const containerWidth = 100; // percentage
                           const containerHeight = 80; // percentage of usable area
                           
+                          // Calculate exact dot positions
                           const x1 = (index / Math.max(array.length - 1, 1)) * containerWidth;
                           const y1 = containerHeight - (item.revenue / maxRevenue) * containerHeight;
                           const x2 = ((index + 1) / Math.max(array.length - 1, 1)) * containerWidth;
                           const y2 = containerHeight - (nextItem.revenue / maxRevenue) * containerHeight;
                           
-                          // Calculate line properties with proper width calculation
+                          // Calculate line properties for perfect connection
                           const deltaX = x2 - x1;
                           const deltaY = y2 - y1;
                           const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                           const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-                          
-                          // Use percentage for width to match container scaling
-                          const lineWidth = `${length}%`;
                           
                           return (
                             <View
@@ -587,11 +585,20 @@ export default function ShipperAnalyticsScreen() {
                               style={[
                                 styles.lineSegment,
                                 {
+                                  position: 'absolute',
                                   left: `${x1}%`,
                                   top: `${y1}%`,
-                                  width: lineWidth,
+                                  width: `${length}%`,
+                                  height: 4,
+                                  backgroundColor: '#3B82F6',
                                   transform: [{ rotate: `${angle}deg` }],
-                                  transformOrigin: '0% 50%'
+                                  transformOrigin: '0% 50%',
+                                  borderRadius: 2,
+                                  shadowColor: '#3B82F6',
+                                  shadowOpacity: 0.4,
+                                  shadowRadius: 2,
+                                  shadowOffset: { width: 0, height: 1 },
+                                  elevation: 3,
                                 }
                               ]}
                             />
@@ -1751,14 +1758,14 @@ const styles = StyleSheet.create({
   },
   lineSegment: {
     position: 'absolute',
-    height: 3,
+    height: 4,
     backgroundColor: '#3B82F6',
     transformOrigin: '0% 50%',
-    borderRadius: 1.5,
+    borderRadius: 2,
     shadowColor: '#3B82F6',
-    shadowOpacity: 0.5,
-    shadowRadius: 1,
-    shadowOffset: { width: 0, height: 0.5 },
-    elevation: 2,
+    shadowOpacity: 0.4,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
   },
 });
