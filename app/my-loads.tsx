@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Phone, Mail, Plus, Upload, Trash2, Edit, MapPin } from 'lucide-react-native';
+import { Phone, Mail, Trash2, Edit, MapPin } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -90,23 +90,7 @@ export default function MyLoadsScreen() {
   return (
     <>
       <Stack.Screen options={{ 
-        title: 'My Loads',
-        headerRight: () => (
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={styles.headerButton}
-              onPress={() => router.push('/post-load')}
-            >
-              <Plus size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.headerButton}
-              onPress={() => router.push('/csv-bulk-upload')}
-            >
-              <Upload size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
-        )
+        title: 'My Loads'
       }} />
       <View style={styles.container}>
         {/* Toggle Section */}
@@ -152,28 +136,10 @@ export default function MyLoadsScreen() {
               </Text>
               <Text style={styles.emptySubtitle}>
                 {viewMode === 'my-loads'
-                  ? 'Start by posting your first load or importing from CSV'
+                  ? 'No loads posted yet'
                   : 'Check back later for new load opportunities'
                 }
               </Text>
-              {viewMode === 'my-loads' && (
-                <View style={styles.emptyActions}>
-                  <TouchableOpacity 
-                    style={styles.emptyActionButton}
-                    onPress={() => router.push('/post-load')}
-                  >
-                    <Plus size={20} color={theme.colors.white} />
-                    <Text style={styles.emptyActionText}>Post Load</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.emptyActionButton, styles.emptyActionButtonSecondary]}
-                    onPress={() => router.push('/csv-bulk-upload')}
-                  >
-                    <Upload size={20} color={theme.colors.primary} />
-                    <Text style={[styles.emptyActionText, styles.emptyActionTextSecondary]}>Bulk Upload</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
           ) : (
             loads.map((load: any) => {
@@ -518,41 +484,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.primary,
   },
-  headerActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  headerButton: {
-    padding: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-  },
-  emptyActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    marginTop: theme.spacing.lg,
-  },
-  emptyActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
-  },
-  emptyActionButtonSecondary: {
-    backgroundColor: theme.colors.white,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-  },
-  emptyActionText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
-    color: theme.colors.white,
-  },
-  emptyActionTextSecondary: {
-    color: theme.colors.primary,
-  },
+
   deleteButton: {
     borderColor: '#EF4444',
   },
