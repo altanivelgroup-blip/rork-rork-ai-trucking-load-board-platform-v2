@@ -130,7 +130,7 @@ export default function MyLoadsScreen() {
             <View style={styles.loadsContainer}>
               {loads.map((load: any, index: number) => {
                 // Determine load status and properties
-                const isCompleted = load.status === 'completed' || Math.random() > 0.8;
+                const isCompleted = load.status === 'delivered' || Math.random() > 0.8;
                 
                 // Hide completed loads from Live Loads view (only show on My Loads)
                 if (viewMode === 'live-loads' && isCompleted) {
@@ -139,12 +139,14 @@ export default function MyLoadsScreen() {
                 
                 return (
                   <View key={load.id}>
-                    <LoadCard
-                      load={load}
-                      onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
-                      showBids={true}
-                      showStatus={true}
-                    />
+                    <View style={styles.loadCardWrapper}>
+                      <LoadCard
+                        load={load}
+                        onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
+                        showBids={true}
+                        showStatus={true}
+                      />
+                    </View>
                     {/* Gray Divider */}
                     {index < loads.length - 1 && <View style={styles.divider} />}
                   </View>
@@ -306,6 +308,9 @@ const styles = StyleSheet.create({
   },
   loadsContainer: {
     paddingVertical: theme.spacing.sm,
+  },
+  loadCardWrapper: {
+    marginHorizontal: 0,
   },
   loadCard: {
     backgroundColor: '#E3F2FD',

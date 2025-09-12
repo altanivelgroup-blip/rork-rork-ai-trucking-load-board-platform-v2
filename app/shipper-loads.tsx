@@ -320,12 +320,14 @@ export default function ShipperLoadsScreen() {
                 
                 return (
                   <View key={load.id}>
-                    <LoadCard
-                      load={normalizedLoad}
-                      onPress={() => handleLoadPress(load.id)}
-                      showBids={true}
-                      showStatus={true}
-                    />
+                    <View style={styles.loadCardWrapper}>
+                      <LoadCard
+                        load={normalizedLoad}
+                        onPress={() => handleLoadPress(load.id)}
+                        showBids={true}
+                        showStatus={true}
+                      />
+                    </View>
                     {/* Gray Divider */}
                     {index < loads.length - 1 && (
                       <View style={styles.divider} />
@@ -437,6 +439,9 @@ const styles = StyleSheet.create({
   },
   loadsContainer: {
     paddingVertical: theme.spacing.sm,
+  },
+  loadCardWrapper: {
+    marginHorizontal: 0,
   },
   divider: {
     height: 1,

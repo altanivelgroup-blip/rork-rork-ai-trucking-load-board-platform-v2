@@ -22,13 +22,14 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
   }, [onPress]);
 
   const formatCurrency = (amount: number) => {
-    if (!amount || typeof amount !== 'number') return '$0';
+    if (!amount || typeof amount !== 'number' || amount < 0) return '$0';
+    const sanitizedAmount = Math.min(amount, 999999); // Cap at reasonable max
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(sanitizedAmount);
   };
 
   const getStatusBadge = () => {
@@ -93,7 +94,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
       {/* Load Details */}
       <Text style={styles.statusLine}>Status: {statusText}</Text>
       <Text style={styles.rate}>Rate: {formatCurrency(load.rate)}</Text>
-      <Text style={styles.route}>Route: {originText} {'>'} {destText}</Text>
+      <Text style={styles.route}>Route: {originText} → {destText}</Text>
       
       {showBids && (
         <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
@@ -112,8 +113,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1976D2',
     padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 6,
+    marginHorizontal: 0,
+    marginVertical: 0,
   },
   statusRow: {
     flexDirection: 'row',

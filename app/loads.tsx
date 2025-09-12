@@ -109,12 +109,14 @@ const loads = useMemo(() => {
                 
                 return (
                   <View key={load.id}>
-                    <LoadCard
-                      load={normalizedLoad}
-                      onPress={() => handleLoadPress(load.id)}
-                      showBids={true}
-                      showStatus={true}
-                    />
+                    <View style={styles.loadCardWrapper}>
+                      <LoadCard
+                        load={normalizedLoad}
+                        onPress={() => handleLoadPress(load.id)}
+                        showBids={true}
+                        showStatus={true}
+                      />
+                    </View>
                     {/* Gray Divider */}
                     {index < loads.length - 1 && <View style={styles.divider} />}
                   </View>
@@ -206,6 +208,9 @@ const styles = StyleSheet.create({
   },
   loadsContainer: {
     paddingVertical: theme.spacing.sm,
+  },
+  loadCardWrapper: {
+    marginHorizontal: 0,
   },
   uniformLoadCard: {
     backgroundColor: '#E3F2FD',

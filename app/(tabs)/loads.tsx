@@ -330,12 +330,14 @@ export default function LoadsScreen() {
             <View style={styles.loadsContainer}>
               {loads.map((load: any, index: number) => (
                 <View key={load.id}>
-                  <LoadCard
-                    load={load}
-                    onPress={() => handleLoadPress(load.id)}
-                    showBids={true}
-                    showStatus={true}
-                  />
+                  <View style={styles.loadCardWrapper}>
+                    <LoadCard
+                      load={load}
+                      onPress={() => handleLoadPress(load.id)}
+                      showBids={true}
+                      showStatus={true}
+                    />
+                  </View>
                   {/* Gray Divider */}
                   {index < loads.length - 1 && <View style={styles.divider} />}
                 </View>
@@ -449,6 +451,9 @@ const styles = StyleSheet.create({
   },
   loadsContainer: {
     paddingVertical: theme.spacing.sm,
+  },
+  loadCardWrapper: {
+    marginHorizontal: theme.spacing.lg,
   },
   uniformLoadCard: {
     backgroundColor: '#E3F2FD',
