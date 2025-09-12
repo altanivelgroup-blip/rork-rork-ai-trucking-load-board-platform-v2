@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { MapPin, Truck, DollarSign, X, ArrowRight } from 'lucide-react-native';
+import { MapPin, Truck, DollarSign, X, ArrowRight, Brain, Sparkles } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 
 import { useLoads } from '@/hooks/useLoads';
+import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency } from '@/utils/fuel';
+import { Driver } from '@/types';
 
 interface BackhaulPillProps {
   deliveryLocation: {
@@ -22,6 +24,25 @@ interface BackhaulPillProps {
     state: string;
   };
   onLoadSelect?: (loadId: string) => void;
+}
+
+interface AIBackhaulSuggestion {
+  id: string;
+  origin: { city: string; state: string; lat: number; lng: number };
+  destination: { city: string; state: string; lat: number; lng: number };
+  distance: number;
+  weight: number;
+  vehicleType: string;
+  rate: number;
+  ratePerMile: number;
+  pickupDate: string;
+  deliveryDate: string;
+  description: string;
+  aiScore: number;
+  shipperName: string;
+  distanceFromDelivery: number;
+  priority: 'high-pay' | 'low-mile' | 'optimal';
+  marketTrend: 'rising' | 'stable' | 'declining';
 }
 
 function haversineMiles(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -39,8 +60,12 @@ function haversineMiles(a: { lat: number; lng: number }, b: { lat: number; lng: 
 
 export default function BackhaulPill({ deliveryLocation, onLoadSelect }: BackhaulPillProps) {
   const { loads } = useLoads();
+  const { user } = useAuth();
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [aiSuggestions, setAiSuggestions] = useState<AIBackhaulSuggestion[]>([]);
+  const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
+  const [hasTriggeredAI, setHasTriggeredAI] = useState<boolean>(false);
 
   const nearbyBackhauls = useMemo(() => {
     const radiusMiles = 50;
@@ -67,15 +92,109 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
       .slice(0, 5); // Show top 5 closest backhauls
   }, [loads, deliveryLocation]);
 
+  const generateAIBackhauls = useCallback(async () => {
+    if (isGeneratingAI || hasTriggeredAI) return;
+    
+    setIsGeneratingAI(true);
+    setHasTriggeredAI(true);
+    
+    try {
+      console.log('[BackhaulPill] Generating AI suggestions for delivery location:', deliveryLocation);
+      
+      const driverProfile = user as Driver;
+      const vehicleType = driverProfile?.fuelProfile?.vehicleType || 'truck';
+      const avgMpg = driverProfile?.fuelProfile?.averageMpg || 6.5;
+      
+      const messages = [
+        {
+          role: 'system',
+          content: 'You are an AI dispatch assistant for trucking. Generate realistic backhaul load suggestions based on delivery location, driver profile, and market trends. Return JSON only.'
+        },
+        {
+          role: 'user',
+          content: `Generate 2-3 high-quality backhaul suggestions for a driver completing delivery in ${deliveryLocation.city}, ${deliveryLocation.state}. 
+
+Driver Profile:
+- Vehicle: ${vehicleType}
+- Average MPG: ${avgMpg}
+- Experience: ${driverProfile?.completedLoads || 0} completed loads
+
+Requirements:
+- Within 50 miles of delivery location (${deliveryLocation.lat}, ${deliveryLocation.lng})
+- Prioritize high-pay/low-mile options
+- Include realistic market trends
+- Vary pickup locations around the delivery area
+
+Output schema:
+{
+  "suggestions": [
+    {
+      "id": "string",
+      "origin": {"city": "string", "state": "string", "lat": number, "lng": number},
+      "destination": {"city": "string", "state": "string", "lat": number, "lng": number},
+      "distance": number,
+      "weight": number,
+      "vehicleType": "${vehicleType}",
+      "rate": number,
+      "ratePerMile": number,
+      "pickupDate": "ISO string",
+      "deliveryDate": "ISO string",
+      "description": "string",
+      "aiScore": number,
+      "shipperName": "string",
+      "distanceFromDelivery": number,
+      "priority": "high-pay|low-mile|optimal",
+      "marketTrend": "rising|stable|declining"
+    }
+  ]
+}`
+        }
+      ];
+
+      const response = await fetch('https://toolkit.rork.com/text/llm/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+
+      const data = await response.json() as { completion?: string };
+      const rawCompletion = (data?.completion ?? '').trim();
+      
+      // Extract JSON from the completion
+      const jsonStart = rawCompletion.indexOf('{');
+      const jsonEnd = rawCompletion.lastIndexOf('}');
+      
+      if (jsonStart >= 0 && jsonEnd > jsonStart) {
+        const jsonStr = rawCompletion.slice(jsonStart, jsonEnd + 1);
+        const parsed = JSON.parse(jsonStr);
+        
+        if (parsed?.suggestions && Array.isArray(parsed.suggestions)) {
+          const suggestions = parsed.suggestions.map((suggestion: any, index: number) => ({
+            ...suggestion,
+            id: suggestion.id || `ai-backhaul-${Date.now()}-${index}`,
+            aiScore: Math.min(Math.max(suggestion.aiScore || 85, 70), 98), // Ensure realistic AI scores
+          }));
+          
+          console.log('[BackhaulPill] Generated', suggestions.length, 'AI suggestions');
+          setAiSuggestions(suggestions);
+        }
+      }
+    } catch (error) {
+      console.error('[BackhaulPill] AI generation failed:', error);
+      // Fallback to basic suggestions if AI fails
+      setAiSuggestions([]);
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  }, [deliveryLocation, user, isGeneratingAI, hasTriggeredAI]);
+
   const handlePillPress = async () => {
     setIsLoading(true);
     try {
-      // Simulate API call to fetch real-time backhauls
-      await new Promise<void>((resolve) => {
-        if (typeof resolve === 'function') {
-          setTimeout(resolve, 800);
-        }
-      });
+      // Generate AI suggestions if not already done
+      if (!hasTriggeredAI && aiSuggestions.length === 0) {
+        await generateAIBackhauls();
+      }
       setModalVisible(true);
     } catch (error) {
       console.error('Failed to fetch backhauls:', error);
@@ -89,8 +208,70 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
     onLoadSelect?.(loadId);
   };
 
-  // Don't show pill if no backhauls available
-  if (nearbyBackhauls.length === 0) {
+  // Auto-trigger AI generation after load acceptance (simulated)
+  useEffect(() => {
+    if (user?.role === 'driver' && !hasTriggeredAI) {
+      // Simulate auto-trigger after load acceptance with a delay
+      const timer = setTimeout(() => {
+        generateAIBackhauls();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, generateAIBackhauls, hasTriggeredAI]);
+
+  // Combine regular backhauls with AI suggestions
+  const allBackhauls = useMemo(() => {
+    const combined = [...nearbyBackhauls];
+    
+    // Add AI suggestions as enhanced backhauls
+    aiSuggestions.forEach(suggestion => {
+      combined.push({
+        id: suggestion.id,
+        shipperId: 'ai-generated',
+        shipperName: suggestion.shipperName,
+        origin: {
+          ...suggestion.origin,
+          address: '',
+          zipCode: ''
+        },
+        destination: {
+          ...suggestion.destination,
+          address: '',
+          zipCode: ''
+        },
+        distance: suggestion.distance,
+        weight: suggestion.weight,
+        vehicleType: suggestion.vehicleType as any,
+        rate: suggestion.rate,
+        ratePerMile: suggestion.ratePerMile,
+        pickupDate: new Date(suggestion.pickupDate),
+        deliveryDate: new Date(suggestion.deliveryDate),
+        status: 'available' as const,
+        description: suggestion.description,
+        isBackhaul: true,
+        aiScore: suggestion.aiScore,
+        assignedDriverId: undefined,
+        distanceFromDelivery: suggestion.distanceFromDelivery,
+        // Extended properties for AI suggestions
+        ...({
+          priority: suggestion.priority,
+          marketTrend: suggestion.marketTrend,
+        } as any),
+      });
+    });
+    
+    // Sort by AI score (highest first), then by distance
+    return combined.sort((a, b) => {
+      const aScore = (a as any).aiScore || 0;
+      const bScore = (b as any).aiScore || 0;
+      if (aScore !== bScore) return bScore - aScore;
+      return a.distanceFromDelivery - b.distanceFromDelivery;
+    });
+  }, [nearbyBackhauls, aiSuggestions]);
+
+  // Show pill if we have backhauls OR if AI is generating suggestions
+  if (allBackhauls.length === 0 && !isGeneratingAI && !hasTriggeredAI) {
     return null;
   }
 
@@ -108,14 +289,20 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
           </View>
           <View style={styles.pillText}>
             <Text style={styles.pillTitle}>
-              Backhaul near delivery ({Math.round(nearbyBackhauls[0]?.distanceFromDelivery || 0)}mi)
+              {isGeneratingAI ? 'AI analyzing backhauls...' : 
+               aiSuggestions.length > 0 ? `AI Backhaul (${Math.round(allBackhauls[0]?.distanceFromDelivery || 0)}mi, ${allBackhauls[0]?.rate || 0})` :
+               `Backhaul near delivery (${Math.round(allBackhauls[0]?.distanceFromDelivery || 0)}mi)`}
             </Text>
             <Text style={styles.pillSubtitle}>
-              {nearbyBackhauls.length} option{nearbyBackhauls.length !== 1 ? 's' : ''} available
+              {isGeneratingAI ? 'Analyzing market trends & driver profile' :
+               aiSuggestions.length > 0 ? `${aiSuggestions.length} AI match${aiSuggestions.length !== 1 ? 'es' : ''} - Accept?` :
+               `${allBackhauls.length} option${allBackhauls.length !== 1 ? 's' : ''} available`}
             </Text>
           </View>
-          {isLoading ? (
+          {isLoading || isGeneratingAI ? (
             <ActivityIndicator size="small" color={theme.colors.white} />
+          ) : aiSuggestions.length > 0 ? (
+            <Brain size={16} color={theme.colors.white} />
           ) : (
             <ArrowRight size={16} color={theme.colors.white} />
           )}
@@ -149,7 +336,16 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
               </Text>
             </View>
 
-            {nearbyBackhauls.map((load) => (
+            {aiSuggestions.length > 0 && (
+              <View style={styles.aiInfo}>
+                <Brain size={20} color={theme.colors.secondary} />
+                <Text style={styles.aiInfoText}>
+                  AI-powered suggestions based on your profile and market trends
+                </Text>
+              </View>
+            )}
+
+            {allBackhauls.map((load) => (
               <TouchableOpacity
                 key={load.id}
                 style={styles.loadCard}
@@ -173,6 +369,17 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
                         {load.vehicleType.replace('-', ' ').toUpperCase()}
                       </Text>
                     </View>
+                    {(load as any).priority && (
+                      <View style={[styles.priorityTag, 
+                        (load as any).priority === 'high-pay' ? styles.priorityHigh :
+                        (load as any).priority === 'low-mile' ? styles.priorityLow : styles.priorityOptimal
+                      ]}>
+                        <Text style={styles.priorityText}>
+                          {(load as any).priority === 'high-pay' ? 'HIGH PAY' :
+                           (load as any).priority === 'low-mile' ? 'LOW MILE' : 'OPTIMAL'}
+                        </Text>
+                      </View>
+                    )}
                     <Text style={styles.loadWeight}>{(load.weight / 1000).toFixed(1)}k lbs</Text>
                   </View>
 
@@ -181,6 +388,17 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
                       <DollarSign size={16} color={theme.colors.success} />
                       <Text style={styles.rateAmount}>{formatCurrency(load.rate)}</Text>
                       <Text style={styles.ratePerMile}>${load.ratePerMile.toFixed(2)}/mi</Text>
+                      {(load as any).marketTrend && (
+                        <View style={[styles.trendIndicator,
+                          (load as any).marketTrend === 'rising' ? styles.trendRising :
+                          (load as any).marketTrend === 'declining' ? styles.trendDeclining : styles.trendStable
+                        ]}>
+                          <Text style={styles.trendText}>
+                            {(load as any).marketTrend === 'rising' ? '↗' :
+                             (load as any).marketTrend === 'declining' ? '↘' : '→'}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                     <Text style={styles.loadMiles}>{load.distance} miles</Text>
                   </View>
@@ -199,16 +417,35 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
                       day: 'numeric',
                     })}
                   </Text>
-                  {load.aiScore && (
-                    <View style={styles.aiScore}>
-                      <Text style={styles.aiScoreText}>{load.aiScore}% match</Text>
-                    </View>
-                  )}
+                  <View style={styles.footerRight}>
+                    {(load as any).shipperId === 'ai-generated' && (
+                      <View style={styles.aiTag}>
+                        <Sparkles size={12} color={theme.colors.secondary} />
+                        <Text style={styles.aiTagText}>AI</Text>
+                      </View>
+                    )}
+                    {load.aiScore && (
+                      <View style={styles.aiScore}>
+                        <Text style={styles.aiScoreText}>{load.aiScore}% match</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               </TouchableOpacity>
             ))}
 
-            {nearbyBackhauls.length === 0 && (
+            {isGeneratingAI && (
+              <View style={styles.aiGenerating}>
+                <Brain size={32} color={theme.colors.secondary} />
+                <ActivityIndicator size="large" color={theme.colors.secondary} style={styles.aiGeneratingSpinner} />
+                <Text style={styles.aiGeneratingTitle}>AI Analyzing Market...</Text>
+                <Text style={styles.aiGeneratingSubtitle}>
+                  Considering your profile, delivery location, and current market trends
+                </Text>
+              </View>
+            )}
+
+            {!isGeneratingAI && allBackhauls.length === 0 && (
               <View style={styles.emptyState}>
                 <Truck size={48} color={theme.colors.gray} />
                 <Text style={styles.emptyTitle}>No backhauls found</Text>
@@ -438,5 +675,104 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 24,
+  },
+  aiInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: '#EFF6FF',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  aiInfoText: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.secondary,
+    fontWeight: '500',
+  },
+  priorityTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+  },
+  priorityHigh: {
+    backgroundColor: '#FEF3C7',
+  },
+  priorityLow: {
+    backgroundColor: '#D1FAE5',
+  },
+  priorityOptimal: {
+    backgroundColor: '#E0E7FF',
+  },
+  priorityText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  trendIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  trendRising: {
+    backgroundColor: '#D1FAE5',
+  },
+  trendDeclining: {
+    backgroundColor: '#FEE2E2',
+  },
+  trendStable: {
+    backgroundColor: '#F3F4F6',
+  },
+  trendText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  footerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  aiTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  aiTagText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.secondary,
+    fontWeight: '600',
+  },
+  aiGenerating: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  aiGeneratingTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
+    color: theme.colors.secondary,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.xs,
+  },
+  aiGeneratingSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  aiGeneratingSpinner: {
+    marginTop: 8,
   },
 });
