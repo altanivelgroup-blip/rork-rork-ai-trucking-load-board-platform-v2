@@ -572,11 +572,14 @@ export default function ShipperAnalyticsScreen() {
                           const x2 = ((index + 1) / Math.max(array.length - 1, 1)) * containerWidth;
                           const y2 = containerHeight - (nextItem.revenue / maxRevenue) * containerHeight;
                           
-                          // Calculate line properties
+                          // Calculate line properties with proper width calculation
                           const deltaX = x2 - x1;
                           const deltaY = y2 - y1;
                           const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                           const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+                          
+                          // Use percentage for width to match container scaling
+                          const lineWidth = `${length}%`;
                           
                           return (
                             <View
@@ -586,8 +589,9 @@ export default function ShipperAnalyticsScreen() {
                                 {
                                   left: `${x1}%`,
                                   top: `${y1}%`,
-                                  width: `${length}%`,
-                                  transform: [{ rotate: `${angle}deg` }]
+                                  width: lineWidth,
+                                  transform: [{ rotate: `${angle}deg` }],
+                                  transformOrigin: '0% 50%'
                                 }
                               ]}
                             />
@@ -1747,14 +1751,14 @@ const styles = StyleSheet.create({
   },
   lineSegment: {
     position: 'absolute',
-    height: 6,
+    height: 3,
     backgroundColor: '#3B82F6',
-    transformOrigin: '0 50%',
-    borderRadius: 3,
+    transformOrigin: '0% 50%',
+    borderRadius: 1.5,
     shadowColor: '#3B82F6',
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.5,
+    shadowRadius: 1,
+    shadowOffset: { width: 0, height: 0.5 },
     elevation: 2,
   },
 });
