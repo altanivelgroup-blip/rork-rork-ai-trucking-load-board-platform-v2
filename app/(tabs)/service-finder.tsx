@@ -48,8 +48,8 @@ export default function ServiceFinderScreen() {
 
   const serviceOptions = [
     'Truck Repair',
-    'Fuel Station', 
-    'Rest Area',
+    'Fuel Station',
+    'Rest Area', 
     'Towing Service',
     'Tire Shop',
     'Weigh Station',
@@ -169,11 +169,21 @@ export default function ServiceFinderScreen() {
   }, [query, coords, radiusMiles]);
 
   const handleServiceSelect = useCallback(async (service: string) => {
+    console.log('[ServiceFinder] Service selected:', service);
     setQuery(service);
     setDropdownVisible(false);
+    
+    // Get location first if not available
+    if (!coords) {
+      const newCoords = await getGeo();
+      if (newCoords) {
+        setCoords(newCoords);
+      }
+    }
+    
     // Auto-search after selection with loading state
     await handleSearchWithQuery(service);
-  }, [handleSearchWithQuery]);
+  }, [handleSearchWithQuery, coords, getGeo]);
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
@@ -256,6 +266,7 @@ export default function ServiceFinderScreen() {
                 style={[styles.menuItem, index === serviceOptions.length - 1 && styles.menuItemLast]}
                 onPress={() => handleServiceSelect(service)}
                 testID={`service-option-${service.toLowerCase().replace(/\s+/g, '-')}`}
+                activeOpacity={0.7}
               >
                 <Text style={styles.menuItemText}>{service}</Text>
               </TouchableOpacity>
@@ -468,6 +479,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     alignItems: 'center',
     zIndex: 1000,
+    position: 'relative',
   },
   pill: {
     backgroundColor: '#FF8C42',
@@ -507,14 +519,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     width: '100%',
-    maxHeight: 300,
     zIndex: 1000,
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
   },
   menuItem: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
+    backgroundColor: theme.colors.white,
   },
   menuItemLast: {
     borderBottomWidth: 0,
@@ -522,6 +538,7 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontSize: theme.fontSize.md,
     color: theme.colors.dark,
+    fontWeight: '500',
   },
   voiceContainer: {
     paddingHorizontal: 12,
