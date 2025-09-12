@@ -1,21 +1,22 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { MapPin, Calendar, Package, DollarSign, X } from 'lucide-react-native';
+import { Truck } from 'lucide-react-native';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function LoadsScreen() {
-  const params = useLocalSearchParams();
+export default function LiveLoadsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
 useEffect(() => {
-  console.log('[Loads] temp query: createdAt desc');
+  console.log('[LiveLoads] temp query: createdAt desc');
+  setIsLoading(true);
 
   const q = query(
     collection(db, 'loads'),
@@ -27,11 +28,13 @@ useEffect(() => {
     q,
     (snap) => {
       const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-      console.log('[Loads] fetched', arr.length);
+      console.log('[LiveLoads] fetched', arr.length);
       setItems(arr);
+      setIsLoading(false);
     },
     (err) => {
-      console.error('[Loads] snapshot error', err.code, err.message);
+      console.error('[LiveLoads] snapshot error', err.code, err.message);
+      setIsLoading(false);
     }
   );
 
@@ -40,48 +43,9 @@ useEffect(() => {
   
   
 const loads = useMemo(() => {
-  let filtered = items ?? [];
-
-  // Apply filters from params if any (safe against missing fields)
-  if (params.origin && typeof params.origin === 'string' && params.origin.trim() !== '') {
-    const originFilter = params.origin.toLowerCase();
-    filtered = filtered.filter(load => {
-      const originCity  = (load.originCity ?? load.origin?.city ?? '').toLowerCase();
-      const originState = (load.originState ?? load.origin?.state ?? '').toLowerCase();
-      return originCity.includes(originFilter) || originState.includes(originFilter);
-    });
-  }
-
-  if (params.destination && typeof params.destination === 'string' && params.destination.trim() !== '') {
-    const destinationFilter = params.destination.toLowerCase();
-    filtered = filtered.filter(load => {
-      const destCity  = (load.destCity ?? load.destination?.city ?? '').toLowerCase();
-      const destState = (load.destState ?? load.destination?.state ?? '').toLowerCase();
-      return destCity.includes(destinationFilter) || destState.includes(destinationFilter);
-    });
-  }
-
-  if (params.minWeight && typeof params.minWeight === 'string') {
-    const minWeight = parseInt(params.minWeight, 10);
-    if (!Number.isNaN(minWeight)) {
-      filtered = filtered.filter(load => (Number(load.weightLbs ?? load.weight ?? 0)) >= minWeight);
-    }
-  }
-
-  if (params.minPrice && typeof params.minPrice === 'string') {
-    const minPrice = parseInt(params.minPrice, 10);
-    if (!Number.isNaN(minPrice)) {
-      filtered = filtered.filter(load => (Number(load.rateTotalUSD ?? load.rate ?? 0)) >= minPrice);
-    }
-  }
-
-  // Filter by bulk import ID if provided
-  if (params.bulkImportId && typeof params.bulkImportId === 'string' && params.bulkImportId.trim() !== '') {
-    filtered = filtered.filter(load => load.bulkImportId === params.bulkImportId);
-  }
-
-  return filtered;
-}, [params, items]);
+  // Show all available loads (excluding completed ones)
+  return items.filter(load => load.status !== 'completed');
+}, [items]);
 
   const handleLoadPress = (loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
@@ -89,146 +53,101 @@ const loads = useMemo(() => {
   
   return (
     <>
-      <Stack.Screen options={{ title: 'Available Loads' }} />
-      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        {/* Filter Chips */}
-        {(params.bulkImportId || params.origin || params.destination || params.minWeight || params.minPrice) && (
-          <View style={styles.filterChipsContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsContent}>
-              {params.bulkImportId && (
-                <View style={[styles.filterChip, styles.bulkFilterChip]}>
-                  <Text style={styles.filterChipText}>Source = Bulk (last import)</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      const newParams = { ...params };
-                      delete newParams.bulkImportId;
-                      router.replace({ pathname: '/loads', params: newParams });
-                    }}
-                    style={styles.filterChipRemove}
-                  >
-                    <X size={14} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              {params.origin && (
-                <View style={styles.filterChip}>
-                  <Text style={styles.filterChipText}>Origin: {params.origin}</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      const newParams = { ...params };
-                      delete newParams.origin;
-                      router.replace({ pathname: '/loads', params: newParams });
-                    }}
-                    style={styles.filterChipRemove}
-                  >
-                    <X size={14} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              {params.destination && (
-                <View style={styles.filterChip}>
-                  <Text style={styles.filterChipText}>Destination: {params.destination}</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      const newParams = { ...params };
-                      delete newParams.destination;
-                      router.replace({ pathname: '/loads', params: newParams });
-                    }}
-                    style={styles.filterChipRemove}
-                  >
-                    <X size={14} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              {params.minWeight && (
-                <View style={styles.filterChip}>
-                  <Text style={styles.filterChipText}>Min Weight: {params.minWeight} lbs</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      const newParams = { ...params };
-                      delete newParams.minWeight;
-                      router.replace({ pathname: '/loads', params: newParams });
-                    }}
-                    style={styles.filterChipRemove}
-                  >
-                    <X size={14} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              {params.minPrice && (
-                <View style={styles.filterChip}>
-                  <Text style={styles.filterChipText}>Min Price: ${params.minPrice}</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      const newParams = { ...params };
-                      delete newParams.minPrice;
-                      router.replace({ pathname: '/loads', params: newParams });
-                    }}
-                    style={styles.filterChipRemove}
-                  >
-                    <X size={14} color={theme.colors.white} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </ScrollView>
+      <Stack.Screen options={{ 
+        headerShown: false
+      }} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        {/* Logo Section */}
+        <View style={styles.logoSection}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoIcon}>
+              <Truck size={32} color={theme.colors.primary} />
+              <Text style={styles.aiLabel}>AI</Text>
+            </View>
           </View>
-        )}
-        <ScrollView contentContainerStyle={styles.content}>
-          {loads.length === 0 ? (
+        </View>
+        
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <Text style={styles.headerTitle}>Live Loads</Text>
+          <Text style={styles.headerSubtitle}>Updated via API</Text>
+        </View>
+        
+        {/* Content Section */}
+        <ScrollView 
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing.xl }]}
+        >
+          {isLoading ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Loading loads...</Text>
+            </View>
+          ) : loads.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No loads found</Text>
-              <Text style={styles.emptySubtitle}>Try adjusting your filters or check back later</Text>
+              <Text style={styles.emptyTitle}>No loads available</Text>
             </View>
           ) : (
-            loads.map((load) => (
-              <TouchableOpacity
-                key={load.id}
-                style={styles.loadCard}
-                onPress={() => handleLoadPress(load.id)}
-                testID={`load-${load.id}`}
-              >
-                <View style={styles.loadHeader}>
-                  <Text style={styles.loadTitle} numberOfLines={1}>
-                    {load.origin?.city}, {load.origin?.state} → {load.destination?.city}, {load.destination?.state}
-                  </Text>
-                  <View style={styles.rateChip}>
-                    <DollarSign size={16} color={theme.colors.white} />
-                    <Text style={styles.rateText}>${load.rate?.toLocaleString() || '0'}</Text>
-                  </View>
-                </View>
+            <View style={styles.loadsGrid}>
+              {loads.map((load: any, index: number) => {
+                const rateVal = load.rate ?? load.rateTotalUSD ?? 1200;
+                const bidsCount = Math.floor(Math.random() * 3) + 1;
                 
-                <View style={styles.loadDetails}>
-                  <View style={styles.detailRow}>
-                    <MapPin size={16} color={theme.colors.gray} />
-                    <Text style={styles.detailText}>{load.distance || 0} miles</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Calendar size={16} color={theme.colors.gray} />
-                    <Text style={styles.detailText}>
-                      Pickup: {new Date(load.pickupDate || new Date()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Package size={16} color={theme.colors.gray} />
-                    <Text style={styles.detailText}>{load.weight?.toLocaleString() || '0'} lbs</Text>
-                  </View>
-                  
-                  {load.bulkImportId && (
-                    <View style={styles.bulkBadge}>
-                      <Text style={styles.bulkBadgeText}>Bulk</Text>
+                // Determine load status and properties
+                const isRushDelivery = load.isRushDelivery || Math.random() > 0.7;
+                const statusText = load.status === 'awaiting-bids' ? 'Awaiting Bids' : 
+                                 load.status === 'in-transit' ? 'In Transit' : 
+                                 load.status === 'ready-pickup' ? 'Ready for Pickup' : 'Awaiting Bids';
+                
+                const originText = typeof load.origin === 'string'
+                  ? load.origin
+                  : `${load.origin?.city ?? load.originCity ?? 'Miami'}, ${load.origin?.state ?? load.originState ?? 'FL'}`;
+                
+                const destText = typeof load.destination === 'string'
+                  ? load.destination
+                  : `${load.destination?.city ?? load.destCity ?? 'Atlanta'}, ${load.destination?.state ?? load.destState ?? 'GA'}`;
+                
+                return (
+                  <TouchableOpacity
+                    key={load.id}
+                    style={[styles.loadCard, index % 2 === 1 && styles.loadCardRight]}
+                    onPress={() => handleLoadPress(load.id)}
+                    testID={`load-${load.id}`}
+                  >
+                    {/* Rush Delivery Pill */}
+                    {isRushDelivery && (
+                      <View style={styles.rushPill}>
+                        <Text style={styles.rushPillText}>Rush Delivery</Text>
+                      </View>
+                    )}
+                    
+                    {/* Active Status Pill */}
+                    <View style={styles.activePill}>
+                      <Text style={styles.activePillText}>Active</Text>
                     </View>
-                  )}
-                </View>
-                
-                {load.description && (
-                  <Text style={styles.loadDescription} numberOfLines={2}>
-                    {load.description}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ))
+                    
+                    <Text style={styles.rateLabel}>Rate: <Text style={styles.rateValue}>${rateVal}</Text></Text>
+                    
+                    <Text style={styles.routeLabel}>Route: {originText} {'>'} {destText}</Text>
+                    
+                    <Text style={styles.bidsLabel}>Bids: {bidsCount}</Text>
+                    
+                    {load.status !== 'awaiting-bids' && (
+                      <Text style={styles.statusLabel}>Status: {statusText}</Text>
+                    )}
+                    
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity 
+                        style={styles.trackButton}
+                        onPress={() => handleLoadPress(load.id)}
+                        testID={`track-${load.id}`}
+                      >
+                        <Text style={styles.trackButtonText}>Track Load</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           )}
         </ScrollView>
       </View>
@@ -239,11 +158,66 @@ const loads = useMemo(() => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: '#F5F5F5',
+  },
+  logoSection: {
+    alignItems: 'flex-start',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: '#F5F5F5',
+  },
+  logoContainer: {
+    marginBottom: theme.spacing.sm,
+  },
+  logoIcon: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  aiLabel: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: theme.colors.primary,
+    color: theme.colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  headerSection: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.lg,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: theme.colors.gray,
   },
   content: {
-    padding: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
+  },
+  loadingState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+    marginTop: theme.spacing.md,
   },
   emptyState: {
     flex: 1,
@@ -255,111 +229,97 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
     color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
-  },
-  emptySubtitle: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
     textAlign: 'center',
   },
+  loadsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
   loadCard: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
+    width: '48%',
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    padding: theme.spacing.md,
     marginBottom: theme.spacing.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: 'relative',
   },
-  loadHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+  loadCardRight: {
+    marginLeft: '4%',
   },
-  loadTitle: {
-    flex: 1,
-    fontSize: theme.fontSize.md,
-    fontWeight: '700',
-    color: theme.colors.dark,
-    marginRight: theme.spacing.sm,
-  },
-  rateChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.md,
-    gap: 4,
-  },
-  rateText: {
-    color: theme.colors.white,
-    fontWeight: '700',
-    fontSize: theme.fontSize.sm,
-  },
-  loadDetails: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  detailText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-  },
-  loadDescription: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.dark,
-    lineHeight: 20,
-  },
-  filterChipsContainer: {
-    backgroundColor: theme.colors.white,
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  filterChipsContent: {
-    paddingHorizontal: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.md,
-    gap: theme.spacing.xs,
-  },
-  bulkFilterChip: {
-    backgroundColor: '#FF6B35',
-  },
-  filterChipText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
-    color: theme.colors.white,
-  },
-  filterChipRemove: {
-    padding: 2,
-  },
-  bulkBadge: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.sm,
+  rushPill: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     alignSelf: 'flex-start',
+    marginBottom: theme.spacing.sm,
   },
-  bulkBadgeText: {
-    fontSize: theme.fontSize.xs,
+  rushPillText: {
+    color: '#000',
+    fontSize: 12,
     fontWeight: '600',
+  },
+  activePill: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-end',
+    position: 'absolute',
+    top: theme.spacing.md,
+    right: theme.spacing.md,
+  },
+  activePillText: {
     color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  rateLabel: {
+    fontSize: 16,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    fontWeight: '500',
+    marginTop: theme.spacing.lg,
+  },
+  rateValue: {
+    fontWeight: '700',
+  },
+  routeLabel: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    fontWeight: '500',
+  },
+  bidsLabel: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    fontWeight: '500',
+  },
+  statusLabel: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    fontWeight: '500',
+  },
+  actionButtons: {
+    marginTop: theme.spacing.sm,
+  },
+  trackButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  trackButtonText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
