@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Dimensions } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
@@ -18,8 +18,16 @@ import {
   Download,
   FileText,
   Calendar,
-  ChevronDown
+  ChevronDown,
+  Activity,
+  Truck,
+  MapPin,
+  AlertCircle,
+  CheckCircle,
+  PieChart
 } from 'lucide-react-native';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 type MetricCard = {
   id: string;
@@ -30,6 +38,24 @@ type MetricCard = {
   icon: React.ComponentType<{ size?: number; color?: string }>;
 };
 
+type ChartData = {
+  label: string;
+  value: number;
+  color?: string;
+};
+
+type RevenueData = {
+  month: string;
+  revenue: number;
+  loads: number;
+};
+
+type UserActivityData = {
+  type: 'Drivers' | 'Shippers' | 'Admins';
+  percentage: number;
+  color: string;
+};
+
 export default function ShipperAnalyticsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -38,6 +64,10 @@ export default function ShipperAnalyticsScreen() {
   const isAdmin = (user?.role as string) === 'admin' || user?.email === 'admin@loadrush.com';
   const [selectedPeriod, setSelectedPeriod] = useState<string>('monthly');
   const [showPeriodDropdown, setShowPeriodDropdown] = useState<boolean>(false);
+  const [liveData, setLiveData] = useState<any>({});
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
+  const [userActivityData, setUserActivityData] = useState<UserActivityData[]>([]);
   
   // Allow both shippers and admins
   React.useEffect(() => {
@@ -45,6 +75,52 @@ export default function ShipperAnalyticsScreen() {
       router.replace('/(tabs)/dashboard');
     }
   }, [user, isShipper, isAdmin, router]);
+
+  // Simulate live data updates for admin
+  useEffect(() => {
+    if (isAdmin) {
+      const interval = setInterval(() => {
+        setLiveData({
+          activeUsers: Math.floor(Math.random() * 50) + 200,
+          activeLoads: Math.floor(Math.random() * 20) + 80,
+          systemUptime: 99.8 + Math.random() * 0.2,
+          errorRate: Math.random() * 0.5,
+          lastUpdate: new Date().toLocaleTimeString()
+        });
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin]);
+
+  // Initialize chart data
+  useEffect(() => {
+    if (isAdmin) {
+      // Revenue trend data
+      setRevenueData([
+        { month: 'Jan', revenue: 45000, loads: 120 },
+        { month: 'Feb', revenue: 52000, loads: 135 },
+        { month: 'Mar', revenue: 48000, loads: 128 },
+        { month: 'Apr', revenue: 61000, loads: 155 },
+        { month: 'May', revenue: 58000, loads: 148 },
+        { month: 'Jun', revenue: 67000, loads: 172 }
+      ]);
+
+      // User activity distribution
+      setUserActivityData([
+        { type: 'Drivers', percentage: 68.43, color: '#3B82F6' },
+        { type: 'Shippers', percentage: 23, color: '#10B981' },
+        { type: 'Admins', percentage: 8.57, color: '#F59E0B' }
+      ]);
+
+      // Key metrics chart data
+      setChartData([
+        { label: 'Total Loads', value: 1250, color: '#3B82F6' },
+        { label: 'Completed', value: 1180, color: '#10B981' },
+        { label: 'In Progress', value: 45, color: '#F59E0B' },
+        { label: 'Cancelled', value: 25, color: '#EF4444' }
+      ]);
+    }
+  }, [isAdmin, selectedPeriod]);
 
   const periods = [
     { label: 'Daily', value: 'daily' },
@@ -248,46 +324,218 @@ export default function ShipperAnalyticsScreen() {
           </View>
         </View>
 
-        {/* Revenue Analytics Section */}
+        {/* Revenue Trends Chart Section - Admin Only */}
         {isAdmin && (
-          <View style={styles.revenueSection}>
-            <Text style={styles.sectionTitle}>Revenue Analytics</Text>
-            <View style={styles.revenueCards}>
-              <View style={styles.revenueCard}>
-                <Text style={styles.revenueValue}>$18,700</Text>
-                <Text style={styles.revenueLabel}>Total Revenue</Text>
-                <Text style={styles.revenueChange}>+18% vs last month</Text>
+          <View style={styles.chartSection}>
+            <View style={styles.chartHeader}>
+              <Text style={styles.sectionTitle}>Revenue Trends</Text>
+              <View style={styles.chartPeriodSelector}>
+                <TouchableOpacity style={[styles.periodTab, selectedPeriod === 'monthly' && styles.periodTabActive]}>
+                  <Text style={[styles.periodTabText, selectedPeriod === 'monthly' && styles.periodTabTextActive]}>Monthly</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.periodTab, selectedPeriod === 'quarterly' && styles.periodTabActive]}>
+                  <Text style={[styles.periodTabText, selectedPeriod === 'quarterly' && styles.periodTabTextActive]}>Quarterly</Text>
+                </TouchableOpacity>
               </View>
-              <View style={styles.revenueCard}>
-                <Text style={styles.revenueValue}>$3740</Text>
-                <Text style={styles.revenueLabel}>Avg Rate</Text>
-                <Text style={styles.revenueChange}>+5% vs last month</Text>
+            </View>
+            
+            {/* Bar Chart */}
+            <View style={styles.chartContainer}>
+              <View style={styles.chartYAxis}>
+                <Text style={styles.yAxisLabel}>80k</Text>
+                <Text style={styles.yAxisLabel}>60k</Text>
+                <Text style={styles.yAxisLabel}>40k</Text>
+                <Text style={styles.yAxisLabel}>20k</Text>
+                <Text style={styles.yAxisLabel}>0</Text>
+              </View>
+              <View style={styles.chartArea}>
+                <View style={styles.barsContainer}>
+                  {revenueData.map((item, index) => {
+                    const height = (item.revenue / 70000) * 120;
+                    return (
+                      <View key={item.month} style={styles.barGroup}>
+                        <View style={[styles.bar, { height, backgroundColor: '#3B82F6' }]} />
+                        <Text style={styles.barLabel}>{item.month}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+                <View style={styles.chartGrid}>
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <View key={i} style={styles.gridLine} />
+                  ))}
+                </View>
               </View>
             </View>
           </View>
         )}
 
-        {/* Performance Metrics Section */}
-        <View style={styles.performanceSection}>
-          <Text style={styles.sectionTitle}>Performance Metrics</Text>
-          <View style={styles.performanceCards}>
-            <View style={styles.performanceCard}>
-              <Text style={styles.performanceLabel}>Load Completion Rate</Text>
-              <Text style={styles.performanceValue}>94.2%</Text>
-              <Text style={styles.performanceChange}>+2.1%</Text>
-            </View>
-            <View style={styles.performanceCard}>
-              <Text style={styles.performanceLabel}>Average Delivery Time</Text>
-              <Text style={styles.performanceValue}>2.3 days</Text>
-              <Text style={styles.performanceChange}>-0.2 days</Text>
-            </View>
-            <View style={styles.performanceCard}>
-              <Text style={styles.performanceLabel}>Customer Satisfaction</Text>
-              <Text style={styles.performanceValue}>4.7/5</Text>
-              <Text style={styles.performanceChange}>+0.1</Text>
+        {/* Revenue vs User Activity Section - Admin Only */}
+        {isAdmin && (
+          <View style={styles.dualChartSection}>
+            <View style={styles.dualChartContainer}>
+              {/* Revenue Line Chart */}
+              <View style={styles.halfChart}>
+                <Text style={styles.chartTitle}>Revenues</Text>
+                <View style={styles.lineChartContainer}>
+                  <View style={styles.lineChart}>
+                    {revenueData.map((item, index) => {
+                      const x = (index / (revenueData.length - 1)) * 100;
+                      const y = 100 - (item.revenue / 70000) * 80;
+                      return (
+                        <View 
+                          key={item.month}
+                          style={[
+                            styles.dataPoint,
+                            { left: `${x}%`, top: `${y}%` }
+                          ]} 
+                        />
+                      );
+                    })}
+                    <View style={styles.trendLine} />
+                  </View>
+                  <View style={styles.lineChartLabels}>
+                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map(month => (
+                      <Text key={month} style={styles.lineChartLabel}>{month}</Text>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              {/* User Activity Pie Chart */}
+              <View style={styles.halfChart}>
+                <Text style={styles.chartTitle}>User Activity</Text>
+                <View style={styles.pieChartContainer}>
+                  <View style={styles.pieChart}>
+                    {userActivityData.map((item, index) => {
+                      const angle = (item.percentage / 100) * 360;
+                      return (
+                        <View 
+                          key={item.type}
+                          style={[
+                            styles.pieSlice,
+                            { 
+                              backgroundColor: item.color,
+                              transform: [{ rotate: `${index * 120}deg` }]
+                            }
+                          ]} 
+                        />
+                      );
+                    })}
+                  </View>
+                  <View style={styles.pieLegend}>
+                    {userActivityData.map(item => (
+                      <View key={item.type} style={styles.legendItem}>
+                        <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                        <Text style={styles.legendText}>{item.type}</Text>
+                        <Text style={styles.legendPercentage}>{item.percentage}%</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </View>
             </View>
           </View>
-        </View>
+        )}
+
+        {/* Key Metrics Table - Admin Only */}
+        {isAdmin && (
+          <View style={styles.metricsTableSection}>
+            <View style={styles.metricsTableHeader}>
+              <Text style={styles.sectionTitle}>Key Metrics</Text>
+              <View style={styles.tableFilters}>
+                <TouchableOpacity style={styles.filterButton}>
+                  <Text style={styles.filterText}>Loads</Text>
+                  <ChevronDown size={14} color={theme.colors.gray} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.filterButton}>
+                  <Text style={styles.filterText}>Revenue</Text>
+                  <ChevronDown size={14} color={theme.colors.gray} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.filterButton}>
+                  <Text style={styles.filterText}>Users</Text>
+                  <ChevronDown size={14} color={theme.colors.gray} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.metricsTable}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, { flex: 2 }]}>Key Metrics</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>Average</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>Revenue</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>Revenue</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>Completion</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>Collection</Text>
+              </View>
+              
+              {[
+                { metric: 'Total Loads', avg: '139,103', rev1: '96,500', rev2: '1.5%', completion: '1.9%', collection: '12500' },
+                { metric: 'Total Loads', avg: '359,85', rev1: '35,800', rev2: '1.35', completion: '1.2%', collection: '12500' },
+                { metric: 'Total Loads', avg: '368,29', rev1: '59,900', rev2: '1.34', completion: '1.6%', collection: '21530' },
+                { metric: 'Total Loads', avg: '34,17', rev1: '48,800', rev2: '20%', completion: '1.9%', collection: '16330' },
+                { metric: 'Total Loads', avg: '159,56', rev1: '45,000', rev2: '1.34', completion: '1.8%', collection: '26560' },
+                { metric: 'Total Loads', avg: '122,45', rev1: '92,800', rev2: '1.3%', completion: '1.3%', collection: '21530' }
+              ].map((row, index) => (
+                <View key={index} style={styles.tableRow}>
+                  <View style={[styles.tableCell, { flex: 2 }]}>
+                    <View style={styles.tableCellContent}>
+                      <View style={styles.metricDot} />
+                      <Text style={styles.tableCellText}>{row.metric}</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.tableCellText, { flex: 1 }]}>{row.avg}</Text>
+                  <Text style={[styles.tableCellText, { flex: 1 }]}>{row.rev1}</Text>
+                  <Text style={[styles.tableCellText, { flex: 1 }]}>{row.rev2}</Text>
+                  <Text style={[styles.tableCellText, { flex: 1 }]}>{row.completion}</Text>
+                  <Text style={[styles.tableCellText, { flex: 1, color: theme.colors.primary }]}>{row.collection}</Text>
+                </View>
+              ))}
+              
+              <View style={styles.tablePagination}>
+                <TouchableOpacity style={styles.paginationButton}>
+                  <Text style={styles.paginationText}>‹</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.paginationButton, styles.paginationActive]}>
+                  <Text style={[styles.paginationText, styles.paginationActiveText]}>1</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.paginationButton}>
+                  <Text style={styles.paginationText}>2</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.paginationButton}>
+                  <Text style={styles.paginationText}>3</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.paginationButton}>
+                  <Text style={styles.paginationText}>›</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Performance Metrics Section - Shipper Only */}
+        {!isAdmin && (
+          <View style={styles.performanceSection}>
+            <Text style={styles.sectionTitle}>Performance Metrics</Text>
+            <View style={styles.performanceCards}>
+              <View style={styles.performanceCard}>
+                <Text style={styles.performanceLabel}>Load Completion Rate</Text>
+                <Text style={styles.performanceValue}>94.2%</Text>
+                <Text style={styles.performanceChange}>+2.1%</Text>
+              </View>
+              <View style={styles.performanceCard}>
+                <Text style={styles.performanceLabel}>Average Delivery Time</Text>
+                <Text style={styles.performanceValue}>2.3 days</Text>
+                <Text style={styles.performanceChange}>-0.2 days</Text>
+              </View>
+              <View style={styles.performanceCard}>
+                <Text style={styles.performanceLabel}>Customer Satisfaction</Text>
+                <Text style={styles.performanceValue}>4.7/5</Text>
+                <Text style={styles.performanceChange}>+0.1</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Key Metrics Grid */}
         <View style={styles.metricsGrid}>
@@ -329,57 +577,80 @@ export default function ShipperAnalyticsScreen() {
           </View>
         </View>
 
-        {/* Performance Summary */}
-        <View style={styles.summaryContainer}>
-          <Text style={styles.sectionTitle}>{isAdmin ? 'System Overview' : 'Performance Summary'}</Text>
-          <View style={styles.summaryCard}>
-            {isAdmin ? (
-              <>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Total Users</Text>
-                  <Text style={styles.summaryValue}>1,247</Text>
+        {/* Live System Status - Admin Only */}
+        {isAdmin && (
+          <View style={styles.liveStatusSection}>
+            <Text style={styles.sectionTitle}>Live System Status</Text>
+            <View style={styles.liveStatusGrid}>
+              <View style={styles.statusCard}>
+                <View style={styles.statusHeader}>
+                  <Activity size={20} color={theme.colors.success} />
+                  <Text style={styles.statusValue}>{liveData.activeUsers || 247}</Text>
                 </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Active Loads</Text>
-                  <Text style={styles.summaryValue}>89</Text>
+                <Text style={styles.statusLabel}>Active Users</Text>
+                <Text style={styles.statusChange}>+12 from last hour</Text>
+              </View>
+              
+              <View style={styles.statusCard}>
+                <View style={styles.statusHeader}>
+                  <Truck size={20} color={theme.colors.primary} />
+                  <Text style={styles.statusValue}>{liveData.activeLoads || 89}</Text>
                 </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>System Uptime</Text>
-                  <Text style={styles.summaryValue}>99.8%</Text>
+                <Text style={styles.statusLabel}>Active Loads</Text>
+                <Text style={styles.statusChange}>+5 new loads</Text>
+              </View>
+              
+              <View style={styles.statusCard}>
+                <View style={styles.statusHeader}>
+                  <CheckCircle size={20} color={theme.colors.success} />
+                  <Text style={styles.statusValue}>{(liveData.systemUptime || 99.8).toFixed(1)}%</Text>
                 </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Error Rate</Text>
-                  <Text style={styles.summaryValue}>0.2%</Text>
+                <Text style={styles.statusLabel}>System Uptime</Text>
+                <Text style={styles.statusChange}>Last 24 hours</Text>
+              </View>
+              
+              <View style={styles.statusCard}>
+                <View style={styles.statusHeader}>
+                  <AlertCircle size={20} color={theme.colors.warning} />
+                  <Text style={styles.statusValue}>{(liveData.errorRate || 0.2).toFixed(1)}%</Text>
                 </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Average Load Value</Text>
-                  <Text style={styles.summaryValue}>
-                    ${Math.floor(((user as any)?.totalRevenue ?? 125000) / ((user as any)?.completedLoads ?? 33)).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Completion Rate</Text>
-                  <Text style={styles.summaryValue}>
-                    {Math.floor((((user as any)?.completedLoads ?? 33) / ((user as any)?.totalLoadsPosted ?? 45)) * 100)}%
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Views per Load</Text>
-                  <Text style={styles.summaryValue}>
-                    {Math.floor(((user as any)?.totalLoadsPosted ?? 45) * 23 / ((user as any)?.totalLoadsPosted ?? 45))}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Response Time</Text>
-                  <Text style={styles.summaryValue}>2.3 hrs</Text>
-                </View>
-              </>
-            )}
+                <Text style={styles.statusLabel}>Error Rate</Text>
+                <Text style={styles.statusChange}>-0.1% from yesterday</Text>
+              </View>
+            </View>
           </View>
-        </View>
+        )}
+
+        {/* Performance Summary - Shipper Only */}
+        {!isAdmin && (
+          <View style={styles.summaryContainer}>
+            <Text style={styles.sectionTitle}>Performance Summary</Text>
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Average Load Value</Text>
+                <Text style={styles.summaryValue}>
+                  ${Math.floor(((user as any)?.totalRevenue ?? 125000) / ((user as any)?.completedLoads ?? 33)).toLocaleString()}
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Completion Rate</Text>
+                <Text style={styles.summaryValue}>
+                  {Math.floor((((user as any)?.completedLoads ?? 33) / ((user as any)?.totalLoadsPosted ?? 45)) * 100)}%
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Views per Load</Text>
+                <Text style={styles.summaryValue}>
+                  {Math.floor(((user as any)?.totalLoadsPosted ?? 45) * 23 / ((user as any)?.totalLoadsPosted ?? 45))}
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Response Time</Text>
+                <Text style={styles.summaryValue}>2.3 hrs</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Quick Actions */}
         <View style={styles.actionsContainer}>
@@ -634,17 +905,312 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '600',
   },
-  revenueSection: {
+  chartSection: {
+    marginBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: theme.spacing.lg,
   },
-  revenueCards: {
+  chartPeriodSelector: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+    padding: 2,
+  },
+  periodTab: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+  },
+  periodTabActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  periodTabText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.gray,
+  },
+  periodTabTextActive: {
+    color: theme.colors.white,
+  },
+  chartContainer: {
+    flexDirection: 'row',
+    height: 140,
+  },
+  chartYAxis: {
+    width: 40,
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingRight: 8,
+  },
+  yAxisLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  chartArea: {
+    flex: 1,
+    position: 'relative',
+  },
+  chartGrid: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+  },
+  gridLine: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  barsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    height: '100%',
+    paddingBottom: 20,
+  },
+  barGroup: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  bar: {
+    width: 20,
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  barLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  dualChartSection: {
+    marginBottom: theme.spacing.lg,
+  },
+  dualChartContainer: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
-  revenueCard: {
+  halfChart: {
     flex: 1,
     backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  chartTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.md,
+  },
+  lineChartContainer: {
+    height: 120,
+  },
+  lineChart: {
+    flex: 1,
+    position: 'relative',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  dataPoint: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+    marginLeft: -3,
+    marginTop: -3,
+  },
+  trendLine: {
+    position: 'absolute',
+    top: '30%',
+    left: '10%',
+    right: '10%',
+    height: 2,
+    backgroundColor: theme.colors.primary,
+    opacity: 0.6,
+  },
+  lineChartLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  lineChartLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  pieChartContainer: {
+    alignItems: 'center',
+  },
+  pieChart: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.colors.lightGray,
+    marginBottom: theme.spacing.md,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  pieSlice: {
+    position: 'absolute',
+    width: '50%',
+    height: '50%',
+    top: 0,
+    left: '50%',
+    transformOrigin: '0 100%',
+  },
+  pieLegend: {
+    gap: theme.spacing.xs,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  legendColor: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    flex: 1,
+  },
+  legendPercentage: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  metricsTableSection: {
+    marginBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  metricsTableHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  tableFilters: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.sm,
+    gap: 4,
+  },
+  filterText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+  },
+  metricsTable: {
+    borderRadius: theme.borderRadius.md,
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.lightGray,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+  },
+  tableHeaderText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.gray,
+    textAlign: 'center',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    alignItems: 'center',
+  },
+  tableCell: {
+    justifyContent: 'center',
+  },
+  tableCellContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  metricDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+  },
+  tableCellText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.dark,
+    textAlign: 'center',
+  },
+  tablePagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.xs,
+  },
+  paginationButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.lightGray,
+  },
+  paginationActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  paginationText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+  },
+  paginationActiveText: {
+    color: theme.colors.white,
+  },
+  liveStatusSection: {
+    marginBottom: theme.spacing.lg,
+  },
+  liveStatusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  statusCard: {
+    width: '48%',
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
     shadowColor: '#000',
     shadowOpacity: 0.05,
@@ -652,21 +1218,26 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  revenueValue: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: theme.colors.dark,
-    marginBottom: 4,
+  statusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.xs,
   },
-  revenueLabel: {
-    fontSize: theme.fontSize.md,
+  statusValue: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  statusLabel: {
+    fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
     marginBottom: 4,
   },
-  revenueChange: {
-    fontSize: theme.fontSize.sm,
+  statusChange: {
+    fontSize: theme.fontSize.xs,
     color: theme.colors.success,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   performanceSection: {
     marginBottom: theme.spacing.lg,
