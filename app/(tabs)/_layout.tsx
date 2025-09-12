@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings, Eye, Truck } from 'lucide-react-native';
+import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings, Eye, Truck, FileText } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -110,7 +110,7 @@ export default function TabsLayout() {
         </>
       )}
       
-      {/* ADMIN MENU - Exactly 5 items: Dashboard, Loads, Profile, Service Finder, Admin */}
+      {/* ADMIN MENU - Exactly 5 items: Dashboard, Loads, Reports, Profile, Admin */}
       {isAdmin && (
         <>
           <Tabs.Screen
@@ -128,17 +128,17 @@ export default function TabsLayout() {
             }}
           />
           <Tabs.Screen
+            name="shipper-analytics"
+            options={{
+              title: 'Reports',
+              tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
+            }}
+          />
+          <Tabs.Screen
             name="profile"
             options={{
               title: 'Profile',
               tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="service-finder"
-            options={{
-              title: 'Service Finder',
-              tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
             }}
           />
           <Tabs.Screen
@@ -163,7 +163,7 @@ export default function TabsLayout() {
           <Tabs.Screen name="shipper-post" options={{ href: null }} />
         </>
       )}
-      {(!isShipper && !isAdmin) && (
+      {!isShipper && (
         <>
           <Tabs.Screen name="shipper-analytics" options={{ href: null }} />
         </>
@@ -173,7 +173,7 @@ export default function TabsLayout() {
           <Tabs.Screen name="admin" options={{ href: null }} />
         </>
       )}
-      {!isDriver && !isAdmin && (
+      {!isDriver && (
         <>
           <Tabs.Screen name="service-finder" options={{ href: null }} />
         </>
