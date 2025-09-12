@@ -7,9 +7,16 @@ interface LoadCardProps {
   onPress: () => void;
   showBids?: boolean;
   showStatus?: boolean;
+  showActions?: boolean;
 }
 
-const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, showBids = true, showStatus = true }) => {
+const LoadCardComponent: React.FC<LoadCardProps> = ({ 
+  load, 
+  onPress, 
+  showBids = true, 
+  showStatus = true, 
+  showActions = false 
+}) => {
   const handleCardPress = useCallback(() => {
     try { onPress(); } catch (err) { console.log('[LoadCard] onPress error', err); }
   }, [onPress]);
@@ -43,9 +50,10 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, showBids = 
   };
 
   const getRushBadge = () => {
-    // Show rush badge if it's a rush delivery (you can add this field to Load type)
-    // For now, showing it randomly for demo purposes
-    if (load.aiScore && load.aiScore > 90) {
+    // Show rush badge based on aiScore or randomly for demo
+    const isRushDelivery = (load.aiScore && load.aiScore > 90) || Math.random() > 0.7;
+    
+    if (isRushDelivery) {
       return (
         <View style={styles.rushBadge}>
           <Text style={styles.rushText}>Rush Delivery</Text>
@@ -55,6 +63,19 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, showBids = 
     return null;
   };
 
+  const originText = typeof load.origin === 'string'
+    ? load.origin
+    : `${load.origin?.city ?? 'Dallas'}, ${load.origin?.state ?? 'TX'}`;
+  
+  const destText = typeof load.destination === 'string'
+    ? load.destination
+    : `${load.destination?.city ?? 'Chicago'}, ${load.destination?.state ?? 'IL'}`;
+
+  const bidsCount = Math.floor(Math.random() * 5) + 1;
+  const statusText = load.status === 'available' || load.status === 'OPEN' ? 'Pending' : 
+                    load.status === 'delivered' ? 'Completed' : 
+                    load.status === 'in-transit' ? 'Booked' : 'Pending';
+
   return (
     <Pressable
       style={styles.container}
@@ -63,122 +84,93 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, showBids = 
       accessibilityLabel={'Open load details'}
       testID="load-card"
     >
-      {/* Top row with badges */}
-      <View style={styles.topRow}>
-        <View style={styles.leftBadges}>
-          {getStatusBadge()}
-        </View>
-        <View style={styles.rightBadges}>
-          {getRushBadge()}
-        </View>
+      {/* Status Pills Row */}
+      <View style={styles.statusRow}>
+        {getStatusBadge()}
+        {getRushBadge()}
       </View>
 
-      {/* Status line */}
-      {showStatus && (
-        <Text style={styles.statusLine}>
-          Status: {load.status === 'available' || load.status === 'OPEN' ? 'Pending' : 
-                  load.status === 'delivered' ? 'Completed' : 
-                  load.status === 'in-transit' ? 'Booked' : 'Pending'}
-        </Text>
-      )}
-
-      {/* Rate */}
+      {/* Load Details */}
+      <Text style={styles.statusLine}>Status: {statusText}</Text>
       <Text style={styles.rate}>Rate: {formatCurrency(load.rate)}</Text>
-
-      {/* Route */}
-      <Text style={styles.route}>
-        Route: {load.origin.city}, {load.origin.state} → {load.destination.city}, {load.destination.state}
-      </Text>
-
-      {/* Bottom row with bids and tap for details */}
-      <View style={styles.bottomRow}>
-        {showBids && (
-          <Text style={styles.bidsText}>Bids: {Math.floor(Math.random() * 5) + 1}</Text>
-        )}
-        <Text style={styles.tapForDetails}>Tap for Details</Text>
-      </View>
+      <Text style={styles.route}>Route: {originText} {'>'} {destText}</Text>
+      
+      {showBids && (
+        <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
+      )}
+      
+      {/* Tap for Details */}
+      <Text style={styles.tapForDetails}>Tap for Details</Text>
     </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    padding: 12,
+    borderColor: '#1976D2',
+    padding: 16,
     marginHorizontal: 16,
     marginVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  leftBadges: {
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  rightBadges: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   statusText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   rushBadge: {
-    backgroundColor: '#FFC107',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   rushText: {
-    color: '#FFFFFF',
-    fontSize: 11,
+    color: '#000',
+    fontSize: 12,
     fontWeight: '600',
   },
   statusLine: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#424242',
-    marginBottom: 3,
+    marginBottom: 4,
+    fontWeight: '500',
   },
   rate: {
-    fontSize: 13,
+    fontSize: 16,
     color: '#424242',
-    marginBottom: 3,
+    marginBottom: 4,
+    fontWeight: '600',
   },
   route: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#424242',
-    marginBottom: 8,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginBottom: 4,
+    fontWeight: '500',
   },
   bidsText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#424242',
+    marginBottom: 12,
+    fontWeight: '500',
   },
   tapForDetails: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#1976D2',
-    fontWeight: '500',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

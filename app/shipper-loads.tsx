@@ -9,6 +9,7 @@ import { useToast } from '@/components/Toast';
 import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import { LoadCard } from '@/components/LoadCard';
 
 export default function ShipperLoadsScreen() {
   // Always call all hooks first to maintain hook order
@@ -304,94 +305,35 @@ export default function ShipperLoadsScreen() {
               )}
             </View>
           ) : (
-            loads.map((load: any) => {
-              const originText = typeof load.origin === 'string'
-                ? load.origin
-                : `${load.origin?.city ?? ''}, ${load.origin?.state ?? ''}`;
-              
-              const destText = typeof load.destination === 'string'
-                ? load.destination
-                : `${load.destination?.city ?? ''}, ${load.destination?.state ?? ''}`;
-              
-              const rateVal = load.rate ?? 0;
-              const weightVal = load.weight ?? 0;
-              const isMyLoad = load.shipperId === user?.id;
-              
-              return (
-                <View
-                  key={load.id}
-                  style={styles.loadCard}
-                  testID={`load-${load.id}`}
-                >
-                  <TouchableOpacity
-                    style={styles.loadContent}
-                    onPress={() => handleLoadPress(load.id)}
-                  >
-                    <View style={styles.loadHeader}>
-                      <Text style={styles.loadTitle} numberOfLines={1}>
-                        {originText} → {destText}
-                      </Text>
-                      <View style={styles.rateChip}>
-                        <DollarSign size={16} color={theme.colors.white} />
-                        <Text style={styles.rateText}>${rateVal.toLocaleString()}</Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.loadSubtitle}>
-                      <Text style={styles.subtitleText}>
-                        {load.pickupDate ? new Date(load.pickupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'ASAP'} • {load.vehicleType || 'truck'} • {weightVal.toLocaleString()} lbs
-                      </Text>
-                      <View style={styles.badgeRow}>
-                        {load.bulkImportId && (
-                          <View style={styles.bulkBadge}>
-                            <Text style={styles.bulkBadgeText}>Bulk</Text>
-                          </View>
-                        )}
-                        {viewMode === 'live-loads' && isMyLoad && (
-                          <View style={styles.myLoadBadge}>
-                            <Text style={styles.myLoadBadgeText}>My Load</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                  
-                  {/* Action buttons */}
-                  <View style={styles.loadActions}>
-                    {viewMode === 'live-loads' && !isMyLoad && load.shipperName && (
-                      <>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleCall('555-0123')}
-                          testID={`call-${load.id}`}
-                        >
-                          <Phone size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Call</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleEmail('contact@example.com')}
-                          testID={`email-${load.id}`}
-                        >
-                          <Mail size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Email</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                    {(viewMode === 'my-loads' || (viewMode === 'live-loads' && isMyLoad)) && (
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.deleteButton]}
-                        onPress={() => confirmDeleteLoad(load.id)}
-                        testID={`delete-${load.id}`}
-                      >
-                        <Trash2 size={16} color="#EF4444" />
-                        <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
-                      </TouchableOpacity>
+            <View style={styles.loadsContainer}>
+              {loads.map((load: any, index: number) => {
+                // Normalize load data to match LoadCard expectations
+                const normalizedLoad = {
+                  ...load,
+                  origin: typeof load.origin === 'string' 
+                    ? { city: 'Dallas', state: 'TX' }
+                    : load.origin ?? { city: 'Dallas', state: 'TX' },
+                  destination: typeof load.destination === 'string'
+                    ? { city: 'Chicago', state: 'IL' }
+                    : load.destination ?? { city: 'Chicago', state: 'IL' }
+                };
+                
+                return (
+                  <View key={load.id}>
+                    <LoadCard
+                      load={normalizedLoad}
+                      onPress={() => handleLoadPress(load.id)}
+                      showBids={true}
+                      showStatus={true}
+                    />
+                    {/* Gray Divider */}
+                    {index < loads.length - 1 && (
+                      <View style={styles.divider} />
                     )}
                   </View>
-                </View>
-              );
-            })
+                );
+              })}
+            </View>
           )}
         </ScrollView>
         
@@ -492,6 +434,15 @@ const styles = StyleSheet.create({
   content: {
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
+  },
+  loadsContainer: {
+    paddingVertical: theme.spacing.sm,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#D1D5DB',
+    marginVertical: theme.spacing.md,
+    marginHorizontal: theme.spacing.lg,
   },
   loadingState: {
     flex: 1,

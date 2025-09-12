@@ -9,6 +9,7 @@ import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import { LoadCard } from '@/components/LoadCard';
 
 export default function LoadsScreen() {
   const router = useRouter();
@@ -327,60 +328,18 @@ export default function LoadsScreen() {
             </View>
           ) : (
             <View style={styles.loadsContainer}>
-              {loads.map((load: any, index: number) => {
-                const originText = typeof load.origin === 'string'
-                  ? load.origin
-                  : `${load.origin?.city ?? 'Dallas'}, ${load.origin?.state ?? 'TX'}`;
-                
-                const destText = typeof load.destination === 'string'
-                  ? load.destination
-                  : `${load.destination?.city ?? 'Chicago'}, ${load.destination?.state ?? 'IL'}`;
-                
-                const rateVal = load.rate ?? 1200;
-                const bidsCount = Math.floor(Math.random() * 3) + 1;
-                const isRushDelivery = load.isRushDelivery || Math.random() > 0.7;
-                
-                return (
-                  <View key={load.id}>
-                    <TouchableOpacity
-                      style={styles.uniformLoadCard}
-                      onPress={() => handleLoadPress(load.id)}
-                      testID={`load-${load.id}`}
-                    >
-                      {/* Status Pills */}
-                      <View style={styles.statusRow}>
-                        <View style={styles.activePill}>
-                          <Text style={styles.activePillText}>Active</Text>
-                        </View>
-                        
-                        {isRushDelivery && (
-                          <View style={styles.rushPill}>
-                            <Text style={styles.rushPillText}>Rush Delivery</Text>
-                          </View>
-                        )}
-                      </View>
-                      
-                      {/* Load Details */}
-                      <Text style={styles.statusText}>Status: Pending</Text>
-                      <Text style={styles.rateText}>Rate: ${rateVal}</Text>
-                      <Text style={styles.routeText}>Route: {originText} {'>'} {destText}</Text>
-                      <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
-                      
-                      {/* Tap for Details Button */}
-                      <TouchableOpacity 
-                        style={styles.detailsButton}
-                        onPress={() => handleLoadPress(load.id)}
-                        testID={`details-${load.id}`}
-                      >
-                        <Text style={styles.detailsButtonText}>Tap for Details</Text>
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                    
-                    {/* Gray Divider */}
-                    {index < loads.length - 1 && <View style={styles.divider} />}
-                  </View>
-                );
-              })}
+              {loads.map((load: any, index: number) => (
+                <View key={load.id}>
+                  <LoadCard
+                    load={load}
+                    onPress={() => handleLoadPress(load.id)}
+                    showBids={true}
+                    showStatus={true}
+                  />
+                  {/* Gray Divider */}
+                  {index < loads.length - 1 && <View style={styles.divider} />}
+                </View>
+              ))}
             </View>
           )}
         </ScrollView>

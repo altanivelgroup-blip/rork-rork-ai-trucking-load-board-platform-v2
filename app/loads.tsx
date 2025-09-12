@@ -6,6 +6,7 @@ import { Truck } from 'lucide-react-native';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LoadCard } from '@/components/LoadCard';
 
 export default function LiveLoadsScreen() {
   const router = useRouter();
@@ -88,59 +89,32 @@ const loads = useMemo(() => {
           ) : (
             <View style={styles.loadsContainer}>
               {loads.map((load: any, index: number) => {
-                const rateVal = load.rate ?? load.rateTotalUSD ?? 1200;
-                const bidsCount = Math.floor(Math.random() * 3) + 1;
-                
-                // Determine load status and properties
-                const isRushDelivery = load.isRushDelivery || Math.random() > 0.7;
-                const statusText = load.status === 'awaiting-bids' ? 'Pending' : 
-                                 load.status === 'in-transit' ? 'In Transit' : 
-                                 load.status === 'ready-pickup' ? 'Ready for Pickup' : 'Pending';
-                
-                const originText = typeof load.origin === 'string'
-                  ? load.origin
-                  : `${load.origin?.city ?? load.originCity ?? 'Dallas'}, ${load.origin?.state ?? load.originState ?? 'TX'}`;
-                
-                const destText = typeof load.destination === 'string'
-                  ? load.destination
-                  : `${load.destination?.city ?? load.destCity ?? 'Chicago'}, ${load.destination?.state ?? load.destState ?? 'IL'}`;
+                // Normalize load data to match LoadCard expectations
+                const normalizedLoad = {
+                  ...load,
+                  rate: load.rate ?? load.rateTotalUSD ?? 1200,
+                  origin: typeof load.origin === 'string' 
+                    ? { city: 'Dallas', state: 'TX' }
+                    : load.origin ?? { 
+                        city: load.originCity ?? 'Dallas', 
+                        state: load.originState ?? 'TX' 
+                      },
+                  destination: typeof load.destination === 'string'
+                    ? { city: 'Chicago', state: 'IL' }
+                    : load.destination ?? { 
+                        city: load.destCity ?? 'Chicago', 
+                        state: load.destState ?? 'IL' 
+                      }
+                };
                 
                 return (
                   <View key={load.id}>
-                    <TouchableOpacity
-                      style={styles.uniformLoadCard}
+                    <LoadCard
+                      load={normalizedLoad}
                       onPress={() => handleLoadPress(load.id)}
-                      testID={`load-${load.id}`}
-                    >
-                      {/* Status Pills */}
-                      <View style={styles.statusRow}>
-                        <View style={styles.activePill}>
-                          <Text style={styles.activePillText}>Active</Text>
-                        </View>
-                        
-                        {isRushDelivery && (
-                          <View style={styles.rushPill}>
-                            <Text style={styles.rushPillText}>Rush Delivery</Text>
-                          </View>
-                        )}
-                      </View>
-                      
-                      {/* Load Details */}
-                      <Text style={styles.statusText}>Status: {statusText}</Text>
-                      <Text style={styles.rateText}>Rate: ${rateVal}</Text>
-                      <Text style={styles.routeText}>Route: {originText} {'>'} {destText}</Text>
-                      <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
-                      
-                      {/* Tap for Details Button */}
-                      <TouchableOpacity 
-                        style={styles.detailsButton}
-                        onPress={() => handleLoadPress(load.id)}
-                        testID={`details-${load.id}`}
-                      >
-                        <Text style={styles.detailsButtonText}>Tap for Details</Text>
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                    
+                      showBids={true}
+                      showStatus={true}
+                    />
                     {/* Gray Divider */}
                     {index < loads.length - 1 && <View style={styles.divider} />}
                   </View>

@@ -7,6 +7,7 @@ import { Truck, ArrowLeft } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import { LoadCard } from '@/components/LoadCard';
 
 export default function MyLoadsScreen() {
   // Always call all hooks first to maintain hook order
@@ -128,11 +129,7 @@ export default function MyLoadsScreen() {
           ) : (
             <View style={styles.loadsContainer}>
               {loads.map((load: any, index: number) => {
-                const rateVal = load.rate ?? 1200;
-                const bidsCount = Math.floor(Math.random() * 3) + 2;
-                
                 // Determine load status and properties
-                const isRushDelivery = load.isRushDelivery || Math.random() > 0.7;
                 const isCompleted = load.status === 'completed' || Math.random() > 0.8;
                 
                 // Hide completed loads from Live Loads view (only show on My Loads)
@@ -142,55 +139,12 @@ export default function MyLoadsScreen() {
                 
                 return (
                   <View key={load.id}>
-                    <TouchableOpacity
-                      style={styles.loadCard}
+                    <LoadCard
+                      load={load}
                       onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
-                      testID={`load-${load.id}`}
-                    >
-                      {/* Status Pills */}
-                      <View style={styles.statusRow}>
-                        {isCompleted ? (
-                          <View style={styles.completedPill}>
-                            <Text style={styles.completedPillText}>Completed</Text>
-                          </View>
-                        ) : (
-                          <View style={styles.activePill}>
-                            <Text style={styles.activePillText}>Active</Text>
-                          </View>
-                        )}
-                        
-                        {isRushDelivery && !isCompleted && (
-                          <View style={styles.rushPill}>
-                            <Text style={styles.rushPillText}>Rush Delivery</Text>
-                          </View>
-                        )}
-                      </View>
-                      
-                      {/* Status and Rate */}
-                      <Text style={styles.statusText}>Status: {isCompleted ? 'Completed' : 'Pending'}</Text>
-                      <Text style={styles.rateText}>Rate: ${rateVal}</Text>
-                      <Text style={styles.routeText}>Route: Dallas, TX {'>'} Chicago, IL</Text>
-                      <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
-                      
-                      {/* Action Buttons */}
-                      <View style={styles.actionButtons}>
-                        <TouchableOpacity 
-                          style={styles.editButton}
-                          onPress={() => router.push({ pathname: '/load-edit', params: { loadId: load.id } })}
-                          testID={`edit-${load.id}`}
-                        >
-                          <Text style={styles.editButtonText}>Edit</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          style={styles.trackButton}
-                          onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
-                          testID={`track-${load.id}`}
-                        >
-                          <Text style={styles.trackButtonText}>Track</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </TouchableOpacity>
-                    
+                      showBids={true}
+                      showStatus={true}
+                    />
                     {/* Gray Divider */}
                     {index < loads.length - 1 && <View style={styles.divider} />}
                   </View>
