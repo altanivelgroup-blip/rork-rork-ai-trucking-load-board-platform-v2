@@ -198,24 +198,26 @@ export default function RootLayout() {
                 <StartupInitializer>
                   <View style={styles.appContainer}>
                     <AuthProvider>
-                      <RoleBasedRouter>
-                        <SettingsProvider>
-                          <PaymentsProvider>
-                            <WalletProvider>
-                              <MaintenanceProvider>
-                                <LoadsProvider>
-                                  <PostLoadProvider>
-                                    <AutoArriveProvider>
-                                      <RootLayoutNav />
-                                      <AutoArriveSheet />
-                                    </AutoArriveProvider>
-                                  </PostLoadProvider>
-                                </LoadsProvider>
-                              </MaintenanceProvider>
-                            </WalletProvider>
-                          </PaymentsProvider>
-                        </SettingsProvider>
-                      </RoleBasedRouter>
+                      <ErrorBoundary safeRoute="/(auth)/login">
+                        <RoleBasedRouter>
+                          <SettingsProvider>
+                            <PaymentsProvider>
+                              <WalletProvider>
+                                <MaintenanceProvider>
+                                  <LoadsProvider>
+                                    <PostLoadProvider>
+                                      <AutoArriveProvider>
+                                        <RootLayoutNav />
+                                        <AutoArriveSheet />
+                                      </AutoArriveProvider>
+                                    </PostLoadProvider>
+                                  </LoadsProvider>
+                                </MaintenanceProvider>
+                              </WalletProvider>
+                            </PaymentsProvider>
+                          </SettingsProvider>
+                        </RoleBasedRouter>
+                      </ErrorBoundary>
                     </AuthProvider>
                   </View>
                 </StartupInitializer>

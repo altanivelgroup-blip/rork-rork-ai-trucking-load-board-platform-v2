@@ -5,10 +5,16 @@ import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function TabsLayout() {
-  const { user } = useAuth();
+  // Always call useAuth hook first to maintain consistent hook order
+  const authState = useAuth();
+  
+  // Safely destructure after hook is called
+  const user = authState?.user;
   const isDriver = user?.role === 'driver';
   const isShipper = user?.role === 'shipper';
   const isAdmin = (user?.role as string) === 'admin' || user?.email === 'admin@loadrush.com';
+  
+  console.log('[TabsLayout] Rendering with user role:', user?.role);
 
   return (
     <Tabs

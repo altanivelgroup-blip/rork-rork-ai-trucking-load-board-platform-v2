@@ -126,40 +126,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     };
   }, [isInitialized, user]);
 
-  const login = useCallback(async (email: string, password: string, role: UserRole = 'driver') => {
-    console.log('[auth] login attempt for', email, 'as', role);
-    try {
-      // First check if we have cached data for this email/role combination
-      const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
-      let mockUser: Driver | Shipper;
-      
-      if (cached) {
-        const cachedUser = JSON.parse(cached);
-        if (cachedUser.email === email && cachedUser.role === role) {
-          console.log('[auth] using cached user data for', email);
-          mockUser = cachedUser;
-        } else {
-          console.log('[auth] cached user mismatch, creating new user');
-          mockUser = await createNewUser(email, role);
-        }
-      } else {
-        console.log('[auth] no cached data, creating new user');
-        mockUser = await createNewUser(email, role);
-      }
-      
-      setUser(mockUser);
-      setUserId(mockUser.id);
-      setIsAnonymous(email === 'guest@example.com');
-      setHasSignedInThisSession(true);
-      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
-      console.log('[auth] login successful as', role);
-    } catch (error) {
-      console.error('[auth] login failed:', error);
-      throw error;
-    }
-  }, []);
-  
-  const createNewUser = async (email: string, role: UserRole): Promise<Driver | Shipper> => {
+  const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper> => {
     await ensureFirebaseAuth();
     const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
     
@@ -206,7 +173,40 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         verificationStatus: 'verified',
       } as Driver;
     }
-  };
+  }, []);
+
+  const login = useCallback(async (email: string, password: string, role: UserRole = 'driver') => {
+    console.log('[auth] login attempt for', email, 'as', role);
+    try {
+      // First check if we have cached data for this email/role combination
+      const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
+      let mockUser: Driver | Shipper;
+      
+      if (cached) {
+        const cachedUser = JSON.parse(cached);
+        if (cachedUser.email === email && cachedUser.role === role) {
+          console.log('[auth] using cached user data for', email);
+          mockUser = cachedUser;
+        } else {
+          console.log('[auth] cached user mismatch, creating new user');
+          mockUser = await createNewUser(email, role);
+        }
+      } else {
+        console.log('[auth] no cached data, creating new user');
+        mockUser = await createNewUser(email, role);
+      }
+      
+      setUser(mockUser);
+      setUserId(mockUser.id);
+      setIsAnonymous(email === 'guest@example.com');
+      setHasSignedInThisSession(true);
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
+      console.log('[auth] login successful as', role);
+    } catch (error) {
+      console.error('[auth] login failed:', error);
+      throw error;
+    }
+  }, [createNewUser]);
 
   const register = useCallback(async (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper>) => {
     console.log('[auth] register attempt for', email, 'as', role);
@@ -346,7 +346,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       user,
       userId,
       isLoading,
-      isAuthenticated: !!user && !isAnonymous && hasSignedInThisSession, // Only authenticated if user exists AND not anonymous AND signed in this session
+      isAuthenticated: !!user && !isAnonymous && hasSignedInThisSession,
       isFirebaseAuthenticated,
       hasSignedInThisSession,
       login,
@@ -354,7 +354,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       resetPassword,
       logout,
       updateProfile,
-
     };
     return result;
   }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile]);

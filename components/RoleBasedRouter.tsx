@@ -3,17 +3,12 @@ import { useRouter, useSegments } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 
 export function RoleBasedRouter({ children }: { children: React.ReactNode }) {
-  // Always call hooks in the same order
-  const authState = useAuth();
+  // Always call hooks in the same order - never conditionally
+  const { user, isLoading, isAuthenticated } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   
-  // Destructure after hooks are called to avoid conditional hook calls
-  const { user, isLoading, isAuthenticated } = authState || {
-    user: null,
-    isLoading: true,
-    isAuthenticated: false
-  };
+  console.log('[RoleBasedRouter] Hook calls completed, user:', user?.role);
 
   useEffect(() => {
     if (isLoading) return;
