@@ -262,8 +262,10 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, distanceMil
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: '#E3F2FD',
     borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#1976D2',
     padding: theme.spacing.md,
     marginHorizontal: theme.spacing.md,
     marginVertical: theme.spacing.sm,
