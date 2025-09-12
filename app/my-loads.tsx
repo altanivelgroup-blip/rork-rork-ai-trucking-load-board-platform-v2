@@ -119,8 +119,17 @@ export default function MyLoadsScreen() {
           ) : (
             <View style={styles.loadsGrid}>
               {loads.map((load: any, index: number) => {
-                const rateVal = load.rate ?? 800;
+                const rateVal = load.rate ?? 1200;
                 const bidsCount = Math.floor(Math.random() * 3) + 2;
+                
+                // Determine load status and properties
+                const isRushDelivery = load.isRushDelivery || Math.random() > 0.7; // Some loads are rush
+                const isCompleted = load.status === 'completed' || Math.random() > 0.8; // Some loads are completed
+                
+                // Hide completed loads from Live Loads view (only show on My Loads)
+                if (viewMode === 'live-loads' && isCompleted) {
+                  return null;
+                }
                 
                 return (
                   <View
@@ -129,15 +138,56 @@ export default function MyLoadsScreen() {
                     testID={`load-${load.id}`}
                   >
                     <View style={styles.loadCardHeader}>
-                      <Text style={styles.statusLabel}>Status: <Text style={styles.statusValue}>Active</Text></Text>
+                      <Text style={styles.statusLabel}>Status: </Text>
+                      {isCompleted && (
+                        <View style={styles.completedPill}>
+                          <Text style={styles.completedPillText}>Completed</Text>
+                        </View>
+                      )}
                     </View>
                     
-                    <Text style={styles.rateLabel}>Rate: <Text style={styles.rateValue}>${rateVal}</Text></Text>
+                    {/* Rush Delivery Pill */}
+                    {isRushDelivery && !isCompleted && (
+                      <View style={styles.rushPillContainer}>
+                        <View style={styles.rushPill}>
+                          <Text style={styles.rushPillText}>Rush Delivery</Text>
+                        </View>
+                        <Text style={styles.rushNumber}>{index + 3}</Text>
+                      </View>
+                    )}
                     
-                    <View style={styles.bidsContainer}>
-                      <Text style={styles.bidsLabel}>Bids: <Text style={styles.bidsValue}>{bidsCount}</Text></Text>
-                      <Text style={styles.bidsCount}>{bidsCount}</Text>
-                    </View>
+                    {/* Active Status Pill for non-rush, non-completed loads */}
+                    {!isRushDelivery && !isCompleted && (
+                      <View style={styles.statusPillContainer}>
+                        <Text style={styles.rateLabel}>Rate: <Text style={styles.rateValue}>${rateVal}</Text></Text>
+                        <Text style={styles.bidsLabel}>Bids: <Text style={styles.bidsValue}>{bidsCount}</Text></Text>
+                        <View style={styles.activePill}>
+                          <Text style={styles.activePillText}>Active</Text>
+                        </View>
+                      </View>
+                    )}
+                    
+                    {/* Completed loads special layout */}
+                    {isCompleted && (
+                      <View style={styles.completedContent}>
+                        <Text style={styles.completedNote}>Visible only on Shipper Dashboard</Text>
+                      </View>
+                    )}
+                    
+                    {/* Regular content for active loads */}
+                    {!isCompleted && (
+                      <>
+                        {!isRushDelivery && (
+                          <>
+                            <Text style={styles.rateLabel}>Rate: <Text style={styles.rateValue}>${rateVal}</Text></Text>
+                            <View style={styles.bidsContainer}>
+                              <Text style={styles.bidsLabel}>Bids: <Text style={styles.bidsValue}>{bidsCount}</Text></Text>
+                              <Text style={styles.bidsCount}>{bidsCount}</Text>
+                            </View>
+                          </>
+                        )}
+                      </>
+                    )}
                     
                     <Text style={styles.routeLabel}>Route: LA to Phoenix</Text>
                     
@@ -402,5 +452,66 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     textAlign: 'left',
     marginTop: theme.spacing.lg,
+  },
+  // Rush Delivery Pill Styles
+  rushPillContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  rushPill: {
+    backgroundColor: '#FFD700', // Yellow
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  rushPillText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  rushNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.dark,
+  },
+  // Active Status Pill Styles
+  statusPillContainer: {
+    marginBottom: theme.spacing.sm,
+  },
+  activePill: {
+    backgroundColor: '#4CAF50', // Green
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-end',
+    marginTop: theme.spacing.xs,
+  },
+  activePillText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // Completed Status Pill Styles
+  completedPill: {
+    backgroundColor: '#F44336', // Red
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  completedPillText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  completedContent: {
+    marginVertical: theme.spacing.sm,
+  },
+  completedNote: {
+    fontSize: 12,
+    color: theme.colors.gray,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
