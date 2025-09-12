@@ -1,13 +1,15 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Activity, CheckCircle, Database, RefreshCcw, TrendingUp, Shield, Users, Truck, AlertTriangle, DollarSign, Eye, EyeOff, Settings, Clock, MapPin, CreditCard, Zap } from 'lucide-react-native';
+import { Activity, CheckCircle, Database, RefreshCcw, TrendingUp, Shield, Users, Truck, AlertTriangle, DollarSign, Eye, EyeOff, Settings, Clock, MapPin, CreditCard, Zap, ChevronDown } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoads } from '@/hooks/useLoads';
 import { router } from 'expo-router';
+import Svg, { Path, Circle, Text as SvgText, Line } from 'react-native-svg';
 
 type TabKey = 'overview' | 'users' | 'loads' | 'system' | 'analytics';
+type ReportPeriod = 'Daily' | 'Weekly' | 'Monthly' | 'Quarterly';
 
 const fontWeight700 = '700' as const;
 const fontWeight600 = '600' as const;
@@ -72,6 +74,8 @@ export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [isLiveMode, setIsLiveMode] = useState<boolean>(true);
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>('Monthly');
+  const [showPeriodDropdown, setShowPeriodDropdown] = useState<boolean>(false);
   
   const { loads } = useLoads();
   
@@ -116,6 +120,209 @@ export default function AdminScreen() {
     console.log('[Admin] refresh tapped');
     // Refresh logic here
   }, []);
+  
+  // Generate dynamic revenue data based on selected period
+  const generateRevenueData = useCallback((period: ReportPeriod) => {
+    if (!period || !period.trim()) return [];
+    if (period.length > 20) return [];
+    const sanitizedPeriod = period.trim() as ReportPeriod;
+    
+    const baseRevenue = 45000;
+    let dataPoints: { x: number; y: number; label: string; value: number }[] = [];
+    
+    switch (sanitizedPeriod) {
+      case 'Daily':
+        // 7 days with hourly peaks and dips
+        for (let i = 0; i < 7; i++) {
+          const variance = (Math.sin(i * 0.8) + Math.cos(i * 1.2)) * 0.3 + Math.random() * 0.2 - 0.1;
+          const value = baseRevenue * (1 + variance);
+          dataPoints.push({
+            x: i,
+            y: value,
+            label: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+            value: Math.round(value)
+          });
+        }
+        break;
+      case 'Weekly':
+        // 4 weeks with realistic fluctuations
+        for (let i = 0; i < 4; i++) {
+          const variance = (Math.sin(i * 1.5) + Math.cos(i * 0.7)) * 0.25 + Math.random() * 0.15 - 0.075;
+          const value = baseRevenue * 7 * (1 + variance);
+          dataPoints.push({
+            x: i,
+            y: value,
+            label: `Week ${i + 1}`,
+            value: Math.round(value)
+          });
+        }
+        break;
+      case 'Monthly':
+        // 6 months with seasonal trends
+        const months = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        for (let i = 0; i < 6; i++) {
+          const seasonalTrend = Math.sin((i + 6) * Math.PI / 6) * 0.2;
+          const variance = (Math.sin(i * 0.9) + Math.cos(i * 1.1)) * 0.15 + Math.random() * 0.1 - 0.05;
+          const value = baseRevenue * 30 * (1 + seasonalTrend + variance);
+          dataPoints.push({
+            x: i,
+            y: value,
+            label: months[i],
+            value: Math.round(value)
+          });
+        }
+        break;
+      case 'Quarterly':
+        // 4 quarters with growth trend
+        const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+        for (let i = 0; i < 4; i++) {
+          const growthTrend = i * 0.1; // 10% growth per quarter
+          const variance = (Math.sin(i * 1.3) + Math.cos(i * 0.8)) * 0.1 + Math.random() * 0.08 - 0.04;
+          const value = baseRevenue * 90 * (1 + growthTrend + variance);
+          dataPoints.push({
+            x: i,
+            y: value,
+            label: quarters[i],
+            value: Math.round(value)
+          });
+        }
+        break;
+    }
+    
+    return dataPoints;
+  }, []);
+  
+  const [revenueData, setRevenueData] = useState(() => generateRevenueData('Monthly'));
+  
+  // Update revenue data when period changes
+  useEffect(() => {
+    setRevenueData(generateRevenueData(reportPeriod));
+  }, [reportPeriod, generateRevenueData]);
+  
+  // Revenue Graph Component
+  const RevenueGraph = ({ data }: { data: typeof revenueData }) => {
+    const screenWidth = Dimensions.get('window').width;
+    const graphWidth = screenWidth - 64; // Account for padding
+    const graphHeight = 200;
+    const padding = 40;
+    
+    if (!data.length) return null;
+    
+    const minValue = Math.min(...data.map(d => d.y));
+    const maxValue = Math.max(...data.map(d => d.y));
+    const valueRange = maxValue - minValue;
+    
+    // Calculate positions
+    const points = data.map((point, index) => {
+      const x = padding + (index / (data.length - 1)) * (graphWidth - 2 * padding);
+      const y = graphHeight - padding - ((point.y - minValue) / valueRange) * (graphHeight - 2 * padding);
+      return { ...point, screenX: x, screenY: y };
+    });
+    
+    // Create path for the line
+    const pathData = points.reduce((path, point, index) => {
+      if (index === 0) {
+        return `M ${point.screenX} ${point.screenY}`;
+      }
+      return `${path} L ${point.screenX} ${point.screenY}`;
+    }, '');
+    
+    return (
+      <View style={styles.graphContainer}>
+        <Svg width={graphWidth} height={graphHeight}>
+          {/* Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
+            const y = graphHeight - padding - ratio * (graphHeight - 2 * padding);
+            return (
+              <Line
+                key={`grid-${index}`}
+                x1={padding}
+                y1={y}
+                x2={graphWidth - padding}
+                y2={y}
+                stroke={theme.colors.border}
+                strokeWidth={1}
+                opacity={0.3}
+              />
+            );
+          })}
+          
+          {/* Main line connecting all points */}
+          <Path
+            d={pathData}
+            stroke={theme.colors.secondary}
+            strokeWidth={3}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          
+          {/* Data points (dots) */}
+          {points.map((point, index) => (
+            <Circle
+              key={`dot-${index}`}
+              cx={point.screenX}
+              cy={point.screenY}
+              r={5}
+              fill={theme.colors.secondary}
+              stroke={theme.colors.white}
+              strokeWidth={2}
+            />
+          ))}
+          
+          {/* X-axis labels */}
+          {points.map((point, index) => (
+            <SvgText
+              key={`label-${index}`}
+              x={point.screenX}
+              y={graphHeight - 10}
+              fontSize={12}
+              fill={theme.colors.gray}
+              textAnchor="middle"
+            >
+              {point.label}
+            </SvgText>
+          ))}
+          
+          {/* Y-axis labels */}
+          {[0, 0.5, 1].map((ratio, index) => {
+            const y = graphHeight - padding - ratio * (graphHeight - 2 * padding);
+            const value = minValue + ratio * valueRange;
+            return (
+              <SvgText
+                key={`y-label-${index}`}
+                x={25}
+                y={y + 4}
+                fontSize={10}
+                fill={theme.colors.gray}
+                textAnchor="middle"
+              >
+                {`${Math.round(value / 1000)}k`}
+              </SvgText>
+            );
+          })}
+        </Svg>
+        
+        {/* Hover tooltips simulation */}
+        <View style={styles.tooltipContainer}>
+          {points.map((point, index) => (
+            <View
+              key={`tooltip-${index}`}
+              style={[
+                styles.tooltip,
+                {
+                  left: point.screenX - 30,
+                  top: point.screenY - 35,
+                }
+              ]}
+            >
+              <Text style={styles.tooltipText}>{`${(point.value / 1000).toFixed(1)}k`}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
   
   // Admin access control
   const isAdmin = user?.email === 'admin@loadrush.com';
@@ -495,7 +702,42 @@ export default function AdminScreen() {
         
         {activeTab === 'analytics' && (
           <>
-            <Text style={styles.sectionTitle}>Revenue Analytics</Text>
+            <View style={styles.revenueSection}>
+              <View style={styles.revenueSectionHeader}>
+                <Text style={styles.sectionTitle}>Revenue Trends</Text>
+                <TouchableOpacity 
+                  style={styles.periodDropdown}
+                  onPress={() => setShowPeriodDropdown(!showPeriodDropdown)}
+                >
+                  <Text style={styles.periodText}>{reportPeriod}</Text>
+                  <ChevronDown size={16} color={theme.colors.gray} />
+                </TouchableOpacity>
+              </View>
+              
+              {showPeriodDropdown && (
+                <View style={styles.dropdownMenu}>
+                  {(['Daily', 'Weekly', 'Monthly', 'Quarterly'] as ReportPeriod[]).map((period) => (
+                    <TouchableOpacity
+                      key={period}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setReportPeriod(period);
+                        setShowPeriodDropdown(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownItemText, reportPeriod === period && styles.dropdownItemTextActive]}>
+                        {period}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              
+              <View style={styles.revenueGraphCard}>
+                <RevenueGraph data={revenueData} />
+              </View>
+            </View>
+            
             <View style={styles.revenueGrid}>
               <View style={styles.revenueCard}>
                 <Text style={styles.revenueValue}>${liveMetrics.totalRevenue.toLocaleString()}</Text>
@@ -683,4 +925,19 @@ const styles = StyleSheet.create({
   trendPeriod: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8 },
   trendMetrics: { flexDirection: 'row', justifyContent: 'space-between' },
   trendItem: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  
+  // Revenue Graph Styles
+  revenueSection: { marginBottom: theme.spacing.lg },
+  revenueSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md },
+  periodDropdown: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.white, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: theme.colors.border },
+  periodText: { fontSize: theme.fontSize.sm, color: theme.colors.dark, marginRight: 4, fontWeight: fontWeight600 },
+  dropdownMenu: { position: 'absolute', top: 60, right: 0, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: theme.colors.border, zIndex: 1000, minWidth: 120, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  dropdownItem: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  dropdownItemText: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  dropdownItemTextActive: { color: theme.colors.secondary, fontWeight: fontWeight600 },
+  revenueGraphCard: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  graphContainer: { position: 'relative' },
+  tooltipContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' },
+  tooltip: { position: 'absolute', backgroundColor: theme.colors.dark, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, opacity: 0.8 },
+  tooltipText: { fontSize: theme.fontSize.xs, color: theme.colors.white, fontWeight: fontWeight600 },
 });
