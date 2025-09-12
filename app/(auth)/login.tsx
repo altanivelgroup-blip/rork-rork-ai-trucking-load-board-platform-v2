@@ -99,8 +99,10 @@ export default function LoginScreen() {
       
       if (hasCredentials) {
         // Validate email format before attempting Firebase auth
-        if (!isValidEmail(email)) {
-          throw new Error('Please enter a valid email address.');
+        if (!isValidEmail(email.trim())) {
+          console.error('[login] Invalid email format:', email);
+          alert('Please enter a valid email address.');
+          return;
         }
         
         // Use login/link functionality to preserve anonymous UID
@@ -112,7 +114,7 @@ export default function LoginScreen() {
         }
         
         // Update local auth state with selected role
-        await login(email, password, selectedRole);
+        await login(email.trim(), password.trim(), selectedRole);
         
         console.log('[login] success, navigating based on role');
         if (selectedRole === 'shipper') {
@@ -125,8 +127,12 @@ export default function LoginScreen() {
       
       // If no credentials provided, allow guest access
       console.log('[login] no credentials provided, signing in anonymously');
-      const result = await signInAnonymously(auth);
-      console.log('[login] signed in anonymously. uid:', result.user.uid);
+      try {
+        const result = await signInAnonymously(auth);
+        console.log('[login] signed in anonymously. uid:', result.user.uid);
+      } catch (error: any) {
+        console.warn('[login] Anonymous sign-in failed, continuing with mock auth:', error?.code);
+      }
       
       // Update local auth state with anonymous user
       await login('guest@example.com', 'guest', selectedRole);
@@ -139,9 +145,8 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       console.error('[login] failed:', error?.code, error?.message);
-      // In development, we allow login to continue even if Firebase fails
-      // The mock authentication system in useAuth will handle the user creation
-      console.log('[login] Continuing with mock authentication system');
+      // Show user-friendly error message
+      alert(error?.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

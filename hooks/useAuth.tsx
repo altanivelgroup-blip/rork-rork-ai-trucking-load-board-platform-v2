@@ -177,6 +177,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const login = useCallback(async (email: string, password: string, role: UserRole = 'driver') => {
     console.log('[auth] login attempt for', email, 'as', role);
+    
+    // Validate inputs
+    if (!email || !password) {
+      const error = new Error('Email and password are required');
+      console.error('[auth] login failed: missing credentials');
+      throw error;
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (email !== 'guest@example.com' && !emailRegex.test(email.trim())) {
+      const error = new Error('Please enter a valid email address.');
+      console.error('[auth] login failed: invalid email format');
+      throw error;
+    }
+    
     try {
       // First check if we have cached data for this email/role combination
       const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
