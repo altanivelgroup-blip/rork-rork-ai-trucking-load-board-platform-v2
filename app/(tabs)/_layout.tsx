@@ -28,7 +28,7 @@ export default function TabsLayout() {
         },
       }}
     >
-      {/* Driver Menu: Dashboard, Loads, Backhauls, Service Finder, Profile */}
+      {/* DRIVER MENU - Exactly 5 items: Dashboard, Loads, Backhauls, Service Finder, Profile */}
       {isDriver && (
         <>
           <Tabs.Screen
@@ -46,14 +46,14 @@ export default function TabsLayout() {
             }}
           />
           <Tabs.Screen
-            name="shipper"
+            name="service-finder"
             options={{
               title: 'Backhauls',
               tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
             }}
           />
           <Tabs.Screen
-            name="service-finder"
+            name="shipper"
             options={{
               title: 'Service Finder',
               tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
@@ -69,7 +69,7 @@ export default function TabsLayout() {
         </>
       )}
       
-      {/* Shipper Menu: Dashboard, Post Loads, My Loads, Analytics, Profile */}
+      {/* SHIPPER MENU - Exactly 5 items: Dashboard, Post Loads, My Loads, Analytics, Profile */}
       {isShipper && (
         <>
           <Tabs.Screen
@@ -110,7 +110,7 @@ export default function TabsLayout() {
         </>
       )}
       
-      {/* Admin Menu: Users, Reports, Settings, Loads Overview, Profile */}
+      {/* ADMIN MENU - Exactly 5 items: Users, Reports, Settings, Loads Overview, Profile */}
       {isAdmin && (
         <>
           <Tabs.Screen
@@ -128,7 +128,7 @@ export default function TabsLayout() {
             }}
           />
           <Tabs.Screen
-            name="shipper-post"
+            name="service-finder"
             options={{
               title: 'Settings',
               tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
@@ -151,52 +151,34 @@ export default function TabsLayout() {
         </>
       )}
 
-      {/* Hidden tabs for non-relevant roles */}
-      {!isShipper && (
-        <>
-          <Tabs.Screen
-            name="shipper"
-            options={{
-              href: null,
-            }}
-          />
-          <Tabs.Screen
-            name="shipper-post"
-            options={{
-              href: null,
-            }}
-          />
-          <Tabs.Screen
-            name="shipper-analytics"
-            options={{
-              href: null,
-            }}
-          />
-        </>
-      )}
+      {/* Hide all tabs for non-relevant roles */}
       {!isDriver && (
         <>
-          <Tabs.Screen
-            name="dashboard"
-            options={{
-              href: null,
-            }}
-          />
-          <Tabs.Screen
-            name="service-finder"
-            options={{
-              href: null,
-            }}
-          />
+          <Tabs.Screen name="dashboard" options={{ href: null }} />
+        </>
+      )}
+      {!isShipper && (
+        <>
+          <Tabs.Screen name="shipper" options={{ href: null }} />
+          <Tabs.Screen name="shipper-post" options={{ href: null }} />
+          <Tabs.Screen name="shipper-analytics" options={{ href: null }} />
         </>
       )}
       {!isAdmin && (
-        <Tabs.Screen
-          name="admin"
-          options={{
-            href: null,
-          }}
-        />
+        <>
+          <Tabs.Screen name="admin" options={{ href: null }} />
+        </>
+      )}
+      {(!isDriver && !isAdmin) && (
+        <>
+          <Tabs.Screen name="service-finder" options={{ href: null }} />
+        </>
+      )}
+      {(!isDriver && !isShipper && !isAdmin) && (
+        <>
+          <Tabs.Screen name="loads" options={{ href: null }} />
+          <Tabs.Screen name="profile" options={{ href: null }} />
+        </>
       )}
     </Tabs>
   );
