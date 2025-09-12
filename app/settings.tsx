@@ -4,7 +4,7 @@ import { Stack, Link } from 'expo-router';
 import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info, Phone, Crown } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useSettings } from '@/hooks/useSettings';
-import { RoleSwitcher } from '@/components/RoleSwitcher';
+
 
 export default function SettingsScreen() {
   console.log('[Settings] Screen rendering');
@@ -58,7 +58,7 @@ export default function SettingsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Settings' }} />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <RoleSwitcher />
+
         
         <SectionTitle>Notifications</SectionTitle>
         <View style={styles.card}>

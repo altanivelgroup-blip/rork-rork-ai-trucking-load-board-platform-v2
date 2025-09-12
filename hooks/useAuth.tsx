@@ -19,7 +19,7 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Driver | Shipper>) => Promise<void>;
-  switchRole: (newRole: UserRole) => Promise<void>;
+
 }
 
 const USER_STORAGE_KEY = 'auth:user:profile';
@@ -338,65 +338,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [user]);
 
-  const switchRole = useCallback(async (newRole: UserRole) => {
-    if (!user) {
-      console.log('[auth] switchRole called but no user found');
-      return;
-    }
-    
-    console.log('[auth] switching role from', user.role, 'to', newRole);
-    
-    // Create new user object with the new role
-    let newUser: Driver | Shipper;
-    
-    if (newRole === 'shipper') {
-      newUser = {
-        id: user.id,
-        role: 'shipper',
-        email: user.email,
-        name: user.name,
-        phone: user.phone,
-        company: user.company,
-        membershipTier: user.membershipTier,
-        createdAt: user.createdAt,
-        companyName: (user as any).companyName || 'New Company',
-        verificationStatus: 'unverified',
-        totalLoadsPosted: 0,
-        activeLoads: 0,
-        completedLoads: 0,
-        totalRevenue: 0,
-        avgRating: 0,
-      } as Shipper;
-    } else {
-      newUser = {
-        id: user.id,
-        role: 'driver',
-        email: user.email,
-        name: user.name,
-        phone: user.phone,
-        company: user.company,
-        membershipTier: user.membershipTier,
-        createdAt: user.createdAt,
-        cdlNumber: '',
-        vehicleTypes: [],
-        rating: 0,
-        completedLoads: 0,
-        documents: [],
-        wallet: {
-          balance: 0,
-          pendingEarnings: 0,
-          totalEarnings: 0,
-          transactions: [],
-        },
-        isAvailable: true,
-        verificationStatus: 'unverified',
-      } as Driver;
-    }
-    
-    setUser(newUser);
-    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
-    console.log('[auth] role switch successful to', newRole);
-  }, [user]);
+
 
   // Always compute the same value structure to maintain consistency
   const value = useMemo(() => {
@@ -412,10 +354,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       resetPassword,
       logout,
       updateProfile,
-      switchRole,
+
     };
     return result;
-  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile, switchRole]);
+  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile]);
 
   return value;
 });

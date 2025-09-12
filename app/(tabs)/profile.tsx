@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { RoleSwitcher } from '@/components/RoleSwitcher';
+
 import { 
   User, 
   Settings, 
@@ -218,7 +218,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <RoleSwitcher />
+
 
         <View style={styles.optionsContainer}>
           {profileOptions.map((option) => (
