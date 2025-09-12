@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings, Truck, FileText } from 'lucide-react-native';
+import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings, FileText } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -48,23 +48,23 @@ export default function TabsLayout() {
         }}
       />
       
-      {/* Service Finder / Backhauls Tab (Driver only) */}
+      {/* Service Finder Tab (Driver only) */}
       <Tabs.Screen
         name="service-finder"
         options={{
-          title: 'Backhauls',
-          tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
+          title: 'Service Finder',
+          tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
           href: isDriver ? '/service-finder' : null,
         }}
       />
       
-      {/* Shipper Dashboard / Service Finder Tab */}
+      {/* Shipper Dashboard Tab (Shipper only) */}
       <Tabs.Screen
         name="shipper"
         options={{
-          title: isShipper ? 'Dashboard' : (isDriver ? 'Service Finder' : 'Shipper'),
-          tabBarIcon: ({ color, size }) => isShipper ? <Home color={color} size={size} /> : <MapPin color={color} size={size} />,
-          href: (isShipper || isDriver) ? '/shipper' : null,
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+          href: isShipper ? '/shipper' : null,
         }}
       />
       
