@@ -51,6 +51,7 @@ export interface PhotoUploaderProps {
   entityId: string;
   minPhotos?: number;
   maxPhotos?: number;
+  loadType?: 'vehicle' | 'other'; // New prop to determine photo requirements
   onChange?: (photos: string[], primaryPhoto: string, uploadsInProgress: number) => void;
 }
 
@@ -230,10 +231,17 @@ const THUMBNAIL_SIZE = (screenWidth - 48) / 3;
 export function PhotoUploader({
   entityType,
   entityId,
-  minPhotos = entityType === 'load' ? 5 : 5,
+  minPhotos,
   maxPhotos = entityType === 'load' ? 20 : 20,
+  loadType = 'other',
   onChange,
 }: PhotoUploaderProps) {
+  // Determine minimum photos based on load type
+  const effectiveMinPhotos = useMemo(() => {
+    if (minPhotos !== undefined) return minPhotos;
+    if (entityType === 'load' && loadType === 'vehicle') return 5; // Vehicle loads require 5 photos
+    return 1; // Other load types require minimum 1 photo (recommended but not enforced)
+  }, [minPhotos, entityType, loadType]);
   const [state, setState] = useState<PhotoUploadState>({
     photos: [],
     primaryPhoto: '',
@@ -529,14 +537,27 @@ export function PhotoUploader({
       });
       if (!result.canceled && result.assets) {
         const remainingSlots = maxPhotos - state.photos.length;
-        const perPickLimit = Math.min(2, remainingSlots);
+        // Allow up to 5 photos at once, or remaining slots if less
+        const perPickLimit = Math.min(5, remainingSlots);
         const filesToUpload = result.assets.slice(0, perPickLimit);
+        
+        // Show progress for multi-select
+        if (filesToUpload.length > 1) {
+          toast.show(`Processing ${filesToUpload.length} photos...`, 'info');
+        }
+        
+        // Process files with validation
+        let validFiles = 0;
+        let errorFiles = 0;
+        
         filesToUpload.forEach((asset) => {
           const validationError = validateFile(asset as any);
           if (validationError) {
-            toast.show(validationError, 'error');
+            toast.show(`Photo ${asset.fileName || 'file'}: ${validationError}`, 'error');
+            errorFiles++;
             return;
           }
+          validFiles++;
           enqueueUpload(async () => {
             try {
               await uploadFile(asset as any);
@@ -545,11 +566,16 @@ export function PhotoUploader({
             }
           });
         });
-        if (result.assets.length > perPickLimit) {
-          toast.show(`Only ${perPickLimit} photos can be added at a time`, 'warning');
+        
+        // Show summary message
+        if (validFiles > 0 && errorFiles > 0) {
+          toast.show(`${validFiles} photos uploading, ${errorFiles} failed validation`, 'warning');
+        } else if (validFiles > 1) {
+          toast.show(`${validFiles} photos uploading...`, 'success');
         }
-        if (perPickLimit < remainingSlots && result.assets.length > perPickLimit) {
-          // No-op, message above already covers pick limit
+        
+        if (result.assets.length > perPickLimit) {
+          toast.show(`Selected ${perPickLimit} of ${result.assets.length} photos (max ${perPickLimit} at once)`, 'warning');
         }
       }
     } catch (error: any) {
@@ -663,8 +689,8 @@ export function PhotoUploader({
   }, [state.photos]);
 
   const canPublish = useMemo(() => {
-    return completedPhotos >= minPhotos && uploadsInProgress === 0;
-  }, [completedPhotos, uploadsInProgress, minPhotos]);
+    return completedPhotos >= effectiveMinPhotos && uploadsInProgress === 0;
+  }, [completedPhotos, uploadsInProgress, effectiveMinPhotos]);
 
   const renderPhotoThumbnail = useCallback((photo: PhotoItem, index: number) => {
     const isPrimary = photo.url === state.primaryPhoto;
@@ -884,7 +910,11 @@ export function PhotoUploader({
         <View style={styles.warningContainer}>
           <AlertCircle color={theme.colors.warning} size={20} />
           <Text style={styles.warningText}>
-            You need at least {minPhotos} photos to publish.
+            {entityType === 'load' && loadType === 'vehicle' 
+              ? `Vehicle loads require at least ${effectiveMinPhotos} photos for protection.`
+              : effectiveMinPhotos > 1 
+                ? `You need at least ${effectiveMinPhotos} photos to publish.`
+                : 'At least 1 photo is recommended.'}
           </Text>
         </View>
       )}
@@ -1213,8 +1243,12 @@ const styles = StyleSheet.create({
   },
 });
 
-export function useCanPublish(entityType: 'load' | 'vehicle', photos: string[], minPhotos?: number) {
-  const defaultMinPhotos = entityType === 'load' ? 5 : 5;
-  const requiredPhotos = minPhotos ?? defaultMinPhotos;
-  return photos.length >= requiredPhotos;
+export function useCanPublish(entityType: 'load' | 'vehicle', photos: string[], minPhotos?: number, loadType?: 'vehicle' | 'other') {
+  const effectiveMinPhotos = useMemo(() => {
+    if (minPhotos !== undefined) return minPhotos;
+    if (entityType === 'load' && loadType === 'vehicle') return 5; // Vehicle loads require 5 photos
+    return 1; // Other load types require minimum 1 photo
+  }, [minPhotos, entityType, loadType]);
+  
+  return photos.length >= effectiveMinPhotos;
 }

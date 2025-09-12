@@ -150,8 +150,15 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
     const pickedFromUploader: string[] = Array.isArray(draft?.photoUrls) ? draft.photoUrls : [];
     const usingUploader = pickedFromUploader.length >= 5;
     const picked = usingUploader ? pickedFromUploader : pickedLocal;
-    if ((!Array.isArray(picked) || picked.length < 5)) {
-      throw new Error('Please add at least 5 photos.');
+    // Check photo requirements based on vehicle type
+    const isVehicleLoad = draft?.vehicleType === 'car-hauler';
+    const minPhotosRequired = isVehicleLoad ? 5 : 1;
+    
+    if ((!Array.isArray(picked) || picked.length < minPhotosRequired)) {
+      const errorMsg = isVehicleLoad 
+        ? 'Vehicle loads require at least 5 photos for protection.'
+        : 'Please add at least 1 photo.';
+      throw new Error(errorMsg);
     }
 
     try { setField && setField('isPosting', true); } catch {}
@@ -316,7 +323,9 @@ export default function PostLoadStep5() {
           </View>
 
           <View style={styles.attachCard}>
-            <Text style={styles.summaryTitle}>Photos (min 5 required)</Text>
+            <Text style={styles.summaryTitle}>
+              Photos ({draft.vehicleType === 'car-hauler' ? '5 required for vehicle loads' : 'min 1 recommended'})
+            </Text>
             {uploadsInProgress > 0 && (
               <View style={styles.uploadStatusContainer}>
                 <Clock color={theme.colors.primary} size={18} />
@@ -326,19 +335,25 @@ export default function PostLoadStep5() {
               </View>
             )}
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos selected: {(draft.photoUrls?.length || 0)} (min 5 required)
+              Photos selected: {(draft.photoUrls?.length || 0)} 
+              {draft.vehicleType === 'car-hauler' ? ' (5 required for vehicle protection)' : ' (1+ recommended)'}
             </Text>
-            {((draft.photoUrls?.length || 0) < 5) && uploadsInProgress === 0 && (
+            {draft.vehicleType === 'car-hauler' && ((draft.photoUrls?.length || 0) < 5) && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
-                Minimum 5 photos required to post.
+                Vehicle loads require 5 photos for shipper and driver protection.
+              </Text>
+            )}
+            {draft.vehicleType !== 'car-hauler' && ((draft.photoUrls?.length || 0) < 1) && uploadsInProgress === 0 && (
+              <Text style={styles.warningText} testID="attachmentsWarning">
+                At least 1 photo is recommended for better load visibility.
               </Text>
             )}
 
-            <View style={{ marginTop: 8 }}>
+            <View style={styles.photoUploaderContainer}>
               <PhotoUploader
                 entityType="load"
                 entityId={auth?.currentUser?.uid ? `${auth.currentUser.uid}-${draft.reference}` : draft.reference}
-                minPhotos={5}
+                loadType={draft.vehicleType === 'car-hauler' ? 'vehicle' : 'other'} // Vehicle loads require 5 photos, others are flexible
                 onChange={(photos: string[], primary: string, inProgress: number) => {
                   console.log('[PostLoadStep5] PhotoUploader onChange', { count: photos.length, inProgress, primary });
                   setUploadsInProgress(inProgress);
@@ -383,18 +398,18 @@ export default function PostLoadStep5() {
               style={[
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
-                 ((draft.photoUrls?.length || 0) < 5) || 
+                 (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
                  draft.isPosting) && styles.postBtnDisabled
               ]} 
               disabled={
                 uploadsInProgress > 0 || 
-                ((draft.photoUrls?.length || 0) < 5) || 
+                (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
                 draft.isPosting
               } 
               accessibilityRole="button" 
               accessibilityState={{ 
                 disabled: uploadsInProgress > 0 || 
-                         ((draft.photoUrls?.length || 0) < 5) || 
+                         (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
                          draft.isPosting 
               }} 
               testID="postLoadBtn"
@@ -459,6 +474,7 @@ const styles = StyleSheet.create({
 
   helperText: { color: theme.colors.gray, marginTop: 4, marginBottom: 8, fontSize: theme.fontSize.md },
   errorText: { color: '#ef4444', fontWeight: '700', marginBottom: 8 },
+  warningText: { color: theme.colors.warning, fontWeight: '600', marginBottom: 8 },
   uploadStatusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -513,4 +529,5 @@ const styles = StyleSheet.create({
   postBtn: { flex: 1, backgroundColor: '#22c55e', paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   postBtnDisabled: { backgroundColor: '#94a3b8' },
   postBtnText: { color: theme.colors.white, fontSize: theme.fontSize.lg, fontWeight: '800' },
+  photoUploaderContainer: { marginTop: 8 },
 });
