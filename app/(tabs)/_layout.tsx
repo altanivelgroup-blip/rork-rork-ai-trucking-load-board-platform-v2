@@ -50,7 +50,7 @@ export default function TabsLayout() {
         options={{
           title: isShipper ? 'My Loads' : 'Loads',
           tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
-          href: isShipper ? '/shipper-loads' : (isDriver || isAdmin) ? '/loads' : null,
+          href: isShipper ? '/my-loads' : (isDriver || isAdmin) ? '/loads' : null,
         }}
       />
       
