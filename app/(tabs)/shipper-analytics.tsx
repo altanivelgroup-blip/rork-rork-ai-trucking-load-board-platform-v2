@@ -561,13 +561,18 @@ export default function ShipperAnalyticsScreen() {
                           const nextItem = array[index + 1];
                           const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
                                            selectedPeriod === 'weekly' ? 20000 :
-                                           selectedPeriod === 'quarterly' ? 250000 : 70000;
+                                           selectedPeriod === 'quarterly' ? 250000 : 80000;
                           
-                          const x1 = (index / Math.max(array.length - 1, 1)) * 100;
-                          const y1 = 100 - (item.revenue / maxRevenue) * 80;
-                          const x2 = ((index + 1) / Math.max(array.length - 1, 1)) * 100;
-                          const y2 = 100 - (nextItem.revenue / maxRevenue) * 80;
+                          // Calculate positions with proper spacing
+                          const containerWidth = 100; // percentage
+                          const containerHeight = 80; // percentage of usable area
                           
+                          const x1 = (index / Math.max(array.length - 1, 1)) * containerWidth;
+                          const y1 = containerHeight - (item.revenue / maxRevenue) * containerHeight;
+                          const x2 = ((index + 1) / Math.max(array.length - 1, 1)) * containerWidth;
+                          const y2 = containerHeight - (nextItem.revenue / maxRevenue) * containerHeight;
+                          
+                          // Calculate line properties
                           const deltaX = x2 - x1;
                           const deltaY = y2 - y1;
                           const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -591,11 +596,13 @@ export default function ShipperAnalyticsScreen() {
                         
                         {/* Data points with hover effect */}
                         {revenueData.slice(0, selectedPeriod === 'quarterly' ? 4 : selectedPeriod === 'daily' ? 7 : 6).map((item, index, array) => {
-                          const x = (index / Math.max(array.length - 1, 1)) * 100;
+                          const containerWidth = 100;
+                          const containerHeight = 80;
+                          const x = (index / Math.max(array.length - 1, 1)) * containerWidth;
                           const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
                                            selectedPeriod === 'weekly' ? 20000 :
-                                           selectedPeriod === 'quarterly' ? 250000 : 70000;
-                          const y = 100 - (item.revenue / maxRevenue) * 80;
+                                           selectedPeriod === 'quarterly' ? 250000 : 80000;
+                          const y = containerHeight - (item.revenue / maxRevenue) * containerHeight;
                           
                           return (
                             <TouchableOpacity 
