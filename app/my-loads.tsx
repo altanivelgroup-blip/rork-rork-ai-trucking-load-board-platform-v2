@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Truck } from 'lucide-react-native';
+import { Truck, ArrowLeft } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -62,6 +62,19 @@ export default function MyLoadsScreen() {
         headerShown: false
       }} />
       <View style={[styles.container, { paddingTop: insets.top }]}>
+        {/* Header with Back Arrow */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+            testID="back-button"
+          >
+            <ArrowLeft size={24} color={theme.colors.dark} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>My Loads</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        
         {/* Toggle Section */}
         <View style={styles.toggleSection}>
           <View style={styles.toggleContainer}>
@@ -95,9 +108,6 @@ export default function MyLoadsScreen() {
         </View>
         
         {/* Content Section */}
-        <View style={styles.contentHeader}>
-          <Text style={styles.sectionTitle}>My Loads</Text>
-        </View>
         
         <ScrollView 
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing.xl }]}
@@ -238,6 +248,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: '#F5F5F5',
+  },
+  backButton: {
+    padding: theme.spacing.sm,
+    borderRadius: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  headerSpacer: {
+    width: 40, // Same width as back button to center title
   },
   toggleSection: {
     paddingHorizontal: theme.spacing.lg,
