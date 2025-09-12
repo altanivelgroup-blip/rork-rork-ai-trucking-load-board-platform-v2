@@ -63,10 +63,14 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, showBids = 
       accessibilityLabel={'Open load details'}
       testID="load-card"
     >
-      {/* Status and Rush badges row */}
-      <View style={styles.badgesRow}>
-        {getStatusBadge()}
-        {getRushBadge()}
+      {/* Top row with badges */}
+      <View style={styles.topRow}>
+        <View style={styles.leftBadges}>
+          {getStatusBadge()}
+        </View>
+        <View style={styles.rightBadges}>
+          {getRushBadge()}
+        </View>
       </View>
 
       {/* Status line */}
@@ -86,97 +90,95 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({ load, onPress, showBids = 
         Route: {load.origin.city}, {load.origin.state} → {load.destination.city}, {load.destination.state}
       </Text>
 
-      {/* Bids */}
-      {showBids && (
-        <View style={styles.bidsRow}>
+      {/* Bottom row with bids and tap for details */}
+      <View style={styles.bottomRow}>
+        {showBids && (
           <Text style={styles.bidsText}>Bids: {Math.floor(Math.random() * 5) + 1}</Text>
-          <Text style={styles.tapForDetails}>Tap for Details</Text>
-        </View>
-      )}
-
-      {/* Updated via API indicator */}
-      <Text style={styles.apiIndicator}>Updated via API</Text>
+        )}
+        <Text style={styles.tapForDetails}>Tap for Details</Text>
+      </View>
     </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#1976D2',
-    padding: 16,
+    borderColor: '#E0E0E0',
+    padding: 12,
     marginHorizontal: 16,
-    marginVertical: 8,
+    marginVertical: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  badgesRow: {
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  leftBadges: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+  },
+  rightBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   statusText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   rushBadge: {
     backgroundColor: '#FFC107',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   rushText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   statusLine: {
-    fontSize: 14,
-    color: '#333333',
-    marginBottom: 4,
+    fontSize: 13,
+    color: '#424242',
+    marginBottom: 3,
   },
   rate: {
-    fontSize: 14,
-    color: '#333333',
-    marginBottom: 4,
+    fontSize: 13,
+    color: '#424242',
+    marginBottom: 3,
   },
   route: {
-    fontSize: 14,
-    color: '#333333',
+    fontSize: 13,
+    color: '#424242',
     marginBottom: 8,
   },
-  bidsRow: {
+  bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   bidsText: {
-    fontSize: 14,
-    color: '#333333',
+    fontSize: 13,
+    color: '#424242',
   },
   tapForDetails: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#1976D2',
     fontWeight: '500',
-  },
-  apiIndicator: {
-    fontSize: 12,
-    color: '#666666',
-    fontStyle: 'italic',
-    textAlign: 'right',
-    marginTop: 4,
   },
 });
 
