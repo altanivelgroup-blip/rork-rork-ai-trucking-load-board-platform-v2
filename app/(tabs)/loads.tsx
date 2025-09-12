@@ -27,13 +27,13 @@ export default function LoadsScreen() {
   const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ visible: boolean; loadId: string | null }>({ visible: false, loadId: null });
   
-  const equipmentTypes = ['Backhaul', 'Flatbed', 'Reefer', 'Box Truck', 'Car Hauler', 'Enclosed Trailer'];
+  const equipmentTypes = ['Flatbed', 'Reefer', 'Box Truck', 'Car Hauler', 'Enclosed Trailer'];
   const sortingOptions = isDriver 
-    ? ['Highest $/mi', 'Near me', 'Lightest', 'New Today', 'AI for Loads', 'AI Backhaul']
+    ? ['Highest $/mi', 'Near me', 'Lightest', 'New Today', 'AI for Loads']
     : ['Newest First', 'Highest Rate', 'Bulk Imports', 'Active Only'];
-  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string>('Backhaul');
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string>('Flatbed');
   const [selectedSortOptions, setSelectedSortOptions] = useState<string[]>(
-    isDriver ? ['Near me', 'New Today', 'AI for Loads', 'AI Backhaul'] : ['Newest First', 'Active Only']
+    isDriver ? ['Near me', 'New Today', 'AI for Loads'] : ['Newest First', 'Active Only']
   );
 
   
@@ -110,9 +110,7 @@ export default function LoadsScreen() {
     }
   }, [refreshLoads, show]);
   
-  const handleOpenAiLoads = () => {
-    router.push('/ai-loads');
-  };
+
   
   const handleDeleteLoad = useCallback(async (loadId: string) => {
     try {
@@ -232,14 +230,12 @@ export default function LoadsScreen() {
               {/* Equipment type filters - show for drivers */}
               {isDriver && equipmentTypes.map((type) => {
                 const isSelected = selectedEquipmentType === type;
-                const isBackhaul = type === 'Backhaul';
                 return (
                   <TouchableOpacity
                     key={type}
                     style={[
                       styles.equipmentFilterChip,
-                      isSelected && styles.equipmentFilterChipActive,
-                      isBackhaul && isSelected && { backgroundColor: '#FF6B35' }
+                      isSelected && styles.equipmentFilterChipActive
                     ]}
                     onPress={() => handleEquipmentTypeSelect(type)}
                   >

@@ -70,7 +70,7 @@ export default function DashboardScreen() {
   const isDriver = user?.role === 'driver';
   const isShipper = user?.role === 'shipper';
   const router = useRouter();
-  const [backhaulOn, setBackhaulOn] = useState<boolean>(false);
+
   const [origin, setOrigin] = useState<string>('');
   const [destination, setDestination] = useState<string>('');
   const [minWeight, setMinWeight] = useState<string>('');
@@ -325,12 +325,7 @@ export default function DashboardScreen() {
     router.push({ pathname: '/load-details', params: { loadId } });
   }, [router]);
 
-  const toggleBackhaul = useCallback((value: boolean) => {
-    setBackhaulOn(value);
-    if (value && lastDelivery) {
-      router.push('/loads');
-    }
-  }, [lastDelivery, router]);
+
 
   const currentSortOptions = useMemo<SortOrder[]>(() => {
     const base: SortOrder[] = [...sortOptionsBase];
@@ -529,34 +524,7 @@ export default function DashboardScreen() {
             )) ?? []}
           </View>
 
-          {isDriver && (
-            <View style={styles.backhaulCard} testID="backhaul-toggle-card">
-              <View style={styles.backhaulRow}>
-                <MapPin size={moderateScale(18)} color="#1D4ED8" />
-                <Text style={styles.backhaulTitle} allowFontScaling={false}>Backhaul near delivery (50mi)</Text>
-              </View>
-              <Text style={styles.backhaulSub} numberOfLines={2}>
-                {lastDelivery ? `${lastDelivery.city}, ${lastDelivery.state}` : 'No recent delivery found'}
-              </Text>
-              <View style={styles.toggleRow}>
-                <Text style={styles.toggleLabel} allowFontScaling={false}>Show backhaul loads</Text>
-                <Switch
-                  value={backhaulOn}
-                  onValueChange={(val) => {
-                    if (val && !lastDelivery) {
-                      console.log('Backhaul: cannot enable without a recent delivery');
-                      return;
-                    }
-                    toggleBackhaul(val);
-                  }}
-                  trackColor={{ false: theme.colors.gray, true: '#EA580C' }}
-                  thumbColor={theme.colors.white}
-                  disabled={false}
-                  testID="backhaul-switch"
-                />
-              </View>
-            </View>
-          )}
+
 
           {isShipper && (
             <View style={styles.shipperActionsCard}>
@@ -848,48 +816,7 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     fontWeight: '600',
   },
-  backhaulCard: {
-    backgroundColor: '#EA580C',
-    marginHorizontal: moderateScale(theme.spacing.lg),
-    marginTop: moderateScale(theme.spacing.sm),
-    padding: moderateScale(theme.spacing.sm),
-    borderRadius: moderateScale(theme.borderRadius.md),
-    borderWidth: 1,
-    borderColor: '#C2410C',
-    shadowColor: '#9A3412',
-    shadowOpacity: 0.15,
-    shadowRadius: moderateScale(6),
-    shadowOffset: { width: 0, height: moderateScale(3) },
-    elevation: 2,
-  },
-  backhaulRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: moderateScale(6),
-  },
-  backhaulTitle: {
-    marginLeft: moderateScale(4),
-    fontSize: font(14),
-    fontWeight: '700',
-    color: theme.colors.white,
-  },
-  backhaulSub: {
-    marginTop: moderateScale(2),
-    fontSize: font(12),
-    color: theme.colors.white,
-    opacity: 0.9,
-  },
-  toggleRow: {
-    marginTop: moderateScale(theme.spacing.sm),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 36,
-  },
-  toggleLabel: {
-    fontSize: font(12),
-    color: theme.colors.white,
-  },
+
   sortChip: {
     backgroundColor: theme.colors.white,
     paddingHorizontal: moderateScale(10),
