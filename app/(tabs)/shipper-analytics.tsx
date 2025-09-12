@@ -554,21 +554,24 @@ export default function ShipperAnalyticsScreen() {
                       
                       {/* Connected line path */}
                       <View style={styles.lineContainer}>
-                        {revenueData.slice(0, 6).map((item, index) => {
-                          if (index === 0) return null;
+                        {/* Render line segments connecting all points */}
+                        {revenueData.slice(0, selectedPeriod === 'quarterly' ? 4 : selectedPeriod === 'daily' ? 7 : 6).map((item, index, array) => {
+                          if (index === array.length - 1) return null;
                           
-                          const prevItem = revenueData[index - 1];
+                          const nextItem = array[index + 1];
                           const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
                                            selectedPeriod === 'weekly' ? 20000 :
                                            selectedPeriod === 'quarterly' ? 250000 : 70000;
                           
-                          const x1 = ((index - 1) / Math.max(revenueData.slice(0, 6).length - 1, 1)) * 100;
-                          const y1 = 100 - (prevItem.revenue / maxRevenue) * 80;
-                          const x2 = (index / Math.max(revenueData.slice(0, 6).length - 1, 1)) * 100;
-                          const y2 = 100 - (item.revenue / maxRevenue) * 80;
+                          const x1 = (index / Math.max(array.length - 1, 1)) * 100;
+                          const y1 = 100 - (item.revenue / maxRevenue) * 80;
+                          const x2 = ((index + 1) / Math.max(array.length - 1, 1)) * 100;
+                          const y2 = 100 - (nextItem.revenue / maxRevenue) * 80;
                           
-                          const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-                          const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+                          const deltaX = x2 - x1;
+                          const deltaY = y2 - y1;
+                          const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                          const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
                           
                           return (
                             <View
@@ -586,22 +589,28 @@ export default function ShipperAnalyticsScreen() {
                           );
                         })}
                         
-                        {/* Data points */}
-                        {revenueData.slice(0, 6).map((item, index) => {
-                          const x = (index / Math.max(revenueData.slice(0, 6).length - 1, 1)) * 100;
+                        {/* Data points with hover effect */}
+                        {revenueData.slice(0, selectedPeriod === 'quarterly' ? 4 : selectedPeriod === 'daily' ? 7 : 6).map((item, index, array) => {
+                          const x = (index / Math.max(array.length - 1, 1)) * 100;
                           const maxRevenue = selectedPeriod === 'daily' ? 4000 : 
                                            selectedPeriod === 'weekly' ? 20000 :
                                            selectedPeriod === 'quarterly' ? 250000 : 70000;
                           const y = 100 - (item.revenue / maxRevenue) * 80;
                           
                           return (
-                            <View 
+                            <TouchableOpacity 
                               key={item.month}
                               style={[
                                 styles.dataPoint,
                                 { left: `${x}%`, top: `${y}%` }
-                              ]} 
-                            />
+                              ]}
+                              onPress={() => {
+                                // Show tooltip with value
+                                console.log(`${item.month}: ${item.revenue.toLocaleString()}`);
+                              }}
+                            >
+                              <View style={styles.dataPointInner} />
+                            </TouchableOpacity>
                           );
                         })}
                       </View>
@@ -1242,12 +1251,27 @@ const styles = StyleSheet.create({
   },
   dataPoint: {
     position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.colors.primary,
-    marginLeft: -3,
-    marginTop: -3,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: theme.colors.white,
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    marginLeft: -6,
+    marginTop: -6,
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  dataPointInner: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#3B82F6',
+    alignSelf: 'center',
+    marginTop: 2,
   },
   trendLine: {
     position: 'absolute',
@@ -1716,8 +1740,14 @@ const styles = StyleSheet.create({
   },
   lineSegment: {
     position: 'absolute',
-    height: 2,
+    height: 3,
     backgroundColor: '#3B82F6',
     transformOrigin: '0 50%',
+    borderRadius: 1.5,
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
 });
