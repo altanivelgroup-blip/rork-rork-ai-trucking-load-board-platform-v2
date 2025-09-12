@@ -326,86 +326,62 @@ export default function LoadsScreen() {
               )}
             </View>
           ) : (
-            loads.map((load: any) => {
-              const originText = typeof load.origin === 'string'
-                ? load.origin
-                : `${load.origin?.city ?? ''}, ${load.origin?.state ?? ''}`;
-              
-              const destText = typeof load.destination === 'string'
-                ? load.destination
-                : `${load.destination?.city ?? ''}, ${load.destination?.state ?? ''}`;
-              
-              const rateVal = load.rate ?? 0;
-              const weightVal = load.weight ?? 0;
-              
-              return (
-                <View
-                  key={load.id}
-                  style={styles.loadCard}
-                  testID={`load-${load.id}`}
-                >
-                  <TouchableOpacity
-                    style={styles.loadContent}
-                    onPress={() => handleLoadPress(load.id)}
-                  >
-                    <View style={styles.loadHeader}>
-                      <Text style={styles.loadTitle} numberOfLines={1}>
-                        {originText} → {destText}
-                      </Text>
-                      <View style={styles.rateChip}>
-                        <DollarSign size={16} color={theme.colors.white} />
-                        <Text style={styles.rateText}>${rateVal.toLocaleString()}</Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.loadSubtitle}>
-                      <Text style={styles.subtitleText}>
-                        {load.pickupDate ? new Date(load.pickupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'ASAP'} • {load.vehicleType || 'truck'} • {weightVal.toLocaleString()} lbs
-                      </Text>
-                      {load.bulkImportId && (
-                        <View style={styles.bulkBadge}>
-                          <Text style={styles.bulkBadgeText}>Bulk</Text>
+            <View style={styles.loadsContainer}>
+              {loads.map((load: any, index: number) => {
+                const originText = typeof load.origin === 'string'
+                  ? load.origin
+                  : `${load.origin?.city ?? 'Dallas'}, ${load.origin?.state ?? 'TX'}`;
+                
+                const destText = typeof load.destination === 'string'
+                  ? load.destination
+                  : `${load.destination?.city ?? 'Chicago'}, ${load.destination?.state ?? 'IL'}`;
+                
+                const rateVal = load.rate ?? 1200;
+                const bidsCount = Math.floor(Math.random() * 3) + 1;
+                const isRushDelivery = load.isRushDelivery || Math.random() > 0.7;
+                
+                return (
+                  <View key={load.id}>
+                    <TouchableOpacity
+                      style={styles.uniformLoadCard}
+                      onPress={() => handleLoadPress(load.id)}
+                      testID={`load-${load.id}`}
+                    >
+                      {/* Status Pills */}
+                      <View style={styles.statusRow}>
+                        <View style={styles.activePill}>
+                          <Text style={styles.activePillText}>Active</Text>
                         </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                  
-                  {/* Action buttons */}
-                  <View style={styles.loadActions}>
-                    {isDriver && load.shipperName && (
-                      <>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleCall('555-0123')}
-                          testID={`call-${load.id}`}
-                        >
-                          <Phone size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Call</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleEmail('contact@example.com')}
-                          testID={`email-${load.id}`}
-                        >
-                          <Mail size={16} color={theme.colors.primary} />
-                          <Text style={styles.actionButtonText}>Email</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                    {isShipper && (
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.deleteButton]}
-                        onPress={() => confirmDeleteLoad(load.id)}
-                        testID={`delete-${load.id}`}
+                        
+                        {isRushDelivery && (
+                          <View style={styles.rushPill}>
+                            <Text style={styles.rushPillText}>Rush Delivery</Text>
+                          </View>
+                        )}
+                      </View>
+                      
+                      {/* Load Details */}
+                      <Text style={styles.statusText}>Status: Pending</Text>
+                      <Text style={styles.rateText}>Rate: ${rateVal}</Text>
+                      <Text style={styles.routeText}>Route: {originText} {'>'} {destText}</Text>
+                      <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
+                      
+                      {/* Tap for Details Button */}
+                      <TouchableOpacity 
+                        style={styles.detailsButton}
+                        onPress={() => handleLoadPress(load.id)}
+                        testID={`details-${load.id}`}
                       >
-                        <Trash2 size={16} color="#EF4444" />
-                        <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
+                        <Text style={styles.detailsButtonText}>Tap for Details</Text>
                       </TouchableOpacity>
-                    )}
+                    </TouchableOpacity>
+                    
+                    {/* Gray Divider */}
+                    {index < loads.length - 1 && <View style={styles.divider} />}
                   </View>
-                </View>
-              );
-            })
+                );
+              })}
+            </View>
           )}
         </ScrollView>
         
@@ -509,8 +485,82 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    padding: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
+  },
+  loadsContainer: {
+    paddingVertical: theme.spacing.sm,
+  },
+  uniformLoadCard: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    padding: theme.spacing.lg,
+    marginHorizontal: theme.spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#D1D5DB',
+    marginVertical: theme.spacing.md,
+    marginHorizontal: theme.spacing.lg,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  statusText: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '500',
+  },
+  routeText: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '500',
+  },
+  bidsText: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.md,
+    fontWeight: '500',
+  },
+  // Status Pills
+  rushPill: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  rushPillText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  activePill: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  activePillText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  detailsButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+  },
+  detailsButtonText: {
+    color: theme.colors.white,
+    fontWeight: '600',
+    fontSize: 14,
   },
   loadingState: {
     flex: 1,
@@ -576,9 +626,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   rateText: {
-    color: theme.colors.white,
-    fontWeight: '700',
-    fontSize: theme.fontSize.sm,
+    fontSize: 16,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '600',
   },
   loadSubtitle: {
     marginTop: theme.spacing.sm,

@@ -5,7 +5,6 @@ import { theme } from '@/constants/theme';
 import { Truck } from 'lucide-react-native';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LiveLoadsScreen() {
@@ -87,64 +86,64 @@ const loads = useMemo(() => {
               <Text style={styles.emptyTitle}>No loads available</Text>
             </View>
           ) : (
-            <View style={styles.loadsGrid}>
+            <View style={styles.loadsContainer}>
               {loads.map((load: any, index: number) => {
                 const rateVal = load.rate ?? load.rateTotalUSD ?? 1200;
                 const bidsCount = Math.floor(Math.random() * 3) + 1;
                 
                 // Determine load status and properties
                 const isRushDelivery = load.isRushDelivery || Math.random() > 0.7;
-                const statusText = load.status === 'awaiting-bids' ? 'Awaiting Bids' : 
+                const statusText = load.status === 'awaiting-bids' ? 'Pending' : 
                                  load.status === 'in-transit' ? 'In Transit' : 
-                                 load.status === 'ready-pickup' ? 'Ready for Pickup' : 'Awaiting Bids';
+                                 load.status === 'ready-pickup' ? 'Ready for Pickup' : 'Pending';
                 
                 const originText = typeof load.origin === 'string'
                   ? load.origin
-                  : `${load.origin?.city ?? load.originCity ?? 'Miami'}, ${load.origin?.state ?? load.originState ?? 'FL'}`;
+                  : `${load.origin?.city ?? load.originCity ?? 'Dallas'}, ${load.origin?.state ?? load.originState ?? 'TX'}`;
                 
                 const destText = typeof load.destination === 'string'
                   ? load.destination
-                  : `${load.destination?.city ?? load.destCity ?? 'Atlanta'}, ${load.destination?.state ?? load.destState ?? 'GA'}`;
+                  : `${load.destination?.city ?? load.destCity ?? 'Chicago'}, ${load.destination?.state ?? load.destState ?? 'IL'}`;
                 
                 return (
-                  <TouchableOpacity
-                    key={load.id}
-                    style={[styles.loadCard, index % 2 === 1 && styles.loadCardRight]}
-                    onPress={() => handleLoadPress(load.id)}
-                    testID={`load-${load.id}`}
-                  >
-                    {/* Rush Delivery Pill */}
-                    {isRushDelivery && (
-                      <View style={styles.rushPill}>
-                        <Text style={styles.rushPillText}>Rush Delivery</Text>
+                  <View key={load.id}>
+                    <TouchableOpacity
+                      style={styles.uniformLoadCard}
+                      onPress={() => handleLoadPress(load.id)}
+                      testID={`load-${load.id}`}
+                    >
+                      {/* Status Pills */}
+                      <View style={styles.statusRow}>
+                        <View style={styles.activePill}>
+                          <Text style={styles.activePillText}>Active</Text>
+                        </View>
+                        
+                        {isRushDelivery && (
+                          <View style={styles.rushPill}>
+                            <Text style={styles.rushPillText}>Rush Delivery</Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                    
-                    {/* Active Status Pill */}
-                    <View style={styles.activePill}>
-                      <Text style={styles.activePillText}>Active</Text>
-                    </View>
-                    
-                    <Text style={styles.rateLabel}>Rate: <Text style={styles.rateValue}>${rateVal}</Text></Text>
-                    
-                    <Text style={styles.routeLabel}>Route: {originText} {'>'} {destText}</Text>
-                    
-                    <Text style={styles.bidsLabel}>Bids: {bidsCount}</Text>
-                    
-                    {load.status !== 'awaiting-bids' && (
-                      <Text style={styles.statusLabel}>Status: {statusText}</Text>
-                    )}
-                    
-                    <View style={styles.actionButtons}>
+                      
+                      {/* Load Details */}
+                      <Text style={styles.statusText}>Status: {statusText}</Text>
+                      <Text style={styles.rateText}>Rate: ${rateVal}</Text>
+                      <Text style={styles.routeText}>Route: {originText} {'>'} {destText}</Text>
+                      <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
+                      
+                      {/* Tap for Details Button */}
                       <TouchableOpacity 
-                        style={styles.trackButton}
+                        style={styles.detailsButton}
                         onPress={() => handleLoadPress(load.id)}
-                        testID={`track-${load.id}`}
+                        testID={`details-${load.id}`}
                       >
-                        <Text style={styles.trackButtonText}>Track Load</Text>
+                        <Text style={styles.detailsButtonText}>Tap for Details</Text>
                       </TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                    
+                    {/* Gray Divider */}
+                    {index < loads.length - 1 && <View style={styles.divider} />}
+                  </View>
                 );
               })}
             </View>
@@ -231,34 +230,57 @@ const styles = StyleSheet.create({
     color: theme.colors.dark,
     textAlign: 'center',
   },
-  loadsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  loadsContainer: {
+    paddingVertical: theme.spacing.sm,
   },
-  loadCard: {
-    width: '48%',
+  uniformLoadCard: {
     backgroundColor: '#E3F2FD',
     borderRadius: 12,
-    padding: theme.spacing.md,
+    padding: theme.spacing.lg,
+    marginHorizontal: theme.spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#D1D5DB',
+    marginVertical: theme.spacing.md,
+    marginHorizontal: theme.spacing.lg,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: theme.spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    position: 'relative',
+    gap: theme.spacing.sm,
   },
-  loadCardRight: {
-    marginLeft: '4%',
+  statusText: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '500',
   },
+  rateText: {
+    fontSize: 16,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '600',
+  },
+  routeText: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '500',
+  },
+  bidsText: {
+    fontSize: 14,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.md,
+    fontWeight: '500',
+  },
+  // Status Pills
   rushPill: {
     backgroundColor: '#FFD700',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    alignSelf: 'flex-start',
-    marginBottom: theme.spacing.sm,
   },
   rushPillText: {
     color: '#000',
@@ -270,54 +292,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    alignSelf: 'flex-end',
-    position: 'absolute',
-    top: theme.spacing.md,
-    right: theme.spacing.md,
   },
   activePillText: {
     color: theme.colors.white,
     fontSize: 12,
     fontWeight: '600',
   },
-  rateLabel: {
-    fontSize: 16,
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
-    fontWeight: '500',
-    marginTop: theme.spacing.lg,
-  },
-  rateValue: {
-    fontWeight: '700',
-  },
-  routeLabel: {
-    fontSize: 14,
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
-    fontWeight: '500',
-  },
-  bidsLabel: {
-    fontSize: 14,
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
-    fontWeight: '500',
-  },
-  statusLabel: {
-    fontSize: 14,
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
-    fontWeight: '500',
-  },
-  actionButtons: {
-    marginTop: theme.spacing.sm,
-  },
-  trackButton: {
+  detailsButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: theme.spacing.sm,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: theme.spacing.sm,
   },
-  trackButtonText: {
+  detailsButtonText: {
     color: theme.colors.white,
     fontWeight: '600',
     fontSize: 14,

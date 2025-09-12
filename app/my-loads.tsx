@@ -108,7 +108,6 @@ export default function MyLoadsScreen() {
         </View>
         
         {/* Content Section */}
-        
         <ScrollView 
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing.xl }]}
         >
@@ -127,14 +126,14 @@ export default function MyLoadsScreen() {
               </Text>
             </View>
           ) : (
-            <View style={styles.loadsGrid}>
+            <View style={styles.loadsContainer}>
               {loads.map((load: any, index: number) => {
                 const rateVal = load.rate ?? 1200;
                 const bidsCount = Math.floor(Math.random() * 3) + 2;
                 
                 // Determine load status and properties
-                const isRushDelivery = load.isRushDelivery || Math.random() > 0.7; // Some loads are rush
-                const isCompleted = load.status === 'completed' || Math.random() > 0.8; // Some loads are completed
+                const isRushDelivery = load.isRushDelivery || Math.random() > 0.7;
+                const isCompleted = load.status === 'completed' || Math.random() > 0.8;
                 
                 // Hide completed loads from Live Loads view (only show on My Loads)
                 if (viewMode === 'live-loads' && isCompleted) {
@@ -142,81 +141,58 @@ export default function MyLoadsScreen() {
                 }
                 
                 return (
-                  <View
-                    key={load.id}
-                    style={[styles.loadCard, index % 2 === 1 && styles.loadCardRight]}
-                    testID={`load-${load.id}`}
-                  >
-                    <View style={styles.loadCardHeader}>
-                      <Text style={styles.statusLabel}>Status: </Text>
-                      {isCompleted && (
-                        <View style={styles.completedPill}>
-                          <Text style={styles.completedPillText}>Completed</Text>
-                        </View>
-                      )}
-                    </View>
-                    
-                    {/* Rush Delivery Pill */}
-                    {isRushDelivery && !isCompleted && (
-                      <View style={styles.rushPillContainer}>
-                        <View style={styles.rushPill}>
-                          <Text style={styles.rushPillText}>Rush Delivery</Text>
-                        </View>
-                        <Text style={styles.rushNumber}>{index + 3}</Text>
-                      </View>
-                    )}
-                    
-                    {/* Active Status Pill for non-rush, non-completed loads */}
-                    {!isRushDelivery && !isCompleted && (
-                      <View style={styles.statusPillContainer}>
-                        <Text style={styles.rateLabel}>Rate: <Text style={styles.rateValue}>${rateVal}</Text></Text>
-                        <Text style={styles.bidsLabel}>Bids: <Text style={styles.bidsValue}>{bidsCount}</Text></Text>
-                        <View style={styles.activePill}>
-                          <Text style={styles.activePillText}>Active</Text>
-                        </View>
-                      </View>
-                    )}
-                    
-                    {/* Completed loads special layout */}
-                    {isCompleted && (
-                      <View style={styles.completedContent}>
-                        <Text style={styles.completedNote}>Visible only on Shipper Dashboard</Text>
-                      </View>
-                    )}
-                    
-                    {/* Regular content for active loads */}
-                    {!isCompleted && (
-                      <>
-                        {!isRushDelivery && (
-                          <>
-                            <Text style={styles.rateLabel}>Rate: <Text style={styles.rateValue}>${rateVal}</Text></Text>
-                            <View style={styles.bidsContainer}>
-                              <Text style={styles.bidsLabel}>Bids: <Text style={styles.bidsValue}>{bidsCount}</Text></Text>
-                              <Text style={styles.bidsCount}>{bidsCount}</Text>
-                            </View>
-                          </>
+                  <View key={load.id}>
+                    <TouchableOpacity
+                      style={styles.loadCard}
+                      onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
+                      testID={`load-${load.id}`}
+                    >
+                      {/* Status Pills */}
+                      <View style={styles.statusRow}>
+                        {isCompleted ? (
+                          <View style={styles.completedPill}>
+                            <Text style={styles.completedPillText}>Completed</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.activePill}>
+                            <Text style={styles.activePillText}>Active</Text>
+                          </View>
                         )}
-                      </>
-                    )}
+                        
+                        {isRushDelivery && !isCompleted && (
+                          <View style={styles.rushPill}>
+                            <Text style={styles.rushPillText}>Rush Delivery</Text>
+                          </View>
+                        )}
+                      </View>
+                      
+                      {/* Status and Rate */}
+                      <Text style={styles.statusText}>Status: {isCompleted ? 'Completed' : 'Pending'}</Text>
+                      <Text style={styles.rateText}>Rate: ${rateVal}</Text>
+                      <Text style={styles.routeText}>Route: Dallas, TX {'>'} Chicago, IL</Text>
+                      <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
+                      
+                      {/* Action Buttons */}
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity 
+                          style={styles.editButton}
+                          onPress={() => router.push({ pathname: '/load-edit', params: { loadId: load.id } })}
+                          testID={`edit-${load.id}`}
+                        >
+                          <Text style={styles.editButtonText}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={styles.trackButton}
+                          onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
+                          testID={`track-${load.id}`}
+                        >
+                          <Text style={styles.trackButtonText}>Track</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
                     
-                    <Text style={styles.routeLabel}>Route: LA to Phoenix</Text>
-                    
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity 
-                        style={styles.editButton}
-                        onPress={() => router.push({ pathname: '/load-edit', params: { loadId: load.id } })}
-                        testID={`edit-${load.id}`}
-                      >
-                        <Text style={styles.editButtonText}>Edit</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={styles.trackButton}
-                        onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
-                        testID={`track-${load.id}`}
-                      >
-                        <Text style={styles.trackButtonText}>Track</Text>
-                      </TouchableOpacity>
-                    </View>
+                    {/* Gray Divider */}
+                    {index < loads.length - 1 && <View style={styles.divider} />}
                   </View>
                 );
               })}
@@ -374,74 +350,46 @@ const styles = StyleSheet.create({
     color: theme.colors.dark,
     textAlign: 'center',
   },
-  loadsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  loadsContainer: {
+    paddingVertical: theme.spacing.sm,
   },
   loadCard: {
-    width: '48%',
-    backgroundColor: theme.colors.white,
+    backgroundColor: '#E3F2FD',
     borderRadius: 12,
-    padding: theme.spacing.md,
+    padding: theme.spacing.lg,
+    marginHorizontal: theme.spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#D1D5DB',
+    marginVertical: theme.spacing.md,
+    marginHorizontal: theme.spacing.lg,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: theme.spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    gap: theme.spacing.sm,
   },
-  loadCardRight: {
-    marginLeft: '4%',
-  },
-  loadCardHeader: {
-    backgroundColor: '#2C3E50',
-    marginHorizontal: -theme.spacing.md,
-    marginTop: -theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    marginBottom: theme.spacing.sm,
-  },
-  statusLabel: {
+  statusText: {
     fontSize: 14,
-    color: theme.colors.white,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
     fontWeight: '500',
   },
-  statusValue: {
-    color: theme.colors.primary,
+  rateText: {
+    fontSize: 16,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
     fontWeight: '600',
   },
-  rateLabel: {
+  routeText: {
     fontSize: 14,
     color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
     fontWeight: '500',
   },
-  rateValue: {
-    fontWeight: '700',
-  },
-  bidsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  bidsLabel: {
-    fontSize: 14,
-    color: theme.colors.dark,
-    fontWeight: '500',
-  },
-  bidsValue: {
-    fontWeight: '700',
-  },
-  bidsCount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-  },
-  routeLabel: {
+  bidsText: {
     fontSize: 14,
     color: theme.colors.dark,
     marginBottom: theme.spacing.md,
@@ -450,6 +398,7 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
   },
   editButton: {
     flex: 1,
@@ -483,15 +432,9 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     marginTop: theme.spacing.lg,
   },
-  // Rush Delivery Pill Styles
-  rushPillContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
+  // Status Pills
   rushPill: {
-    backgroundColor: '#FFD700', // Yellow
+    backgroundColor: '#FFD700',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -501,31 +444,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  rushNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-  },
-  // Active Status Pill Styles
-  statusPillContainer: {
-    marginBottom: theme.spacing.sm,
-  },
   activePill: {
-    backgroundColor: '#4CAF50', // Green
+    backgroundColor: '#4CAF50',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    alignSelf: 'flex-end',
-    marginTop: theme.spacing.xs,
   },
   activePillText: {
     color: theme.colors.white,
     fontSize: 12,
     fontWeight: '600',
   },
-  // Completed Status Pill Styles
   completedPill: {
-    backgroundColor: '#F44336', // Red
+    backgroundColor: '#F44336',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -534,14 +465,5 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 12,
     fontWeight: '600',
-  },
-  completedContent: {
-    marginVertical: theme.spacing.sm,
-  },
-  completedNote: {
-    fontSize: 12,
-    color: theme.colors.gray,
-    fontStyle: 'italic',
-    textAlign: 'center',
   },
 });
