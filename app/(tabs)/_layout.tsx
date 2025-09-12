@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings, Eye, Truck, FileText } from 'lucide-react-native';
+import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings, Truck, FileText } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -12,7 +12,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      initialRouteName={isShipper ? "shipper" : isAdmin ? "admin" : "dashboard"}
+      initialRouteName={isShipper ? "shipper" : isAdmin ? "dashboard" : "dashboard"}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -28,162 +28,85 @@ export default function TabsLayout() {
         },
       }}
     >
-      {/* DRIVER MENU - Exactly 5 items: Dashboard, Loads, Backhauls, Service Finder, Profile */}
-      {isDriver && (
-        <>
-          <Tabs.Screen
-            name="dashboard"
-            options={{
-              title: 'Dashboard',
-              tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="loads"
-            options={{
-              title: 'Loads',
-              tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="service-finder"
-            options={{
-              title: 'Backhauls',
-              tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="shipper"
-            options={{
-              title: 'Service Finder',
-              tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="profile"
-            options={{
-              title: 'Profile',
-              tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
-            }}
-          />
-        </>
-      )}
+      {/* Dashboard Tab */}
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+          href: (isDriver || isAdmin) ? '/dashboard' : null,
+        }}
+      />
       
-      {/* SHIPPER MENU - Exactly 5 items: Dashboard, Post Loads, My Loads, Analytics, Profile */}
-      {isShipper && (
-        <>
-          <Tabs.Screen
-            name="shipper"
-            options={{
-              title: 'Dashboard',
-              tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="shipper-post"
-            options={{
-              title: 'Post Loads',
-              tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="loads"
-            options={{
-              title: 'My Loads',
-              tabBarIcon: ({ color, size }) => <Eye color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="shipper-analytics"
-            options={{
-              title: 'Analytics',
-              tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="profile"
-            options={{
-              title: 'Profile',
-              tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
-            }}
-          />
-        </>
-      )}
+      {/* Loads Tab */}
+      <Tabs.Screen
+        name="loads"
+        options={{
+          title: isShipper ? 'My Loads' : 'Loads',
+          tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
+          href: (isDriver || isShipper || isAdmin) ? '/loads' : null,
+        }}
+      />
       
-      {/* ADMIN MENU - Exactly 5 items: Dashboard, Loads, Reports, Profile, Admin */}
-      {isAdmin && (
-        <>
-          <Tabs.Screen
-            name="dashboard"
-            options={{
-              title: 'Dashboard',
-              tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="loads"
-            options={{
-              title: 'Loads',
-              tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="shipper-analytics"
-            options={{
-              title: 'Reports',
-              tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="profile"
-            options={{
-              title: 'Profile',
-              tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
-            }}
-          />
-          <Tabs.Screen
-            name="admin"
-            options={{
-              title: 'Admin',
-              tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
-            }}
-          />
-        </>
-      )}
-
-      {/* Hide all tabs for non-relevant roles */}
-      {(!isDriver && !isAdmin) && (
-        <>
-          <Tabs.Screen name="dashboard" options={{ href: null }} />
-        </>
-      )}
-      {!isShipper && (
-        <>
-          <Tabs.Screen name="shipper" options={{ href: null }} />
-          <Tabs.Screen name="shipper-post" options={{ href: null }} />
-        </>
-      )}
-      {!isShipper && (
-        <>
-          <Tabs.Screen name="shipper-analytics" options={{ href: null }} />
-        </>
-      )}
-      {!isAdmin && (
-        <>
-          <Tabs.Screen name="admin" options={{ href: null }} />
-        </>
-      )}
-      {!isDriver && (
-        <>
-          <Tabs.Screen name="service-finder" options={{ href: null }} />
-        </>
-      )}
-      {(!isDriver && !isShipper && !isAdmin) && (
-        <>
-          <Tabs.Screen name="loads" options={{ href: null }} />
-          <Tabs.Screen name="profile" options={{ href: null }} />
-        </>
-      )}
+      {/* Service Finder / Backhauls Tab (Driver only) */}
+      <Tabs.Screen
+        name="service-finder"
+        options={{
+          title: 'Backhauls',
+          tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
+          href: isDriver ? '/service-finder' : null,
+        }}
+      />
+      
+      {/* Shipper Dashboard / Service Finder Tab */}
+      <Tabs.Screen
+        name="shipper"
+        options={{
+          title: isShipper ? 'Dashboard' : (isDriver ? 'Service Finder' : 'Shipper'),
+          tabBarIcon: ({ color, size }) => isShipper ? <Home color={color} size={size} /> : <MapPin color={color} size={size} />,
+          href: (isShipper || isDriver) ? '/shipper' : null,
+        }}
+      />
+      
+      {/* Shipper Post Loads Tab */}
+      <Tabs.Screen
+        name="shipper-post"
+        options={{
+          title: 'Post Loads',
+          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
+          href: isShipper ? '/shipper-post' : null,
+        }}
+      />
+      
+      {/* Analytics / Reports Tab */}
+      <Tabs.Screen
+        name="shipper-analytics"
+        options={{
+          title: isAdmin ? 'Reports' : 'Analytics',
+          tabBarIcon: ({ color, size }) => isAdmin ? <FileText color={color} size={size} /> : <BarChart3 color={color} size={size} />,
+          href: (isShipper || isAdmin) ? '/shipper-analytics' : null,
+        }}
+      />
+      
+      {/* Profile Tab */}
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
+          href: (isDriver || isShipper || isAdmin) ? '/profile' : null,
+        }}
+      />
+      
+      {/* Admin Tab */}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'Admin',
+          tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
+          href: isAdmin ? '/admin' : null,
+        }}
+      />
     </Tabs>
   );
 }
