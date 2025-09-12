@@ -250,7 +250,7 @@ export default function AdminScreen() {
           {/* Main line connecting all points */}
           <Path
             d={pathData}
-            stroke={theme.colors.secondary}
+            stroke={theme.colors.success}
             strokeWidth={3}
             fill="none"
             strokeLinecap="round"
@@ -264,7 +264,7 @@ export default function AdminScreen() {
               cx={point.screenX}
               cy={point.screenY}
               r={5}
-              fill={theme.colors.secondary}
+              fill={theme.colors.success}
               stroke={theme.colors.white}
               strokeWidth={2}
             />
