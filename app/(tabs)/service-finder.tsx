@@ -236,30 +236,30 @@ export default function ServiceFinderScreen() {
         <Text style={styles.title}>Service Finder</Text>
       </View>
 
-      <View style={styles.dropdownContainer}>
+      <View style={styles.pillContainer}>
         <TouchableOpacity 
-          style={styles.dropdown}
+          style={styles.pill}
           onPress={() => setDropdownVisible(!dropdownVisible)}
-          testID="service-dropdown"
+          testID="service-pill"
         >
-          <Text style={styles.dropdownText}>Quick Service Options</Text>
+          <Text style={styles.pillText}>Quick Service Options</Text>
           <ChevronDown 
-            size={20} 
-            color={theme.colors.primary} 
+            size={18} 
+            color={theme.colors.white} 
             style={[styles.chevron, dropdownVisible && styles.chevronRotated]}
           />
         </TouchableOpacity>
         
         {dropdownVisible && (
-          <View style={styles.dropdownMenu}>
+          <View style={styles.expandedMenu}>
             {serviceOptions.map((service, index) => (
               <TouchableOpacity
                 key={service}
-                style={[styles.dropdownItem, index === serviceOptions.length - 1 && styles.dropdownItemLast]}
+                style={[styles.menuItem, index === serviceOptions.length - 1 && styles.menuItemLast]}
                 onPress={() => handleServiceSelect(service)}
                 testID={`service-option-${service.toLowerCase().replace(/\s+/g, '-')}`}
               >
-                <Text style={styles.dropdownItemText}>{service}</Text>
+                <Text style={styles.menuItemText}>{service}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -465,24 +465,29 @@ const styles = StyleSheet.create({
   actionText: { color: theme.colors.white, fontWeight: '700' },
   secondaryText: { color: theme.colors.primary, fontWeight: '700' },
 
-  dropdownContainer: {
+  pillContainer: {
     paddingHorizontal: 12,
     paddingBottom: 8,
+    alignItems: 'center',
   },
-  dropdown: {
-    backgroundColor: theme.colors.white,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+  pill: {
+    backgroundColor: '#FF8C42',
+    borderRadius: 25,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: theme.colors.lightGray,
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  dropdownText: {
+  pillText: {
     fontSize: theme.fontSize.md,
-    color: theme.colors.dark,
+    color: theme.colors.white,
     fontWeight: '600',
   },
   chevron: {
@@ -491,10 +496,10 @@ const styles = StyleSheet.create({
   chevronRotated: {
     transform: [{ rotate: '180deg' }],
   },
-  dropdownMenu: {
+  expandedMenu: {
     backgroundColor: theme.colors.white,
     borderRadius: 12,
-    marginTop: 4,
+    marginTop: 8,
     borderWidth: 1,
     borderColor: theme.colors.lightGray,
     shadowColor: '#000',
@@ -502,17 +507,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    width: '100%',
   },
-  dropdownItem: {
+  menuItem: {
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
   },
-  dropdownItemLast: {
+  menuItemLast: {
     borderBottomWidth: 0,
   },
-  dropdownItemText: {
+  menuItemText: {
     fontSize: theme.fontSize.md,
     color: theme.colors.dark,
   },
