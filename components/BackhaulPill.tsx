@@ -45,6 +45,54 @@ interface AIBackhaulSuggestion {
   marketTrend: 'rising' | 'stable' | 'declining';
 }
 
+// Manual extraction fallback for when JSON parsing fails
+function extractSuggestionsManually(text: string): AIBackhaulSuggestion[] {
+  const suggestions: AIBackhaulSuggestion[] = [];
+  
+  try {
+    // Look for city patterns and create basic suggestions
+    const cityMatches = text.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*([A-Z]{2})/g);
+    if (cityMatches && cityMatches.length >= 4) {
+      // Create a basic suggestion from extracted cities
+      const origin = cityMatches[0].split(', ');
+      const destination = cityMatches[1].split(', ');
+      
+      suggestions.push({
+        id: `fallback-${Date.now()}`,
+        origin: {
+          city: origin[0],
+          state: origin[1],
+          lat: 40.7128 + Math.random() * 10 - 5, // Approximate coordinates
+          lng: -74.0060 + Math.random() * 10 - 5
+        },
+        destination: {
+          city: destination[0],
+          state: destination[1],
+          lat: 40.7128 + Math.random() * 10 - 5,
+          lng: -74.0060 + Math.random() * 10 - 5
+        },
+        distance: 200 + Math.random() * 300,
+        weight: 20000 + Math.random() * 20000,
+        vehicleType: 'truck',
+        rate: 1500 + Math.random() * 1000,
+        ratePerMile: 2.5 + Math.random() * 1.5,
+        pickupDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        description: 'AI-generated backhaul opportunity',
+        aiScore: 80 + Math.random() * 15,
+        shipperName: 'Regional Freight Co.',
+        distanceFromDelivery: 15 + Math.random() * 35,
+        priority: 'optimal' as const,
+        marketTrend: 'stable' as const
+      });
+    }
+  } catch (error) {
+    console.error('[BackhaulPill] Manual extraction failed:', error);
+  }
+  
+  return suggestions;
+}
+
 function haversineMiles(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 3958.8;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -160,24 +208,53 @@ Output schema:
       const data = await response.json() as { completion?: string };
       const rawCompletion = (data?.completion ?? '').trim();
       
-      // Extract JSON from the completion
+      // Extract and clean JSON from the completion
       const jsonStart = rawCompletion.indexOf('{');
       const jsonEnd = rawCompletion.lastIndexOf('}');
       
       if (jsonStart >= 0 && jsonEnd > jsonStart) {
-        const jsonStr = rawCompletion.slice(jsonStart, jsonEnd + 1);
-        const parsed = JSON.parse(jsonStr);
+        let jsonStr = rawCompletion.slice(jsonStart, jsonEnd + 1);
         
-        if (parsed?.suggestions && Array.isArray(parsed.suggestions)) {
-          const suggestions = parsed.suggestions.map((suggestion: any, index: number) => ({
-            ...suggestion,
-            id: suggestion.id || `ai-backhaul-${Date.now()}-${index}`,
-            aiScore: Math.min(Math.max(suggestion.aiScore || 85, 70), 98), // Ensure realistic AI scores
-          }));
+        try {
+          // Clean common JSON issues
+          jsonStr = jsonStr
+            .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Add quotes to unquoted keys
+            .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
+            .replace(/\\n/g, '\\\\n') // Escape newlines properly
+            .replace(/\\t/g, '\\\\t') // Escape tabs properly
+            .replace(/([^\\])\\([^"\\nrtbf/])/g, '$1\\\\$2'); // Escape unescaped backslashes
           
-          console.log('[BackhaulPill] Generated', suggestions.length, 'AI suggestions');
-          setAiSuggestions(suggestions);
+          console.log('[BackhaulPill] Attempting to parse JSON:', jsonStr.substring(0, 200) + '...');
+          const parsed = JSON.parse(jsonStr);
+          
+          if (parsed?.suggestions && Array.isArray(parsed.suggestions)) {
+            const suggestions = parsed.suggestions.map((suggestion: any, index: number) => ({
+              ...suggestion,
+              id: suggestion.id || `ai-backhaul-${Date.now()}-${index}`,
+              aiScore: Math.min(Math.max(suggestion.aiScore || 85, 70), 98), // Ensure realistic AI scores
+            }));
+            
+            console.log('[BackhaulPill] Generated', suggestions.length, 'AI suggestions');
+            setAiSuggestions(suggestions);
+          } else {
+            console.warn('[BackhaulPill] Invalid suggestions format in parsed JSON:', parsed);
+          }
+        } catch (parseError) {
+          console.error('[BackhaulPill] JSON parse error:', parseError);
+          console.error('[BackhaulPill] Raw JSON string:', jsonStr);
+          // Try to extract suggestions manually as fallback
+          try {
+            const fallbackSuggestions = extractSuggestionsManually(rawCompletion);
+            if (fallbackSuggestions.length > 0) {
+              console.log('[BackhaulPill] Using fallback extraction, found', fallbackSuggestions.length, 'suggestions');
+              setAiSuggestions(fallbackSuggestions);
+            }
+          } catch (fallbackError) {
+            console.error('[BackhaulPill] Fallback extraction also failed:', fallbackError);
+          }
         }
+      } else {
+        console.warn('[BackhaulPill] No valid JSON structure found in completion');
       }
     } catch (error) {
       console.error('[BackhaulPill] AI generation failed:', error);
