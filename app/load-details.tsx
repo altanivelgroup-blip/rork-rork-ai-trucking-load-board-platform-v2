@@ -14,6 +14,8 @@ import { MapPin, Calendar, Package, DollarSign, Truck, AlertCircle, X, Fuel, Clo
 import { theme } from '@/constants/theme';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
+import BackhaulPill from '@/components/BackhaulPill';
+import { Driver } from '@/types';
 import { formatCurrency } from '@/utils/fuel';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
@@ -108,7 +110,7 @@ export default function LoadDetailsScreen() {
       const milesFromRoute = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
       const miles = Number.isFinite((milesFromRoute as number)) && (milesFromRoute as number) > 0 ? (milesFromRoute as number) : Number((load as any)?.distance ?? 0);
       if (!Number.isFinite(miles) || miles <= 0) return null;
-      const vt = (user?.fuelProfile?.vehicleType ?? (load as any)?.vehicleType ?? 'truck') as string;
+      const vt = ((user as Driver)?.fuelProfile?.vehicleType ?? (load as any)?.vehicleType ?? 'truck') as string;
       const avgStateAware = estimateAvgSpeedForRoute((load as any)?.origin?.state, (load as any)?.destination?.state, vt);
       const remoteDurationHours = typeof etaQuery.data?.durationSec === 'number' ? (etaQuery.data.durationSec / 3600) : undefined;
       const hours = typeof remoteDurationHours === 'number' && remoteDurationHours > 0 ? remoteDurationHours : estimateDurationHours(miles, avgStateAware);
@@ -123,7 +125,7 @@ export default function LoadDetailsScreen() {
       console.log('[LoadDetails] eta calc error', e);
       return null;
     }
-  }, [etaQuery.data?.distanceMeters, etaQuery.data?.durationSec, load?.distance, load?.pickupDate, load?.vehicleType, load?.origin?.state, load?.destination?.state, user?.fuelProfile?.vehicleType]);
+  }, [etaQuery.data?.distanceMeters, etaQuery.data?.durationSec, load?.distance, load?.pickupDate, load?.vehicleType, load?.origin?.state, load?.destination?.state, (user as Driver)?.fuelProfile?.vehicleType]);
 
   const distanceDisplayMiles = useMemo(() => {
     const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
@@ -157,25 +159,25 @@ export default function LoadDetailsScreen() {
   ]), []);
 
   const selectedVehicleType = useMemo(() => {
-    const fromUser = (user?.fuelProfile?.vehicleType ?? '') as string;
+    const fromUser = ((user as Driver)?.fuelProfile?.vehicleType ?? '') as string;
     const fromLoad = (load?.vehicleType ?? '') as string;
     return (fromUser || fromLoad) as any;
-  }, [user?.fuelProfile?.vehicleType, load?.vehicleType]);
+  }, [(user as Driver)?.fuelProfile?.vehicleType, load?.vehicleType]);
 
   const [mpgInput, setMpgInput] = useState<string>(() => {
-    const val = user?.fuelProfile?.averageMpg ?? undefined;
+    const val = (user as Driver)?.fuelProfile?.averageMpg ?? undefined;
     return typeof val === 'number' && Number.isFinite(val) ? String(val) : '';
   });
 
   const [tankInput, setTankInput] = useState<string>(() => {
-    const val = user?.fuelProfile?.tankCapacity ?? undefined;
+    const val = (user as Driver)?.fuelProfile?.tankCapacity ?? undefined;
     return typeof val === 'number' && Number.isFinite(val) ? String(val) : '';
   });
 
   const tankAlert = useMemo(() => {
     try {
-      const cap = Number(user?.fuelProfile?.tankCapacity ?? 0);
-      const avg = Number(user?.fuelProfile?.averageMpg ?? (fuelEstimate?.mpg ?? 0));
+      const cap = Number((user as Driver)?.fuelProfile?.tankCapacity ?? 0);
+      const avg = Number((user as Driver)?.fuelProfile?.averageMpg ?? (fuelEstimate?.mpg ?? 0));
       const miles = typeof distanceDisplayMiles === 'number' ? distanceDisplayMiles : Number(load?.distance ?? 0);
       if (!Number.isFinite(cap) || cap <= 0 || !Number.isFinite(avg) || avg <= 0 || !Number.isFinite(miles) || miles <= 0) return null;
       const range = cap * avg;
@@ -191,7 +193,7 @@ export default function LoadDetailsScreen() {
       console.log('[LoadDetails] tankAlert error', e);
       return null;
     }
-  }, [user?.fuelProfile?.tankCapacity, user?.fuelProfile?.averageMpg, fuelEstimate?.mpg, distanceDisplayMiles, load?.distance]);
+  }, [(user as Driver)?.fuelProfile?.tankCapacity, (user as Driver)?.fuelProfile?.averageMpg, fuelEstimate?.mpg, distanceDisplayMiles, load?.distance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,8 +288,8 @@ export default function LoadDetailsScreen() {
           ? {
               id: user.id,
               fuelProfile: {
-                ...(user.fuelProfile ?? {}),
-                fuelPricePerGallon: (eiaPrice ?? (user.fuelProfile?.fuelPricePerGallon as number | undefined)) as number | undefined,
+                ...((user as Driver).fuelProfile ?? {}),
+                fuelPricePerGallon: (eiaPrice ?? ((user as Driver).fuelProfile?.fuelPricePerGallon as number | undefined)) as number | undefined,
               },
             }
           : null;
@@ -295,7 +297,7 @@ export default function LoadDetailsScreen() {
         const res = await fetchFuelEstimate({
           load: {
             distance: distanceNum,
-            vehicleType: (load.vehicleType as any) ?? (user.fuelProfile?.vehicleType as any),
+            vehicleType: (load.vehicleType as any) ?? ((user as Driver).fuelProfile?.vehicleType as any),
             weight: Number(load.weight ?? 0),
             origin: load.origin,
             destination: load.destination,
@@ -316,7 +318,7 @@ export default function LoadDetailsScreen() {
     return () => {
       active = false;
     };
-  }, [etaQuery.data?.distanceMeters, eiaQuery.data?.price, eiaQuery.data?.source, load?.id, load?.distance, load?.vehicleType, load?.weight, load?.origin?.state, load?.destination?.state, user?.id, user?.fuelProfile?.averageMpg, user?.fuelProfile?.fuelPricePerGallon, user?.fuelProfile?.vehicleType]);
+  }, [etaQuery.data?.distanceMeters, eiaQuery.data?.price, eiaQuery.data?.source, load?.id, load?.distance, load?.vehicleType, load?.weight, load?.origin?.state, load?.destination?.state, user?.id, (user as Driver)?.fuelProfile?.averageMpg, (user as Driver)?.fuelProfile?.fuelPricePerGallon, (user as Driver)?.fuelProfile?.vehicleType]);
 
   useEffect(() => {
     let active = true;
@@ -641,6 +643,24 @@ export default function LoadDetailsScreen() {
             </View>
           </View>
 
+          {/* Backhaul Pill - Only for Drivers */}
+          {user?.role === 'driver' && load?.destination && (
+            <View style={styles.backhaulSection}>
+              <BackhaulPill
+                deliveryLocation={{
+                  lat: load.destination.lat,
+                  lng: load.destination.lng,
+                  city: load.destination.city,
+                  state: load.destination.state,
+                }}
+                onLoadSelect={(loadId) => {
+                  console.log('[LoadDetails] Backhaul selected:', loadId);
+                  router.push({ pathname: '/load-details', params: { loadId } });
+                }}
+              />
+            </View>
+          )}
+
           <View style={styles.detailsSection}>
             <Text style={styles.sectionTitle}>Load Information</Text>
             
@@ -691,7 +711,7 @@ export default function LoadDetailsScreen() {
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Profile MPG</Text>
-                <Text style={styles.detailValue} testID="driver-mpg">{Number(user?.fuelProfile?.averageMpg ?? 0) > 0 ? Number(user?.fuelProfile?.averageMpg ?? 0).toFixed(1) : '—'}</Text>
+                <Text style={styles.detailValue} testID="driver-mpg">{Number((user as Driver)?.fuelProfile?.averageMpg ?? 0) > 0 ? Number((user as Driver)?.fuelProfile?.averageMpg ?? 0).toFixed(1) : '—'}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Trip Fuel</Text>
@@ -718,8 +738,8 @@ export default function LoadDetailsScreen() {
                             fuelProfile: {
                               vehicleType: v.key as any,
                               averageMpg: Number(mpgInput) || (undefined as unknown as number),
-                              fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
-                              fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
+                              fuelPricePerGallon: (user as Driver)?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
+                              fuelType: ((user as Driver)?.fuelProfile?.fuelType ?? 'diesel') as any,
                             } as any,
                           });
                         } catch (e) {
@@ -751,9 +771,9 @@ export default function LoadDetailsScreen() {
                         fuelProfile: {
                           vehicleType: (selectedVehicleType as any) ?? (load?.vehicleType as any),
                           averageMpg: val,
-                          fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
-                          fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
-                          tankCapacity: user?.fuelProfile?.tankCapacity ?? (undefined as unknown as number),
+                          fuelPricePerGallon: (user as Driver)?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
+                          fuelType: ((user as Driver)?.fuelProfile?.fuelType ?? 'diesel') as any,
+                          tankCapacity: (user as Driver)?.fuelProfile?.tankCapacity ?? (undefined as unknown as number),
                         } as any,
                       });
                     } catch (e) {
@@ -779,9 +799,9 @@ export default function LoadDetailsScreen() {
                       await updateProfile({
                         fuelProfile: {
                           vehicleType: (selectedVehicleType as any) ?? (load?.vehicleType as any),
-                          averageMpg: user?.fuelProfile?.averageMpg ?? (undefined as unknown as number),
-                          fuelPricePerGallon: user?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
-                          fuelType: (user?.fuelProfile?.fuelType ?? 'diesel') as any,
+                          averageMpg: (user as Driver)?.fuelProfile?.averageMpg ?? (undefined as unknown as number),
+                          fuelPricePerGallon: (user as Driver)?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
+                          fuelType: ((user as Driver)?.fuelProfile?.fuelType ?? 'diesel') as any,
                           tankCapacity: val,
                         } as any,
                       });
@@ -1305,5 +1325,10 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '600',
     color: theme.colors.primary,
+  },
+  backhaulSection: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
   },
 });
