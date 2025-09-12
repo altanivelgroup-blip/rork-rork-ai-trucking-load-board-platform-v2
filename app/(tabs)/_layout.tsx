@@ -54,13 +54,13 @@ export default function TabsLayout() {
         }}
       />
       
-      {/* Service Finder Tab (Driver only) */}
+      {/* Service Finder Tab (Driver only - hidden from Admin) */}
       <Tabs.Screen
         name="service-finder"
         options={{
           title: 'Service Finder',
           tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
-          href: isDriver ? '/service-finder' : null,
+          href: (isDriver && !isAdmin) ? '/service-finder' : null,
         }}
       />
       
