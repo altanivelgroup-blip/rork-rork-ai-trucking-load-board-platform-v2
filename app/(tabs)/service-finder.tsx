@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Wrench, MapPin, Phone, ExternalLink, Navigation, AlertTriangle, LocateFixed, Bot } from 'lucide-react-native';
+import { Wrench, MapPin, Phone, ExternalLink, Navigation, AlertTriangle, LocateFixed, Bot, ChevronDown } from 'lucide-react-native';
 
 
 interface ServiceResult {
@@ -43,7 +43,20 @@ export default function ServiceFinderScreen() {
   const [results, setResults] = useState<ServiceResult[]>([]);
   const [coords, setCoords] = useState<Coordinates | null>(null);
   const [eduVisible, setEduVisible] = useState<boolean>(false);
+  const [dropdownVisible, setDropdownVisible] = useState<boolean>(false);
   const radiusMiles = 100 as const;
+
+  const serviceOptions = [
+    'Truck Repair',
+    'Fuel Station', 
+    'Rest Area',
+    'Towing Service',
+    'Tire Shop',
+    'Weigh Station',
+    'Hotel/Motel',
+    'Truck Stop',
+    '24 Hr Tire Service'
+  ] as const;
 
   const openLink = useCallback(async (url: string) => {
     try {
@@ -93,8 +106,9 @@ export default function ServiceFinderScreen() {
     }
   }, []);
 
-  const handleSearch = useCallback(async () => {
-    if (!query.trim()) return;
+  const handleSearchWithQuery = useCallback(async (searchQuery?: string) => {
+    const queryToUse = searchQuery || query;
+    if (!queryToUse.trim()) return;
     setIsSearching(true);
     setError(null);
     setResults([]);
@@ -102,9 +116,9 @@ export default function ServiceFinderScreen() {
     try {
       const system = 'You are an AI that returns nearby truck services as compact JSON only. Do not include prose. Output strictly as {"services": Service[]} where Service = { id, name, category, address?, city?, state?, distanceMiles?, phone?, website?, notes? }. If coordinates and radius are provided, only return services within that radius and include numeric distanceMiles.';
       const where = coords ? `near lat ${coords.latitude}, lon ${coords.longitude} within ${radiusMiles} miles` : 'in the specified area';
-      const user = `Find truck maintenance/service centers ${where}. Query: ${query}. Strictly cap results to ${radiusMiles} miles if coordinates provided. Return 8 best options with phone, address, website when possible. Ensure distanceMiles is a number.`;
+      const user = `Find truck maintenance/service centers ${where}. Query: ${queryToUse}. Strictly cap results to ${radiusMiles} miles if coordinates provided. Return 8 best options with phone, address, website when possible. Ensure distanceMiles is a number.`;
 
-      console.log('[ServiceFinder] querying AI with', { query });
+      console.log('[ServiceFinder] querying AI with', { query: queryToUse });
       const response = await fetch('https://toolkit.rork.com/text/llm/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -152,7 +166,21 @@ export default function ServiceFinderScreen() {
     } finally {
       setIsSearching(false);
     }
-  }, [query]);
+  }, [query, coords, radiusMiles]);
+
+  const handleServiceSelect = useCallback((service: string) => {
+    setQuery(service);
+    setDropdownVisible(false);
+    // Auto-search after selection
+    setTimeout(() => {
+      handleSearchWithQuery(service);
+    }, 100);
+  }, [handleSearchWithQuery]);
+
+  const handleSearch = useCallback(async () => {
+    if (!query.trim()) return;
+    await handleSearchWithQuery();
+  }, [query, handleSearchWithQuery]);
 
   const renderItem = useCallback(({ item }: { item: ServiceResult }) => (
     <View style={styles.card} testID={`service-card-${item.id}`}>
@@ -208,6 +236,36 @@ export default function ServiceFinderScreen() {
         <Text style={styles.title}>Service Finder</Text>
       </View>
 
+      <View style={styles.dropdownContainer}>
+        <TouchableOpacity 
+          style={styles.dropdown}
+          onPress={() => setDropdownVisible(!dropdownVisible)}
+          testID="service-dropdown"
+        >
+          <Text style={styles.dropdownText}>Quick Service Options</Text>
+          <ChevronDown 
+            size={20} 
+            color={theme.colors.primary} 
+            style={[styles.chevron, dropdownVisible && styles.chevronRotated]}
+          />
+        </TouchableOpacity>
+        
+        {dropdownVisible && (
+          <View style={styles.dropdownMenu}>
+            {serviceOptions.map((service, index) => (
+              <TouchableOpacity
+                key={service}
+                style={[styles.dropdownItem, index === serviceOptions.length - 1 && styles.dropdownItemLast]}
+                onPress={() => handleServiceSelect(service)}
+                testID={`service-option-${service.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <Text style={styles.dropdownItemText}>{service}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
       <View style={styles.searchBar}>
         <TextInput
           style={styles.input}
@@ -242,7 +300,7 @@ export default function ServiceFinderScreen() {
         </View>
       </View>
 
-      <View style={{ paddingHorizontal: 12 }}>
+      <View style={styles.voiceContainer}>
         <VoiceCapture onTranscribed={(t) => setQuery((prev) => (prev ? `${prev} ${t}` : t))} size="sm" label="Speak query" testID="service-voice" />
       </View>
 
@@ -406,4 +464,59 @@ const styles = StyleSheet.create({
   secondaryBtn: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.lightGray },
   actionText: { color: theme.colors.white, fontWeight: '700' },
   secondaryText: { color: theme.colors.primary, fontWeight: '700' },
+
+  dropdownContainer: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  dropdown: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+  },
+  dropdownText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.dark,
+    fontWeight: '600',
+  },
+  chevron: {
+    transform: [{ rotate: '0deg' }],
+  },
+  chevronRotated: {
+    transform: [{ rotate: '180deg' }],
+  },
+  dropdownMenu: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 12,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  dropdownItemLast: {
+    borderBottomWidth: 0,
+  },
+  dropdownItemText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.dark,
+  },
+  voiceContainer: {
+    paddingHorizontal: 12,
+  },
 });
