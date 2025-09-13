@@ -27,15 +27,15 @@ service cloud.firestore {
     // Allow admin users to read all loads for analytics
     match /loads/{docId} {
       allow read: if true; // Anyone can read loads for now
-      allow create: if request.auth != null;
+      allow create: if request.auth != null; // Any authenticated user (including anonymous) can create
       allow update: if request.auth != null && notChangingArchive(resource.data, request.resource.data);
       allow delete: if request.auth != null;
     }
 
     // Vehicles: align with loads for now (auth users can read/write)
     match /vehicles/{docId} {
-      allow read: if true;
-      allow create: if request.auth != null;
+      allow read: if true; // Anyone can read vehicles
+      allow create: if request.auth != null; // Any authenticated user (including anonymous) can create
       allow update: if request.auth != null;
       allow delete: if request.auth != null;
     }

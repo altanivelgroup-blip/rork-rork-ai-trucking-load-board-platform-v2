@@ -632,6 +632,15 @@ export default function AdminScreen() {
             <Settings color={theme.colors.primary} size={16} />
             <Text style={styles.devToolsText}>Dev Tools</Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => router.push('/firebase-sanity-check')} 
+            style={styles.firebaseTestBtn}
+            accessibilityRole="button"
+            testID="firebaseTestBtn"
+          >
+            <Database color={theme.colors.warning} size={16} />
+            <Text style={styles.firebaseTestText}>Firebase Test</Text>
+          </TouchableOpacity>
           <View style={styles.tabSpacer} />
           <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn} accessibilityRole="button" testID="refreshBtn">
             <RefreshCcw color={theme.colors.secondary} size={20} />
@@ -1237,6 +1246,10 @@ const styles = StyleSheet.create({
   // Dev Tools Button
   devToolsBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, marginRight: 8, borderWidth: 1, borderColor: theme.colors.primary, borderLeftWidth: 3, borderLeftColor: theme.colors.primary },
   devToolsText: { marginLeft: 6, fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.primary },
+  
+  // Firebase Test Button
+  firebaseTestBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, marginRight: 8, borderWidth: 1, borderColor: theme.colors.warning, borderLeftWidth: 3, borderLeftColor: theme.colors.warning },
+  firebaseTestText: { marginLeft: 6, fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.warning },
   
   // Live Metrics Styles
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 as unknown as number, marginBottom: theme.spacing.lg },
