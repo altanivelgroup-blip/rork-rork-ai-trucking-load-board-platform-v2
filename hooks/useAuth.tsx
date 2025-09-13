@@ -1,24 +1,24 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Driver, Shipper, UserRole } from '@/types';
+import { Driver, Shipper, Admin, UserRole } from '@/types';
 import { auth, ensureFirebaseAuth, db } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AuthState {
-  user: Driver | Shipper | null;
+  user: Driver | Shipper | Admin | null;
   userId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   isFirebaseAuthenticated: boolean;
   hasSignedInThisSession: boolean;
   login: (email: string, password: string, role?: UserRole) => Promise<void>;
-  register: (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper>) => Promise<void>;
+  register: (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper | Admin>) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<Driver | Shipper>) => Promise<void>;
+  updateProfile: (updates: Partial<Driver | Shipper | Admin>) => Promise<void>;
 
 }
 
@@ -26,7 +26,7 @@ const USER_STORAGE_KEY = 'auth:user:profile';
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   // Always call all hooks in the same order - never conditionally
-  const [user, setUser] = useState<Driver | Shipper | null>(null);
+  const [user, setUser] = useState<Driver | Shipper | Admin | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState<boolean>(false);
@@ -126,11 +126,23 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     };
   }, [isInitialized, user]);
 
-  const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper> => {
+  const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper | Admin> => {
     await ensureFirebaseAuth();
     const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
     
-    if (role === 'shipper') {
+    if (role === 'admin') {
+      return {
+        id: uid,
+        role: 'admin',
+        email,
+        name: email === 'admin@loadrush.com' ? 'LoadRush Admin' : 'Admin User',
+        phone: '',
+        membershipTier: 'enterprise',
+        createdAt: new Date(),
+        permissions: ['analytics', 'user_management', 'load_management', 'system_admin'],
+        lastLoginAt: new Date(),
+      } as Admin;
+    } else if (role === 'shipper') {
       return {
         id: uid,
         role: 'shipper',
@@ -194,22 +206,26 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
     
     try {
+      // Check if this is an admin login
+      const isAdminLogin = email === 'admin@loadrush.com' || role === 'admin';
+      const finalRole = isAdminLogin ? 'admin' : role;
+      
       // First check if we have cached data for this email/role combination
       const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
-      let mockUser: Driver | Shipper;
+      let mockUser: Driver | Shipper | Admin;
       
       if (cached) {
         const cachedUser = JSON.parse(cached);
-        if (cachedUser.email === email && cachedUser.role === role) {
+        if (cachedUser.email === email && cachedUser.role === finalRole) {
           console.log('[auth] using cached user data for', email);
           mockUser = cachedUser;
         } else {
           console.log('[auth] cached user mismatch, creating new user');
-          mockUser = await createNewUser(email, role);
+          mockUser = await createNewUser(email, finalRole as UserRole);
         }
       } else {
         console.log('[auth] no cached data, creating new user');
-        mockUser = await createNewUser(email, role);
+        mockUser = await createNewUser(email, finalRole as UserRole);
       }
       
       setUser(mockUser);
@@ -217,19 +233,19 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       setIsAnonymous(email === 'guest@example.com');
       setHasSignedInThisSession(true);
       await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
-      console.log('[auth] login successful as', role);
+      console.log('[auth] login successful as', finalRole);
     } catch (error) {
       console.error('[auth] login failed:', error);
       throw error;
     }
   }, [createNewUser]);
 
-  const register = useCallback(async (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper>) => {
+  const register = useCallback(async (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper | Admin>) => {
     console.log('[auth] register attempt for', email, 'as', role);
     await ensureFirebaseAuth();
     const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
     
-    let mockUser: Driver | Shipper;
+    let mockUser: Driver | Shipper | Admin;
     
     if (role === 'shipper') {
       mockUser = {
@@ -292,13 +308,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     console.log('Password reset requested for:', email);
   }, []);
 
-  const updateProfile = useCallback(async (updates: Partial<Driver | Shipper>) => {
+  const updateProfile = useCallback(async (updates: Partial<Driver | Shipper | Admin>) => {
     if (!user) {
       console.log('[auth] updateProfile called but no user found');
       return;
     }
     console.log('[auth] updateProfile called with updates:', JSON.stringify(updates, null, 2));
-    const updated = { ...user, ...updates } as Driver | Shipper;
+    const updated = { ...user, ...updates } as Driver | Shipper | Admin;
     console.log('[auth] updated user object:', JSON.stringify(updated, null, 2));
     setUser(updated);
     await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));

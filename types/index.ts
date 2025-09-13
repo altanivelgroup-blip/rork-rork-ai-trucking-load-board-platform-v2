@@ -31,6 +31,12 @@ export interface User {
   createdAt: Date;
 }
 
+export interface Admin extends User {
+  role: 'admin';
+  permissions: string[];
+  lastLoginAt?: Date;
+}
+
 export interface Shipper extends User {
   role: 'shipper';
   companyName: string;
