@@ -1,4 +1,4 @@
-import { publicProcedure, createTRPCRouter } from '../../create-context';
+import { publicProcedure, protectedProcedure, createTRPCRouter } from '../../create-context';
 
 // Mock data for development - replace with real data sources
 const mockGraphData = {
@@ -45,25 +45,40 @@ const mockBottomRowData = {
 export const reportAnalyticsRouter = createTRPCRouter({
   graph: publicProcedure
     .query(async () => {
-      console.log('[ReportAnalytics] Serving graph data');
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return mockGraphData;
+      try {
+        console.log('[ReportAnalytics] ✅ Serving graph data');
+        // Simulate API delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return mockGraphData;
+      } catch (error) {
+        console.error('[ReportAnalytics] ❌ Error serving graph data:', error);
+        throw error;
+      }
     }),
 
   metrics: publicProcedure
     .query(async () => {
-      console.log('[ReportAnalytics] Serving metrics data');
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return mockMetricsData;
+      try {
+        console.log('[ReportAnalytics] ✅ Serving metrics data');
+        // Simulate API delay
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        return mockMetricsData;
+      } catch (error) {
+        console.error('[ReportAnalytics] ❌ Error serving metrics data:', error);
+        throw error;
+      }
     }),
 
   bottomRow: publicProcedure
     .query(async () => {
-      console.log('[ReportAnalytics] Serving bottom row data');
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      return mockBottomRowData;
+      try {
+        console.log('[ReportAnalytics] ✅ Serving bottom row data');
+        // Simulate API delay
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return mockBottomRowData;
+      } catch (error) {
+        console.error('[ReportAnalytics] ❌ Error serving bottom row data:', error);
+        throw error;
+      }
     })
 });
