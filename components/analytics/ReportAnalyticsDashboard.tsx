@@ -223,7 +223,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
     
     console.log('[Analytics] Generated', insights.length, 'AI insights:', insights);
     setAiInsights(insights);
-  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data]);
+  }, []);
 
   // Generate AI insights on data changes with live updates
   useEffect(() => {
@@ -231,7 +231,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
     if (liveMetricsQuery.data || liveGraphDataQuery.data || liveBottomRowQuery.data) {
       generateAIInsights();
     }
-  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data, timeRange, generateAIInsights]);
+  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data, timeRange]);
 
   // Show loading state only for initial load (first 3 seconds max)
   const [showInitialLoading, setShowInitialLoading] = useState(true);
@@ -426,17 +426,21 @@ const ReportAnalyticsDashboard: React.FC = () => {
     }
     const sanitizedRange = newRange as TimeRange;
     
+    // Prevent unnecessary updates if same range
+    if (sanitizedRange === timeRange) {
+      return;
+    }
+    
     console.log(`[Analytics] 📊 Time range filter changed: ${timeRange} → ${sanitizedRange}`);
     console.log('[Analytics] All data will automatically refresh with new time range via API...');
     
     setTimeRange(sanitizedRange);
     
-    // Data will automatically refresh due to query dependencies
-    // Generate insights after data loads with new time range
+    // Generate insights after a short delay to allow state to update
     setTimeout(() => {
       console.log('[Analytics] Regenerating AI insights for new time range...');
       generateAIInsights();
-    }, 1000); // Allow time for API calls to complete
+    }, 100);
   };
 
   const showDetailModal = (title: string, value: string, details: string) => {
