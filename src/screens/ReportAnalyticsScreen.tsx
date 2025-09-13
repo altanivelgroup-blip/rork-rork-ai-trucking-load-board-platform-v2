@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { BarChart3, Users, DollarSign, Activity, RefreshCw, Lock, AlertCircle, Database } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { isAdminClient } from '@/src/lib/authz';
-import { getLiveGraph, getBottomRow, getLiveMetrics } from '@/src/lib/reportsApi';
-import { useToast } from '@/components/Toast';
+import { useReportAnalytics } from '@/src/lib/reportsApi';
+
 import { logPreflightStatus } from '@/utils/preflightCheck';
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
@@ -39,35 +39,28 @@ const Skeleton: React.FC<SkeletonProps> = ({ height, width = '100%' }) => (
 
 const ReportAnalyticsScreen: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('monthly');
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   
-  // Data states
-  const [graphData, setGraphData] = useState<any>(null);
-  const [metricsData, setMetricsData] = useState<any>(null);
-  const [bottomRowData, setBottomRowData] = useState<any>(null);
+  // Use tRPC hooks for data fetching
+  const {
+    graphData,
+    isLoadingGraph,
+    graphError,
+    metricsData,
+    isLoadingMetrics,
+    metricsError,
+    bottomRowData,
+    isLoadingBottomRow,
+    bottomRowError,
+    refetchAll,
+    isRefreshing
+  } = useReportAnalytics();
   
-  // Loading states
-  const [isLoadingGraph, setIsLoadingGraph] = useState(false);
-  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
-  const [isLoadingBottomRow, setIsLoadingBottomRow] = useState(false);
-  
-  // Error states
-  const [graphError, setGraphError] = useState<string | null>(null);
-  const [metricsError, setMetricsError] = useState<string | null>(null);
-  const [bottomRowError, setBottomRowError] = useState<string | null>(null);
-  
-  const toast = useToast();
+
 
   const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await Promise.all([
-      fetchGraphData(),
-      fetchMetricsData(),
-      fetchBottomRowData()
-    ]);
-    setIsRefreshing(false);
+    await refetchAll();
   };
 
   const handleTimeFilterChange = (filter: TimeFilter) => {
@@ -89,57 +82,7 @@ const ReportAnalyticsScreen: React.FC = () => {
     console.log(`[ReportAnalytics] KPI pressed: ${kpiName}`);
   };
 
-  // API fetch functions
-  const fetchGraphData = React.useCallback(async () => {
-    setIsLoadingGraph(true);
-    setGraphError(null);
-    try {
-      const data = await getLiveGraph();
-      setGraphData(data);
-      console.log('[ReportAnalytics] ✅ Graph data loaded successfully');
-    } catch (error: any) {
-      const errorMsg = `Graph data error: ${error.message}`;
-      setGraphError(errorMsg);
-      console.error('[ReportAnalytics] ❌ Failed to fetch live graph data:', error.message);
-      toast.show(errorMsg, 'error');
-    } finally {
-      setIsLoadingGraph(false);
-    }
-  }, [toast]);
-  
-  const fetchMetricsData = React.useCallback(async () => {
-    setIsLoadingMetrics(true);
-    setMetricsError(null);
-    try {
-      const data = await getLiveMetrics();
-      setMetricsData(data);
-      console.log('[ReportAnalytics] ✅ Metrics data loaded successfully');
-    } catch (error: any) {
-      const errorMsg = `Metrics error: ${error.message}`;
-      setMetricsError(errorMsg);
-      console.error('[ReportAnalytics] ❌ Failed to fetch live metrics:', error.message);
-      toast.show(errorMsg, 'error');
-    } finally {
-      setIsLoadingMetrics(false);
-    }
-  }, [toast]);
-  
-  const fetchBottomRowData = React.useCallback(async () => {
-    setIsLoadingBottomRow(true);
-    setBottomRowError(null);
-    try {
-      const data = await getBottomRow();
-      setBottomRowData(data);
-      console.log('[ReportAnalytics] ✅ Bottom row data loaded successfully');
-    } catch (error: any) {
-      const errorMsg = `Bottom row error: ${error.message}`;
-      setBottomRowError(errorMsg);
-      console.error('[ReportAnalytics] ❌ Failed to fetch live bottom row data:', error.message);
-      toast.show(errorMsg, 'error');
-    } finally {
-      setIsLoadingBottomRow(false);
-    }
-  }, [toast]);
+
   
   // Check admin privileges on mount
   useEffect(() => {
@@ -157,13 +100,6 @@ const ReportAnalyticsScreen: React.FC = () => {
           setIsAdmin(adminResult);
           setIsCheckingAuth(false);
           console.log('[ReportAnalytics] Admin check complete:', adminResult);
-          
-          // If admin, load initial data
-          if (adminResult) {
-            fetchGraphData();
-            fetchMetricsData();
-            fetchBottomRowData();
-          }
         }
       } catch (error) {
         console.error('[ReportAnalytics] Admin check failed:', error);
@@ -179,7 +115,7 @@ const ReportAnalyticsScreen: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [fetchBottomRowData, fetchGraphData, fetchMetricsData]);
+  }, []);
 
   // Show loading state while checking authentication
   if (isCheckingAuth) {
@@ -270,7 +206,7 @@ const ReportAnalyticsScreen: React.FC = () => {
               <AlertCircle size={48} color="#EF4444" />
               <Text style={styles.errorText}>Failed to load graph data</Text>
               <Text style={styles.errorSubtext}>{graphError}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={fetchGraphData}>
+              <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
             </View>
@@ -285,7 +221,7 @@ const ReportAnalyticsScreen: React.FC = () => {
               <BarChart3 size={48} color="#94A3B8" />
               <Text style={styles.emptyStateTitle}>No Graph Data Available</Text>
               <Text style={styles.emptyStateSubtext}>Performance trends will appear here once data is available</Text>
-              <TouchableOpacity style={styles.emptyStateButton} onPress={fetchGraphData}>
+              <TouchableOpacity style={styles.emptyStateButton} onPress={handleRefresh}>
                 <RefreshCw size={16} color="#2563EB" />
                 <Text style={styles.emptyStateButtonText}>Load Graph</Text>
               </TouchableOpacity>
@@ -315,7 +251,7 @@ const ReportAnalyticsScreen: React.FC = () => {
             <AlertCircle size={32} color="#EF4444" />
             <Text style={styles.errorText}>Failed to load metrics</Text>
             <Text style={styles.errorSubtext}>{metricsError}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={fetchMetricsData}>
+            <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -348,7 +284,7 @@ const ReportAnalyticsScreen: React.FC = () => {
             <Database size={48} color="#94A3B8" />
             <Text style={styles.emptyStateTitle}>No Metrics Available</Text>
             <Text style={styles.emptyStateSubtext}>Click refresh to load performance data</Text>
-            <TouchableOpacity style={styles.emptyStateButton} onPress={fetchMetricsData}>
+            <TouchableOpacity style={styles.emptyStateButton} onPress={handleRefresh}>
               <RefreshCw size={16} color="#2563EB" />
               <Text style={styles.emptyStateButtonText}>Load Metrics</Text>
             </TouchableOpacity>
@@ -395,7 +331,7 @@ const ReportAnalyticsScreen: React.FC = () => {
               <AlertCircle size={32} color="#EF4444" />
               <Text style={styles.errorText}>Failed to load activity data</Text>
               <Text style={styles.errorSubtext}>{bottomRowError}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={fetchBottomRowData}>
+              <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
             </View>
@@ -423,7 +359,7 @@ const ReportAnalyticsScreen: React.FC = () => {
               <Activity size={48} color="#94A3B8" />
               <Text style={styles.emptyStateTitle}>No Recent Activity</Text>
               <Text style={styles.emptyStateSubtext}>No loads or anomalies to display</Text>
-              <TouchableOpacity style={styles.emptyStateButton} onPress={fetchBottomRowData}>
+              <TouchableOpacity style={styles.emptyStateButton} onPress={handleRefresh}>
                 <RefreshCw size={16} color="#2563EB" />
                 <Text style={styles.emptyStateButtonText}>Check for Updates</Text>
               </TouchableOpacity>

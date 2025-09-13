@@ -196,8 +196,8 @@ export default function RootLayout() {
     <GlobalErrorBoundary>
       <ErrorBoundary safeRoute="/(auth)/login">
         <GestureHandlerRootView style={styles.rootContainer}>
-          <trpc.Provider client={trpcClient} queryClient={queryClient}>
-            <QueryClientProvider client={queryClient}>
+          <QueryClientProvider client={queryClient}>
+            <trpc.Provider client={trpcClient} queryClient={queryClient}>
               <ToastProvider>
                 <StartupInitializer>
                   <View style={styles.appContainer}>
@@ -228,8 +228,8 @@ export default function RootLayout() {
                 </StartupInitializer>
                 <ToastHost />
               </ToastProvider>
-            </QueryClientProvider>
-          </trpc.Provider>
+            </trpc.Provider>
+          </QueryClientProvider>
         </GestureHandlerRootView>
       </ErrorBoundary>
     </GlobalErrorBoundary>

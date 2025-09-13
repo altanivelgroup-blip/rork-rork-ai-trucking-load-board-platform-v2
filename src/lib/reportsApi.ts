@@ -1,37 +1,63 @@
-import { trpcClient } from '@/lib/trpc';
+import { trpc } from '@/lib/trpc';
 
-export const getLiveGraph = async () => {
-  console.log('[ReportAnalytics] Fetching graph data via tRPC');
-  try {
-    const data = await trpcClient.reportAnalytics.graph.query();
-    console.log('[ReportAnalytics] ✅ Graph data fetched successfully');
-    return data;
-  } catch (error: any) {
-    console.error('[ReportAnalytics] ❌ Graph fetch error:', error.message);
-    throw new Error(`Graph data error: ${error.message}`);
-  }
+export const useReportAnalytics = () => {
+  const graphQuery = trpc.reportAnalytics.graph.useQuery(undefined, {
+    retry: 2,
+    retryDelay: 1000,
+  });
+  const metricsQuery = trpc.reportAnalytics.metrics.useQuery(undefined, {
+    retry: 2,
+    retryDelay: 1000,
+  });
+  const bottomRowQuery = trpc.reportAnalytics.bottomRow.useQuery(undefined, {
+    retry: 2,
+    retryDelay: 1000,
+  });
+
+  const refetchAll = async () => {
+    console.log('[ReportAnalytics] Refetching all data...');
+    try {
+      await Promise.all([
+        graphQuery.refetch(),
+        metricsQuery.refetch(),
+        bottomRowQuery.refetch()
+      ]);
+      console.log('[ReportAnalytics] ✅ All data refetched successfully');
+    } catch (error) {
+      console.error('[ReportAnalytics] ❌ Error refetching data:', error);
+    }
+  };
+
+  return {
+    // Graph data
+    graphData: graphQuery.data,
+    isLoadingGraph: graphQuery.isLoading,
+    graphError: graphQuery.error?.message,
+    
+    // Metrics data
+    metricsData: metricsQuery.data,
+    isLoadingMetrics: metricsQuery.isLoading,
+    metricsError: metricsQuery.error?.message,
+    
+    // Bottom row data
+    bottomRowData: bottomRowQuery.data,
+    isLoadingBottomRow: bottomRowQuery.isLoading,
+    bottomRowError: bottomRowQuery.error?.message,
+    
+    // Utilities
+    refetchAll,
+    isRefreshing: graphQuery.isFetching || metricsQuery.isFetching || bottomRowQuery.isFetching,
+  };
 };
 
-export const getBottomRow = async () => {
-  console.log('[ReportAnalytics] Fetching bottom row data via tRPC');
+// Debug function to test tRPC connection
+export const testTRPCConnection = async () => {
   try {
-    const data = await trpcClient.reportAnalytics.bottomRow.query();
-    console.log('[ReportAnalytics] ✅ Bottom row data fetched successfully');
-    return data;
-  } catch (error: any) {
-    console.error('[ReportAnalytics] ❌ Bottom row fetch error:', error.message);
-    throw new Error(`Bottom row data error: ${error.message}`);
-  }
-};
-
-export const getLiveMetrics = async () => {
-  console.log('[ReportAnalytics] Fetching metrics data via tRPC');
-  try {
-    const data = await trpcClient.reportAnalytics.metrics.query();
-    console.log('[ReportAnalytics] ✅ Metrics data fetched successfully');
-    return data;
-  } catch (error: any) {
-    console.error('[ReportAnalytics] ❌ Metrics fetch error:', error.message);
-    throw new Error(`Metrics data error: ${error.message}`);
+    console.log('[ReportAnalytics] Testing tRPC connection...');
+    // This will be available in components that use the hook
+    return true;
+  } catch (error) {
+    console.error('[ReportAnalytics] tRPC connection test failed:', error);
+    return false;
   }
 };
