@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings, FileText } from 'lucide-react-native';
+import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -88,9 +88,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="shipper-analytics"
         options={{
-          title: isAdmin ? 'Reports' : 'Analytics',
-          tabBarIcon: ({ color, size }) => isAdmin ? <FileText color={color} size={size} /> : <BarChart3 color={color} size={size} />,
-          href: (isShipper || isAdmin) ? '/shipper-analytics' : null,
+          title: isAdmin ? 'Report Analytics' : 'Analytics',
+          tabBarIcon: ({ color, size }) => isAdmin ? <BarChart3 color={color} size={size} /> : <BarChart3 color={color} size={size} />,
+          href: isAdmin ? '/reports' : (isShipper ? '/shipper-analytics' : null),
         }}
       />
       
