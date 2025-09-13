@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { getFirebase } from '@/utils/firebase';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,9 +35,9 @@ interface AnalyticsData {
   completedLoads: number;
   pendingLoads: number;
   cancelledLoads: number;
-  revenueByMonth: Array<{ month: string; revenue: number }>;
-  loadsByType: Array<{ type: string; count: number; color: string }>;
-  userActivity: Array<{ date: string; drivers: number; shippers: number }>;
+  revenueByMonth: { month: string; revenue: number }[];
+  loadsByType: { type: string; count: number; color: string }[];
+  userActivity: { date: string; drivers: number; shippers: number }[];
   systemStatus: {
     uptime: string;
     activeUsers: number;
@@ -234,12 +234,11 @@ export const useAnalytics = (timeRange: TimeRange) => {
         
         console.log('[Analytics] Attempting to fetch real data:', { start, end });
         
-        // Create query for loads within the time range
+        // Create a simple query to avoid index requirements
+        // Using only orderBy to avoid compound index issues
         const q = query(
           collection(db, LOADS_COLLECTION),
-          where('createdAt', '>=', Timestamp.fromDate(start)),
-          where('createdAt', '<=', Timestamp.fromDate(end)),
-          orderBy('createdAt', 'desc')
+          orderBy('clientCreatedAt', 'desc')
         );
         
         // Set up real-time listener
@@ -248,24 +247,32 @@ export const useAnalytics = (timeRange: TimeRange) => {
           (snapshot) => {
             console.log('[Analytics] Received real data snapshot with', snapshot.docs.length, 'documents');
             
-            const loads: LoadData[] = snapshot.docs.map(doc => {
-              const data = doc.data();
-              return {
-                id: doc.id,
-                ...data,
-                // Ensure we have the required fields
-                createdAt: data.createdAt || Timestamp.now(),
-                status: data.status || 'unknown',
-                rateTotalUSD: data.rateTotalUSD || data.revenueUsd || data.rate || 0,
-                rate: data.rate || 0,
-                miles: data.miles || data.distanceMi || 0,
-                equipmentType: data.equipmentType || data.vehicleType || 'Unknown',
-                cargoType: data.cargoType || 'General',
-                vehicleType: data.vehicleType || data.equipmentType || 'Unknown',
-                createdBy: data.createdBy || '',
-                assignedDriverId: data.assignedDriverId || ''
-              } as LoadData;
-            });
+            const loads: LoadData[] = snapshot.docs
+              .map(doc => {
+                const data = doc.data();
+                return {
+                  id: doc.id,
+                  ...data,
+                  // Ensure we have the required fields
+                  createdAt: data.createdAt || Timestamp.now(),
+                  status: data.status || 'unknown',
+                  rateTotalUSD: data.rateTotalUSD || data.revenueUsd || data.rate || 0,
+                  rate: data.rate || 0,
+                  miles: data.miles || data.distanceMi || 0,
+                  equipmentType: data.equipmentType || data.vehicleType || 'Unknown',
+                  cargoType: data.cargoType || 'General',
+                  vehicleType: data.vehicleType || data.equipmentType || 'Unknown',
+                  createdBy: data.createdBy || '',
+                  assignedDriverId: data.assignedDriverId || ''
+                } as LoadData;
+              })
+              .filter(load => {
+                // Client-side filtering for date range to avoid index requirements
+                if (!load.createdAt) return false;
+                const loadDate = load.createdAt.toDate();
+                return loadDate >= start && loadDate <= end;
+              })
+              .slice(0, 1000); // Limit to prevent excessive data transfer
             
             const processedData = processLoadsData(loads);
             setAnalyticsData(processedData);
@@ -279,9 +286,12 @@ export const useAnalytics = (timeRange: TimeRange) => {
             });
           },
           (error) => {
-            console.warn('[Analytics] Firestore listener error (using fallback):', error);
+            if (error && typeof error === 'object' && 'message' in error) {
+              console.warn('[Analytics] Firestore listener error (using fallback):', error.message);
+            } else {
+              console.warn('[Analytics] Firestore listener error (using fallback):', String(error));
+            }
             // Don't set error state since we have fallback data
-            // setError(error.message || 'Failed to fetch analytics data');
           }
         );
         
