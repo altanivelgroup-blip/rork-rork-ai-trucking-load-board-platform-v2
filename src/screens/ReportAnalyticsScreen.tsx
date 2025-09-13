@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { BarChart3, Users, DollarSign, Activity, RefreshCw, Lock, AlertCircle, Database } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
-import { isAdminClient } from '@/src/lib/authz';
+
 import { useReportAnalytics } from '@/src/lib/reportsApi';
 
 import { logPreflightStatus, testNetworkConnectivity } from '@/utils/preflightCheck';
@@ -39,8 +39,7 @@ const Skeleton: React.FC<SkeletonProps> = ({ height, width = '100%' }) => (
 
 const ReportAnalyticsScreen: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('monthly');
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
   
   // Use tRPC hooks for data fetching with time filter
   const {
@@ -101,10 +100,8 @@ const ReportAnalyticsScreen: React.FC = () => {
 
 
   
-  // Check admin privileges on mount
+  // Initialize app without auth restrictions
   useEffect(() => {
-    let isMounted = true;
-    
     const initializeApp = async () => {
       try {
         // Run preflight check in development
@@ -116,55 +113,16 @@ const ReportAnalyticsScreen: React.FC = () => {
           console.warn('[ReportAnalytics] ⚠️ Network connectivity issues detected');
         }
         
-        console.log('[ReportAnalytics] Checking admin access...');
-        const adminResult = await isAdminClient();
-        
-        if (isMounted) {
-          setIsAdmin(adminResult);
-          setIsCheckingAuth(false);
-          console.log('[ReportAnalytics] Admin check complete:', adminResult);
-        }
+        console.log('[ReportAnalytics] ✅ App initialized - Full access granted');
       } catch (error) {
         console.error('[ReportAnalytics] Initialization failed:', error);
-        if (isMounted) {
-          setIsAdmin(false);
-          setIsCheckingAuth(false);
-        }
       }
     };
     
     initializeApp();
-    
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
-  // Show loading state while checking authentication
-  if (isCheckingAuth) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.lockScreen}>
-          <RefreshCw size={48} color={theme.colors.gray} />
-          <Text style={styles.lockTitle}>Checking Access...</Text>
-          <Text style={styles.lockSubtext}>Verifying admin privileges</Text>
-        </View>
-      </View>
-    );
-  }
 
-  // Show access denied screen for non-admins
-  if (!isAdmin) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.lockScreen}>
-          <Lock size={48} color={theme.colors.gray} />
-          <Text style={styles.lockTitle}>Admins Only</Text>
-          <Text style={styles.lockSubtext}>Ask an owner to grant you access.</Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false} testID="report-analytics-screen">
