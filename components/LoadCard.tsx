@@ -108,13 +108,16 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1976D2',
     padding: 16,
     marginHorizontal: 0,
     marginVertical: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statusRow: {
     flexDirection: 'row',
@@ -145,31 +148,31 @@ const styles = StyleSheet.create({
   },
   statusLine: {
     fontSize: 14,
-    color: '#424242',
+    color: '#374151',
     marginBottom: 4,
     fontWeight: '500',
   },
   rate: {
     fontSize: 16,
-    color: '#424242',
+    color: '#374151',
     marginBottom: 4,
     fontWeight: '600',
   },
   route: {
     fontSize: 14,
-    color: '#424242',
+    color: '#374151',
     marginBottom: 4,
     fontWeight: '500',
   },
   bidsText: {
     fontSize: 14,
-    color: '#424242',
+    color: '#374151',
     marginBottom: 12,
     fontWeight: '500',
   },
   tapForDetails: {
     fontSize: 14,
-    color: '#1976D2',
+    color: '#2563EB',
     fontWeight: '600',
     textAlign: 'center',
   },
