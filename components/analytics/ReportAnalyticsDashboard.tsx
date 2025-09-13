@@ -188,8 +188,27 @@ const ReportAnalyticsDashboard: React.FC = () => {
     }
   }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data, timeRange, generateAIInsights]);
 
-  // Show loading state only if no data is available
-  if ((liveMetricsQuery.isLoading || liveGraphDataQuery.isLoading || liveBottomRowQuery.isLoading) && 
+  // Show loading state only for initial load (first 3 seconds max)
+  const [showInitialLoading, setShowInitialLoading] = useState(true);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowInitialLoading(false);
+    }, 3000); // Show loading for max 3 seconds
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  // Hide loading immediately if we get any data
+  useEffect(() => {
+    if (liveMetricsQuery.data || liveGraphDataQuery.data || liveBottomRowQuery.data) {
+      setShowInitialLoading(false);
+    }
+  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data]);
+  
+  // Show loading state only for very initial load
+  if (showInitialLoading && 
+      (liveMetricsQuery.isLoading || liveGraphDataQuery.isLoading || liveBottomRowQuery.isLoading) && 
       !liveMetricsQuery.data && !liveGraphDataQuery.data && !liveBottomRowQuery.data) {
     return (
       <View style={styles.loadingContainer}>
