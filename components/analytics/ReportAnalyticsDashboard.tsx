@@ -1,80 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { BarChart3, TrendingUp, Users, Truck, DollarSign, Download, RefreshCw, Activity } from 'lucide-react-native';
+import { BarChart3, TrendingUp, Users, Truck, DollarSign, Download, RefreshCw, Activity, AlertCircle } from 'lucide-react-native';
+import { useAnalytics } from '@/hooks/useAnalytics';
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
-interface AnalyticsData {
-  totalLoads: number;
-  totalRevenue: number;
-  activeUsers: number;
-  completedLoads: number;
-  pendingLoads: number;
-  cancelledLoads: number;
-  revenueByMonth: Array<{ month: string; revenue: number }>;
-  loadsByType: Array<{ type: string; count: number; color: string }>;
-  userActivity: Array<{ date: string; drivers: number; shippers: number }>;
-  systemStatus: {
-    uptime: string;
-    activeUsers: number;
-    errorRate: string;
-  };
-}
-
 const ReportAnalyticsDashboard: React.FC = () => {
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
-  const [isLoading, setIsLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
-    totalLoads: 1247,
-    totalRevenue: 892450,
-    activeUsers: 342,
-    completedLoads: 1089,
-    pendingLoads: 158,
-    cancelledLoads: 23,
-    revenueByMonth: [
-      { month: 'Jan', revenue: 65000 },
-      { month: 'Feb', revenue: 72000 },
-      { month: 'Mar', revenue: 68000 },
-      { month: 'Apr', revenue: 85000 },
-      { month: 'May', revenue: 92000 },
-      { month: 'Jun', revenue: 89000 },
-    ],
-    loadsByType: [
-      { type: 'Flatbed', count: 456, color: '#3B82F6' },
-      { type: 'Dry Van', count: 523, color: '#10B981' },
-      { type: 'Refrigerated', count: 268, color: '#F59E0B' },
-    ],
-    userActivity: [
-      { date: '2024-01-01', drivers: 120, shippers: 45 },
-      { date: '2024-01-02', drivers: 135, shippers: 52 },
-      { date: '2024-01-03', drivers: 142, shippers: 48 },
-      { date: '2024-01-04', drivers: 128, shippers: 55 },
-      { date: '2024-01-05', drivers: 156, shippers: 62 },
-    ],
+  const { analyticsData, isLoading, error, lastUpdated, refreshData } = useAnalytics(timeRange);
+
+  // Show loading state
+  if (isLoading && !analyticsData) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Activity size={32} color="#3B82F6" />
+        <Text style={styles.loadingText}>Loading analytics data...</Text>
+      </View>
+    );
+  }
+
+  // Show error state with fallback
+  if (error && !analyticsData) {
+    return (
+      <View style={styles.errorContainer}>
+        <AlertCircle size={32} color="#EF4444" />
+        <Text style={styles.errorText}>Failed to load analytics</Text>
+        <Text style={styles.errorSubtext}>{error}</Text>
+        <TouchableOpacity onPress={refreshData} style={styles.retryButton}>
+          <RefreshCw size={16} color="#3B82F6" />
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Use fallback data if analyticsData is null
+  const data = analyticsData || {
+    totalLoads: 0,
+    totalRevenue: 0,
+    activeUsers: 0,
+    completedLoads: 0,
+    pendingLoads: 0,
+    cancelledLoads: 0,
+    revenueByMonth: [],
+    loadsByType: [],
+    userActivity: [],
     systemStatus: {
       uptime: '99.8%',
-      activeUsers: 342,
+      activeUsers: 0,
       errorRate: '0.2%',
     },
-  });
-
-  useEffect(() => {
-    // Simulate API call
-    const fetchAnalytics = async () => {
-      setIsLoading(true);
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setIsLoading(false);
-      setLastUpdated(new Date());
-    };
-
-    fetchAnalytics();
-  }, [timeRange]);
-
-  const refreshData = () => {
-    setLastUpdated(new Date());
-    // Trigger data refresh
   };
 
   const exportToPDF = () => {
@@ -194,25 +169,25 @@ const ReportAnalyticsDashboard: React.FC = () => {
       <View style={styles.metricsGrid}>
         <MetricCard
           title="Total Loads"
-          value={analyticsData.totalLoads.toLocaleString()}
+          value={data.totalLoads.toLocaleString()}
           icon={<Truck size={24} color="#3B82F6" />}
           color="#3B82F6"
         />
         <MetricCard
           title="Total Revenue"
-          value={`$${(analyticsData.totalRevenue / 1000).toFixed(0)}K`}
+          value={`${(data.totalRevenue / 1000).toFixed(0)}K`}
           icon={<DollarSign size={24} color="#10B981" />}
           color="#10B981"
         />
         <MetricCard
           title="Active Users"
-          value={analyticsData.activeUsers.toString()}
+          value={data.activeUsers.toString()}
           icon={<Users size={24} color="#F59E0B" />}
           color="#F59E0B"
         />
         <MetricCard
           title="Completed Loads"
-          value={analyticsData.completedLoads.toLocaleString()}
+          value={data.completedLoads.toLocaleString()}
           icon={<TrendingUp size={24} color="#8B5CF6" />}
           color="#8B5CF6"
         />
@@ -220,8 +195,8 @@ const ReportAnalyticsDashboard: React.FC = () => {
 
       {/* Charts Section */}
       <View style={styles.chartsSection}>
-        <SimpleBarChart data={analyticsData.loadsByType} />
-        <SimpleLineChart data={analyticsData.revenueByMonth} />
+        <SimpleBarChart data={data.loadsByType} />
+        <SimpleLineChart data={data.revenueByMonth} />
       </View>
 
       {/* System Status */}
@@ -231,17 +206,17 @@ const ReportAnalyticsDashboard: React.FC = () => {
           <View style={styles.statusItem}>
             <Activity size={20} color="#10B981" />
             <Text style={styles.statusLabel}>Uptime</Text>
-            <Text style={styles.statusValue}>{analyticsData.systemStatus.uptime}</Text>
+            <Text style={styles.statusValue}>{data.systemStatus.uptime}</Text>
           </View>
           <View style={styles.statusItem}>
             <Users size={20} color="#3B82F6" />
             <Text style={styles.statusLabel}>Active Users</Text>
-            <Text style={styles.statusValue}>{analyticsData.systemStatus.activeUsers}</Text>
+            <Text style={styles.statusValue}>{data.systemStatus.activeUsers}</Text>
           </View>
           <View style={styles.statusItem}>
             <BarChart3 size={20} color="#F59E0B" />
             <Text style={styles.statusLabel}>Error Rate</Text>
-            <Text style={styles.statusValue}>{analyticsData.systemStatus.errorRate}</Text>
+            <Text style={styles.statusValue}>{data.systemStatus.errorRate}</Text>
           </View>
         </View>
       </View>
@@ -269,6 +244,9 @@ const ReportAnalyticsDashboard: React.FC = () => {
       <View style={styles.footer}>
         <Text style={styles.footerText}>
           Last updated: {lastUpdated.toLocaleTimeString()} • Updated via API
+          {error && (
+            <Text style={styles.errorIndicator}> • Using fallback data</Text>
+          )}
         </Text>
       </View>
     </ScrollView>
@@ -560,6 +538,57 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     color: '#64748B',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#64748B',
+    marginTop: 12,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#EF4444',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#EBF4FF',
+    borderRadius: 8,
+    marginTop: 16,
+    gap: 8,
+  },
+  retryText: {
+    fontSize: 14,
+    color: '#3B82F6',
+    fontWeight: '500' as const,
+  },
+  errorIndicator: {
+    color: '#F59E0B',
+    fontWeight: '500' as const,
   },
 });
 
