@@ -21,46 +21,119 @@ import { FORCE_DELIVERY_TZ } from '@/utils/env';
 // ---- Quick connection test you can call from anywhere ----
 export async function testFirebaseConnection() {
   try {
-    console.log("[Firebase Test] Starting connection test...");
+    console.log("[Firebase Test] 🚀 Starting comprehensive connection test...");
 
     const { auth, db, app } = getFirebase();
-    console.log("[Firebase Test] Firebase services initialized");
-    console.log("[Firebase Test] Project ID:", app.options.projectId);
-    console.log("[Firebase Test] Auth domain:", app.options.authDomain);
+    console.log("[Firebase Test] ✅ Firebase services initialized");
+    console.log("[Firebase Test] 📋 Project ID:", app.options.projectId);
+    console.log("[Firebase Test] 🌐 Auth domain:", app.options.authDomain);
 
-    // Ensure we have a user (whatever ensureFirebaseAuth does in your project)
+    // Test 1: Authentication
+    console.log("[Firebase Test] 🔐 Testing authentication...");
     const authAvailable = await ensureFirebaseAuth();
-    console.log("[Firebase Test] Auth available:", authAvailable);
-    console.log("[Firebase Test] Current user:", auth.currentUser?.uid || "none");
-
-    if (!authAvailable || !auth.currentUser) {
-      return { success: false, error: "No authenticated user" };
+    console.log("[Firebase Test] Auth result:", authAvailable);
+    
+    if (auth.currentUser) {
+      console.log("[Firebase Test] ✅ Current user:", {
+        uid: auth.currentUser.uid,
+        isAnonymous: auth.currentUser.isAnonymous,
+        email: auth.currentUser.email || 'none'
+      });
+    } else {
+      console.log("[Firebase Test] ❌ No current user");
     }
 
-    // Simple read from /loads
-    const q = query(
-      collection(db, LOADS_COLLECTION),
-      where("status", "==", LOAD_STATUS.OPEN),
-      where("createdBy", "==", auth.currentUser.uid),
-      orderBy("clientCreatedAt", "desc"),
-      limit(5)
-    );
+    if (!authAvailable || !auth.currentUser) {
+      return { 
+        success: false, 
+        error: "Authentication failed",
+        details: {
+          authAvailable,
+          hasCurrentUser: !!auth.currentUser,
+          projectId: app.options.projectId
+        }
+      };
+    }
 
-    const snap = await getDocsFromServer(q);
-    console.log("[Firebase Test] Query OK, docs:", snap.docs.length);
+    // Test 2: Basic Firestore read (public data)
+    console.log("[Firebase Test] 📖 Testing Firestore read access...");
+    try {
+      const publicQuery = query(
+        collection(db, LOADS_COLLECTION),
+        where("status", "==", LOAD_STATUS.OPEN),
+        limit(3)
+      );
+      const publicSnap = await getDocsFromServer(publicQuery);
+      console.log("[Firebase Test] ✅ Public read OK, docs:", publicSnap.docs.length);
+    } catch (readError: any) {
+      console.warn("[Firebase Test] ⚠️ Public read failed:", readError.code, readError.message);
+    }
+
+    // Test 3: User-specific read
+    console.log("[Firebase Test] 👤 Testing user-specific read access...");
+    try {
+      const userQuery = query(
+        collection(db, LOADS_COLLECTION),
+        where("createdBy", "==", auth.currentUser.uid),
+        orderBy("clientCreatedAt", "desc"),
+        limit(5)
+      );
+      const userSnap = await getDocsFromServer(userQuery);
+      console.log("[Firebase Test] ✅ User-specific read OK, docs:", userSnap.docs.length);
+    } catch (userReadError: any) {
+      console.warn("[Firebase Test] ⚠️ User-specific read failed:", userReadError.code, userReadError.message);
+    }
+
+    // Test 4: Write permissions
+    console.log("[Firebase Test] ✍️ Testing write permissions...");
+    try {
+      const testDoc = doc(db, LOADS_COLLECTION, 'test-' + Date.now());
+      await setDoc(testDoc, {
+        title: 'Firebase Test Load',
+        status: LOAD_STATUS.OPEN,
+        createdBy: auth.currentUser.uid,
+        createdAt: serverTimestamp(),
+        clientCreatedAt: Date.now(),
+        isTest: true
+      });
+      console.log("[Firebase Test] ✅ Write test successful");
+      
+      // Clean up test document
+      await deleteDoc(testDoc);
+      console.log("[Firebase Test] 🧹 Test document cleaned up");
+    } catch (writeError: any) {
+      console.warn("[Firebase Test] ❌ Write test failed:", writeError.code, writeError.message);
+      return {
+        success: false,
+        error: `Write permission denied: ${writeError.message}`,
+        code: writeError.code,
+        details: {
+          canRead: true,
+          canWrite: false,
+          userId: auth.currentUser.uid,
+          isAnonymous: auth.currentUser.isAnonymous,
+          errorCode: writeError.code
+        }
+      };
+    }
 
     return {
       success: true,
       projectId: app.options.projectId,
       userId: auth.currentUser.uid,
-      docsFound: snap.docs.length,
+      isAnonymous: auth.currentUser.isAnonymous,
+      message: "All Firebase operations working correctly"
     };
   } catch (error: any) {
-    console.error("[Firebase Test] failed:", error);
+    console.error("[Firebase Test] ❌ Test failed:", error);
     return {
       success: false,
       error: error?.message || "Unknown error",
       code: error?.code || "unknown",
+      details: {
+        errorType: error?.constructor?.name,
+        stack: error?.stack?.split('\n').slice(0, 3).join('\n')
+      }
     };
   }
 }

@@ -188,55 +188,88 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
   try {
     if (auth?.currentUser) {
       console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
+      console.log("[AUTH] User type:", auth.currentUser.isAnonymous ? 'Anonymous' : 'Registered');
       return true;
     }
 
     console.log("[AUTH] Attempting anonymous sign-in...");
+    console.log("[AUTH] Project ID:", firebaseConfig.projectId);
+    console.log("[AUTH] Auth domain:", firebaseConfig.authDomain);
+
+    // Wait for auth to be ready first
+    await new Promise<void>((resolve) => {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        unsubscribe();
+        resolve();
+      });
+    });
+
+    // If user is already signed in after waiting
+    if (auth?.currentUser) {
+      console.log("[AUTH] User was already signed in:", auth.currentUser.uid);
+      return true;
+    }
 
     // Increased timeout and better error handling
-    const timeoutMs = 15000; // Increased to 15 seconds for better reliability
+    const timeoutMs = 20000; // Increased to 20 seconds for better reliability
     const timer = new Promise<never>((_, reject) => 
-      setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout after 15s' }), timeoutMs)
+      setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout after 20s' }), timeoutMs)
     );
 
+    console.log("[AUTH] Starting anonymous sign-in process...");
     const result = await Promise.race([
       signInAnonymously(auth),
       timer,
     ]) as any;
 
     if (result?.user?.uid) {
-      console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
+      console.log("[AUTH] ✅ Anonymous sign-in successful:", result.user.uid);
       console.log("[AUTH] User details:", {
         uid: result.user.uid,
         isAnonymous: result.user.isAnonymous,
         email: result.user.email,
-        emailVerified: result.user.emailVerified
+        emailVerified: result.user.emailVerified,
+        providerId: result.user.providerId
       });
-      return true;
+      
+      // Verify the user is properly set
+      if (auth.currentUser?.uid === result.user.uid) {
+        console.log("[AUTH] ✅ User properly set in auth instance");
+        return true;
+      } else {
+        console.warn("[AUTH] ⚠️ User not properly set in auth instance");
+        return false;
+      }
     }
 
-    console.warn('[AUTH] Anonymous sign-in did not return a user');
+    console.warn('[AUTH] ❌ Anonymous sign-in did not return a user');
     return false;
   } catch (error: any) {
     const code = error?.code ?? 'unknown';
-    console.warn("[AUTH] Sign-in failed:", {
+    console.error("[AUTH] ❌ Sign-in failed:", {
       code,
       message: error?.message,
-      projectId: firebaseConfig.projectId
+      projectId: firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain
     });
 
     // Enhanced error logging for specific Firebase errors
     if (code === 'unavailable') {
-      console.warn('[AUTH] Firebase Auth service is currently unavailable. This may be temporary.');
+      console.error('[AUTH] 🔥 Firebase Auth service is currently unavailable. This may be temporary.');
+      console.error('[AUTH] 💡 Try again in a few moments or check Firebase status.');
     } else if (code === 'network-request-failed') {
-      console.warn('[AUTH] Network request failed. Check your internet connection.');
+      console.error('[AUTH] 🌐 Network request failed. Check your internet connection.');
     } else if (code === 'timeout') {
-      console.warn('[AUTH] Authentication timed out. Firebase may be slow to respond.');
+      console.error('[AUTH] ⏰ Authentication timed out. Firebase may be slow to respond.');
     } else if (code === 'auth/operation-not-allowed') {
-      console.warn('[AUTH] Anonymous authentication is not enabled in Firebase Console.');
-      console.warn('[AUTH] Please enable Anonymous authentication in Firebase Console > Authentication > Sign-in method');
+      console.error('[AUTH] 🚫 Anonymous authentication is not enabled in Firebase Console.');
+      console.error('[AUTH] 💡 Please enable Anonymous authentication in Firebase Console > Authentication > Sign-in method');
+      console.error('[AUTH] 🔗 Go to: https://console.firebase.google.com/project/' + firebaseConfig.projectId + '/authentication/providers');
     } else if (code === 'permission-denied') {
-      console.warn('[AUTH] Permission denied. Check Firebase project configuration.');
+      console.error('[AUTH] 🔒 Permission denied. Check Firebase project configuration.');
+    } else if (code.includes('auth/')) {
+      console.error('[AUTH] 🔥 Firebase Auth Error:', code);
+      console.error('[AUTH] 💡 Check Firebase Console for authentication settings');
     }
 
     // Don't block app startup - just proceed without Firebase
@@ -284,15 +317,47 @@ export async function checkFirebasePermissions(): Promise<{ canRead: boolean; ca
       return { canRead: false, canWrite: false, error: 'Authentication failed' };
     }
 
-    // For now, assume anonymous users can't write in production
-    // This is a common Firebase security rule configuration
-    const isAnonymous = auth.currentUser?.isAnonymous;
-    
-    return {
-      canRead: true, // Usually anonymous users can read public data
-      canWrite: !isAnonymous, // Anonymous users typically can't write
-      error: isAnonymous ? 'Anonymous users have read-only access' : undefined
-    };
+    // Test actual read permissions
+    try {
+      const { collection, getDocs, limit, query } = await import('firebase/firestore');
+      const testQuery = query(collection(db, 'loads'), limit(1));
+      await getDocs(testQuery);
+      console.log('[PERMISSIONS] ✅ Read test successful');
+    } catch (readError: any) {
+      console.warn('[PERMISSIONS] ❌ Read test failed:', readError.code, readError.message);
+      return {
+        canRead: false,
+        canWrite: false,
+        error: `Read permission denied: ${readError.message}`
+      };
+    }
+
+    // Test write permissions
+    try {
+      const { doc, setDoc, deleteDoc, serverTimestamp } = await import('firebase/firestore');
+      const testDoc = doc(db, 'loads', 'permission-test-' + Date.now());
+      await setDoc(testDoc, {
+        test: true,
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser?.uid
+      });
+      await deleteDoc(testDoc);
+      console.log('[PERMISSIONS] ✅ Write test successful');
+      
+      return {
+        canRead: true,
+        canWrite: true,
+        error: undefined
+      };
+    } catch (writeError: any) {
+      console.warn('[PERMISSIONS] ❌ Write test failed:', writeError.code, writeError.message);
+      
+      return {
+        canRead: true,
+        canWrite: false,
+        error: `Write permission denied: ${writeError.message}`
+      };
+    }
   } catch (error: any) {
     return {
       canRead: false,

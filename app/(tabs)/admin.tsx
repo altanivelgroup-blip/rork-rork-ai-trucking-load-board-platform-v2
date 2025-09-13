@@ -2,11 +2,13 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Activity, CheckCircle, Database, RefreshCcw, TrendingUp, Shield, Users, Truck, AlertTriangle, DollarSign, Eye, EyeOff, Settings, Clock, MapPin, CreditCard, Zap, ChevronDown } from 'lucide-react-native';
+import { Activity, CheckCircle, Database, RefreshCcw, TrendingUp, Shield, Users, Truck, AlertTriangle, DollarSign, Eye, EyeOff, Settings, Clock, MapPin, CreditCard, Zap, ChevronDown, XCircle } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoads } from '@/hooks/useLoads';
 import { router } from 'expo-router';
 import Svg, { Path, Circle, Text as SvgText, Line, G, Rect } from 'react-native-svg';
+import { testFirebaseConnection } from '@/lib/firebase';
+import { ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
 
 type TabKey = 'overview' | 'users' | 'loads' | 'system' | 'analytics';
 type ReportPeriod = 'Daily' | 'Weekly' | 'Monthly' | 'Quarterly';
@@ -100,6 +102,9 @@ export default function AdminScreen() {
     { id: '4', type: 'alert', user: 'System', time: '12 min ago', details: 'High API response time detected' },
   ]);
   
+  const [firebaseTestResult, setFirebaseTestResult] = useState<any>(null);
+  const [isTestingFirebase, setIsTestingFirebase] = useState(false);
+  
   const [liveMetrics, setLiveMetrics] = useState({
     totalLoads: 0,
     availableLoads: 0,
@@ -119,6 +124,50 @@ export default function AdminScreen() {
   const onRefresh = useCallback(() => {
     console.log('[Admin] refresh tapped');
     // Refresh logic here
+  }, []);
+  
+  const runQuickFirebaseTest = useCallback(async () => {
+    setIsTestingFirebase(true);
+    setFirebaseTestResult(null);
+    
+    try {
+      console.log('[ADMIN] 🚀 Running quick Firebase test...');
+      
+      // Test 1: Authentication
+      const authResult = await ensureFirebaseAuth();
+      console.log('[ADMIN] Auth result:', authResult);
+      
+      // Test 2: Permissions
+      const permissionsResult = await checkFirebasePermissions();
+      console.log('[ADMIN] Permissions result:', permissionsResult);
+      
+      // Test 3: Full connection test
+      const connectionResult = await testFirebaseConnection();
+      console.log('[ADMIN] Connection result:', connectionResult);
+      
+      const result = {
+        timestamp: new Date().toLocaleTimeString(),
+        auth: authResult,
+        permissions: permissionsResult,
+        connection: connectionResult,
+        overall: connectionResult.success ? 'PASS' : 'FAIL'
+      };
+      
+      setFirebaseTestResult(result);
+      console.log('[ADMIN] ✅ Firebase test completed:', result);
+      
+    } catch (error: any) {
+      console.error('[ADMIN] ❌ Firebase test failed:', error);
+      setFirebaseTestResult({
+        timestamp: new Date().toLocaleTimeString(),
+        auth: false,
+        permissions: { canRead: false, canWrite: false, error: error.message },
+        connection: { success: false, error: error.message },
+        overall: 'ERROR'
+      });
+    } finally {
+      setIsTestingFirebase(false);
+    }
   }, []);
   
   // Generate dynamic revenue data based on selected period
@@ -778,6 +827,101 @@ export default function AdminScreen() {
                 <ChevronDown color={theme.colors.gray} size={16} style={{ transform: [{ rotate: '-90deg' }] }} />
               </View>
             </TouchableOpacity>
+            
+            {/* Quick Firebase Test */}
+            <View style={styles.quickTestSection}>
+              <View style={styles.quickTestHeader}>
+                <Text style={styles.quickTestTitle}>Quick Firebase Test</Text>
+                <TouchableOpacity 
+                  style={[styles.quickTestBtn, isTestingFirebase && styles.quickTestBtnDisabled]}
+                  onPress={runQuickFirebaseTest}
+                  disabled={isTestingFirebase}
+                  testID="quickFirebaseTest"
+                >
+                  <Database color={isTestingFirebase ? theme.colors.gray : theme.colors.primary} size={16} />
+                  <Text style={[styles.quickTestBtnText, isTestingFirebase && styles.quickTestBtnTextDisabled]}>
+                    {isTestingFirebase ? 'Testing...' : 'Test Now'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              {firebaseTestResult && (
+                <View style={[styles.testResultCard, {
+                  borderLeftColor: firebaseTestResult.overall === 'PASS' ? theme.colors.success : 
+                                  firebaseTestResult.overall === 'FAIL' ? theme.colors.danger : theme.colors.warning
+                }]}>
+                  <View style={styles.testResultHeader}>
+                    <View style={styles.testResultStatus}>
+                      {firebaseTestResult.overall === 'PASS' ? 
+                        <CheckCircle color={theme.colors.success} size={20} /> :
+                        firebaseTestResult.overall === 'FAIL' ?
+                        <XCircle color={theme.colors.danger} size={20} /> :
+                        <AlertTriangle color={theme.colors.warning} size={20} />
+                      }
+                      <Text style={[styles.testResultTitle, {
+                        color: firebaseTestResult.overall === 'PASS' ? theme.colors.success : 
+                               firebaseTestResult.overall === 'FAIL' ? theme.colors.danger : theme.colors.warning
+                      }]}>
+                        {firebaseTestResult.overall}
+                      </Text>
+                    </View>
+                    <Text style={styles.testResultTime}>{firebaseTestResult.timestamp}</Text>
+                  </View>
+                  
+                  <View style={styles.testResultDetails}>
+                    <View style={styles.testResultRow}>
+                      <Text style={styles.testResultLabel}>Authentication:</Text>
+                      <Text style={[styles.testResultValue, {
+                        color: firebaseTestResult.auth ? theme.colors.success : theme.colors.danger
+                      }]}>
+                        {firebaseTestResult.auth ? '✅ Working' : '❌ Failed'}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.testResultRow}>
+                      <Text style={styles.testResultLabel}>Read Access:</Text>
+                      <Text style={[styles.testResultValue, {
+                        color: firebaseTestResult.permissions.canRead ? theme.colors.success : theme.colors.danger
+                      }]}>
+                        {firebaseTestResult.permissions.canRead ? '✅ Working' : '❌ Failed'}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.testResultRow}>
+                      <Text style={styles.testResultLabel}>Write Access:</Text>
+                      <Text style={[styles.testResultValue, {
+                        color: firebaseTestResult.permissions.canWrite ? theme.colors.success : theme.colors.danger
+                      }]}>
+                        {firebaseTestResult.permissions.canWrite ? '✅ Working' : '❌ Failed'}
+                      </Text>
+                    </View>
+                    
+                    {(firebaseTestResult.permissions.error || firebaseTestResult.connection.error) && (
+                      <View style={styles.testErrorContainer}>
+                        <Text style={styles.testErrorLabel}>Error Details:</Text>
+                        <Text style={styles.testErrorText}>
+                          {firebaseTestResult.permissions.error || firebaseTestResult.connection.error}
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {firebaseTestResult.overall === 'FAIL' && (
+                      <View style={styles.testRecommendationContainer}>
+                        <Text style={styles.testRecommendationLabel}>💡 Quick Fix:</Text>
+                        <Text style={styles.testRecommendationText}>
+                          {!firebaseTestResult.auth ? 
+                            'Enable Anonymous Authentication in Firebase Console' :
+                            !firebaseTestResult.permissions.canRead ?
+                            'Check Firestore security rules or network connection' :
+                            'Check network connectivity and Firebase status'
+                          }
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
             
             <Text style={styles.sectionTitle}>Recent Activity</Text>
             {recentActivity.slice(0, 6).map((activity) => (
@@ -1445,4 +1589,31 @@ const styles = StyleSheet.create({
   quickActionTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark },
   quickActionSubtitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 2 },
   quickActionArrow: { padding: 4 },
+  
+  // Quick Firebase Test Styles
+  quickTestSection: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  quickTestHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md },
+  quickTestTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark },
+  quickTestBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: hexToRgba(theme.colors.primary, 0.1), borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: theme.colors.primary },
+  quickTestBtnDisabled: { backgroundColor: theme.colors.lightGray, borderColor: theme.colors.gray },
+  quickTestBtnText: { marginLeft: 6, fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.primary },
+  quickTestBtnTextDisabled: { color: theme.colors.gray },
+  
+  testResultCard: { backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md, padding: theme.spacing.md, borderLeftWidth: 4 },
+  testResultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.sm },
+  testResultStatus: { flexDirection: 'row', alignItems: 'center' },
+  testResultTitle: { marginLeft: 8, fontSize: theme.fontSize.md, fontWeight: fontWeight600 },
+  testResultTime: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  testResultDetails: { gap: 6 },
+  testResultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  testResultLabel: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  testResultValue: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600 },
+  
+  testErrorContainer: { backgroundColor: hexToRgba(theme.colors.danger, 0.1), padding: 8, borderRadius: theme.borderRadius.sm, marginTop: 8 },
+  testErrorLabel: { fontSize: theme.fontSize.xs, fontWeight: fontWeight600, color: theme.colors.danger, marginBottom: 4 },
+  testErrorText: { fontSize: theme.fontSize.xs, color: theme.colors.danger, fontFamily: 'monospace' },
+  
+  testRecommendationContainer: { backgroundColor: hexToRgba(theme.colors.primary, 0.1), padding: 8, borderRadius: theme.borderRadius.sm, marginTop: 8 },
+  testRecommendationLabel: { fontSize: theme.fontSize.xs, fontWeight: fontWeight600, color: theme.colors.primary, marginBottom: 4 },
+  testRecommendationText: { fontSize: theme.fontSize.xs, color: theme.colors.primary },
 });
