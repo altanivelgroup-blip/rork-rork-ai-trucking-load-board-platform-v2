@@ -300,7 +300,7 @@ export default function ShipperProfileScreen() {
               </View>
               <View style={styles.loadsStat}>
                 <TrendingUp size={20} color={theme.colors.success} />
-                <Text style={styles.loadsStatValue}>{loads.filter(l => l.shipperId === user?.id && l.status === 'active').length}</Text>
+                <Text style={styles.loadsStatValue}>{loads.filter(l => l.shipperId === user?.id && (l.status === 'OPEN' || l.status === 'available')).length}</Text>
                 <Text style={styles.loadsStatLabel}>Active</Text>
               </View>
               <View style={styles.loadsStat}>
@@ -327,7 +327,7 @@ export default function ShipperProfileScreen() {
               <Text style={styles.statLabel}>Total Loads Posted</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{loads.filter(l => l.shipperId === user?.id && l.status === 'active').length}</Text>
+              <Text style={styles.statValue}>{loads.filter(l => l.shipperId === user?.id && (l.status === 'OPEN' || l.status === 'available')).length}</Text>
               <Text style={styles.statLabel}>Active Loads</Text>
             </View>
             <View style={styles.statItem}>
