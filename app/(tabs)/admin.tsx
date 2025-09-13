@@ -1057,7 +1057,7 @@ export default function AdminScreen() {
           <>
             {/* Header */}
             <View style={styles.hrHeader}>
-              <Text style={styles.hrTitle}>HR Attrition Management</Text>
+              <Text style={styles.hrTitle}>LoadRush Operations Analytics</Text>
               <View style={styles.periodToggle}>
                 <TouchableOpacity 
                   style={[styles.periodBtn, reportPeriod === 'Daily' && styles.periodBtnActive]}
@@ -1086,263 +1086,197 @@ export default function AdminScreen() {
               </View>
             </View>
 
+            {/* Export Buttons */}
+            <View style={styles.exportButtonsRow}>
+              <TouchableOpacity style={styles.exportBtn} testID="exportPDF">
+                <Text style={styles.exportBtnText}>Export PDF</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.exportBtn} testID="exportCSV">
+                <Text style={styles.exportBtnText}>Export CSV</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Top Row - Key Metrics */}
             <View style={styles.hrTopRow}>
-              {/* Total Head Count */}
+              {/* Total Loads */}
               <View style={styles.hrMetricCard}>
-                <Text style={styles.hrCardTitle}>Total Head Count</Text>
+                <Text style={styles.hrCardTitle}>Total Loads</Text>
                 <View style={styles.hrPieContainer}>
                   <PieChart 
                     data={[
-                      { value: 60, color: '#4CAF50', label: 'Active' },
-                      { value: 25, color: '#FF9800', label: 'Inactive' },
-                      { value: 15, color: '#2196F3', label: 'New' }
+                      { value: liveMetrics.availableLoads, color: '#4CAF50', label: 'Open' },
+                      { value: liveMetrics.inTransitLoads, color: '#FF9800', label: 'Accepted' },
+                      { value: liveMetrics.completedLoads, color: '#2196F3', label: 'Completed' },
+                      { value: Math.max(1, liveMetrics.totalLoads - liveMetrics.availableLoads - liveMetrics.inTransitLoads - liveMetrics.completedLoads), color: '#F44336', label: 'Canceled' }
                     ]}
-                    centerValue="1470"
+                    centerValue={liveMetrics.totalLoads.toString()}
                   />
                 </View>
-                <Text style={styles.hrCardSubtitle}>Breakdown by Dept</Text>
+                <Text style={styles.hrCardSubtitle}>Breakdown by Status</Text>
               </View>
 
-              {/* Age Distribution */}
+              {/* Load Volume Trend */}
               <View style={styles.hrMetricCard}>
-                <Text style={styles.hrCardTitle}>Age Distribution</Text>
+                <Text style={styles.hrCardTitle}>Load Volume Trend</Text>
                 <View style={styles.hrAreaContainer}>
                   <AreaChart 
-                    data={[
-                      { x: 0, y: 25, label: '20-25' },
-                      { x: 1, y: 45, label: '26-30' },
-                      { x: 2, y: 65, label: '31-35' },
-                      { x: 3, y: 55, label: '36-40' },
-                      { x: 4, y: 40, label: '41-45' },
-                      { x: 5, y: 30, label: '46-50' },
-                      { x: 6, y: 20, label: '51-55' },
-                      { x: 7, y: 15, label: '56-60' }
-                    ]}
+                    data={revenueData.map((item, index) => ({
+                      x: index,
+                      y: Math.floor(item.y / 10000) + 20,
+                      label: item.label
+                    }))}
                   />
                 </View>
-                <Text style={styles.hrCardSubtitle}>Startup by Dept</Text>
+                <Text style={styles.hrCardSubtitle}>{reportPeriod} Volume</Text>
               </View>
 
-              {/* Most Costly Role */}
+              {/* User Roles */}
               <View style={styles.hrMetricCard}>
-                <Text style={styles.hrCardTitle}>Most Costly Role</Text>
+                <Text style={styles.hrCardTitle}>User Roles</Text>
                 <View style={styles.hrPieContainer}>
                   <PieChart 
                     data={[
-                      { value: 45, color: '#FF9800', label: 'Engineering' },
-                      { value: 30, color: '#4CAF50', label: 'Sales' },
-                      { value: 25, color: '#2196F3', label: 'Operations' }
+                      { value: 5, color: '#FF9800', label: 'Admins' },
+                      { value: 65, color: '#4CAF50', label: 'Shippers' },
+                      { value: 30, color: '#2196F3', label: 'Drivers' }
                     ]}
-                    centerValue="4.7M"
+                    centerValue="247"
                   />
                 </View>
-                <Text style={styles.hrCardSubtitle}>Breakdown by Role</Text>
+                <Text style={styles.hrCardSubtitle}>Platform Users</Text>
               </View>
 
-              {/* Employee Attrition */}
+              {/* Revenue Share */}
               <View style={styles.hrMetricCard}>
-                <Text style={styles.hrCardTitle}>Employee Attrition</Text>
+                <Text style={styles.hrCardTitle}>Revenue Share</Text>
                 <View style={styles.hrPieContainer}>
                   <PieChart 
                     data={[
-                      { value: 75, color: '#00BCD4', label: 'Retained' },
-                      { value: 25, color: '#F44336', label: 'Attrition' }
+                      { value: 95, color: '#00BCD4', label: 'Drivers/Shippers' },
+                      { value: 5, color: '#F44336', label: 'Platform Cut' }
                     ]}
-                    centerValue="237"
+                    centerValue="5%"
                   />
                 </View>
-                <Text style={styles.hrCardSubtitle}>Attrition Head Count & Percentage</Text>
+                <Text style={styles.hrCardSubtitle}>Platform Commission</Text>
               </View>
             </View>
 
-            {/* Middle Row - Time Dimensions */}
+            {/* Middle Row - Efficiency Metrics */}
             <View style={styles.hrTimeDimensionsPanel}>
-              <Text style={styles.hrSectionTitle}>Attrition Share by Time Dimensions</Text>
+              <Text style={styles.hrSectionTitle}>Backhaul Efficiency Analysis</Text>
               <View style={styles.hrBarChartsRow}>
                 <View style={styles.hrBarChartSection}>
-                  <Text style={styles.hrBarChartTitle}>Years with Company</Text>
-                  <BarChart 
-                    data={[
-                      { value: 12, color: '#4ECDC4' },
-                      { value: 8, color: '#4ECDC4' },
-                      { value: 15, color: '#4ECDC4' },
-                      { value: 6, color: '#4ECDC4' },
-                      { value: 22, color: '#4ECDC4' },
-                      { value: 18, color: '#4ECDC4' },
-                      { value: 9, color: '#4ECDC4' },
-                      { value: 14, color: '#4ECDC4' },
-                      { value: 11, color: '#4ECDC4' },
-                      { value: 25, color: '#4ECDC4' }
-                    ]}
-                  />
-                  <Text style={styles.hrAxisLabel}>0 1 2 3 4 5 6 7 8 9 {'>'} 10</Text>
+                  <Text style={styles.hrBarChartTitle}>Accepted vs Suggested</Text>
+                  <View style={styles.backhaulPyramid}>
+                    <View style={styles.pyramidRow}>
+                      <View style={[styles.pyramidBar, { width: '80%', backgroundColor: '#4ECDC4' }]} />
+                      <Text style={styles.pyramidLabel}>Accepted: 80%</Text>
+                    </View>
+                    <View style={styles.pyramidRow}>
+                      <View style={[styles.pyramidBar, { width: '60%', backgroundColor: '#FF6B6B' }]} />
+                      <Text style={styles.pyramidLabel}>Suggested: 60%</Text>
+                    </View>
+                  </View>
                 </View>
                 <View style={styles.hrBarChartSection}>
-                  <Text style={styles.hrBarChartTitle}>Years in Current Role</Text>
+                  <Text style={styles.hrBarChartTitle}>Load Rating Distribution</Text>
                   <BarChart 
                     data={[
-                      { value: 8, color: '#FF6B6B' },
-                      { value: 5, color: '#FF6B6B' },
-                      { value: 12, color: '#FF6B6B' },
-                      { value: 3, color: '#FF6B6B' },
-                      { value: 18, color: '#FF6B6B' },
-                      { value: 14, color: '#FF6B6B' },
-                      { value: 7, color: '#FF6B6B' },
-                      { value: 10, color: '#FF6B6B' },
-                      { value: 6, color: '#FF6B6B' },
-                      { value: 20, color: '#FF6B6B' }
+                      { value: 5, color: '#F44336' },
+                      { value: 8, color: '#FF9800' },
+                      { value: 15, color: '#FFC107' },
+                      { value: 35, color: '#4CAF50' },
+                      { value: 37, color: '#2196F3' }
                     ]}
                   />
-                  <Text style={styles.hrAxisLabel}>0 1 2 3 4 5 6 7 8 9 {'>'} 10</Text>
+                  <Text style={styles.hrAxisLabel}>1★ 2★ 3★ 4★ 5★</Text>
                 </View>
                 <View style={styles.hrBarChartSection}>
-                  <Text style={styles.hrBarChartTitle}>Years with Current Manager</Text>
-                  <BarChart 
-                    data={[
-                      { value: 6, color: '#4CAF50' },
-                      { value: 4, color: '#4CAF50' },
-                      { value: 9, color: '#4CAF50' },
-                      { value: 2, color: '#4CAF50' },
-                      { value: 15, color: '#4CAF50' },
-                      { value: 11, color: '#4CAF50' },
-                      { value: 5, color: '#4CAF50' },
-                      { value: 8, color: '#4CAF50' },
-                      { value: 4, color: '#4CAF50' },
-                      { value: 18, color: '#4CAF50' }
-                    ]}
-                  />
-                  <Text style={styles.hrAxisLabel}>0 1 2 3 4 5 6 7 8 9 {'>'} 10</Text>
+                  <Text style={styles.hrBarChartTitle}>Average Load Rating</Text>
+                  <View style={styles.ratingDisplay}>
+                    <Text style={styles.ratingValue}>4.2</Text>
+                    <Text style={styles.ratingStars}>★★★★☆</Text>
+                  </View>
+                  <Text style={styles.hrAxisLabel}>Out of 5 Stars</Text>
                 </View>
               </View>
             </View>
 
             {/* Bottom Row */}
             <View style={styles.hrBottomRow}>
-              {/* Gender Distribution */}
+              {/* Vehicle Types */}
               <View style={styles.hrGenderPanel}>
-                <Text style={styles.hrSectionTitle}>Attrition Age Distribution by Gender</Text>
-                <View style={styles.hrGenderChartContainer}>
-                  <GenderDistributionChart />
-                </View>
-                <View style={styles.hrGenderStats}>
-                  <View style={styles.hrGenderStatItem}>
-                    <View style={styles.hrGenderIcon}>
-                      <Text style={styles.hrGenderIconText}>♀</Text>
+                <Text style={styles.hrSectionTitle}>Top Vehicle Types</Text>
+                <View style={styles.vehicleTypesList}>
+                  {[
+                    { type: 'Box Truck', count: 45, color: '#4CAF50' },
+                    { type: 'Flatbed', count: 32, color: '#2196F3' },
+                    { type: 'Reefer', count: 28, color: '#FF9800' },
+                    { type: 'Van', count: 25, color: '#9C27B0' },
+                    { type: 'Tanker', count: 18, color: '#607D8B' },
+                    { type: 'Car Carrier', count: 12, color: '#795548' },
+                    { type: 'Lowboy', count: 8, color: '#E91E63' }
+                  ].map((vehicle, index) => (
+                    <View key={index} style={styles.vehicleTypeItem}>
+                      <View style={[styles.vehicleTypeIcon, { backgroundColor: vehicle.color }]} />
+                      <Text style={styles.vehicleTypeName}>{vehicle.type}</Text>
+                      <Text style={styles.vehicleTypeCount}>{vehicle.count}</Text>
                     </View>
-                    <Text style={styles.hrGenderStatLabel}>Total</Text>
-                    <Text style={styles.hrGenderStatValue}>882</Text>
-                  </View>
-                  <View style={styles.hrGenderStatItem}>
-                    <View style={styles.hrGenderIcon}>
-                      <Text style={styles.hrGenderIconText}>♂</Text>
-                    </View>
-                    <Text style={styles.hrGenderStatLabel}>Total</Text>
-                    <Text style={styles.hrGenderStatValue}>588</Text>
-                  </View>
-                </View>
-                <View style={styles.hrFilterSection}>
-                  <View style={styles.hrFilterColumn}>
-                    <Text style={styles.hrFilterTitle}>Marital</Text>
-                    <View style={styles.hrCheckboxGroup}>
-                      <Text style={styles.hrCheckboxLabel}>☐ Divorced</Text>
-                      <Text style={styles.hrCheckboxLabel}>☐ Married</Text>
-                      <Text style={styles.hrCheckboxLabel}>☐ Single</Text>
-                    </View>
-                  </View>
-                  <View style={styles.hrFilterColumn}>
-                    <Text style={styles.hrFilterTitle}>Travel</Text>
-                    <View style={styles.hrCheckboxGroup}>
-                      <Text style={styles.hrCheckboxLabel}>☐ Rarely</Text>
-                      <Text style={styles.hrCheckboxLabel}>☐ No Travel</Text>
-                      <Text style={styles.hrCheckboxLabel}>☐ Frequently</Text>
-                    </View>
-                  </View>
-                  <View style={styles.hrFilterColumn}>
-                    <Text style={styles.hrFilterTitle}>Attrition</Text>
-                    <View style={styles.hrCheckboxGroup}>
-                      <Text style={styles.hrCheckboxLabel}>☐ Yes</Text>
-                      <Text style={styles.hrCheckboxLabel}>☐ No</Text>
-                    </View>
-                  </View>
-                  <View style={styles.hrFilterColumn}>
-                    <Text style={styles.hrFilterTitle}>Gender</Text>
-                    <View style={styles.hrCheckboxGroup}>
-                      <Text style={styles.hrCheckboxLabel}>☐ Female</Text>
-                      <Text style={styles.hrCheckboxLabel}>☐ Male</Text>
-                    </View>
-                  </View>
+                  ))}
                 </View>
                 <View style={styles.hrRatingSection}>
-                  <Text style={styles.hrRatingTitle}>Work Relationship Rating</Text>
+                  <Text style={styles.hrRatingTitle}>Platform Performance</Text>
                   <View style={styles.hrRatingSlider}>
                     <View style={styles.hrSliderTrack}>
-                      <View style={[styles.hrSliderFill, { width: '60%' }]} />
+                      <View style={[styles.hrSliderFill, { width: '85%' }]} />
                     </View>
-                    <Text style={styles.hrRatingValue}>3</Text>
+                    <Text style={styles.hrRatingValue}>4.2</Text>
                   </View>
-                  <Text style={styles.hrRatingTitle}>Work-Life Balance Rating</Text>
+                  <Text style={styles.hrRatingTitle}>Load Completion Rate</Text>
                   <View style={styles.hrRatingSlider}>
                     <View style={styles.hrSliderTrack}>
-                      <View style={[styles.hrSliderFill, { width: '50%' }]} />
+                      <View style={[styles.hrSliderFill, { width: '92%' }]} />
                     </View>
-                    <Text style={styles.hrRatingValue}>2.5</Text>
+                    <Text style={styles.hrRatingValue}>92%</Text>
                   </View>
-                  <Text style={styles.hrRatingTitle}>Work Environment Rating</Text>
+                  <Text style={styles.hrRatingTitle}>Driver Satisfaction</Text>
                   <View style={styles.hrRatingSlider}>
                     <View style={styles.hrSliderTrack}>
-                      <View style={[styles.hrSliderFill, { width: '70%' }]} />
+                      <View style={[styles.hrSliderFill, { width: '88%' }]} />
                     </View>
-                    <Text style={styles.hrRatingValue}>3.5</Text>
+                    <Text style={styles.hrRatingValue}>4.4</Text>
                   </View>
                 </View>
               </View>
 
-              {/* Job Role Distribution */}
+              {/* Revenue Analytics */}
               <View style={styles.hrJobRolePanel}>
-                <Text style={styles.hrSectionTitle}>Attrition by Job Role</Text>
-                <View style={styles.hrJobRoleList}>
-                  {[
-                    { role: 'Sales Executive', value: 85, color: '#FF6B6B' },
-                    { role: 'Sales Representative', value: 72, color: '#FF6B6B' },
-                    { role: 'Manager', value: 45, color: '#FF6B6B' },
-                    { role: 'Laboratory Technician', value: 62, color: '#FF6B6B' },
-                    { role: 'Research Scientist', value: 38, color: '#FF6B6B' },
-                    { role: 'Manufacturing Director', value: 15, color: '#FF6B6B' },
-                    { role: 'Healthcare Representative', value: 8, color: '#FF6B6B' },
-                    { role: 'Manager', value: 3, color: '#FF6B6B' },
-                    { role: 'Research Director', value: 2, color: '#FF6B6B' },
-                    { role: 'Human Resources', value: 52, color: '#FF6B6B' }
-                  ].map((item, index) => (
-                    <View key={index} style={styles.hrJobRoleItem}>
-                      <Text style={styles.hrJobRoleLabel}>{item.role}</Text>
-                      <View style={styles.hrJobRoleBar}>
-                        <View style={[styles.hrJobRoleBarFill, { width: `${item.value}%`, backgroundColor: item.color }]} />
-                      </View>
-                    </View>
-                  ))}
+                <Text style={styles.hrSectionTitle}>Revenue Analytics</Text>
+                <View style={styles.revenueChart}>
+                  <RevenueGraph data={revenueData} />
                 </View>
                 <View style={styles.hrPayrollSection}>
                   <View style={styles.hrPayrollRow}>
                     <View style={styles.hrPayrollItem}>
-                      <Text style={styles.hrPayrollTitle}>Monthly Payroll</Text>
-                      <Text style={styles.hrPayrollValue}>21.04M</Text>
-                      <Text style={styles.hrPayrollSubtext}>Click for Breakdown</Text>
+                      <Text style={styles.hrPayrollTitle}>{reportPeriod} Revenue</Text>
+                      <Text style={styles.hrPayrollValue}>${(liveMetrics.totalRevenue / 1000).toFixed(1)}K</Text>
+                      <Text style={styles.hrPayrollSubtext}>Total Platform Revenue</Text>
                     </View>
                     <View style={styles.hrPayrollItem}>
-                      <Text style={styles.hrPayrollTitle}>Payroll Growth</Text>
-                      <Text style={styles.hrPayrollGrowth}>2%</Text>
+                      <Text style={styles.hrPayrollTitle}>Growth Rate</Text>
+                      <Text style={styles.hrPayrollGrowth}>+12%</Text>
                     </View>
                     <View style={styles.hrPayrollItem}>
-                      <Text style={styles.hrPayrollTitle}>Overall Rating</Text>
-                      <Text style={styles.hrPayrollRating}>2.73</Text>
+                      <Text style={styles.hrPayrollTitle}>Avg Load Value</Text>
+                      <Text style={styles.hrPayrollRating}>${liveMetrics.avgRate.toFixed(0)}</Text>
                     </View>
                   </View>
                 </View>
               </View>
             </View>
             
-            <Text style={styles.hrUpdateNote}>Updated via API - {formatNow()}</Text>
+            <Text style={styles.hrUpdateNote}>Live data from Firestore - {formatNow()}</Text>
           </>
         )}
       </ScrollView>
@@ -1616,4 +1550,30 @@ const styles = StyleSheet.create({
   testRecommendationContainer: { backgroundColor: hexToRgba(theme.colors.primary, 0.1), padding: 8, borderRadius: theme.borderRadius.sm, marginTop: 8 },
   testRecommendationLabel: { fontSize: theme.fontSize.xs, fontWeight: fontWeight600, color: theme.colors.primary, marginBottom: 4 },
   testRecommendationText: { fontSize: theme.fontSize.xs, color: theme.colors.primary },
+  
+  // Export Buttons
+  exportButtonsRow: { flexDirection: 'row', gap: 12, marginBottom: theme.spacing.lg },
+  exportBtn: { flex: 1, backgroundColor: theme.colors.primary, paddingVertical: 12, paddingHorizontal: 16, borderRadius: theme.borderRadius.md, alignItems: 'center' },
+  exportBtnText: { color: theme.colors.white, fontSize: theme.fontSize.sm, fontWeight: fontWeight600 },
+  
+  // Backhaul Pyramid
+  backhaulPyramid: { alignItems: 'center', marginVertical: 8 },
+  pyramidRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, width: '100%' },
+  pyramidBar: { height: 20, borderRadius: 4, marginRight: 8 },
+  pyramidLabel: { fontSize: theme.fontSize.xs, color: theme.colors.dark },
+  
+  // Rating Display
+  ratingDisplay: { alignItems: 'center', marginVertical: 8 },
+  ratingValue: { fontSize: theme.fontSize.xxl, fontWeight: fontWeight700, color: theme.colors.dark },
+  ratingStars: { fontSize: theme.fontSize.lg, color: theme.colors.warning, marginTop: 4 },
+  
+  // Vehicle Types
+  vehicleTypesList: { marginVertical: theme.spacing.md },
+  vehicleTypeItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  vehicleTypeIcon: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
+  vehicleTypeName: { flex: 1, fontSize: theme.fontSize.sm, color: theme.colors.dark },
+  vehicleTypeCount: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark },
+  
+  // Revenue Chart
+  revenueChart: { marginVertical: theme.spacing.md },
 });
