@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { BarChart3, Users, DollarSign, Activity, RefreshCw, Lock } from 'lucide-react-native';
+import { BarChart3, Users, DollarSign, Activity, RefreshCw, Lock, AlertCircle } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { isAdminClient } from '@/src/lib/authz';
+import { getLiveGraph, getBottomRow, getLiveMetrics } from '@/src/lib/reportsApi';
+import { useToast } from '@/components/Toast';
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
@@ -39,13 +41,32 @@ const ReportAnalyticsScreen: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  
+  // Data states
+  const [graphData, setGraphData] = useState<any>(null);
+  const [metricsData, setMetricsData] = useState<any>(null);
+  const [bottomRowData, setBottomRowData] = useState<any>(null);
+  
+  // Loading states
+  const [isLoadingGraph, setIsLoadingGraph] = useState(false);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+  const [isLoadingBottomRow, setIsLoadingBottomRow] = useState(false);
+  
+  // Error states
+  const [graphError, setGraphError] = useState<string | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [bottomRowError, setBottomRowError] = useState<string | null>(null);
+  
+  const toast = useToast();
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 1500);
+    await Promise.all([
+      fetchGraphData(),
+      fetchMetricsData(),
+      fetchBottomRowData()
+    ]);
+    setIsRefreshing(false);
   };
 
   const handleTimeFilterChange = (filter: TimeFilter) => {
@@ -58,12 +79,67 @@ const ReportAnalyticsScreen: React.FC = () => {
     
     setTimeFilter(sanitizedFilter);
     console.log(`[ReportAnalytics] Time filter changed to: ${sanitizedFilter}`);
+    
+    // Refresh data when filter changes
+    handleRefresh();
   };
 
   const handleKPIPress = (kpiName: string) => {
     console.log(`[ReportAnalytics] KPI pressed: ${kpiName}`);
   };
 
+  // API fetch functions
+  const fetchGraphData = React.useCallback(async () => {
+    setIsLoadingGraph(true);
+    setGraphError(null);
+    try {
+      const data = await getLiveGraph();
+      setGraphData(data);
+      console.log('[ReportAnalytics] ✅ Graph data loaded successfully');
+    } catch (error: any) {
+      const errorMsg = `Graph data error: ${error.message}`;
+      setGraphError(errorMsg);
+      console.error('[ReportAnalytics] ❌ Failed to fetch live graph data:', error.message);
+      toast.show(errorMsg, 'error');
+    } finally {
+      setIsLoadingGraph(false);
+    }
+  }, [toast]);
+  
+  const fetchMetricsData = React.useCallback(async () => {
+    setIsLoadingMetrics(true);
+    setMetricsError(null);
+    try {
+      const data = await getLiveMetrics();
+      setMetricsData(data);
+      console.log('[ReportAnalytics] ✅ Metrics data loaded successfully');
+    } catch (error: any) {
+      const errorMsg = `Metrics error: ${error.message}`;
+      setMetricsError(errorMsg);
+      console.error('[ReportAnalytics] ❌ Failed to fetch live metrics:', error.message);
+      toast.show(errorMsg, 'error');
+    } finally {
+      setIsLoadingMetrics(false);
+    }
+  }, [toast]);
+  
+  const fetchBottomRowData = React.useCallback(async () => {
+    setIsLoadingBottomRow(true);
+    setBottomRowError(null);
+    try {
+      const data = await getBottomRow();
+      setBottomRowData(data);
+      console.log('[ReportAnalytics] ✅ Bottom row data loaded successfully');
+    } catch (error: any) {
+      const errorMsg = `Bottom row error: ${error.message}`;
+      setBottomRowError(errorMsg);
+      console.error('[ReportAnalytics] ❌ Failed to fetch live bottom row data:', error.message);
+      toast.show(errorMsg, 'error');
+    } finally {
+      setIsLoadingBottomRow(false);
+    }
+  }, [toast]);
+  
   // Check admin privileges on mount
   useEffect(() => {
     let isMounted = true;
@@ -77,6 +153,13 @@ const ReportAnalyticsScreen: React.FC = () => {
           setIsAdmin(adminResult);
           setIsCheckingAuth(false);
           console.log('[ReportAnalytics] Admin check complete:', adminResult);
+          
+          // If admin, load initial data
+          if (adminResult) {
+            fetchGraphData();
+            fetchMetricsData();
+            fetchBottomRowData();
+          }
         }
       } catch (error) {
         console.error('[ReportAnalytics] Admin check failed:', error);
@@ -92,7 +175,7 @@ const ReportAnalyticsScreen: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [fetchBottomRowData, fetchGraphData, fetchMetricsData]);
 
   // Show loading state while checking authentication
   if (isCheckingAuth) {
@@ -172,40 +255,87 @@ const ReportAnalyticsScreen: React.FC = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Live Performance Graph</Text>
         <View style={styles.graphPanel}>
-          <View style={styles.graphPlaceholder}>
-            <BarChart3 size={48} color="#94A3B8" />
-            <Text style={styles.placeholderText}>Live graph data loading...</Text>
-            <Text style={styles.placeholderSubtext}>Revenue trends, load volumes, and performance metrics</Text>
-          </View>
+          {isLoadingGraph ? (
+            <View style={styles.graphPlaceholder}>
+              <RefreshCw size={48} color="#94A3B8" />
+              <Text style={styles.placeholderText}>Loading graph data...</Text>
+              <Text style={styles.placeholderSubtext}>Revenue trends, load volumes, and performance metrics</Text>
+            </View>
+          ) : graphError ? (
+            <View style={styles.errorContainer}>
+              <AlertCircle size={48} color="#EF4444" />
+              <Text style={styles.errorText}>Failed to load graph data</Text>
+              <Text style={styles.errorSubtext}>{graphError}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={fetchGraphData}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : graphData ? (
+            <View style={styles.graphPlaceholder}>
+              <BarChart3 size={48} color="#10B981" />
+              <Text style={styles.placeholderText}>Graph data loaded successfully</Text>
+              <Text style={styles.placeholderSubtext}>Live data as of {new Date().toLocaleTimeString()}</Text>
+            </View>
+          ) : (
+            <View style={styles.graphPlaceholder}>
+              <BarChart3 size={48} color="#94A3B8" />
+              <Text style={styles.placeholderText}>No graph data available</Text>
+              <Text style={styles.placeholderSubtext}>Click refresh to load data</Text>
+            </View>
+          )}
         </View>
       </View>
 
       {/* KPI Cards - Row B */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Key Performance Indicators</Text>
-        <View style={styles.kpiGrid}>
-          <KPICard
-            title="Loads Today"
-            value="47"
-            subtitle="+12% from yesterday"
-            icon={<BarChart3 size={20} color="#3B82F6" />}
-            onPress={() => handleKPIPress('Loads Today')}
-          />
-          <KPICard
-            title="$/Mile Avg"
-            value="$2.85"
-            subtitle="Market rate analysis"
-            icon={<DollarSign size={20} color="#10B981" />}
-            onPress={() => handleKPIPress('$/Mile Avg')}
-          />
-          <KPICard
-            title="Active Drivers"
-            value="234"
-            subtitle="Currently online"
-            icon={<Users size={20} color="#F59E0B" />}
-            onPress={() => handleKPIPress('Active Drivers')}
-          />
-        </View>
+        {isLoadingMetrics ? (
+          <View style={styles.kpiGrid}>
+            {[1, 2, 3].map((index) => (
+              <View key={`kpi-skeleton-${index}`} style={styles.kpiCard}>
+                <View style={styles.kpiIcon}>
+                  <RefreshCw size={20} color="#94A3B8" />
+                </View>
+                <Skeleton height={24} width={60} />
+                <Skeleton height={12} width={80} />
+                <Skeleton height={10} width={100} />
+              </View>
+            ))}
+          </View>
+        ) : metricsError ? (
+          <View style={styles.errorContainer}>
+            <AlertCircle size={32} color="#EF4444" />
+            <Text style={styles.errorText}>Failed to load metrics</Text>
+            <Text style={styles.errorSubtext}>{metricsError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={fetchMetricsData}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.kpiGrid}>
+            <KPICard
+              title="Loads Today"
+              value={metricsData?.loadsToday || "--"}
+              subtitle={metricsData?.loadsTodayChange || "Loading..."}
+              icon={<BarChart3 size={20} color="#3B82F6" />}
+              onPress={() => handleKPIPress('Loads Today')}
+            />
+            <KPICard
+              title="$/Mile Avg"
+              value={metricsData?.avgRate || "--"}
+              subtitle={metricsData?.avgRateSubtitle || "Loading..."}
+              icon={<DollarSign size={20} color="#10B981" />}
+              onPress={() => handleKPIPress('$/Mile Avg')}
+            />
+            <KPICard
+              title="Active Drivers"
+              value={metricsData?.activeDrivers || "--"}
+              subtitle={metricsData?.activeDriversSubtitle || "Loading..."}
+              icon={<Users size={20} color="#F59E0B" />}
+              onPress={() => handleKPIPress('Active Drivers')}
+            />
+          </View>
+        )}
       </View>
 
       {/* Bottom Row Table - Row C */}
@@ -219,28 +349,64 @@ const ReportAnalyticsScreen: React.FC = () => {
             <Text style={styles.tableHeaderText}>Alert</Text>
           </View>
           
-          {/* Skeleton loading rows */}
-          {[1, 2, 3, 4, 5].map((index) => (
-            <View key={index} style={styles.tableRow}>
-              <View style={styles.tableCell}>
-                <Skeleton height={12} width={60} />
+          {isLoadingBottomRow ? (
+            <>
+              {[1, 2, 3, 4, 5].map((index) => (
+                <View key={`table-skeleton-${index}`} style={styles.tableRow}>
+                  <View style={styles.tableCell}>
+                    <Skeleton height={12} width={60} />
+                  </View>
+                  <View style={styles.tableCell}>
+                    <Skeleton height={12} width={50} />
+                  </View>
+                  <View style={styles.tableCell}>
+                    <Skeleton height={12} width={40} />
+                  </View>
+                  <View style={styles.tableCell}>
+                    <Skeleton height={12} width={30} />
+                  </View>
+                </View>
+              ))}
+              <View style={styles.tablePlaceholder}>
+                <RefreshCw size={24} color="#94A3B8" />
+                <Text style={styles.placeholderText}>Loading latest loads and anomalies...</Text>
               </View>
-              <View style={styles.tableCell}>
-                <Skeleton height={12} width={50} />
-              </View>
-              <View style={styles.tableCell}>
-                <Skeleton height={12} width={40} />
-              </View>
-              <View style={styles.tableCell}>
-                <Skeleton height={12} width={30} />
-              </View>
+            </>
+          ) : bottomRowError ? (
+            <View style={styles.errorContainer}>
+              <AlertCircle size={32} color="#EF4444" />
+              <Text style={styles.errorText}>Failed to load activity data</Text>
+              <Text style={styles.errorSubtext}>{bottomRowError}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={fetchBottomRowData}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
             </View>
-          ))}
-          
-          <View style={styles.tablePlaceholder}>
-            <Activity size={24} color="#94A3B8" />
-            <Text style={styles.placeholderText}>Loading latest loads and anomalies...</Text>
-          </View>
+          ) : bottomRowData?.length > 0 ? (
+            <>
+              {bottomRowData.map((item: any, index: number) => (
+                <View key={item.loadId || `row-${index}`} style={styles.tableRow}>
+                  <View style={styles.tableCell}>
+                    <Text style={styles.tableCellText}>{item.loadId || '--'}</Text>
+                  </View>
+                  <View style={styles.tableCell}>
+                    <Text style={styles.tableCellText}>{item.status || '--'}</Text>
+                  </View>
+                  <View style={styles.tableCell}>
+                    <Text style={styles.tableCellText}>{item.revenue || '--'}</Text>
+                  </View>
+                  <View style={styles.tableCell}>
+                    <Text style={styles.tableCellText}>{item.alert || '--'}</Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          ) : (
+            <View style={styles.tablePlaceholder}>
+              <Activity size={24} color="#94A3B8" />
+              <Text style={styles.placeholderText}>No recent activity</Text>
+              <Text style={styles.placeholderSubtext}>Live data as of {new Date().toLocaleTimeString()}</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -519,6 +685,41 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.gray,
     marginTop: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  errorContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+  },
+  errorText: {
+    fontSize: theme.fontSize.md,
+    color: '#EF4444',
+    marginTop: 12,
+    textAlign: 'center',
+    fontWeight: '600' as const,
+  },
+  errorSubtext: {
+    fontSize: theme.fontSize.sm,
+    color: '#94A3B8',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#EF4444',
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600' as const,
+  },
+  tableCellText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.dark,
     textAlign: 'center',
   },
 });
