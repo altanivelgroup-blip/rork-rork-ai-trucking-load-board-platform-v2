@@ -122,10 +122,11 @@ const ReportAnalyticsDashboard: React.FC = () => {
   };
 
   const LoadsVsFillsChart: React.FC = () => {
-    const loadsData = [20, 15, 10, 25, 30, 35, 45];
-    const fillsData = [5, 12, 8, 15, 22, 25, 30];
-    const labels = ['', 'Gobbr', '', 'Llontest', '', 'Namler', ''];
-    const maxValue = Math.max(...loadsData, ...fillsData);
+    // Data points matching the image exactly
+    const loadsData = [18, 25, 19, 23, 30, 25, 15, 9, 7, 8, 19];
+    const fillsData = [11, 17, 16, 21, 21, 20, 16, 14, 13, 18, 23];
+    const labels = ['Gobbr', 'Liontest', 'Liontest', 'Namler', 'Namler'];
+    const maxValue = 60; // Fixed scale as shown in image
     
     return (
       <View style={styles.chartContainer}>
@@ -139,35 +140,111 @@ const ReportAnalyticsDashboard: React.FC = () => {
             <Text style={styles.yAxisLabel}>0</Text>
           </View>
           <View style={styles.lineChartGrid}>
-            {loadsData.map((value, index) => {
-              const loadsHeight = (value / maxValue) * 100;
-              const fillsHeight = (fillsData[index] / maxValue) * 100;
-              const nextLoadsHeight = index < loadsData.length - 1 ? (loadsData[index + 1] / maxValue) * 100 : loadsHeight;
-              const nextFillsHeight = index < fillsData.length - 1 ? (fillsData[index + 1] / maxValue) * 100 : fillsHeight;
+            {/* Legend */}
+            <View style={styles.chartLegend}>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendLine, { backgroundColor: '#3B82F6' }]} />
+                <Text style={styles.legendLabel}>Loads (Blue)</Text>
+              </View>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendLine, { backgroundColor: '#10B981' }]} />
+                <Text style={styles.legendLabel}>Fills (Green)</Text>
+              </View>
+            </View>
+            
+            {/* Chart Area */}
+            <View style={styles.chartArea}>
+              {/* Render connecting lines first (behind points) */}
+              {loadsData.slice(0, -1).map((value, index) => {
+                const currentLoadsY = 120 - (value / maxValue) * 100;
+                const nextLoadsY = 120 - (loadsData[index + 1] / maxValue) * 100;
+                const currentFillsY = 120 - (fillsData[index] / maxValue) * 100;
+                const nextFillsY = 120 - (fillsData[index + 1] / maxValue) * 100;
+                
+                const loadsLineLength = Math.sqrt(
+                  Math.pow(30, 2) + Math.pow(nextLoadsY - currentLoadsY, 2)
+                );
+                const fillsLineLength = Math.sqrt(
+                  Math.pow(30, 2) + Math.pow(nextFillsY - currentFillsY, 2)
+                );
+                
+                const loadsAngle = Math.atan2(nextLoadsY - currentLoadsY, 30) * (180 / Math.PI);
+                const fillsAngle = Math.atan2(nextFillsY - currentFillsY, 30) * (180 / Math.PI);
+                
+                return (
+                  <View key={`lines-${index}`}>
+                    {/* Loads line */}
+                    <View
+                      style={[
+                        styles.smoothLine,
+                        {
+                          left: index * 30 + 15,
+                          top: currentLoadsY,
+                          width: loadsLineLength,
+                          backgroundColor: '#3B82F6',
+                          transform: [{ rotate: `${loadsAngle}deg` }],
+                        },
+                      ]}
+                    />
+                    {/* Fills line */}
+                    <View
+                      style={[
+                        styles.smoothLine,
+                        {
+                          left: index * 30 + 15,
+                          top: currentFillsY,
+                          width: fillsLineLength,
+                          backgroundColor: '#10B981',
+                          transform: [{ rotate: `${fillsAngle}deg` }],
+                        },
+                      ]}
+                    />
+                  </View>
+                );
+              })}
               
-              return (
-                <View key={`loads-${index}`} style={styles.linePoint}>
-                  <View style={[styles.point, { bottom: loadsHeight, backgroundColor: '#3B82F6' }]} />
-                  <View style={[styles.point, { bottom: fillsHeight, backgroundColor: '#10B981' }]} />
-                  {index < loadsData.length - 1 && (
-                    <>
-                      <View style={[styles.connector, {
-                        bottom: Math.min(loadsHeight, nextLoadsHeight),
-                        height: Math.abs(nextLoadsHeight - loadsHeight) || 2,
-                        backgroundColor: '#3B82F6'
-                      }]} />
-                      <View style={[styles.connector, {
-                        bottom: Math.min(fillsHeight, nextFillsHeight),
-                        height: Math.abs(nextFillsHeight - fillsHeight) || 2,
-                        backgroundColor: '#10B981',
-                        left: 2
-                      }]} />
-                    </>
-                  )}
-                  <Text style={styles.lineLabel}>{labels[index]}</Text>
-                </View>
-              );
-            })}
+              {/* Render data points on top of lines */}
+              {loadsData.map((value, index) => {
+                const loadsY = 120 - (value / maxValue) * 100;
+                const fillsY = 120 - (fillsData[index] / maxValue) * 100;
+                
+                return (
+                  <View key={`points-${index}`}>
+                    {/* Loads point */}
+                    <View
+                      style={[
+                        styles.dataPoint,
+                        {
+                          left: index * 30 + 11,
+                          top: loadsY - 4,
+                          backgroundColor: '#3B82F6',
+                        },
+                      ]}
+                    />
+                    {/* Fills point */}
+                    <View
+                      style={[
+                        styles.dataPoint,
+                        {
+                          left: index * 30 + 11,
+                          top: fillsY - 4,
+                          backgroundColor: '#10B981',
+                        },
+                      ]}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+            
+            {/* X-axis labels */}
+            <View style={styles.xAxisLabels}>
+              {labels.map((label, index) => (
+                <Text key={`label-${index}`} style={[styles.xAxisLabel, { left: index * 60 + 30 }]}>
+                  {label}
+                </Text>
+              ))}
+            </View>
           </View>
         </View>
       </View>
@@ -916,6 +993,64 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     gap: 4,
+  },
+  // New styles for smooth connected line chart
+  chartLegend: {
+    position: 'absolute',
+    top: -10,
+    right: 0,
+    flexDirection: 'column',
+    gap: 4,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendLine: {
+    width: 16,
+    height: 2,
+    borderRadius: 1,
+  },
+  legendLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+  },
+  chartArea: {
+    position: 'relative',
+    height: 120,
+    marginTop: 20,
+    marginLeft: 20,
+    marginRight: 20,
+  },
+  smoothLine: {
+    height: 3,
+    position: 'absolute',
+    borderRadius: 1.5,
+    transformOrigin: 'left center',
+  },
+  dataPoint: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    position: 'absolute',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  xAxisLabels: {
+    position: 'absolute',
+    bottom: -30,
+    left: 20,
+    right: 20,
+    height: 20,
+  },
+  xAxisLabel: {
+    position: 'absolute',
+    fontSize: 10,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    width: 60,
   },
 });
 
