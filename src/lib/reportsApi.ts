@@ -1,7 +1,7 @@
 import { getAuth } from 'firebase/auth';
 import { requireApiBaseUrl } from '@/utils/env';
 import { trpc } from '@/lib/trpc';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
@@ -97,20 +97,15 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
     }
   );
 
-  // Update connection status based on query states
-  useEffect(() => {
-    const hasAnySuccess = graphQuery.isSuccess || metricsQuery.isSuccess || bottomRowQuery.isSuccess;
-    const hasAnyError = graphQuery.error || metricsQuery.error || bottomRowQuery.error;
-    
-    if (hasAnySuccess && !graphQuery.isFetching && !metricsQuery.isFetching && !bottomRowQuery.isFetching) {
-      setConnectionStable(true);
-      setLastSuccessfulFetch(new Date());
-      console.log('[ReportAnalytics] ✅ Data fetched successfully');
-    } else if (hasAnyError) {
-      setConnectionStable(false);
-      console.error('[ReportAnalytics] ❌ Failed to fetch data');
-    }
-  }, [
+  // Memoize query states to prevent infinite re-renders
+  const queryStates = useMemo(() => ({
+    hasAnySuccess: graphQuery.isSuccess || metricsQuery.isSuccess || bottomRowQuery.isSuccess,
+    hasAnyError: !!graphQuery.error || !!metricsQuery.error || !!bottomRowQuery.error,
+    isAnyFetching: graphQuery.isFetching || metricsQuery.isFetching || bottomRowQuery.isFetching,
+    graphHasError: !!graphQuery.error,
+    metricsHasError: !!metricsQuery.error,
+    bottomRowHasError: !!bottomRowQuery.error
+  }), [
     graphQuery.isSuccess,
     graphQuery.isFetching,
     graphQuery.error,
@@ -121,6 +116,26 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
     bottomRowQuery.isFetching,
     bottomRowQuery.error
   ]);
+
+  // Update connection status based on query states - optimized to prevent infinite re-renders
+  useEffect(() => {
+    if (queryStates.hasAnySuccess && !queryStates.isAnyFetching) {
+      setConnectionStable(prev => {
+        if (!prev) {
+          console.log('[ReportAnalytics] ✅ Data fetched successfully');
+          setLastSuccessfulFetch(new Date());
+        }
+        return true;
+      });
+    } else if (queryStates.hasAnyError && !queryStates.isAnyFetching) {
+      setConnectionStable(prev => {
+        if (prev) {
+          console.error('[ReportAnalytics] ❌ Failed to fetch data');
+        }
+        return false;
+      });
+    }
+  }, [queryStates.hasAnySuccess, queryStates.hasAnyError, queryStates.isAnyFetching]);
 
   const refetchAll = useCallback(async () => {
     console.log('[ReportAnalytics] Refetching all data...');
@@ -173,9 +188,9 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
     
     // Query states for debugging
     queryStates: {
-      graph: { isLoading: graphQuery.isLoading, isFetching: graphQuery.isFetching, error: !!graphQuery.error },
-      metrics: { isLoading: metricsQuery.isLoading, isFetching: metricsQuery.isFetching, error: !!metricsQuery.error },
-      bottomRow: { isLoading: bottomRowQuery.isLoading, isFetching: bottomRowQuery.isFetching, error: !!bottomRowQuery.error },
+      graph: { isLoading: graphQuery.isLoading, isFetching: graphQuery.isFetching, error: queryStates.graphHasError },
+      metrics: { isLoading: metricsQuery.isLoading, isFetching: metricsQuery.isFetching, error: queryStates.metricsHasError },
+      bottomRow: { isLoading: bottomRowQuery.isLoading, isFetching: bottomRowQuery.isFetching, error: queryStates.bottomRowHasError },
     },
   };
 };

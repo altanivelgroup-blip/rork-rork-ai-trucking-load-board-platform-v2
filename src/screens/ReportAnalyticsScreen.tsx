@@ -73,6 +73,11 @@ const ReportAnalyticsScreen: React.FC = () => {
     }
     const sanitizedFilter = filter.trim() as TimeFilter;
     
+    if (sanitizedFilter === timeFilter) {
+      console.log('[ReportAnalytics] Same filter selected, no change needed');
+      return;
+    }
+    
     console.log(`[ReportAnalytics] Time filter changing from ${timeFilter} to: ${sanitizedFilter}`);
     setTimeFilter(sanitizedFilter);
     
@@ -168,15 +173,29 @@ const ReportAnalyticsScreen: React.FC = () => {
               return null;
             }
             const sanitizedFilter = filter.trim() as TimeFilter;
+            const isActive = timeFilter === sanitizedFilter;
+            const isLoading = isRefreshing && isActive;
             
             return (
               <TouchableOpacity
                 key={sanitizedFilter}
-                style={[styles.filterButton, timeFilter === sanitizedFilter && styles.filterButtonActive]}
+                style={[
+                  styles.filterButton, 
+                  isActive && styles.filterButtonActive,
+                  isLoading && styles.filterButtonLoading
+                ]}
                 onPress={() => handleTimeFilterChange(sanitizedFilter)}
                 testID={`filter-${sanitizedFilter}`}
+                disabled={isLoading}
               >
-                <Text style={[styles.filterButtonText, timeFilter === sanitizedFilter && styles.filterButtonTextActive]}>
+                {isLoading && (
+                  <RefreshCw size={12} color="#FFFFFF" style={styles.filterLoadingIcon} />
+                )}
+                <Text style={[
+                  styles.filterButtonText, 
+                  isActive && styles.filterButtonTextActive,
+                  isLoading && styles.filterButtonTextLoading
+                ]}>
                   {sanitizedFilter.charAt(0).toUpperCase() + sanitizedFilter.slice(1)}
                 </Text>
               </TouchableOpacity>
@@ -447,13 +466,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
     backgroundColor: '#F1F5F9',
+    gap: 4,
+    minWidth: 70,
+    justifyContent: 'center',
   },
   filterButtonActive: {
     backgroundColor: theme.colors.primary,
+  },
+  filterButtonLoading: {
+    backgroundColor: '#1E40AF',
   },
   filterButtonText: {
     fontSize: 12,
@@ -462,6 +489,12 @@ const styles = StyleSheet.create({
   },
   filterButtonTextActive: {
     color: theme.colors.white,
+  },
+  filterButtonTextLoading: {
+    color: '#FFFFFF',
+  },
+  filterLoadingIcon: {
+    marginRight: 2,
   },
   section: {
     padding: theme.spacing.lg,
