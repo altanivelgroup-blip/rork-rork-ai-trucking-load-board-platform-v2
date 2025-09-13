@@ -71,28 +71,37 @@ const ReportAnalyticsDashboard: React.FC = () => {
   useEffect(() => {
     if (liveMetricsQuery.data && !liveMetricsQuery.isLoading) {
       console.log('[Analytics] ✅ Live metrics updated successfully');
+      if ((liveMetricsQuery.data as any)?.fallback) {
+        console.log('[Analytics] ℹ️ Using fallback data for metrics');
+      }
       setLastRefresh(new Date());
     }
     if (liveMetricsQuery.error) {
-      console.error('[Analytics] ❌ Failed to fetch live metrics:', liveMetricsQuery.error?.message || 'Unknown error');
+      console.error('[Analytics] ❌ Failed to fetch live metrics:', liveMetricsQuery.error?.message || 'Failed to fetch');
     }
   }, [liveMetricsQuery.data, liveMetricsQuery.isLoading, liveMetricsQuery.error]);
 
   useEffect(() => {
     if (liveGraphDataQuery.data && !liveGraphDataQuery.isLoading) {
       console.log('[Analytics] ✅ Live graph data updated successfully');
+      if ((liveGraphDataQuery.data as any)?.fallback) {
+        console.log('[Analytics] ℹ️ Using fallback data for graphs');
+      }
     }
     if (liveGraphDataQuery.error) {
-      console.error('[Analytics] ❌ Failed to fetch live graph data:', liveGraphDataQuery.error?.message || 'Unknown error');
+      console.error('[Analytics] ❌ Failed to fetch live graph data:', liveGraphDataQuery.error?.message || 'Failed to fetch');
     }
   }, [liveGraphDataQuery.data, liveGraphDataQuery.isLoading, liveGraphDataQuery.error]);
 
   useEffect(() => {
     if (liveBottomRowQuery.data && !liveBottomRowQuery.isLoading) {
       console.log('[Analytics] ✅ Live bottom row data updated successfully');
+      if ((liveBottomRowQuery.data as any)?.fallback) {
+        console.log('[Analytics] ℹ️ Using fallback data for bottom row');
+      }
     }
     if (liveBottomRowQuery.error) {
-      console.error('[Analytics] ❌ Failed to fetch live bottom row data:', liveBottomRowQuery.error?.message || 'Unknown error');
+      console.error('[Analytics] ❌ Failed to fetch live bottom row data:', liveBottomRowQuery.error?.message || 'Failed to fetch');
     }
   }, [liveBottomRowQuery.data, liveBottomRowQuery.isLoading, liveBottomRowQuery.error]);
 

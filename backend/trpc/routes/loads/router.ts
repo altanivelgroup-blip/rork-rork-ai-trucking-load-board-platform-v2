@@ -1,7 +1,7 @@
-import { createTRPCRouter, publicProcedure } from '../../create-context';
+import { createTRPCRouter, publicProcedure } from '@/backend/trpc/create-context';
 import { duplicateCheckerProcedure } from './duplicateChecker';
 import { z } from 'zod';
-import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { getFirebase } from '@/utils/firebase';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 
@@ -37,16 +37,23 @@ const analyticsMetricsProcedure = publicProcedure
           break;
       }
       
-      // Query loads within time range
+      // Use simple query to avoid index requirements
       const q = query(
         collection(db, LOADS_COLLECTION),
-        where('createdAt', '>=', Timestamp.fromDate(start)),
-        where('createdAt', '<=', Timestamp.fromDate(now)),
-        orderBy('createdAt', 'desc')
+        orderBy('clientCreatedAt', 'desc')
       );
       
       const snapshot = await getDocs(q);
-      const loads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const allLoads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Filter client-side to avoid compound index requirements
+      const loads = allLoads.filter((load: any) => {
+        if (!load.createdAt && !load.clientCreatedAt) return false;
+        const loadDate = load.createdAt?.toDate ? load.createdAt.toDate() : 
+                        load.clientCreatedAt?.toDate ? load.clientCreatedAt.toDate() : 
+                        new Date(load.createdAt || load.clientCreatedAt);
+        return loadDate >= start && loadDate <= now;
+      }).slice(0, 1000); // Limit to prevent excessive processing
       
       console.log('[Analytics API] Found', loads.length, 'loads in time range');
       
@@ -134,16 +141,23 @@ const graphDataProcedure = publicProcedure
           break;
       }
       
-      // Query loads within time range
+      // Use simple query to avoid index requirements
       const q = query(
         collection(db, LOADS_COLLECTION),
-        where('createdAt', '>=', Timestamp.fromDate(start)),
-        where('createdAt', '<=', Timestamp.fromDate(now)),
-        orderBy('createdAt', 'desc')
+        orderBy('clientCreatedAt', 'desc')
       );
       
       const snapshot = await getDocs(q);
-      const loads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const allLoads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Filter client-side to avoid compound index requirements
+      const loads = allLoads.filter((load: any) => {
+        if (!load.createdAt && !load.clientCreatedAt) return false;
+        const loadDate = load.createdAt?.toDate ? load.createdAt.toDate() : 
+                        load.clientCreatedAt?.toDate ? load.clientCreatedAt.toDate() : 
+                        new Date(load.createdAt || load.clientCreatedAt);
+        return loadDate >= start && loadDate <= now;
+      }).slice(0, 1000); // Limit to prevent excessive processing
       
       console.log('[Graph Data API] Found', loads.length, 'loads for graph data');
       
@@ -305,16 +319,23 @@ const bottomRowDataProcedure = publicProcedure
           break;
       }
       
-      // Query loads within time range
+      // Use simple query to avoid index requirements
       const q = query(
         collection(db, LOADS_COLLECTION),
-        where('createdAt', '>=', Timestamp.fromDate(start)),
-        where('createdAt', '<=', Timestamp.fromDate(now)),
-        orderBy('createdAt', 'desc')
+        orderBy('clientCreatedAt', 'desc')
       );
       
       const snapshot = await getDocs(q);
-      const loads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const allLoads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Filter client-side to avoid compound index requirements
+      const loads = allLoads.filter((load: any) => {
+        if (!load.createdAt && !load.clientCreatedAt) return false;
+        const loadDate = load.createdAt?.toDate ? load.createdAt.toDate() : 
+                        load.clientCreatedAt?.toDate ? load.clientCreatedAt.toDate() : 
+                        new Date(load.createdAt || load.clientCreatedAt);
+        return loadDate >= start && loadDate <= now;
+      }).slice(0, 1000); // Limit to prevent excessive processing
       
       console.log('[Bottom Row API] Found', loads.length, 'loads for bottom row analysis');
       
