@@ -57,7 +57,7 @@ export default function ShipperPostScreen() {
       title: 'My Posted Loads',
       subtitle: 'View and manage your active postings',
       icon: Package,
-      route: '/my-loads',
+      route: '/shipper-loads',
       testID: 'my-posted-loads'
     },
     {

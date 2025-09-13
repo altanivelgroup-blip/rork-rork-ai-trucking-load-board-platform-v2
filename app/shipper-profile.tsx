@@ -11,7 +11,6 @@ import {
   Mail, 
   Phone, 
   MapPin, 
-  CreditCard, 
   Shield, 
   Crown,
   Save,
@@ -97,14 +96,6 @@ export default function ShipperProfileScreen() {
       icon: Crown,
       route: '/shipper-membership',
       color: theme.colors.warning
-    },
-    {
-      id: 'payment',
-      title: 'Payment Methods',
-      subtitle: 'Manage billing',
-      icon: CreditCard,
-      route: '/payment-methods',
-      color: theme.colors.success
     },
     {
       id: 'documents',
@@ -320,7 +311,7 @@ export default function ShipperProfileScreen() {
             </View>
             <TouchableOpacity 
               style={styles.viewLoadsButton}
-              onPress={() => router.push('/my-loads')}
+              onPress={() => router.push('/shipper-loads')}
             >
               <Text style={styles.viewLoadsButtonText}>View All Loads</Text>
             </TouchableOpacity>

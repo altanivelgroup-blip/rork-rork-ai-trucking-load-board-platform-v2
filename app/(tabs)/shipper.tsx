@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Crown, PlusCircle, BarChart3, Upload, FileText, Zap, DollarSign, Settings } from 'lucide-react-native';
+import { Crown, Upload, FileText, Zap, DollarSign, Settings } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
@@ -31,20 +31,6 @@ export default function ShipperHome() {
     router.push('/shipper-membership');
   }, [router]);
 
-  const goPostLoad = useCallback(() => {
-    console.log('shipper.goPostLoad');
-    try {
-      router.push('/post-load');
-    } catch (error) {
-      console.error('Post load navigation error:', error);
-    }
-  }, [router]);
-
-  const goShipperDashboard = useCallback(() => {
-    console.log('shipper.goShipperDashboard');
-    router.push('/shipper-dashboard');
-  }, [router]);
-  
   const goLoadTemplates = useCallback(() => {
     console.log('shipper.goLoadTemplates');
     router.push('/load-templates');
@@ -91,19 +77,7 @@ export default function ShipperHome() {
         <Text style={styles.heading}>Welcome, Shipper</Text>
         <Text style={styles.subheading}>Quick actions and tools</Text>
 
-        {/* Dashboard Section */}
-        <View style={styles.dashboardSection}>
-          <TouchableOpacity onPress={goShipperDashboard} style={styles.dashboardButton}>
-            <BarChart3 size={24} color={theme.colors.primary} />
-            <View style={styles.dashboardTextWrap}>
-              <Text style={styles.dashboardTitle}>Dashboard</Text>
-              <Text style={styles.dashboardSubtitle}>View analytics and performance</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
         {/* Main Actions */}
-        <Tile title="Post a Load" subtitle="Create a new shipment" onPress={goPostLoad} Icon={PlusCircle} testID="tile-post-load" />
         <Tile title="CSV Bulk Upload" subtitle="Upload loads from CSV file" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
         <Tile title="Load Templates" subtitle="Save and reuse configurations" onPress={goLoadTemplates} Icon={FileText} testID="tile-load-templates" />
 
@@ -175,35 +149,7 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     fontSize: theme.fontSize.sm,
   },
-  dashboardSection: {
-    marginBottom: theme.spacing.lg,
-  },
-  dashboardButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.lg,
-    shadowColor: '#000000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  dashboardTextWrap: {
-    flex: 1,
-    marginLeft: theme.spacing.md,
-  },
-  dashboardTitle: {
-    fontWeight: '700',
-    color: theme.colors.dark,
-    fontSize: theme.fontSize.md,
-  },
-  dashboardSubtitle: {
-    marginTop: 2,
-    color: theme.colors.gray,
-    fontSize: theme.fontSize.sm,
-  },
+
   sectionHeader: {
     marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.sm,

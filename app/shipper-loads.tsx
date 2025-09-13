@@ -31,7 +31,13 @@ export default function ShipperLoadsScreen() {
   
   // Always define all callbacks and memoized values
   const handleLoadPress = useCallback((loadId: string) => {
-    router.push({ pathname: '/load-details', params: { loadId } });
+    try {
+      router.push({ pathname: '/load-details', params: { loadId } });
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback navigation
+      router.push('/load-details');
+    }
   }, [router]);
   const handleOpenFilters = useCallback(() => {
     setShowFiltersModal(true);
@@ -132,10 +138,15 @@ export default function ShipperLoadsScreen() {
     loadLastBulkImportId();
   }, []);
   
-  // Redirect non-shippers
+  // Redirect non-shippers with error handling
   useEffect(() => {
     if (user && user.role !== 'shipper') {
-      router.replace('/(tabs)/dashboard');
+      try {
+        router.replace('/(tabs)/dashboard');
+      } catch (error) {
+        console.error('Redirect error:', error);
+        // Show loading state instead of crashing
+      }
     }
   }, [user, router]);
   

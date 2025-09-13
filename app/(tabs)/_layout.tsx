@@ -50,7 +50,7 @@ export default function TabsLayout() {
         options={{
           title: isShipper ? 'My Loads' : 'Loads',
           tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
-          href: isShipper ? '/my-loads' : (isDriver || isAdmin) ? '/loads' : null,
+          href: isShipper ? '/shipper-loads' : (isDriver || isAdmin) ? '/loads' : null,
         }}
       />
       
@@ -88,7 +88,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="shipper-analytics"
         options={{
-          title: isAdmin ? 'Report Analytics' : 'Analytics',
+          title: 'Analytics',
           tabBarIcon: ({ color, size }) => isAdmin ? <BarChart3 color={color} size={size} /> : <BarChart3 color={color} size={size} />,
           href: isAdmin ? '/reports' : (isShipper ? '/shipper-analytics' : null),
         }}
