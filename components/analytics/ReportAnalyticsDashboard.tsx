@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal } from 'react-native';
-import { Truck, RefreshCw, Activity, AlertCircle, ChevronRight, X, FileText, FileSpreadsheet, Brain, TrendingUp, DollarSign, Target, MapPin, Weight, Clock } from 'lucide-react-native';
+import { Truck, RefreshCw, Activity, AlertCircle, ChevronRight, X, FileText, FileSpreadsheet, Brain, TrendingUp, DollarSign, Target, MapPin, Weight, Clock, ArrowLeft } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { trpc } from '@/lib/trpc';
 
@@ -895,6 +896,13 @@ const ReportAnalyticsDashboard: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+            testID="back-button"
+          >
+            <ArrowLeft size={20} color="#2563EB" />
+          </TouchableOpacity>
           <View style={styles.logoContainer}>
             <View style={styles.logo}>
               <Truck size={20} color="#FFFFFF" />
@@ -1144,7 +1152,14 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
   },
   headerLeft: {
-    flexDirection: 'column',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#EBF8FF',
   },
   appName: {
     fontSize: 16,
