@@ -404,27 +404,34 @@ export default function AdminScreen() {
     );
   };
 
-  // Revenue Graph Component
-  const RevenueGraph = ({ data }: { data: typeof revenueData }) => {
-    const screenWidth = Dimensions.get('window').width;
-    const graphWidth = screenWidth - 64; // Account for padding
-    const graphHeight = 200;
-    const padding = 40;
+  // Simple Revenue Line Chart Component (like image 2)
+  const SimpleRevenueChart = () => {
+    const width = 280;
+    const height = 120;
+    const padding = 20;
     
-    if (!data.length) return null;
+    // Sample data points for the week
+    const dataPoints = [
+      { day: 'Mon', value: 2500, x: 0 },
+      { day: 'Tue', value: 3200, x: 1 },
+      { day: 'Wed', value: 2800, x: 2 },
+      { day: 'Thu', value: 3800, x: 3 },
+      { day: 'Fri', value: 3500, x: 4 },
+      { day: 'Sat', value: 2200, x: 5 }
+    ];
     
-    const minValue = Math.min(...data.map(d => d.y));
-    const maxValue = Math.max(...data.map(d => d.y));
+    const maxValue = Math.max(...dataPoints.map(d => d.value));
+    const minValue = Math.min(...dataPoints.map(d => d.value));
     const valueRange = maxValue - minValue;
     
-    // Calculate positions
-    const points = data.map((point, index) => {
-      const x = padding + (index / (data.length - 1)) * (graphWidth - 2 * padding);
-      const y = graphHeight - padding - ((point.y - minValue) / valueRange) * (graphHeight - 2 * padding);
+    // Calculate screen positions
+    const points = dataPoints.map((point, index) => {
+      const x = padding + (index / (dataPoints.length - 1)) * (width - 2 * padding);
+      const y = height - padding - ((point.value - minValue) / valueRange) * (height - 2 * padding);
       return { ...point, screenX: x, screenY: y };
     });
     
-    // Create path for the line
+    // Create path for connecting lines
     const pathData = points.reduce((path, point, index) => {
       if (index === 0) {
         return `M ${point.screenX} ${point.screenY}`;
@@ -433,71 +440,18 @@ export default function AdminScreen() {
     }, '');
     
     return (
-      <View style={styles.graphContainer}>
-        <Svg width={graphWidth} height={graphHeight}>
-          {/* Grid lines */}
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
-            const y = graphHeight - padding - ratio * (graphHeight - 2 * padding);
-            return (
-              <Line
-                key={`grid-${index}`}
-                x1={padding}
-                y1={y}
-                x2={graphWidth - padding}
-                y2={y}
-                stroke={theme.colors.border}
-                strokeWidth={1}
-                opacity={0.3}
-              />
-            );
-          })}
-          
-          {/* Main line connecting all points */}
-          <Path
-            d={pathData}
-            stroke={theme.colors.success}
-            strokeWidth={3}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          
-          {/* Data points (dots) */}
-          {points.map((point, index) => (
-            <Circle
-              key={`dot-${index}`}
-              cx={point.screenX}
-              cy={point.screenY}
-              r={5}
-              fill={theme.colors.success}
-              stroke={theme.colors.white}
-              strokeWidth={2}
-            />
-          ))}
-          
-          {/* X-axis labels */}
-          {points.map((point, index) => (
-            <SvgText
-              key={`label-${index}`}
-              x={point.screenX}
-              y={graphHeight - 10}
-              fontSize={12}
-              fill={theme.colors.gray}
-              textAnchor="middle"
-            >
-              {point.label}
-            </SvgText>
-          ))}
-          
+      <View style={styles.simpleChartContainer}>
+        <Text style={styles.chartTitle}>Revenues</Text>
+        <Svg width={width} height={height}>
           {/* Y-axis labels */}
-          {[0, 0.5, 1].map((ratio, index) => {
-            const y = graphHeight - padding - ratio * (graphHeight - 2 * padding);
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
+            const y = height - padding - ratio * (height - 2 * padding);
             const value = minValue + ratio * valueRange;
             return (
               <SvgText
                 key={`y-label-${index}`}
-                x={25}
-                y={y + 4}
+                x={15}
+                y={y + 3}
                 fontSize={10}
                 fill={theme.colors.gray}
                 textAnchor="middle"
@@ -506,25 +460,61 @@ export default function AdminScreen() {
               </SvgText>
             );
           })}
-        </Svg>
-        
-        {/* Hover tooltips simulation */}
-        <View style={styles.tooltipContainer}>
+          
+          {/* Horizontal grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
+            const y = height - padding - ratio * (height - 2 * padding);
+            return (
+              <Line
+                key={`grid-${index}`}
+                x1={padding}
+                y1={y}
+                x2={width - padding}
+                y2={y}
+                stroke={theme.colors.border}
+                strokeWidth={0.5}
+                opacity={0.3}
+              />
+            );
+          })}
+          
+          {/* Main connecting line */}
+          <Path
+            d={pathData}
+            stroke="#4A90E2"
+            strokeWidth={2}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          
+          {/* Data points (circles) */}
           {points.map((point, index) => (
-            <View
-              key={`tooltip-${index}`}
-              style={[
-                styles.tooltip,
-                {
-                  left: point.screenX - 30,
-                  top: point.screenY - 35,
-                }
-              ]}
-            >
-              <Text style={styles.tooltipText}>{`${(point.value / 1000).toFixed(1)}k`}</Text>
-            </View>
+            <Circle
+              key={`dot-${index}`}
+              cx={point.screenX}
+              cy={point.screenY}
+              r={4}
+              fill="#4A90E2"
+              stroke={theme.colors.white}
+              strokeWidth={2}
+            />
           ))}
-        </View>
+          
+          {/* X-axis labels */}
+          {points.map((point, index) => (
+            <SvgText
+              key={`x-label-${index}`}
+              x={point.screenX}
+              y={height - 5}
+              fontSize={10}
+              fill={theme.colors.gray}
+              textAnchor="middle"
+            >
+              {point.day}
+            </SvgText>
+          ))}
+        </Svg>
       </View>
     );
   };
@@ -1259,7 +1249,7 @@ export default function AdminScreen() {
               <View style={styles.hrJobRolePanel}>
                 <Text style={styles.hrSectionTitle}>Revenue Analytics</Text>
                 <View style={styles.revenueChart}>
-                  <RevenueGraph data={revenueData} />
+                  <SimpleRevenueChart />
                 </View>
                 <View style={styles.hrPayrollSection}>
                   <View style={styles.hrPayrollRow}>
@@ -1581,4 +1571,8 @@ const styles = StyleSheet.create({
   
   // Revenue Chart
   revenueChart: { marginVertical: theme.spacing.md },
+  
+  // Simple Chart Styles
+  simpleChartContainer: { backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md, padding: theme.spacing.sm },
+  chartTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8 },
 });
