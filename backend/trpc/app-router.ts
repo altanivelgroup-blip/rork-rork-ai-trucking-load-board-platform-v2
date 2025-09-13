@@ -6,6 +6,7 @@ import matrixRouter from "./routes/matrix/router";
 import fuelRouter from "./routes/fuel/router";
 import weatherRouter from "./routes/weather/router";
 import loadsRouter from "./routes/loads/router";
+import { reportAnalyticsRouter } from "./routes/reportAnalytics/router";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -17,6 +18,7 @@ export const appRouter = createTRPCRouter({
   fuel: fuelRouter,
   weather: weatherRouter,
   loads: loadsRouter,
+  reportAnalytics: reportAnalyticsRouter,
 });
 
 export type AppRouter = typeof appRouter;
