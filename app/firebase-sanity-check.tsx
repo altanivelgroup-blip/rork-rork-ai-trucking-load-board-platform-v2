@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CheckCircle, XCircle, AlertTriangle, RefreshCw, Clock, Info } from 'lucide-react-native';
+import { CheckCircle, XCircle, AlertTriangle, RefreshCw, Clock, Info, ArrowLeft } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { testFirebaseConnectivity, ensureFirebaseAuth, getFirebase } from '@/utils/firebase';
 import { testFirebaseConnection } from '@/lib/firebase';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -20,6 +21,7 @@ export default function FirebaseSanityCheckScreen() {
   const [results, setResults] = useState<SanityResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [summary, setSummary] = useState<{ pass: number; fail: number; warning: number; total: number } | null>(null);
+  const [showCloseModal, setShowCloseModal] = useState(false);
   const { online } = useOnlineStatus();
 
   const getStatusIcon = (status: string, size = 20) => {
@@ -446,8 +448,48 @@ export default function FirebaseSanityCheckScreen() {
     return recommendations;
   };
 
+  const handleClose = () => {
+    setShowCloseModal(true);
+  };
+
+  const confirmClose = () => {
+    console.log('[SANITY] User closed Firebase sanity check');
+    setShowCloseModal(false);
+    router.back();
+  };
+
+  const cancelClose = () => {
+    setShowCloseModal(false);
+  };
+
+  const clearErrors = () => {
+    console.log('[SANITY] Clearing any persistent errors');
+    setResults([]);
+    setSummary(null);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with close button */}
+      <View style={styles.headerBar}>
+        <TouchableOpacity 
+          style={styles.closeButton} 
+          onPress={handleClose}
+          testID="close-sanity-check"
+        >
+          <ArrowLeft color="#374151" size={24} />
+          <Text style={styles.closeButtonText}>Close</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Firebase Diagnostics</Text>
+        <TouchableOpacity 
+          style={styles.clearButton} 
+          onPress={clearErrors}
+          testID="clear-errors"
+        >
+          <Text style={styles.clearButtonText}>Clear</Text>
+        </TouchableOpacity>
+      </View>
+      
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Firebase Sanity Check</Text>
@@ -560,6 +602,37 @@ export default function FirebaseSanityCheckScreen() {
           </Text>
         </View>
       </ScrollView>
+      
+      {/* Close Confirmation Modal */}
+      <Modal
+        visible={showCloseModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Close Sanity Check</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to close the Firebase diagnostics?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.modalCancelButton} 
+                onPress={cancelClose}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.modalConfirmButton} 
+                onPress={confirmClose}
+              >
+                <Text style={styles.modalConfirmText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -568,6 +641,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  closeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    gap: 6,
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  clearButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  clearButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#dc2626',
   },
   scrollView: {
     flex: 1,
@@ -797,5 +917,70 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 12,
     color: '#6b7280',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  modalConfirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#3b82f6',
+  },
+  modalConfirmText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#ffffff',
+    textAlign: 'center',
   },
 });
