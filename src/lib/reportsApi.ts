@@ -97,46 +97,34 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
     }
   );
 
-  // Handle success/error states with useEffect
+  // Update connection status based on query states
   useEffect(() => {
-    if (graphQuery.isSuccess && !graphQuery.isFetching) {
+    const hasAnySuccess = graphQuery.isSuccess || metricsQuery.isSuccess || bottomRowQuery.isSuccess;
+    const hasAnyError = graphQuery.error || metricsQuery.error || bottomRowQuery.error;
+    
+    if (hasAnySuccess && !graphQuery.isFetching && !metricsQuery.isFetching && !bottomRowQuery.isFetching) {
       setConnectionStable(true);
       setLastSuccessfulFetch(new Date());
-      console.log('[ReportAnalytics] ✅ Graph data fetched successfully');
-    }
-    if (graphQuery.error) {
+      console.log('[ReportAnalytics] ✅ Data fetched successfully');
+    } else if (hasAnyError) {
       setConnectionStable(false);
-      console.error('[ReportAnalytics] ❌ Failed to fetch graph data:', graphQuery.error.message);
+      console.error('[ReportAnalytics] ❌ Failed to fetch data');
     }
-  }, [graphQuery.isSuccess, graphQuery.isFetching, graphQuery.error]);
-
-  useEffect(() => {
-    if (metricsQuery.isSuccess && !metricsQuery.isFetching) {
-      setConnectionStable(true);
-      setLastSuccessfulFetch(new Date());
-      console.log('[ReportAnalytics] ✅ Metrics data fetched successfully');
-    }
-    if (metricsQuery.error) {
-      setConnectionStable(false);
-      console.error('[ReportAnalytics] ❌ Failed to fetch metrics:', metricsQuery.error.message);
-    }
-  }, [metricsQuery.isSuccess, metricsQuery.isFetching, metricsQuery.error]);
-
-  useEffect(() => {
-    if (bottomRowQuery.isSuccess && !bottomRowQuery.isFetching) {
-      setConnectionStable(true);
-      setLastSuccessfulFetch(new Date());
-      console.log('[ReportAnalytics] ✅ Bottom row data fetched successfully');
-    }
-    if (bottomRowQuery.error) {
-      setConnectionStable(false);
-      console.error('[ReportAnalytics] ❌ Failed to fetch bottom row data:', bottomRowQuery.error.message);
-    }
-  }, [bottomRowQuery.isSuccess, bottomRowQuery.isFetching, bottomRowQuery.error]);
+  }, [
+    graphQuery.isSuccess,
+    graphQuery.isFetching,
+    graphQuery.error,
+    metricsQuery.isSuccess,
+    metricsQuery.isFetching,
+    metricsQuery.error,
+    bottomRowQuery.isSuccess,
+    bottomRowQuery.isFetching,
+    bottomRowQuery.error
+  ]);
 
   const refetchAll = useCallback(async () => {
     console.log('[ReportAnalytics] Refetching all data...');
-    setConnectionStable(true); // Reset connection status
+    setConnectionStable(true);
     
     try {
       const results = await Promise.allSettled([
@@ -157,22 +145,7 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       console.error('[ReportAnalytics] ❌ Error refetching data:', error);
       setConnectionStable(false);
     }
-  }, [graphQuery, metricsQuery, bottomRowQuery]);
-
-  // Auto-retry failed requests after time filter changes
-  useEffect(() => {
-    const hasErrors = graphQuery.error || metricsQuery.error || bottomRowQuery.error;
-    const isAnyFetching = graphQuery.isFetching || metricsQuery.isFetching || bottomRowQuery.isFetching;
-    
-    if (hasErrors && !isAnyFetching) {
-      console.log('[ReportAnalytics] Detected errors after filter change, auto-retrying...');
-      const retryTimer = setTimeout(() => {
-        refetchAll();
-      }, 2000);
-      
-      return () => clearTimeout(retryTimer);
-    }
-  }, [timeFilter, graphQuery.error, metricsQuery.error, bottomRowQuery.error, graphQuery.isFetching, metricsQuery.isFetching, bottomRowQuery.isFetching, refetchAll]);
+  }, [graphQuery.refetch, metricsQuery.refetch, bottomRowQuery.refetch]);
 
   return {
     // Graph data
