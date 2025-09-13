@@ -5,7 +5,7 @@ import { theme } from '@/constants/theme';
 import { isAdminClient } from '@/src/lib/authz';
 import { useReportAnalytics } from '@/src/lib/reportsApi';
 
-import { logPreflightStatus } from '@/utils/preflightCheck';
+import { logPreflightStatus, testNetworkConnectivity } from '@/utils/preflightCheck';
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
@@ -53,8 +53,11 @@ const ReportAnalyticsScreen: React.FC = () => {
     bottomRowData,
     isLoadingBottomRow,
     bottomRowError,
+    connectionStable,
+    lastSuccessfulFetch,
     refetchAll,
-    isRefreshing
+    isRefreshing,
+    queryStates
   } = useReportAnalytics(timeFilter);
   
 
@@ -65,16 +68,17 @@ const ReportAnalyticsScreen: React.FC = () => {
 
   const handleTimeFilterChange = (filter: TimeFilter) => {
     // Input validation for filter parameter
-    if (!filter || typeof filter !== 'string' || filter.length > 20) {
+    if (!filter?.trim() || typeof filter !== 'string' || filter.length > 20) {
       console.warn('[ReportAnalytics] Invalid filter parameter:', String(filter).slice(0, 50));
       return;
     }
     const sanitizedFilter = filter.trim() as TimeFilter;
     
+    console.log(`[ReportAnalytics] Time filter changing from ${timeFilter} to: ${sanitizedFilter}`);
     setTimeFilter(sanitizedFilter);
-    console.log(`[ReportAnalytics] Time filter changed to: ${sanitizedFilter}`);
     
     // Data will automatically refresh due to the tRPC query dependency on timeFilter
+    // The useReportAnalytics hook will handle auto-retry if there are errors
   };
 
   const handleKPIPress = (kpiName: string) => {
@@ -101,11 +105,17 @@ const ReportAnalyticsScreen: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     
-    // Run preflight check in development
-    logPreflightStatus();
-    
-    const checkAdminAccess = async () => {
+    const initializeApp = async () => {
       try {
+        // Run preflight check in development
+        logPreflightStatus();
+        
+        // Test network connectivity
+        const networkOk = await testNetworkConnectivity();
+        if (!networkOk) {
+          console.warn('[ReportAnalytics] ⚠️ Network connectivity issues detected');
+        }
+        
         console.log('[ReportAnalytics] Checking admin access...');
         const adminResult = await isAdminClient();
         
@@ -115,7 +125,7 @@ const ReportAnalyticsScreen: React.FC = () => {
           console.log('[ReportAnalytics] Admin check complete:', adminResult);
         }
       } catch (error) {
-        console.error('[ReportAnalytics] Admin check failed:', error);
+        console.error('[ReportAnalytics] Initialization failed:', error);
         if (isMounted) {
           setIsAdmin(false);
           setIsCheckingAuth(false);
@@ -123,7 +133,7 @@ const ReportAnalyticsScreen: React.FC = () => {
       }
     };
     
-    checkAdminAccess();
+    initializeApp();
     
     return () => {
       isMounted = false;
@@ -162,7 +172,20 @@ const ReportAnalyticsScreen: React.FC = () => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title}>Report Analytics</Text>
-          <Text style={styles.subtitle}>Real-time trucking insights</Text>
+          <View style={styles.subtitleContainer}>
+            <Text style={styles.subtitle}>Real-time trucking insights</Text>
+            {!connectionStable && (
+              <View style={styles.connectionStatus}>
+                <AlertCircle size={12} color="#EF4444" />
+                <Text style={styles.connectionStatusText}>Connection issues detected</Text>
+              </View>
+            )}
+            {connectionStable && lastSuccessfulFetch && (
+              <Text style={styles.lastUpdateText}>
+                Last updated: {lastSuccessfulFetch.toLocaleTimeString()}
+              </Text>
+            )}
+          </View>
         </View>
         <TouchableOpacity 
           style={[styles.refreshButton, isRefreshing && styles.refreshButtonActive]} 
@@ -182,7 +205,7 @@ const ReportAnalyticsScreen: React.FC = () => {
         <View style={styles.filterButtons}>
           {(['daily', 'weekly', 'monthly', 'quarterly'] as TimeFilter[]).map((filter) => {
             // Input validation for filter parameter
-            if (!filter || typeof filter !== 'string' || filter.length > 20) {
+            if (!filter?.trim() || typeof filter !== 'string' || filter.length > 20) {
               console.warn('[ReportAnalytics] Invalid filter parameter:', String(filter).slice(0, 50));
               return null;
             }
@@ -383,8 +406,17 @@ const ReportAnalyticsScreen: React.FC = () => {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>📊 Live data updates every 30 seconds</Text>
+        <Text style={styles.footerText}>
+          {connectionStable ? '📊 Data stabilized - Refresh if issues persist' : '⚠️ Connection unstable - Auto-retrying...'}
+        </Text>
         <Text style={styles.footerSubtext}>LoadRush Analytics • Real-time insights for trucking operations</Text>
+        {__DEV__ && (
+          <Text style={styles.debugText}>
+            Debug: G:{queryStates.graph.isLoading ? 'L' : queryStates.graph.isFetching ? 'F' : queryStates.graph.error ? 'E' : 'OK'} | 
+            M:{queryStates.metrics.isLoading ? 'L' : queryStates.metrics.isFetching ? 'F' : queryStates.metrics.error ? 'E' : 'OK'} | 
+            B:{queryStates.bottomRow.isLoading ? 'L' : queryStates.bottomRow.isFetching ? 'F' : queryStates.bottomRow.error ? 'E' : 'OK'}
+          </Text>
+        )}
       </View>
     </ScrollView>
   );
@@ -727,6 +759,31 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: '#2563EB',
     fontWeight: '500' as const,
+  },
+  subtitleContainer: {
+    marginTop: 2,
+  },
+  connectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  connectionStatusText: {
+    fontSize: 11,
+    color: '#EF4444',
+    fontWeight: '500' as const,
+  },
+  lastUpdateText: {
+    fontSize: 11,
+    color: '#10B981',
+    marginTop: 2,
+  },
+  debugText: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginTop: 8,
+    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' }),
   },
 });
 

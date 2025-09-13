@@ -19,13 +19,13 @@ export default function BackendTestScreen() {
   });
 
   // Test tRPC queries for report analytics
-  const graphQuery = trpc.reportAnalytics.graph.useQuery(undefined, {
+  const graphQuery = trpc.reportAnalytics.graph.useQuery({ period: 'weekly' }, {
     enabled: false, // Don't auto-fetch
   });
-  const metricsQuery = trpc.reportAnalytics.metrics.useQuery(undefined, {
+  const metricsQuery = trpc.reportAnalytics.metrics.useQuery({ period: 'weekly' }, {
     enabled: false,
   });
-  const bottomRowQuery = trpc.reportAnalytics.bottomRow.useQuery(undefined, {
+  const bottomRowQuery = trpc.reportAnalytics.bottomRow.useQuery({ period: 'weekly' }, {
     enabled: false,
   });
 
