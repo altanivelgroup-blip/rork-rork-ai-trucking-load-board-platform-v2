@@ -726,6 +726,24 @@ export default function AdminScreen() {
               </View>
             ))}
             
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => router.push('/reports')}
+              testID="reportsButton"
+            >
+              <View style={styles.quickActionIcon}>
+                <TrendingUp color={theme.colors.primary} size={20} />
+              </View>
+              <View style={styles.quickActionContent}>
+                <Text style={styles.quickActionTitle}>Advanced Analytics</Text>
+                <Text style={styles.quickActionSubtitle}>View detailed reports with live data, AI insights, and export capabilities</Text>
+              </View>
+              <View style={styles.quickActionArrow}>
+                <ChevronDown color={theme.colors.gray} size={16} style={{ transform: [{ rotate: '-90deg' }] }} />
+              </View>
+            </TouchableOpacity>
+            
             <Text style={styles.sectionTitle}>Recent Activity</Text>
             {recentActivity.slice(0, 6).map((activity) => (
               <View key={activity.id} style={styles.activityCard} testID={`activity-${activity.id}`}>
@@ -1376,4 +1394,12 @@ const styles = StyleSheet.create({
   hrPayrollRating: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
   
   hrUpdateNote: { fontSize: theme.fontSize.xs, color: theme.colors.gray, textAlign: 'center', marginTop: theme.spacing.lg, fontStyle: 'italic' },
+  
+  // Quick Action Styles
+  quickActionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
+  quickActionIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: hexToRgba(theme.colors.primary, 0.1), alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.md },
+  quickActionContent: { flex: 1 },
+  quickActionTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark },
+  quickActionSubtitle: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 2 },
+  quickActionArrow: { padding: 4 },
 });
