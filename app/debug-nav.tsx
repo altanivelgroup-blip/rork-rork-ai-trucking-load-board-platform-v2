@@ -14,6 +14,9 @@ export default function DebugNavScreen() {
     { name: 'Help Support', path: '/help-support' },
     { name: 'Dashboard', path: '/(tabs)/dashboard' },
     { name: 'Profile', path: '/(tabs)/profile' },
+    { name: 'Firebase Sanity Check', path: '/firebase-sanity-check' },
+    { name: 'Firebase Diagnostics', path: '/firebase-diagnostics' },
+    { name: 'API Sanity Check', path: '/api-sanity-check' },
     ...(typeof __DEV__ !== 'undefined' && __DEV__ ? [{ name: 'Cron Test (Dev)', path: '/dev-cron' }] : [] as { name: string; path: string }[]),
   ];
 
