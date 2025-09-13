@@ -51,5 +51,14 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+
+    // Admin-only report analytics collections
+    match /reports/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /reportAnalytics/{docId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
