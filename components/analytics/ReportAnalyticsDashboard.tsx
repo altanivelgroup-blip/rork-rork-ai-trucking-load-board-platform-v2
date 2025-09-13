@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { BarChart3, TrendingUp, Users, Truck, DollarSign, Download, RefreshCw, Activity, AlertCircle } from 'lucide-react-native';
+import { BarChart3, TrendingUp, Users, Truck, DollarSign, Download, RefreshCw, Activity, AlertCircle, PieChart, LineChart } from 'lucide-react-native';
 import { useAnalytics } from '@/hooks/useAnalytics';
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly';
@@ -13,7 +13,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
   if (isLoading && !analyticsData) {
     return (
       <View style={styles.loadingContainer}>
-        <Activity size={32} color="#3B82F6" />
+        <Activity size={32} color="#2563EB" />
         <Text style={styles.loadingText}>Loading analytics data...</Text>
       </View>
     );
@@ -27,7 +27,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
         <Text style={styles.errorText}>Failed to load analytics</Text>
         <Text style={styles.errorSubtext}>{error}</Text>
         <TouchableOpacity onPress={refreshData} style={styles.retryButton}>
-          <RefreshCw size={16} color="#3B82F6" />
+          <RefreshCw size={16} color="#2563EB" />
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -99,23 +99,66 @@ const ReportAnalyticsDashboard: React.FC = () => {
     );
   };
 
-  const SimpleLineChart: React.FC<{ data: Array<{ month: string; revenue: number }> }> = ({ data }) => {
+  const SmoothLineChart: React.FC<{ data: Array<{ month: string; revenue: number }> }> = ({ data }) => {
     const maxRevenue = Math.max(...data.map(item => item.revenue));
     
     return (
       <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Revenue Trends</Text>
+        <Text style={styles.chartTitle}>Revenue Trends (Smooth Connected Lines)</Text>
         <View style={styles.lineChart}>
           <View style={styles.lineChartGrid}>
+            {data.map((item, index) => {
+              const height = (item.revenue / maxRevenue) * 100;
+              const nextItem = data[index + 1];
+              const nextHeight = nextItem ? (nextItem.revenue / maxRevenue) * 100 : height;
+              
+              return (
+                <View key={index} style={styles.linePoint}>
+                  <View 
+                    style={[
+                      styles.point,
+                      { bottom: height }
+                    ]}
+                  />
+                  {index < data.length - 1 && (
+                    <View 
+                      style={[
+                        styles.connector,
+                        {
+                          bottom: Math.min(height, nextHeight),
+                          height: Math.abs(nextHeight - height) || 2,
+                          transform: [{ rotate: nextHeight > height ? '15deg' : '-15deg' }]
+                        }
+                      ]}
+                    />
+                  )}
+                  <Text style={styles.lineLabel}>{item.month}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const PieChartComponent: React.FC<{ data: Array<{ type: string; count: number; color: string }> }> = ({ data }) => {
+    const total = data.reduce((sum, item) => sum + item.count, 0);
+    
+    return (
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Load Distribution (Pie Chart)</Text>
+        <View style={styles.pieChart}>
+          <View style={styles.pieCenter}>
+            <PieChart size={80} color="#2563EB" />
+            <Text style={styles.pieTotal}>{total}</Text>
+            <Text style={styles.pieTotalLabel}>Total Loads</Text>
+          </View>
+          <View style={styles.pieLegend}>
             {data.map((item, index) => (
-              <View key={index} style={styles.linePoint}>
-                <View 
-                  style={[
-                    styles.point,
-                    { bottom: (item.revenue / maxRevenue) * 100 }
-                  ]}
-                />
-                <Text style={styles.lineLabel}>{item.month}</Text>
+              <View key={index} style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                <Text style={styles.legendText}>{item.type}: {item.count}</Text>
               </View>
             ))}
           </View>
@@ -128,18 +171,21 @@ const ReportAnalyticsDashboard: React.FC = () => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Report Analytics</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.appName}>LoadRush</Text>
+          <Text style={styles.title}>Report Analytics</Text>
+        </View>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={refreshData} style={styles.actionButton}>
-            <RefreshCw size={20} color="#3B82F6" />
+            <RefreshCw size={18} color="#2563EB" />
           </TouchableOpacity>
           <TouchableOpacity onPress={exportToPDF} style={styles.actionButton}>
-            <Download size={20} color="#3B82F6" />
+            <Download size={18} color="#2563EB" />
             <Text style={styles.actionText}>PDF</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={exportToCSV} style={styles.actionButton}>
-            <Download size={20} color="#3B82F6" />
-            <Text style={styles.actionText}>CSV</Text>
+            <Download size={18} color="#2563EB" />
+            <Text style={styles.actionText}>Export CSV (Top Lanes)</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -193,10 +239,19 @@ const ReportAnalyticsDashboard: React.FC = () => {
         />
       </View>
 
-      {/* Charts Section */}
+      {/* Charts Section - Multi-panel Layout */}
       <View style={styles.chartsSection}>
-        <SimpleBarChart data={data.loadsByType} />
-        <SimpleLineChart data={data.revenueByMonth} />
+        <View style={styles.chartsRow}>
+          <View style={styles.chartPanel}>
+            <PieChartComponent data={data.loadsByType} />
+          </View>
+          <View style={styles.chartPanel}>
+            <SimpleBarChart data={data.loadsByType} />
+          </View>
+        </View>
+        <View style={styles.chartFullWidth}>
+          <SmoothLineChart data={data.revenueByMonth} />
+        </View>
       </View>
 
       {/* System Status */}
@@ -265,12 +320,21 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#E5E7EB',
+  },
+  headerLeft: {
+    flexDirection: 'column',
+  },
+  appName: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+    marginBottom: 2,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold' as const,
-    color: '#1E293B',
+    color: '#1F2937',
   },
   headerActions: {
     flexDirection: 'row',
@@ -281,13 +345,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#EBF4FF',
+    backgroundColor: '#EBF8FF',
     borderRadius: 8,
     gap: 4,
   },
   actionText: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: '#2563EB',
     fontWeight: '500' as const,
   },
   timeRangeContainer: {
@@ -316,7 +380,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timeRangeButtonActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#2563EB',
   },
   timeRangeText: {
     fontSize: 14,
@@ -339,15 +403,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
+    borderColor: '#E5E7EB',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
       },
       android: {
-        elevation: 2,
+        elevation: 1,
       },
     }),
   },
@@ -376,7 +441,17 @@ const styles = StyleSheet.create({
   },
   chartsSection: {
     padding: 20,
-    gap: 20,
+    gap: 16,
+  },
+  chartsRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  chartPanel: {
+    flex: 1,
+  },
+  chartFullWidth: {
+    width: '100%',
   },
   chartContainer: {
     backgroundColor: '#FFFFFF',
@@ -445,8 +520,14 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#2563EB',
     position: 'absolute',
+  },
+  connector: {
+    width: 2,
+    backgroundColor: '#2563EB',
+    position: 'absolute',
+    left: 4,
   },
   lineLabel: {
     fontSize: 10,
@@ -539,6 +620,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
   },
+  pieChart: {
+    alignItems: 'center',
+    padding: 16,
+  },
+  pieCenter: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  pieTotal: {
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+    color: '#1F2937',
+    marginTop: 8,
+  },
+  pieTotalLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  pieLegend: {
+    alignItems: 'flex-start',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  legendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  legendText: {
+    fontSize: 12,
+    color: '#374151',
+  },
+  hiddenText: {
+    position: 'absolute',
+    opacity: 0,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -576,14 +697,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#EBF4FF',
+    backgroundColor: '#EBF8FF',
     borderRadius: 8,
     marginTop: 16,
     gap: 8,
   },
   retryText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#2563EB',
     fontWeight: '500' as const,
   },
   errorIndicator: {
