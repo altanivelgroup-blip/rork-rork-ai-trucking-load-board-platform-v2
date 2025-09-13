@@ -194,9 +194,9 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     console.log("[AUTH] Attempting anonymous sign-in...");
 
     // Increased timeout and better error handling
-    const timeoutMs = 10000; // Increased from 2000ms
+    const timeoutMs = 15000; // Increased to 15 seconds for better reliability
     const timer = new Promise<never>((_, reject) => 
-      setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout after 10s' }), timeoutMs)
+      setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout after 15s' }), timeoutMs)
     );
 
     const result = await Promise.race([
@@ -206,6 +206,12 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
 
     if (result?.user?.uid) {
       console.log("[AUTH] Anonymous sign-in successful:", result.user.uid);
+      console.log("[AUTH] User details:", {
+        uid: result.user.uid,
+        isAnonymous: result.user.isAnonymous,
+        email: result.user.email,
+        emailVerified: result.user.emailVerified
+      });
       return true;
     }
 
@@ -213,18 +219,24 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     return false;
   } catch (error: any) {
     const code = error?.code ?? 'unknown';
-    console.warn("[AUTH] Sign-in failed, proceeding without Firebase:", {
+    console.warn("[AUTH] Sign-in failed:", {
       code,
-      message: error?.message
+      message: error?.message,
+      projectId: firebaseConfig.projectId
     });
 
     // Enhanced error logging for specific Firebase errors
     if (code === 'unavailable') {
-      console.warn('[AUTH] Firebase service is currently unavailable. This may be temporary.');
+      console.warn('[AUTH] Firebase Auth service is currently unavailable. This may be temporary.');
     } else if (code === 'network-request-failed') {
       console.warn('[AUTH] Network request failed. Check your internet connection.');
     } else if (code === 'timeout') {
       console.warn('[AUTH] Authentication timed out. Firebase may be slow to respond.');
+    } else if (code === 'auth/operation-not-allowed') {
+      console.warn('[AUTH] Anonymous authentication is not enabled in Firebase Console.');
+      console.warn('[AUTH] Please enable Anonymous authentication in Firebase Console > Authentication > Sign-in method');
+    } else if (code === 'permission-denied') {
+      console.warn('[AUTH] Permission denied. Check Firebase project configuration.');
     }
 
     // Don't block app startup - just proceed without Firebase

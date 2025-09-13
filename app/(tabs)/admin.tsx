@@ -762,6 +762,23 @@ export default function AdminScreen() {
               </View>
             </TouchableOpacity>
             
+            <TouchableOpacity 
+              style={[styles.quickActionCard, { borderLeftColor: theme.colors.warning }]}
+              onPress={() => router.push('/firebase-sanity-check')}
+              testID="firebaseDiagnosticsButton"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: hexToRgba(theme.colors.warning, 0.1) }]}>
+                <Database color={theme.colors.warning} size={20} />
+              </View>
+              <View style={styles.quickActionContent}>
+                <Text style={styles.quickActionTitle}>Firebase Diagnostics</Text>
+                <Text style={styles.quickActionSubtitle}>Run comprehensive Firebase connectivity tests and fix permission issues</Text>
+              </View>
+              <View style={styles.quickActionArrow}>
+                <ChevronDown color={theme.colors.gray} size={16} style={{ transform: [{ rotate: '-90deg' }] }} />
+              </View>
+            </TouchableOpacity>
+            
             <Text style={styles.sectionTitle}>Recent Activity</Text>
             {recentActivity.slice(0, 6).map((activity) => (
               <View key={activity.id} style={styles.activityCard} testID={`activity-${activity.id}`}>
