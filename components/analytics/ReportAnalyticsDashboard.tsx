@@ -49,6 +49,15 @@ const ReportAnalyticsDashboard: React.FC = () => {
     }
   );
 
+  // Fetch live bottom row data from API
+  const liveBottomRowQuery = trpc.loads.getBottomRowData.useQuery(
+    { timeRange },
+    {
+      refetchInterval: 30000, // Refresh every 30 seconds
+      staleTime: 15000, // Consider data stale after 15 seconds
+    }
+  );
+
   // Show loading state
   if (isLoading && !analyticsData) {
     return (
@@ -114,9 +123,10 @@ const ReportAnalyticsDashboard: React.FC = () => {
   };
   
   const handleRefreshMetrics = () => {
-    console.log('[Analytics] Refreshing live metrics and graph data');
+    console.log('[Analytics] Refreshing live metrics, graph data, and bottom row data');
     liveMetricsQuery.refetch();
     liveGraphDataQuery.refetch();
+    liveBottomRowQuery.refetch();
     refreshData();
   };
 
@@ -382,28 +392,54 @@ const ReportAnalyticsDashboard: React.FC = () => {
   };
 
   const EquipmentMixChart: React.FC = () => {
+    // Use live data or fallback to mock data
+    const bottomRowData = liveBottomRowQuery.data;
+    const equipmentMix = bottomRowData?.equipmentMix || [
+      { type: 'Flatbed', count: 89, percentage: 42.6 },
+      { type: 'Reefer', count: 67, percentage: 32.1 },
+      { type: 'Dry Van', count: 45, percentage: 21.5 },
+      { type: 'Auto Carrier', count: 8, percentage: 3.8 }
+    ];
+    
+    const colors = ['#93C5FD', '#3B82F6', '#1E40AF', '#1D4ED8', '#1E3A8A'];
+    
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>Equipment Mix</Text>
         <View style={styles.pieChart}>
-          <View style={styles.pieVisual}>
-            <View style={[styles.pieSlice, { backgroundColor: '#93C5FD' }]} />
-            <View style={[styles.pieSlice, { backgroundColor: '#3B82F6' }]} />
-            <View style={[styles.pieSlice, { backgroundColor: '#1E40AF' }]} />
-          </View>
+          <TouchableOpacity 
+            style={styles.pieVisual}
+            onPress={() => {
+              const totalCount = equipmentMix.reduce((sum, item) => sum + item.count, 0);
+              showDetailModal(
+                'Equipment Mix Breakdown',
+                `${totalCount} Total`,
+                equipmentMix.map(item => `${item.type}: ${item.count} (${item.percentage}%)`).join('\n')
+              );
+            }}
+          >
+            {equipmentMix.slice(0, 3).map((item, index) => (
+              <View 
+                key={`equipment-${index}`}
+                style={[styles.pieSlice, { backgroundColor: colors[index] }]} 
+              />
+            ))}
+          </TouchableOpacity>
           <View style={styles.pieLegend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#93C5FD' }]} />
-              <Text style={styles.legendText}>Flatbed</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#3B82F6' }]} />
-              <Text style={styles.legendText}>Reefer</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#1E40AF' }]} />
-              <Text style={styles.legendText}>Auto Carrier</Text>
-            </View>
+            {equipmentMix.slice(0, 3).map((item, index) => (
+              <TouchableOpacity 
+                key={`equipment-legend-${index}`}
+                style={styles.legendItem}
+                onPress={() => showDetailModal(
+                  `${item.type} Equipment`,
+                  `${item.count}`,
+                  `Count: ${item.count}\nPercentage: ${item.percentage}%\nType: ${item.type}`
+                )}
+              >
+                <View style={[styles.legendColor, { backgroundColor: colors[index] }]} />
+                <Text style={styles.legendText}>{item.type}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </View>
@@ -411,27 +447,53 @@ const ReportAnalyticsDashboard: React.FC = () => {
   };
 
   const CargoMixChart: React.FC = () => {
+    // Use live data or fallback to mock data
+    const bottomRowData = liveBottomRowQuery.data;
+    const cargoMix = bottomRowData?.cargoMix || [
+      { type: 'Dry Goods', count: 124, percentage: 59.3 },
+      { type: 'Machinery', count: 52, percentage: 24.9 },
+      { type: 'Vehicles', count: 33, percentage: 15.8 }
+    ];
+    
+    const colors = ['#93C5FD', '#3B82F6', '#1E40AF', '#1D4ED8', '#1E3A8A'];
+    
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>Cargo Mix</Text>
         <View style={styles.pieChart}>
-          <View style={styles.pieVisual}>
-            <View style={[styles.pieSlice, { backgroundColor: '#93C5FD' }]} />
-            <View style={[styles.pieSlice, { backgroundColor: '#3B82F6' }]} />
-          </View>
+          <TouchableOpacity 
+            style={styles.pieVisual}
+            onPress={() => {
+              const totalCount = cargoMix.reduce((sum, item) => sum + item.count, 0);
+              showDetailModal(
+                'Cargo Mix Breakdown',
+                `${totalCount} Total`,
+                cargoMix.map(item => `${item.type}: ${item.count} (${item.percentage}%)`).join('\n')
+              );
+            }}
+          >
+            {cargoMix.slice(0, 3).map((item, index) => (
+              <View 
+                key={`cargo-${index}`}
+                style={[styles.pieSlice, { backgroundColor: colors[index] }]} 
+              />
+            ))}
+          </TouchableOpacity>
           <View style={styles.pieLegend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#93C5FD' }]} />
-              <Text style={styles.legendText}>Dry Goods</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#3B82F6' }]} />
-              <Text style={styles.legendText}>Pachislets</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#1E40AF' }]} />
-              <Text style={styles.legendText}>Vehicles</Text>
-            </View>
+            {cargoMix.slice(0, 3).map((item, index) => (
+              <TouchableOpacity 
+                key={`cargo-legend-${index}`}
+                style={styles.legendItem}
+                onPress={() => showDetailModal(
+                  `${item.type} Cargo`,
+                  `${item.count}`,
+                  `Count: ${item.count}\nPercentage: ${item.percentage}%\nType: ${item.type}`
+                )}
+              >
+                <View style={[styles.legendColor, { backgroundColor: colors[index] }]} />
+                <Text style={styles.legendText}>{item.type}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </View>
@@ -462,15 +524,17 @@ const ReportAnalyticsDashboard: React.FC = () => {
   };
 
   const LeadersTable: React.FC = () => {
-    const leaders = [
-      { name: 'Cry Goold', loads: 1, score: '5,40' },
-      { name: 'Dan Glan', loads: 2, score: '23,150' },
-      { name: 'Corr Cand', loads: '', score: '' },
-      { name: 'Fittbed', loads: 1, score: '25,72%' },
-      { name: 'Srper Vaitter', loads: '', score: '17,12%' },
-      { name: 'Auto Carrien', loads: '', score: '17,03%' },
-      { name: 'Filh Vallly', loads: '', score: '27,124' },
-      { name: 'Aufy Flasfly', loads: '', score: '25,108' },
+    // Use live data or fallback to mock data
+    const bottomRowData = liveBottomRowQuery.data;
+    const leaders = bottomRowData?.leaders || [
+      { id: '1', name: 'John Smith', loads: 12, revenue: 45600, score: 16560, platformFee: 2280 },
+      { id: '2', name: 'Sarah Johnson', loads: 8, revenue: 32400, score: 11240, platformFee: 1620 },
+      { id: '3', name: 'Mike Davis', loads: 6, revenue: 28900, score: 8890, platformFee: 1445 },
+      { id: '4', name: 'Lisa Chen', loads: 5, revenue: 25200, score: 7520, platformFee: 1260 },
+      { id: '5', name: 'Robert Wilson', loads: 4, revenue: 18700, score: 5870, platformFee: 935 },
+      { id: '6', name: 'Emily Brown', loads: 3, revenue: 15600, score: 4560, platformFee: 780 },
+      { id: '7', name: 'David Miller', loads: 2, revenue: 12300, score: 3230, platformFee: 615 },
+      { id: '8', name: 'Jennifer Garcia', loads: 1, revenue: 8900, score: 1890, platformFee: 445 }
     ];
     
     return (
@@ -483,11 +547,19 @@ const ReportAnalyticsDashboard: React.FC = () => {
             <Text style={styles.tableHeaderText}>Score</Text>
           </View>
           {leaders.map((leader, index) => (
-            <View key={`leader-${index}`} style={styles.tableRow}>
+            <TouchableOpacity 
+              key={`leader-${index}`} 
+              style={styles.tableRow}
+              onPress={() => showDetailModal(
+                `${leader.name} Performance`,
+                `${leader.loads} Loads`,
+                `Total Loads: ${leader.loads}\nRevenue: ${leader.revenue.toLocaleString()}\n5% Platform Fee: ${leader.platformFee.toLocaleString()}\nNet Revenue: ${(leader.revenue - leader.platformFee).toLocaleString()}\nPerformance Score: ${leader.score.toLocaleString()}`
+              )}
+            >
               <Text style={styles.tableCell}>{leader.name}</Text>
               <Text style={styles.tableCell}>{leader.loads}</Text>
-              <Text style={styles.tableCell}>{leader.score}</Text>
-            </View>
+              <Text style={styles.tableCell}>{leader.score.toLocaleString()}</Text>
+            </TouchableOpacity>
           ))}
           <View style={styles.tableFooter}>
             <ChevronRight size={16} color="#6B7280" />
@@ -573,7 +645,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
       <View style={styles.footer}>
         <Text style={styles.footerText}>
           Updated via API
-          {(error || liveGraphDataQuery.error) && (
+          {(error || liveGraphDataQuery.error || liveBottomRowQuery.error) && (
             <Text style={styles.errorIndicator}> • Using fallback data</Text>
           )}
         </Text>
