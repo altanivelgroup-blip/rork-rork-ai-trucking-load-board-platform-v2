@@ -1,17 +1,47 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { Truck, Download, RefreshCw, Activity, AlertCircle, ArrowUp, ChevronRight } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal } from 'react-native';
+import { Truck, Download, RefreshCw, Activity, AlertCircle, ArrowUp, ChevronRight, X } from 'lucide-react-native';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { trpc } from '@/lib/trpc';
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
+interface GraphDetailModal {
+  visible: boolean;
+  title: string;
+  value: string;
+  details: string;
+  onClose: () => void;
+}
+
+interface DailyRevenueData {
+  day: string;
+  revenue: number;
+  platformFee: number;
+}
+
+interface LoadsVsFillsData {
+  period: string;
+  loads: number;
+  fills: number;
+}
+
 const ReportAnalyticsDashboard: React.FC = () => {
-  const [timeRange] = useState<TimeRange>('monthly');
+  const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
+  const [detailModal, setDetailModal] = useState<GraphDetailModal>({ visible: false, title: '', value: '', details: '', onClose: () => {} });
   const { analyticsData, isLoading, error, refreshData } = useAnalytics(timeRange);
   
   // Fetch live metrics from API
   const liveMetricsQuery = trpc.loads.getAnalyticsMetrics.useQuery(
+    { timeRange },
+    {
+      refetchInterval: 30000, // Refresh every 30 seconds
+      staleTime: 15000, // Consider data stale after 15 seconds
+    }
+  );
+
+  // Fetch live graph data from API
+  const liveGraphDataQuery = trpc.loads.getGraphData.useQuery(
     { timeRange },
     {
       refetchInterval: 30000, // Refresh every 30 seconds
@@ -84,10 +114,46 @@ const ReportAnalyticsDashboard: React.FC = () => {
   };
   
   const handleRefreshMetrics = () => {
-    console.log('[Analytics] Refreshing live metrics');
+    console.log('[Analytics] Refreshing live metrics and graph data');
     liveMetricsQuery.refetch();
+    liveGraphDataQuery.refetch();
     refreshData();
   };
+
+  const showDetailModal = (title: string, value: string, details: string) => {
+    setDetailModal({
+      visible: true,
+      title,
+      value,
+      details,
+      onClose: () => setDetailModal(prev => ({ ...prev, visible: false }))
+    });
+  };
+
+  const TimeRangeSelector: React.FC = () => (
+    <View style={styles.timeRangeContainer}>
+      {(['daily', 'weekly', 'monthly', 'quarterly'] as TimeRange[]).map((range: TimeRange) => {
+        // Input validation for range parameter
+        if (!range || !range.trim() || range.length > 20) {
+          console.warn('[TimeRangeSelector] Invalid range parameter:', range);
+          return null;
+        }
+        const sanitizedRange = range.trim() as TimeRange;
+        
+        return (
+          <TouchableOpacity
+            key={sanitizedRange}
+            style={[styles.timeRangeButton, timeRange === sanitizedRange && styles.timeRangeButtonActive]}
+            onPress={() => setTimeRange(sanitizedRange)}
+          >
+            <Text style={[styles.timeRangeText, timeRange === sanitizedRange && styles.timeRangeTextActive]}>
+              {sanitizedRange.charAt(0).toUpperCase() + sanitizedRange.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
 
   const TopMetricCard: React.FC<{ title: string; value: string; subtitle?: string; isActive?: boolean }> = ({ title, value, subtitle, isActive = false }) => (
     <View style={[styles.topMetricCard, isActive && styles.topMetricCardActive]}>
@@ -98,50 +164,87 @@ const ReportAnalyticsDashboard: React.FC = () => {
   );
 
   const RevenueByDayChart: React.FC = () => {
-    const dailyData = [25, 23, 30, 32, 28, 30, 35, 57, 52, 33, 58, 35];
-    const maxValue = Math.max(...dailyData);
-    const labels = ['Mm', '100m', '2.0m', '5.40', '6.40', '5.40'];
+    // Use live data or fallback to mock data
+    const graphData = liveGraphDataQuery.data;
+    const dailyRevenue = graphData?.dailyRevenue || [
+      { day: 'Mon', revenue: 25000, platformFee: 1250 },
+      { day: 'Tue', revenue: 23000, platformFee: 1150 },
+      { day: 'Wed', revenue: 30000, platformFee: 1500 },
+      { day: 'Thu', revenue: 32000, platformFee: 1600 },
+      { day: 'Fri', revenue: 28000, platformFee: 1400 },
+      { day: 'Sat', revenue: 30000, platformFee: 1500 }
+    ];
+    
+    const maxValue = Math.max(...dailyRevenue.map((d: DailyRevenueData) => d.revenue));
     
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>Revenue by Day</Text>
         <View style={styles.barChart}>
-          {dailyData.slice(0, 6).map((value, index) => (
-            <View key={`revenue-${index}`} style={styles.barGroup}>
-              <View style={styles.barPair}>
-                <View 
-                  style={[
-                    styles.bar, 
-                    { 
-                      height: (value / maxValue) * 80,
-                      backgroundColor: '#3B82F6',
-                      marginRight: 2
-                    }
-                  ]} 
-                />
-                <View 
-                  style={[
-                    styles.bar, 
-                    { 
-                      height: ((value * 0.8) / maxValue) * 80,
-                      backgroundColor: '#60A5FA'
-                    }
-                  ]} 
-                />
-              </View>
-              <Text style={styles.barLabel}>{labels[index]}</Text>
-            </View>
-          ))}
+          {dailyRevenue.map((dayData: DailyRevenueData, index: number) => {
+            const barHeight = (dayData.revenue / maxValue) * 80;
+            const feeHeight = (dayData.platformFee / maxValue) * 80;
+            
+            return (
+              <TouchableOpacity 
+                key={`revenue-${index}`} 
+                style={styles.barGroup}
+                onPress={() => showDetailModal(
+                  `${dayData.day} Revenue`,
+                  `${(dayData.revenue / 1000).toFixed(1)}K`,
+                  `Total: ${dayData.revenue.toLocaleString()}\n5% Platform Fee: ${dayData.platformFee.toLocaleString()}\nNet: ${(dayData.revenue - dayData.platformFee).toLocaleString()}`
+                )}
+              >
+                <View style={styles.barPair}>
+                  <View 
+                    style={[
+                      styles.bar, 
+                      { 
+                        height: barHeight,
+                        backgroundColor: '#3B82F6',
+                        marginRight: 2
+                      }
+                    ]} 
+                  />
+                  <View 
+                    style={[
+                      styles.bar, 
+                      { 
+                        height: feeHeight,
+                        backgroundColor: '#60A5FA'
+                      }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.barLabel}>{dayData.day}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
     );
   };
 
   const LoadsVsFillsChart: React.FC = () => {
-    // Data points matching the image exactly
-    const loadsData = [18, 25, 19, 23, 30, 25, 15, 9, 7, 8, 19];
-    const fillsData = [11, 17, 16, 21, 21, 20, 16, 14, 13, 18, 23];
-    const labels = ['Gobbr', 'Liontest', 'Liontest', 'Namler', 'Namler'];
+    // Use live data or fallback to mock data
+    const graphData = liveGraphDataQuery.data;
+    const loadsVsFills = graphData?.loadsVsFills || [
+      { period: 'Week 1', loads: 18, fills: 11 },
+      { period: 'Week 2', loads: 25, fills: 17 },
+      { period: 'Week 3', loads: 19, fills: 16 },
+      { period: 'Week 4', loads: 23, fills: 21 },
+      { period: 'Week 5', loads: 30, fills: 21 },
+      { period: 'Week 6', loads: 25, fills: 20 },
+      { period: 'Week 7', loads: 15, fills: 16 },
+      { period: 'Week 8', loads: 9, fills: 14 },
+      { period: 'Week 9', loads: 7, fills: 13 },
+      { period: 'Week 10', loads: 8, fills: 18 },
+      { period: 'Week 11', loads: 19, fills: 23 }
+    ];
+    
+    const loadsData = loadsVsFills.map((d: LoadsVsFillsData) => d.loads);
+    const fillsData = loadsVsFills.map((d: LoadsVsFillsData) => d.fills);
+    const labels = loadsVsFills.slice(0, 5).map((d: LoadsVsFillsData) => d.period.replace('Week ', 'W'));
     const maxValue = 60; // Fixed scale as shown in image
     
     return (
@@ -171,7 +274,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
             {/* Chart Area */}
             <View style={styles.chartArea}>
               {/* Render connecting lines first (behind points) */}
-              {loadsData.slice(0, -1).map((value, index) => {
+              {loadsData.slice(0, -1).map((value: number, index: number) => {
                 const currentLoadsY = 120 - (value / maxValue) * 100;
                 const nextLoadsY = 120 - (loadsData[index + 1] / maxValue) * 100;
                 const currentFillsY = 120 - (fillsData[index] / maxValue) * 100;
@@ -220,14 +323,15 @@ const ReportAnalyticsDashboard: React.FC = () => {
               })}
               
               {/* Render data points on top of lines */}
-              {loadsData.map((value, index) => {
+              {loadsData.map((value: number, index: number) => {
                 const loadsY = 120 - (value / maxValue) * 100;
                 const fillsY = 120 - (fillsData[index] / maxValue) * 100;
+                const fillRate = fillsData[index] > 0 ? ((fillsData[index] / value) * 100).toFixed(1) : '0';
                 
                 return (
                   <View key={`points-${index}`}>
                     {/* Loads point */}
-                    <View
+                    <TouchableOpacity
                       style={[
                         styles.dataPoint,
                         {
@@ -236,9 +340,14 @@ const ReportAnalyticsDashboard: React.FC = () => {
                           backgroundColor: '#3B82F6',
                         },
                       ]}
+                      onPress={() => showDetailModal(
+                        `${loadsVsFills[index]?.period || `Period ${index + 1}`} - Loads`,
+                        `${value}`,
+                        `Loads Posted: ${value}\nFills: ${fillsData[index]}\nFill Rate: ${fillRate}%`
+                      )}
                     />
                     {/* Fills point */}
-                    <View
+                    <TouchableOpacity
                       style={[
                         styles.dataPoint,
                         {
@@ -247,6 +356,11 @@ const ReportAnalyticsDashboard: React.FC = () => {
                           backgroundColor: '#10B981',
                         },
                       ]}
+                      onPress={() => showDetailModal(
+                        `${loadsVsFills[index]?.period || `Period ${index + 1}`} - Fills`,
+                        `${fillsData[index]}`,
+                        `Loads Posted: ${value}\nFills: ${fillsData[index]}\nFill Rate: ${fillRate}%`
+                      )}
                     />
                   </View>
                 );
@@ -255,7 +369,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
             
             {/* X-axis labels */}
             <View style={styles.xAxisLabels}>
-              {labels.map((label, index) => (
+              {labels.map((label: string, index: number) => (
                 <Text key={`label-${index}`} style={[styles.xAxisLabel, { left: index * 60 + 30 }]}>
                   {label}
                 </Text>
@@ -431,6 +545,9 @@ const ReportAnalyticsDashboard: React.FC = () => {
         <TopMetricCard title="On-Time %" value="297" subtitle="Avg-Time" />
       </View>
 
+      {/* Time Range Selector */}
+      <TimeRangeSelector />
+
       {/* Main Charts Grid */}
       <View style={styles.mainChartsGrid}>
         {/* Left Column */}
@@ -456,11 +573,34 @@ const ReportAnalyticsDashboard: React.FC = () => {
       <View style={styles.footer}>
         <Text style={styles.footerText}>
           Updated via API
-          {error && (
+          {(error || liveGraphDataQuery.error) && (
             <Text style={styles.errorIndicator}> • Using fallback data</Text>
           )}
         </Text>
       </View>
+
+      {/* Detail Modal */}
+      <Modal
+        visible={detailModal.visible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={detailModal.onClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{detailModal.title}</Text>
+              <TouchableOpacity onPress={detailModal.onClose} style={styles.modalCloseButton}>
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={styles.modalValue}>{detailModal.value}</Text>
+              <Text style={styles.modalDetails}>{detailModal.details}</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -1079,6 +1219,64 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     width: 60,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 0,
+    width: '100%',
+    maxWidth: 400,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  modalValue: {
+    fontSize: 32,
+    fontWeight: 'bold' as const,
+    color: '#2563EB',
+    marginBottom: 12,
+  },
+  modalDetails: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 
