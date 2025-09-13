@@ -40,25 +40,30 @@ function formatUSD(amount: number): string {
 }
 
 const RecentLoadRow = memo<RecentLoadProps & { distanceMiles?: number }>(({ id, originCity, originState, destinationCity, destinationState, pickupDate, weight, rate, onPress, distanceMiles }) => {
+  const bidsCount = Math.floor(Math.random() * 5) + 1;
+  
   return (
-    <TouchableOpacity key={id} onPress={() => onPress(id)} style={styles.loadRow} testID={`recent-load-${id}`}>
-      <View style={styles.loadLeft}>
-        <Text style={styles.loadTitle}>{originCity}, {originState}</Text>
-        <Text style={styles.loadSub}>{destinationCity}, {destinationState}</Text>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaText}>Pickup: {new Date(pickupDate as any).toLocaleDateString?.('en-US', { month: 'short', day: 'numeric' } as any) ?? String(pickupDate)}</Text>
-          <Text style={styles.metaDot}>•</Text>
-          <Text style={styles.metaText}>{weight.toLocaleString()} lbs</Text>
+    <TouchableOpacity key={id} onPress={() => onPress(id)} style={styles.loadCard} testID={`recent-load-${id}`}>
+      {/* Status Pills Row */}
+      <View style={styles.statusRow}>
+        <View style={styles.statusBadge}>
+          <Text style={styles.statusText}>Active</Text>
         </View>
+        {Math.random() > 0.7 && (
+          <View style={styles.rushBadge}>
+            <Text style={styles.rushText}>Rush Delivery</Text>
+          </View>
+        )}
       </View>
-      <View style={styles.loadRight}>
-        <View style={styles.priceChip}>
-          <Text style={styles.priceChipText}>{formatUSD(rate)}</Text>
-        </View>
-        {typeof distanceMiles === 'number' ? (
-          <Text style={styles.distanceSmall}>{distanceMiles.toFixed(1)} mi</Text>
-        ) : null}
-      </View>
+
+      {/* Load Details */}
+      <Text style={styles.statusLine}>Status: Pending</Text>
+      <Text style={styles.rateText}>Rate: {formatUSD(rate)}</Text>
+      <Text style={styles.routeText}>Route: {originCity}, {originState} → {destinationCity}, {destinationState}</Text>
+      <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
+      
+      {/* Tap for Details */}
+      <Text style={styles.tapForDetails}>Tap for Details</Text>
     </TouchableOpacity>
   );
 });
@@ -742,6 +747,78 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: moderateScale(6),
     fontSize: font(14),
+  },
+  loadCard: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: moderateScale(theme.spacing.lg),
+    marginTop: moderateScale(theme.spacing.sm),
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  statusBadge: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  rushBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  rushText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusLine: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  rateText: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  routeText: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  bidsText: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  tapForDetails: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   loadRow: {
     flexDirection: 'row',
