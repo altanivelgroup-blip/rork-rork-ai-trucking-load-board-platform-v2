@@ -183,6 +183,8 @@ function RootLayoutNav() {
       <Stack.Screen name="debug-bulk-upload" options={{ title: "Debug Bulk Upload" }} />
       <Stack.Screen name="firebase-diagnostics" options={{ title: "Firebase Diagnostics" }} />
       <Stack.Screen name="upgrade" options={{ title: "Upgrade Membership" }} />
+      <Stack.Screen name="reports" options={{ title: "Reports" }} />
+      <Stack.Screen name="reports-analytics" options={{ title: "Report Analytics" }} />
     </Stack>
   );
 }
