@@ -463,9 +463,13 @@ export default function FirebaseSanityCheckScreen() {
   };
 
   const clearErrors = () => {
-    console.log('[SANITY] Clearing any persistent errors');
+    console.log('[SANITY] Clearing all test results and closing diagnostics');
     setResults([]);
     setSummary(null);
+    // Close the screen after clearing
+    setTimeout(() => {
+      router.back();
+    }, 500);
   };
 
   return (
@@ -486,7 +490,7 @@ export default function FirebaseSanityCheckScreen() {
           onPress={clearErrors}
           testID="clear-errors"
         >
-          <Text style={styles.clearButtonText}>Clear</Text>
+          <Text style={styles.clearButtonText}>Clear & Close</Text>
         </TouchableOpacity>
       </View>
       
