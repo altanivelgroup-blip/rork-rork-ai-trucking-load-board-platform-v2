@@ -6,7 +6,7 @@ import { BarChart3, ArrowLeft, ChevronRight, FileText, TrendingUp } from 'lucide
 import { theme } from '@/constants/theme';
 
 import { isAdminClient } from '@/src/lib/authz';
-import { getAuth } from 'firebase/auth';
+
 
 const fontWeight700 = '700' as const;
 
@@ -59,29 +59,7 @@ export default function ReportsScreen() {
     router.push('/reports-analytics' as any);
   };
 
-  const handleCheckAdminClaims = async () => {
-    try {
-      const user = getAuth().currentUser;
-      if (!user) {
-        console.log('[Reports] No user logged in');
-        return;
-      }
-      
-      console.log('[Reports] Current user email:', user.email);
-      const tokenResult = await user.getIdTokenResult(true);
-      console.log('[Reports] User claims:', tokenResult.claims);
-      
-      const hasAdmin = !!(tokenResult.claims?.admin || tokenResult.claims?.role === 'admin');
-      console.log('[Reports] Has admin access:', hasAdmin);
-      
-      // Refresh the admin state
-      const adminResult = await isAdminClient();
-      setIsAdmin(adminResult);
-      console.log('[Reports] Refreshed admin status:', adminResult);
-    } catch (error) {
-      console.error('[Reports] Error checking admin claims:', error);
-    }
-  };
+
 
   return (
     <>
@@ -110,21 +88,7 @@ export default function ReportsScreen() {
           <Text style={styles.headerSubtitle}>Access comprehensive analytics and reporting tools</Text>
         </View>
 
-        {/* Debug Info */}
-        {__DEV__ && (
-          <View style={styles.debugSection}>
-            <Text style={styles.debugText}>Debug Info:</Text>
-            <Text style={styles.debugText}>• Checking Admin: {isCheckingAdmin ? 'Yes' : 'No'}</Text>
-            <Text style={styles.debugText}>• Is Admin: {isAdmin ? 'Yes' : 'No'}</Text>
-            <Text style={styles.debugText}>• Should Show Analytics: {!isCheckingAdmin && isAdmin ? 'Yes' : 'No'}</Text>
-            <TouchableOpacity 
-              style={styles.debugButton} 
-              onPress={handleCheckAdminClaims}
-            >
-              <Text style={styles.debugButtonText}>Check Admin Claims</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+
 
         {/* Report Analytics Card - Only show for admins */}
         {!isCheckingAdmin && isAdmin && (
@@ -316,30 +280,5 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: '#9CA3AF',
   },
-  debugSection: {
-    padding: theme.spacing.lg,
-    backgroundColor: '#FEF3C7',
-    margin: theme.spacing.lg,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-  },
-  debugText: {
-    fontSize: theme.fontSize.xs,
-    color: '#92400E',
-    marginBottom: 2,
-  },
-  debugButton: {
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#F59E0B',
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  debugButtonText: {
-    fontSize: theme.fontSize.xs,
-    color: '#FFFFFF',
-    fontWeight: '600' as const,
-  },
+
 });

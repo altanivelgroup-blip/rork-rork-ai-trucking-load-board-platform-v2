@@ -65,11 +65,14 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
     { period: timeFilter },
     {
       retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
-      staleTime: 30000, // 30 seconds
-      gcTime: 300000, // 5 minutes (replaced cacheTime)
+      retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 5000),
+      staleTime: 30000,
+      gcTime: 300000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
+      onError: (error: any) => {
+        console.error('[ReportAnalytics] Graph query error:', error);
+      },
     }
   );
   
@@ -77,11 +80,14 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
     { period: timeFilter },
     {
       retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+      retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 5000),
       staleTime: 30000,
-      gcTime: 300000, // 5 minutes (replaced cacheTime)
+      gcTime: 300000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
+      onError: (error: any) => {
+        console.error('[ReportAnalytics] Metrics query error:', error);
+      },
     }
   );
   
@@ -89,11 +95,14 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
     { period: timeFilter },
     {
       retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+      retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 5000),
       staleTime: 30000,
-      gcTime: 300000, // 5 minutes (replaced cacheTime)
+      gcTime: 300000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
+      onError: (error: any) => {
+        console.error('[ReportAnalytics] Bottom row query error:', error);
+      },
     }
   );
 
