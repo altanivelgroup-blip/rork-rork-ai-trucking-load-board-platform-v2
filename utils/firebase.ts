@@ -94,6 +94,95 @@ export function getFirebase() {
   return { app, auth, db, storage };
 }
 
+// Enhanced Firebase connection diagnostics
+export async function testFirebaseConnectivity(): Promise<{
+  connected: boolean;
+  error?: string;
+  details: {
+    networkOnline: boolean;
+    firebaseReachable: boolean;
+    authWorking: boolean;
+    firestoreWorking: boolean;
+  };
+}> {
+  const details = {
+    networkOnline: false,
+    firebaseReachable: false,
+    authWorking: false,
+    firestoreWorking: false,
+  };
+
+  try {
+    // Test 1: Basic network connectivity
+    try {
+      const response = await fetch('https://www.google.com/generate_204', {
+        method: 'HEAD',
+        mode: 'no-cors',
+        cache: 'no-cache',
+      });
+      details.networkOnline = true;
+      console.log('[FIREBASE_TEST] Network connectivity: OK');
+    } catch (e) {
+      console.warn('[FIREBASE_TEST] Network connectivity: FAILED', e);
+      return { connected: false, error: 'No internet connection', details };
+    }
+
+    // Test 2: Firebase services reachability
+    try {
+      const firebaseResponse = await fetch('https://firebase.googleapis.com/', {
+        method: 'HEAD',
+        mode: 'no-cors',
+        cache: 'no-cache',
+      });
+      details.firebaseReachable = true;
+      console.log('[FIREBASE_TEST] Firebase services: REACHABLE');
+    } catch (e) {
+      console.warn('[FIREBASE_TEST] Firebase services: UNREACHABLE', e);
+    }
+
+    // Test 3: Firebase Auth
+    try {
+      if (auth?.currentUser) {
+        details.authWorking = true;
+        console.log('[FIREBASE_TEST] Auth: Already authenticated');
+      } else {
+        const authResult = await Promise.race([
+          signInAnonymously(auth),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Auth timeout')), 5000)
+          ),
+        ]);
+        details.authWorking = true;
+        console.log('[FIREBASE_TEST] Auth: Successfully authenticated');
+      }
+    } catch (e: any) {
+      console.warn('[FIREBASE_TEST] Auth: FAILED', e?.code, e?.message);
+    }
+
+    // Test 4: Firestore connectivity
+    if (details.authWorking) {
+      try {
+        const { collection, getDocs, limit, query } = await import('firebase/firestore');
+        const testQuery = query(collection(db, 'loads'), limit(1));
+        await getDocs(testQuery);
+        details.firestoreWorking = true;
+        console.log('[FIREBASE_TEST] Firestore: WORKING');
+      } catch (e: any) {
+        console.warn('[FIREBASE_TEST] Firestore: FAILED', e?.code, e?.message);
+      }
+    }
+
+    const connected = details.networkOnline && details.authWorking;
+    return { connected, details };
+  } catch (error: any) {
+    return {
+      connected: false,
+      error: error?.message || 'Unknown error',
+      details,
+    };
+  }
+}
+
 // Ensure we have an authenticated user (non-blocking for faster app startup)
 export async function ensureFirebaseAuth(): Promise<boolean> {
   try {
@@ -104,9 +193,11 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
 
     console.log("[AUTH] Attempting anonymous sign-in...");
 
-    // Reduced timeout for faster startup
-    const timeoutMs = 2000;
-    const timer = new Promise<never>((_, reject) => setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout' }), timeoutMs));
+    // Increased timeout and better error handling
+    const timeoutMs = 10000; // Increased from 2000ms
+    const timer = new Promise<never>((_, reject) => 
+      setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout after 10s' }), timeoutMs)
+    );
 
     const result = await Promise.race([
       signInAnonymously(auth),
@@ -126,6 +217,15 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
       code,
       message: error?.message
     });
+
+    // Enhanced error logging for specific Firebase errors
+    if (code === 'unavailable') {
+      console.warn('[AUTH] Firebase service is currently unavailable. This may be temporary.');
+    } else if (code === 'network-request-failed') {
+      console.warn('[AUTH] Network request failed. Check your internet connection.');
+    } else if (code === 'timeout') {
+      console.warn('[AUTH] Authentication timed out. Firebase may be slow to respond.');
+    }
 
     // Don't block app startup - just proceed without Firebase
     return false;

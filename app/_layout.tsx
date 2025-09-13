@@ -22,6 +22,7 @@ import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
 import { StartupInitializer } from "@/components/StartupInitializer";
 import { RoleBasedRouter } from "@/components/RoleBasedRouter";
+import FirebaseConnectionStatus from "@/components/FirebaseConnectionStatus";
 import { theme } from "@/constants/theme";
 
 // Firebase is available but not used for auth in this app
@@ -180,6 +181,7 @@ function RootLayoutNav() {
       <Stack.Screen name="dev-bulk-tools" options={{ title: "Bulk Tools (Dev)" }} />
       <Stack.Screen name="csv-bulk-upload" options={{ title: "CSV Bulk Upload" }} />
       <Stack.Screen name="debug-bulk-upload" options={{ title: "Debug Bulk Upload" }} />
+      <Stack.Screen name="firebase-diagnostics" options={{ title: "Firebase Diagnostics" }} />
       <Stack.Screen name="upgrade" options={{ title: "Upgrade Membership" }} />
     </Stack>
   );
@@ -208,6 +210,7 @@ export default function RootLayout() {
                                     <PostLoadProvider>
                                       <AutoArriveProvider>
                                         <RootLayoutNav />
+                                        <FirebaseConnectionStatus />
                                         <AutoArriveSheet />
                                       </AutoArriveProvider>
                                     </PostLoadProvider>
