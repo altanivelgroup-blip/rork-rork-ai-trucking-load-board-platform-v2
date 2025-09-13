@@ -57,7 +57,7 @@ export default function ReportsScreen() {
 
   const handleBackPress = () => {
     // Navigate back to admin loads page
-    router.push('/loads');
+    router.push('/(tabs)/loads');
   };
 
   return (
