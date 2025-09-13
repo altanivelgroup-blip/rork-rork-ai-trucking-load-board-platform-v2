@@ -374,7 +374,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
     if (liveMetricsQuery.data || liveGraphDataQuery.data || liveBottomRowQuery.data) {
       generateAIInsights();
     }
-  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data, timeRange, generateAIInsights]);
+  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data, timeRange]);
 
   // Show loading state only for initial load (first 3 seconds max)
   useEffect(() => {
@@ -561,9 +561,9 @@ const ReportAnalyticsDashboard: React.FC = () => {
     setTimeout(() => {
       console.log(`[Analytics] ✅ Data updated for ${newRange} period`);
       setLastRefresh(new Date());
-      generateAIInsights();
+      // AI insights will be regenerated automatically by the useEffect
     }, 100);
-  }, [timeRange, generateAIInsights]);
+  }, [timeRange]);
 
   const showDetailModal = (title: string, value: string, details: string) => {
     console.log('[Analytics] 📋 Opening detail modal:', { title, value });

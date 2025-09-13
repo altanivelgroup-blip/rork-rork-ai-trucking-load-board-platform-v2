@@ -195,7 +195,7 @@ export const useAnalytics = (timeRange: TimeRange) => {
     // TODO: Set up proper Firebase custom claims for admin users
     console.log('[Analytics] Using mock data due to Firestore permission limitations');
     
-    setTimeout(() => {
+    const loadMockData = () => {
       const mockData = processLoadsData([]);
       setAnalyticsData({
         ...mockData,
@@ -224,9 +224,13 @@ export const useAnalytics = (timeRange: TimeRange) => {
       setLastUpdated(new Date());
       
       console.log('[Analytics] Mock data loaded successfully');
-    }, 500); // Simulate loading time
+    };
+    
+    const timer = setTimeout(loadMockData, 500); // Simulate loading time
     
     // Attempt to fetch real data in the background (will fail gracefully)
+    let cleanup: (() => void) | undefined;
+    
     const attemptRealDataFetch = async () => {
       try {
         const { db } = getFirebase();
@@ -295,11 +299,7 @@ export const useAnalytics = (timeRange: TimeRange) => {
           }
         );
         
-        // Return cleanup function
-        return () => {
-          console.log('[Analytics] Cleaning up Firestore listener');
-          unsubscribe();
-        };
+        cleanup = unsubscribe;
       } catch (error: any) {
         console.warn('[Analytics] Failed to set up real data fetch (using fallback):', error);
         // Don't set error state since we have fallback data
@@ -307,16 +307,16 @@ export const useAnalytics = (timeRange: TimeRange) => {
     };
     
     // Attempt real data fetch after mock data is loaded
-    const cleanup = attemptRealDataFetch();
+    attemptRealDataFetch();
     
     return () => {
-      if (cleanup && typeof cleanup.then === 'function') {
-        cleanup.then(cleanupFn => {
-          if (cleanupFn) cleanupFn();
-        });
+      clearTimeout(timer);
+      if (cleanup) {
+        console.log('[Analytics] Cleaning up Firestore listener');
+        cleanup();
       }
     };
-  }, [timeRange, isAdmin, user?.role]);
+  }, [timeRange, isAdmin]);
   
   const refreshData = () => {
     console.log('[Analytics] Manual refresh triggered');
