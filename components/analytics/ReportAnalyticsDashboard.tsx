@@ -573,46 +573,60 @@ const ReportAnalyticsDashboard: React.FC = () => {
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>Revenue by Day/Week/Month (with 5% highlights)</Text>
-        <View style={styles.barChart}>
-          {dailyRevenue.map((dayData: DailyRevenueData, index: number) => {
-            const barHeight = (dayData.revenue / maxValue) * 80;
-            const feeHeight = (dayData.platformFee / maxValue) * 80;
-            
-            return (
-              <TouchableOpacity 
-                key={`revenue-${index}`} 
-                style={styles.barGroup}
-                onPress={() => showDetailModal(
-                  `${dayData.day} Revenue`,
-                  `${(dayData.revenue / 1000).toFixed(1)}K`,
-                  `Total: ${dayData.revenue.toLocaleString()}\n5% Platform Fee: ${dayData.platformFee.toLocaleString()}\nNet: ${(dayData.revenue - dayData.platformFee).toLocaleString()}`
-                )}
-              >
-                <View style={styles.barPair}>
-                  <View 
-                    style={[
-                      styles.bar, 
-                      { 
-                        height: barHeight,
-                        backgroundColor: '#10B981',
-                        marginRight: 2
-                      }
-                    ]} 
-                  />
-                  <View 
-                    style={[
-                      styles.bar, 
-                      { 
-                        height: feeHeight,
-                        backgroundColor: '#F59E0B'
-                      }
-                    ]} 
-                  />
-                </View>
-                <Text style={styles.barLabel}>{dayData.day}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.revenueChartContainer}>
+          <View style={styles.revenueBarChart}>
+            {dailyRevenue.map((dayData: DailyRevenueData, index: number) => {
+              const barHeight = Math.max((dayData.revenue / maxValue) * 120, 4); // Minimum height of 4
+              const feeHeight = Math.max((dayData.platformFee / maxValue) * 120, 2); // Minimum height of 2
+              
+              return (
+                <TouchableOpacity 
+                  key={`revenue-${index}`} 
+                  style={styles.revenueBarGroup}
+                  onPress={() => showDetailModal(
+                    `${dayData.day} Revenue`,
+                    `${(dayData.revenue / 1000).toFixed(1)}K`,
+                    `Total: ${dayData.revenue.toLocaleString()}\n5% Platform Fee: ${dayData.platformFee.toLocaleString()}\nNet: ${(dayData.revenue - dayData.platformFee).toLocaleString()}`
+                  )}
+                >
+                  <View style={styles.revenueBarStack}>
+                    <View 
+                      style={[
+                        styles.revenueBar, 
+                        { 
+                          height: barHeight,
+                          backgroundColor: '#10B981'
+                        }
+                      ]} 
+                    />
+                    <View 
+                      style={[
+                        styles.revenueFeeBar, 
+                        { 
+                          height: feeHeight,
+                          backgroundColor: '#F59E0B',
+                          position: 'absolute',
+                          bottom: 0,
+                          right: 0
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.revenueBarLabel}>{dayData.day}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.revenueChartLegend}>
+            <View style={styles.revenueLegendItem}>
+              <View style={[styles.revenueLegendColor, { backgroundColor: '#10B981' }]} />
+              <Text style={styles.revenueLegendText}>Total Revenue</Text>
+            </View>
+            <View style={styles.revenueLegendItem}>
+              <View style={[styles.revenueLegendColor, { backgroundColor: '#F59E0B' }]} />
+              <Text style={styles.revenueLegendText}>5% Platform Fee</Text>
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -1808,6 +1822,72 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     gap: 4,
+  },
+  // Revenue chart specific styles
+  revenueChartContainer: {
+    flex: 1,
+    paddingHorizontal: 8,
+  },
+  revenueBarChart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 140,
+    paddingBottom: 30,
+    paddingHorizontal: 4,
+    overflow: 'hidden', // Prevent bleeding
+  },
+  revenueBarGroup: {
+    alignItems: 'center',
+    flex: 1,
+    maxWidth: 40, // Constrain bar width
+  },
+  revenueBarStack: {
+    position: 'relative',
+    alignItems: 'center',
+    marginBottom: 8,
+    width: 24, // Fixed width to prevent overflow
+  },
+  revenueBar: {
+    width: 20,
+    borderRadius: 3,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+  },
+  revenueFeeBar: {
+    width: 6,
+    borderRadius: 2,
+    marginLeft: 2,
+  },
+  revenueBarLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  revenueChartLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  revenueLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  revenueLegendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+  },
+  revenueLegendText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500' as const,
   },
   // New styles for smooth connected line chart
   chartLegend: {
