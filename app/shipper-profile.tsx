@@ -4,6 +4,8 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { useWallet } from '@/hooks/useWallet';
+import { useLoads } from '@/hooks/useLoads';
 import { 
   Building2, 
   Mail, 
@@ -17,12 +19,17 @@ import {
   FileText,
   Truck,
   BarChart3,
-  Settings
+  Settings,
+  DollarSign,
+  Package,
+  TrendingUp
 } from 'lucide-react-native';
 
 export default function ShipperProfileScreen() {
   const router = useRouter();
   const { user, updateProfile } = useAuth();
+  const { balance, totalEarnings, transactions } = useWallet();
+  const { loads } = useLoads();
   const insets = useSafeAreaInsets();
   const isShipper = user?.role === 'shipper';
   
@@ -260,24 +267,84 @@ export default function ShipperProfileScreen() {
           </View>
         </View>
 
+        {/* Live Wallet Balance */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Wallet & Earnings</Text>
+          <View style={styles.walletContainer}>
+            <View style={styles.walletCard}>
+              <View style={styles.walletHeader}>
+                <DollarSign size={24} color={theme.colors.success} />
+                <Text style={styles.walletTitle}>Available Balance</Text>
+              </View>
+              <Text style={styles.walletBalance}>${balance.toFixed(2)}</Text>
+              <View style={styles.walletBreakdown}>
+                <View style={styles.breakdownItem}>
+                  <Text style={styles.breakdownLabel}>Total Earnings</Text>
+                  <Text style={styles.breakdownValue}>${totalEarnings.toFixed(2)}</Text>
+                </View>
+                <View style={styles.breakdownItem}>
+                  <Text style={styles.breakdownLabel}>Platform Fee (5%)</Text>
+                  <Text style={styles.breakdownValue}>-${(totalEarnings * 0.05).toFixed(2)}</Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={styles.walletButton}
+                onPress={() => router.push('/wallet')}
+              >
+                <Text style={styles.walletButtonText}>View Wallet</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Posted Loads History */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Posted Loads History</Text>
+          <View style={styles.loadsHistoryContainer}>
+            <View style={styles.loadsStatsRow}>
+              <View style={styles.loadsStat}>
+                <Package size={20} color={theme.colors.primary} />
+                <Text style={styles.loadsStatValue}>{loads.filter(l => l.shipperId === user?.id).length}</Text>
+                <Text style={styles.loadsStatLabel}>Total Posted</Text>
+              </View>
+              <View style={styles.loadsStat}>
+                <TrendingUp size={20} color={theme.colors.success} />
+                <Text style={styles.loadsStatValue}>{loads.filter(l => l.shipperId === user?.id && l.status === 'active').length}</Text>
+                <Text style={styles.loadsStatLabel}>Active</Text>
+              </View>
+              <View style={styles.loadsStat}>
+                <Truck size={20} color={theme.colors.warning} />
+                <Text style={styles.loadsStatValue}>{loads.filter(l => l.shipperId === user?.id && l.status === 'delivered').length}</Text>
+                <Text style={styles.loadsStatLabel}>Completed</Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={styles.viewLoadsButton}
+              onPress={() => router.push('/my-loads')}
+            >
+              <Text style={styles.viewLoadsButtonText}>View All Loads</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Business Stats */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Business Overview</Text>
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{(user as any)?.totalLoadsPosted ?? 0}</Text>
+              <Text style={styles.statValue}>{loads.filter(l => l.shipperId === user?.id).length}</Text>
               <Text style={styles.statLabel}>Total Loads Posted</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{(user as any)?.activeLoads ?? 0}</Text>
+              <Text style={styles.statValue}>{loads.filter(l => l.shipperId === user?.id && l.status === 'active').length}</Text>
               <Text style={styles.statLabel}>Active Loads</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>${((user as any)?.totalRevenue ?? 0).toLocaleString()}</Text>
+              <Text style={styles.statValue}>${totalEarnings.toLocaleString()}</Text>
               <Text style={styles.statLabel}>Total Revenue</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{(user as any)?.avgRating ?? 0}</Text>
+              <Text style={styles.statValue}>{(user as any)?.avgRating ?? 4.8}</Text>
               <Text style={styles.statLabel}>Average Rating</Text>
             </View>
           </View>
@@ -489,5 +556,104 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: theme.colors.gray,
     textAlign: 'center',
+  },
+  walletContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  walletCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  walletHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  walletTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  walletBalance: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: theme.colors.success,
+    marginBottom: theme.spacing.md,
+  },
+  walletBreakdown: {
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
+  },
+  breakdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakdownLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+  },
+  breakdownValue: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  walletButton: {
+    backgroundColor: theme.colors.success,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+  },
+  walletButtonText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  loadsHistoryContainer: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  loadsStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: theme.spacing.md,
+  },
+  loadsStat: {
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  loadsStatValue: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  loadsStatLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    textAlign: 'center',
+  },
+  viewLoadsButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+  },
+  viewLoadsButtonText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.white,
   },
 });

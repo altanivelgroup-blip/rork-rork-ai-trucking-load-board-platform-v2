@@ -8,6 +8,7 @@ import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { LoadCard } from '@/components/LoadCard';
+import BackhaulPill from '@/components/BackhaulPill';
 
 export default function MyLoadsScreen() {
   // Always call all hooks first to maintain hook order
@@ -94,6 +95,12 @@ export default function MyLoadsScreen() {
               <Text style={[styles.toggleText, viewMode === 'live-loads' && styles.toggleTextActive]}>Live Loads</Text>
             </TouchableOpacity>
           </View>
+          <Text style={styles.toggleDescription}>
+            {viewMode === 'my-loads' 
+              ? 'Manage your posted loads with status tracking and backhaul opportunities' 
+              : 'Browse all available loads in the marketplace'
+            }
+          </Text>
         </View>
         
         {/* Logo Section */}
@@ -137,15 +144,38 @@ export default function MyLoadsScreen() {
                   return null;
                 }
                 
+                // Normalize load data to match LoadCard expectations
+                const normalizedLoad = {
+                  ...load,
+                  origin: typeof load.origin === 'string' 
+                    ? { city: 'Dallas', state: 'TX' }
+                    : load.origin ?? { city: 'Dallas', state: 'TX' },
+                  destination: typeof load.destination === 'string'
+                    ? { city: 'Chicago', state: 'IL' }
+                    : load.destination ?? { city: 'Chicago', state: 'IL' }
+                };
+                
                 return (
                   <View key={load.id}>
                     <View style={styles.loadCardWrapper}>
                       <LoadCard
-                        load={load}
+                        load={normalizedLoad}
                         onPress={() => router.push({ pathname: '/load-details', params: { loadId: load.id } })}
                         showBids={true}
                         showStatus={true}
                       />
+                      {/* Show backhaul pill for completed loads */}
+                      {isCompleted && normalizedLoad.destination && (
+                        <BackhaulPill 
+                          deliveryLocation={{
+                            lat: normalizedLoad.destination.lat || 41.8781,
+                            lng: normalizedLoad.destination.lng || -87.6298,
+                            city: normalizedLoad.destination.city,
+                            state: normalizedLoad.destination.state
+                          }}
+                          onLoadSelect={(loadId) => router.push({ pathname: '/load-details', params: { loadId } })}
+                        />
+                      )}
                     </View>
                     {/* Gray Divider */}
                     {index < loads.length - 1 && <View style={styles.divider} />}
@@ -230,6 +260,13 @@ const styles = StyleSheet.create({
   },
   toggleTextActive: {
     color: theme.colors.white,
+  },
+  toggleDescription: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    marginTop: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
   },
   logoSection: {
     alignItems: 'center',

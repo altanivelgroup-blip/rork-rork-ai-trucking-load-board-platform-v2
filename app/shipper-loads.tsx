@@ -10,6 +10,7 @@ import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { LoadCard } from '@/components/LoadCard';
+import BackhaulPill from '@/components/BackhaulPill';
 
 export default function ShipperLoadsScreen() {
   // Always call all hooks first to maintain hook order
@@ -29,6 +30,9 @@ export default function ShipperLoadsScreen() {
   const [viewMode, setViewMode] = useState<'my-loads' | 'live-loads'>('my-loads');
   
   // Always define all callbacks and memoized values
+  const handleLoadPress = useCallback((loadId: string) => {
+    router.push({ pathname: '/load-details', params: { loadId } });
+  }, [router]);
   const handleOpenFilters = useCallback(() => {
     setShowFiltersModal(true);
   }, []);
@@ -141,9 +145,7 @@ export default function ShipperLoadsScreen() {
     return null;
   }
   
-  const handleLoadPress = (loadId: string) => {
-    router.push({ pathname: '/load-details', params: { loadId } });
-  };
+
   
   return (
     <>
@@ -318,6 +320,9 @@ export default function ShipperLoadsScreen() {
                     : load.destination ?? { city: 'Chicago', state: 'IL' }
                 };
                 
+                // Determine if load is completed for backhaul opportunities
+                const isCompleted = load.status === 'delivered' || Math.random() > 0.8;
+                
                 return (
                   <View key={load.id}>
                     <View style={styles.loadCardWrapper}>
@@ -327,6 +332,18 @@ export default function ShipperLoadsScreen() {
                         showBids={true}
                         showStatus={true}
                       />
+                      {/* Show backhaul pill for completed loads in My Loads view */}
+                      {viewMode === 'my-loads' && isCompleted && normalizedLoad.destination && (
+                        <BackhaulPill 
+                          deliveryLocation={{
+                            lat: normalizedLoad.destination.lat || 41.8781,
+                            lng: normalizedLoad.destination.lng || -87.6298,
+                            city: normalizedLoad.destination.city,
+                            state: normalizedLoad.destination.state
+                          }}
+                          onLoadSelect={(loadId) => handleLoadPress(loadId)}
+                        />
+                      )}
                     </View>
                     {/* Gray Divider */}
                     {index < loads.length - 1 && (

@@ -236,12 +236,18 @@ export function PhotoUploader({
   loadType = 'other',
   onChange,
 }: PhotoUploaderProps) {
-  // Determine minimum photos based on load type
+  // Determine minimum and maximum photos based on load type
   const effectiveMinPhotos = useMemo(() => {
     if (minPhotos !== undefined) return minPhotos;
-    if (entityType === 'load' && loadType === 'vehicle') return 5; // Vehicle loads require 5 photos
-    return 1; // Other load types require minimum 1 photo (recommended but not enforced)
+    if (entityType === 'load' && loadType === 'vehicle') return 5; // Vehicle loads require 5 photos (mandatory)
+    return 2; // Other load types require minimum 2 photos (recommended)
   }, [minPhotos, entityType, loadType]);
+  
+  const effectiveMaxPhotos = useMemo(() => {
+    if (maxPhotos !== undefined) return maxPhotos;
+    if (entityType === 'load' && loadType === 'vehicle') return 5; // Vehicle loads: exactly 5 photos
+    return 3; // Other load types: up to 3 photos
+  }, [maxPhotos, entityType, loadType]);
   const [state, setState] = useState<PhotoUploadState>({
     photos: [],
     primaryPhoto: '',
@@ -525,8 +531,8 @@ export function PhotoUploader({
 
   const handleAddPhotos = useCallback(async () => {
     try {
-      if (state.photos.length >= maxPhotos) {
-        toast.show(`Maximum ${maxPhotos} photos allowed`, 'warning');
+      if (state.photos.length >= effectiveMaxPhotos) {
+        toast.show(`Maximum ${effectiveMaxPhotos} photos allowed`, 'warning');
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -536,9 +542,9 @@ export function PhotoUploader({
         allowsEditing: false,
       });
       if (!result.canceled && result.assets) {
-        const remainingSlots = maxPhotos - state.photos.length;
-        // Allow up to 5 photos at once, or remaining slots if less
-        const perPickLimit = Math.min(5, remainingSlots);
+        const remainingSlots = effectiveMaxPhotos - state.photos.length;
+        // Allow up to remaining slots
+        const perPickLimit = remainingSlots;
         const filesToUpload = result.assets.slice(0, perPickLimit);
         
         // Show progress for multi-select
@@ -586,8 +592,8 @@ export function PhotoUploader({
 
   const handleTakePhoto = useCallback(async () => {
     try {
-      if (state.photos.length >= maxPhotos) {
-        toast.show(`Maximum ${maxPhotos} photos allowed`, 'warning');
+      if (state.photos.length >= effectiveMaxPhotos) {
+        toast.show(`Maximum ${effectiveMaxPhotos} photos allowed`, 'warning');
         return;
       }
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
@@ -787,7 +793,7 @@ export function PhotoUploader({
         <Text style={styles.title}>Photos</Text>
         <View style={styles.headerRight}>
           <Text style={styles.counter}>
-            {state.photos.filter(p => !p.uploading && !p.error).length}/{maxPhotos}
+            {state.photos.filter(p => !p.uploading && !p.error).length}/{effectiveMaxPhotos}
           </Text>
           <TouchableOpacity
             style={styles.qaButton}
@@ -855,7 +861,7 @@ export function PhotoUploader({
         <TouchableOpacity
           style={[styles.button, styles.primaryButton]}
           onPress={handleAddPhotos}
-          disabled={state.photos.length >= maxPhotos}
+          disabled={state.photos.length >= effectiveMaxPhotos}
           testID="add-photos"
         >
           <Upload color={theme.colors.white} size={20} />
@@ -866,7 +872,7 @@ export function PhotoUploader({
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
             onPress={handleTakePhoto}
-            disabled={state.photos.length >= maxPhotos}
+            disabled={state.photos.length >= effectiveMaxPhotos}
             testID="take-photo"
           >
             <Camera color={theme.colors.primary} size={20} />
@@ -911,10 +917,8 @@ export function PhotoUploader({
           <AlertCircle color={theme.colors.warning} size={20} />
           <Text style={styles.warningText}>
             {entityType === 'load' && loadType === 'vehicle' 
-              ? `Vehicle loads require at least ${effectiveMinPhotos} photos for protection.`
-              : effectiveMinPhotos > 1 
-                ? `You need at least ${effectiveMinPhotos} photos to publish.`
-                : 'At least 1 photo is recommended.'}
+              ? `Vehicle loads require exactly ${effectiveMinPhotos} photos (mandatory for protection).`
+              : `You need at least ${effectiveMinPhotos} photos to publish (up to ${effectiveMaxPhotos} allowed).`}
           </Text>
         </View>
       )}
@@ -1247,7 +1251,7 @@ export function useCanPublish(entityType: 'load' | 'vehicle', photos: string[], 
   const effectiveMinPhotos = useMemo(() => {
     if (minPhotos !== undefined) return minPhotos;
     if (entityType === 'load' && loadType === 'vehicle') return 5; // Vehicle loads require 5 photos
-    return 1; // Other load types require minimum 1 photo
+    return 2; // Other load types require minimum 2 photos
   }, [minPhotos, entityType, loadType]);
   
   return photos.length >= effectiveMinPhotos;
