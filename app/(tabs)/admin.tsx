@@ -6,7 +6,7 @@ import { Activity, CheckCircle, Database, RefreshCcw, TrendingUp, Shield, Users,
 import { useAuth } from '@/hooks/useAuth';
 import { useLoads } from '@/hooks/useLoads';
 import { router } from 'expo-router';
-import Svg, { Path, Circle, Text as SvgText, Line } from 'react-native-svg';
+import Svg, { Path, Circle, Text as SvgText, Line, G, Rect } from 'react-native-svg';
 
 type TabKey = 'overview' | 'users' | 'loads' | 'system' | 'analytics';
 type ReportPeriod = 'Daily' | 'Weekly' | 'Monthly' | 'Quarterly';
@@ -199,6 +199,162 @@ export default function AdminScreen() {
     setRevenueData(generateRevenueData(reportPeriod));
   }, [reportPeriod, generateRevenueData]);
   
+  // Pie Chart Component
+  const PieChart = ({ data, centerValue }: { data: { value: number; color: string; label: string }[]; centerValue: string }) => {
+    const size = 120;
+    const strokeWidth = 20;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    
+    const total = data.reduce((sum, item) => sum + item.value, 0);
+    let currentAngle = 0;
+    
+    return (
+      <View style={styles.pieChartWrapper}>
+        <Svg width={size} height={size}>
+          {data.map((item, index) => {
+            const percentage = item.value / total;
+            const strokeDasharray = `${percentage * circumference} ${circumference}`;
+            const strokeDashoffset = -currentAngle * circumference;
+            currentAngle += percentage;
+            
+            return (
+              <Circle
+                key={index}
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke={item.color}
+                strokeWidth={strokeWidth}
+                fill="transparent"
+                strokeDasharray={strokeDasharray}
+                strokeDashoffset={strokeDashoffset}
+                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              />
+            );
+          })}
+        </Svg>
+        <View style={styles.pieChartCenter}>
+          <Text style={styles.pieChartCenterText}>{centerValue}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  // Area Chart Component
+  const AreaChart = ({ data }: { data: { x: number; y: number; label: string }[] }) => {
+    const width = 200;
+    const height = 80;
+    const padding = 10;
+    
+    if (!data.length) return null;
+    
+    const maxY = Math.max(...data.map(d => d.y));
+    const minY = Math.min(...data.map(d => d.y));
+    const range = maxY - minY || 1;
+    
+    const points = data.map((point, index) => {
+      const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
+      const y = height - padding - ((point.y - minY) / range) * (height - 2 * padding);
+      return { x, y };
+    });
+    
+    const pathData = points.reduce((path, point, index) => {
+      if (index === 0) return `M ${point.x} ${point.y}`;
+      return `${path} L ${point.x} ${point.y}`;
+    }, '');
+    
+    const areaPath = `${pathData} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
+    
+    return (
+      <Svg width={width} height={height}>
+        <Path d={areaPath} fill="rgba(76, 175, 80, 0.2)" />
+        <Path d={pathData} stroke="#4CAF50" strokeWidth={2} fill="none" />
+        {points.map((point, index) => (
+          <Circle key={index} cx={point.x} cy={point.y} r={3} fill="#4CAF50" />
+        ))}
+      </Svg>
+    );
+  };
+
+  // Bar Chart Component
+  const BarChart = ({ data }: { data: { value: number; color: string }[] }) => {
+    const width = 200;
+    const height = 60;
+    const maxValue = Math.max(...data.map(d => d.value));
+    const barWidth = width / data.length - 2;
+    
+    return (
+      <Svg width={width} height={height}>
+        {data.map((item, index) => {
+          const barHeight = (item.value / maxValue) * height;
+          const x = index * (barWidth + 2);
+          const y = height - barHeight;
+          
+          return (
+            <Rect
+              key={index}
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barHeight}
+              fill={item.color}
+            />
+          );
+        })}
+      </Svg>
+    );
+  };
+
+  // Gender Distribution Chart Component
+  const GenderDistributionChart = () => {
+    const width = 300;
+    const height = 120;
+    
+    const femaleData = [15, 25, 35, 45, 38, 28, 18, 12, 8, 5];
+    const maleData = [12, 22, 32, 42, 35, 25, 15, 10, 6, 3];
+    
+    const maxValue = Math.max(...femaleData, ...maleData);
+    const barWidth = width / femaleData.length - 2;
+    
+    return (
+      <Svg width={width} height={height}>
+        {femaleData.map((value, index) => {
+          const barHeight = (value / maxValue) * (height / 2 - 10);
+          const x = index * (barWidth + 2);
+          const y = height / 2 - barHeight;
+          
+          return (
+            <Rect
+              key={`female-${index}`}
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barHeight}
+              fill="#FF6B6B"
+            />
+          );
+        })}
+        {maleData.map((value, index) => {
+          const barHeight = (value / maxValue) * (height / 2 - 10);
+          const x = index * (barWidth + 2);
+          const y = height / 2 + 10;
+          
+          return (
+            <Rect
+              key={`male-${index}`}
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barHeight}
+              fill="#4ECDC4"
+            />
+          );
+        })}
+      </Svg>
+    );
+  };
+
   // Revenue Graph Component
   const RevenueGraph = ({ data }: { data: typeof revenueData }) => {
     const screenWidth = Dimensions.get('window').width;
@@ -702,90 +858,209 @@ export default function AdminScreen() {
         
         {activeTab === 'analytics' && (
           <>
-            <View style={styles.revenueSection}>
-              <View style={styles.revenueSectionHeader}>
-                <Text style={styles.sectionTitle}>Revenue Trends</Text>
-                <TouchableOpacity 
-                  style={styles.periodDropdown}
-                  onPress={() => setShowPeriodDropdown(!showPeriodDropdown)}
-                >
-                  <Text style={styles.periodText}>{reportPeriod}</Text>
-                  <ChevronDown size={16} color={theme.colors.gray} />
+            {/* Header */}
+            <View style={styles.reportsHeader}>
+              <Text style={styles.reportsTitle}>LoadRush Analytics Dashboard</Text>
+              <View style={styles.exportButtons}>
+                <TouchableOpacity style={styles.exportBtn}>
+                  <Text style={styles.exportBtnText}>Export PDF</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.exportBtn}>
+                  <Text style={styles.exportBtnText}>Export CSV</Text>
                 </TouchableOpacity>
               </View>
-              
-              {showPeriodDropdown && (
-                <View style={styles.dropdownMenu}>
-                  {(['Daily', 'Weekly', 'Monthly', 'Quarterly'] as ReportPeriod[]).map((period) => (
-                    <TouchableOpacity
-                      key={period}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setReportPeriod(period);
-                        setShowPeriodDropdown(false);
-                      }}
-                    >
-                      <Text style={[styles.dropdownItemText, reportPeriod === period && styles.dropdownItemTextActive]}>
-                        {period}
-                      </Text>
-                    </TouchableOpacity>
+            </View>
+
+            {/* Top Row - Key Metrics */}
+            <View style={styles.topMetricsRow}>
+              {/* Total Load Count */}
+              <View style={styles.metricPanel}>
+                <Text style={styles.metricPanelTitle}>Total Load Count</Text>
+                <View style={styles.pieChartContainer}>
+                  <PieChart 
+                    data={[
+                      { value: liveMetrics.availableLoads, color: '#4CAF50', label: 'Available' },
+                      { value: liveMetrics.inTransitLoads, color: '#FF9800', label: 'In Transit' },
+                      { value: liveMetrics.completedLoads, color: '#2196F3', label: 'Completed' }
+                    ]}
+                    centerValue={liveMetrics.totalLoads.toString()}
+                  />
+                </View>
+                <Text style={styles.metricSubtitle}>Breakdown by Status</Text>
+              </View>
+
+              {/* Load Distribution */}
+              <View style={styles.metricPanel}>
+                <Text style={styles.metricPanelTitle}>Load Distribution</Text>
+                <View style={styles.areaChartContainer}>
+                  <AreaChart 
+                    data={[
+                      { x: 0, y: 45, label: 'Jan' },
+                      { x: 1, y: 52, label: 'Feb' },
+                      { x: 2, y: 48, label: 'Mar' },
+                      { x: 3, y: 61, label: 'Apr' },
+                      { x: 4, y: 55, label: 'May' },
+                      { x: 5, y: 67, label: 'Jun' }
+                    ]}
+                  />
+                </View>
+                <Text style={styles.metricSubtitle}>Loads by Month</Text>
+              </View>
+
+              {/* Revenue Distribution */}
+              <View style={styles.metricPanel}>
+                <Text style={styles.metricPanelTitle}>Revenue by Role</Text>
+                <View style={styles.pieChartContainer}>
+                  <PieChart 
+                    data={[
+                      { value: 65, color: '#FF6B6B', label: 'Drivers' },
+                      { value: 35, color: '#4ECDC4', label: 'Shippers' }
+                    ]}
+                    centerValue="4.7M"
+                  />
+                </View>
+                <Text style={styles.metricSubtitle}>Breakdown by Role</Text>
+              </View>
+
+              {/* User Attrition */}
+              <View style={styles.metricPanel}>
+                <Text style={styles.metricPanelTitle}>User Attrition</Text>
+                <View style={styles.pieChartContainer}>
+                  <PieChart 
+                    data={[
+                      { value: 85, color: '#00BCD4', label: 'Active' },
+                      { value: 15, color: '#F44336', label: 'Inactive' }
+                    ]}
+                    centerValue="237"
+                  />
+                </View>
+                <Text style={styles.metricSubtitle}>Attrition Head Count & Percentage</Text>
+              </View>
+            </View>
+
+            {/* Middle Row - Time Dimensions */}
+            <View style={styles.timeDimensionsPanel}>
+              <Text style={styles.sectionTitle}>Attrition Share by Time Dimensions</Text>
+              <View style={styles.barChartsRow}>
+                <View style={styles.barChartSection}>
+                  <Text style={styles.barChartTitle}>Years with Company</Text>
+                  <BarChart 
+                    data={[
+                      { value: 12, color: '#4ECDC4' },
+                      { value: 8, color: '#4ECDC4' },
+                      { value: 15, color: '#4ECDC4' },
+                      { value: 6, color: '#4ECDC4' },
+                      { value: 22, color: '#4ECDC4' },
+                      { value: 18, color: '#4ECDC4' },
+                      { value: 9, color: '#4ECDC4' },
+                      { value: 14, color: '#4ECDC4' },
+                      { value: 11, color: '#4ECDC4' },
+                      { value: 25, color: '#4ECDC4' }
+                    ]}
+                  />
+                </View>
+                <View style={styles.barChartSection}>
+                  <Text style={styles.barChartTitle}>Years in Current Role</Text>
+                  <BarChart 
+                    data={[
+                      { value: 8, color: '#FF6B6B' },
+                      { value: 5, color: '#FF6B6B' },
+                      { value: 12, color: '#FF6B6B' },
+                      { value: 3, color: '#FF6B6B' },
+                      { value: 18, color: '#FF6B6B' },
+                      { value: 14, color: '#FF6B6B' },
+                      { value: 7, color: '#FF6B6B' },
+                      { value: 10, color: '#FF6B6B' },
+                      { value: 6, color: '#FF6B6B' },
+                      { value: 20, color: '#FF6B6B' }
+                    ]}
+                  />
+                </View>
+                <View style={styles.barChartSection}>
+                  <Text style={styles.barChartTitle}>Years with Current Manager</Text>
+                  <BarChart 
+                    data={[
+                      { value: 6, color: '#4CAF50' },
+                      { value: 4, color: '#4CAF50' },
+                      { value: 9, color: '#4CAF50' },
+                      { value: 2, color: '#4CAF50' },
+                      { value: 15, color: '#4CAF50' },
+                      { value: 11, color: '#4CAF50' },
+                      { value: 5, color: '#4CAF50' },
+                      { value: 8, color: '#4CAF50' },
+                      { value: 4, color: '#4CAF50' },
+                      { value: 18, color: '#4CAF50' }
+                    ]}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Bottom Row */}
+            <View style={styles.bottomRow}>
+              {/* Gender Distribution */}
+              <View style={styles.genderPanel}>
+                <Text style={styles.sectionTitle}>Attrition Age Distribution by Gender</Text>
+                <View style={styles.genderChartContainer}>
+                  <GenderDistributionChart />
+                </View>
+                <View style={styles.genderStats}>
+                  <View style={styles.genderStatItem}>
+                    <Text style={styles.genderStatLabel}>Total</Text>
+                    <Text style={styles.genderStatValue}>882</Text>
+                  </View>
+                  <View style={styles.genderStatItem}>
+                    <Text style={styles.genderStatLabel}>Total</Text>
+                    <Text style={styles.genderStatValue}>588</Text>
+                  </View>
+                </View>
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterTitle}>Marital</Text>
+                  <View style={styles.checkboxRow}>
+                    <Text style={styles.checkboxLabel}>☐ Divorced</Text>
+                    <Text style={styles.checkboxLabel}>☐ Married</Text>
+                    <Text style={styles.checkboxLabel}>☐ Single</Text>
+                  </View>
+                  <Text style={styles.filterTitle}>Travel</Text>
+                  <View style={styles.checkboxRow}>
+                    <Text style={styles.checkboxLabel}>☐ Rarely</Text>
+                    <Text style={styles.checkboxLabel}>☐ No Travel</Text>
+                    <Text style={styles.checkboxLabel}>☐ Frequently</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Job Role Distribution */}
+              <View style={styles.jobRolePanel}>
+                <Text style={styles.sectionTitle}>Attrition by Job Role</Text>
+                <View style={styles.jobRoleList}>
+                  {[
+                    { role: 'Sales Executive', value: 85, color: '#FF6B6B' },
+                    { role: 'Sales Representative', value: 72, color: '#FF6B6B' },
+                    { role: 'Manager', value: 45, color: '#FF6B6B' },
+                    { role: 'Laboratory Technician', value: 62, color: '#FF6B6B' },
+                    { role: 'Research Scientist', value: 38, color: '#FF6B6B' },
+                    { role: 'Manufacturing Director', value: 15, color: '#FF6B6B' },
+                    { role: 'Healthcare Representative', value: 8, color: '#FF6B6B' },
+                    { role: 'Manager', value: 3, color: '#FF6B6B' },
+                    { role: 'Research Director', value: 2, color: '#FF6B6B' },
+                    { role: 'Human Resources', value: 52, color: '#FF6B6B' }
+                  ].map((item, index) => (
+                    <View key={index} style={styles.jobRoleItem}>
+                      <Text style={styles.jobRoleLabel}>{item.role}</Text>
+                      <View style={styles.jobRoleBar}>
+                        <View style={[styles.jobRoleBarFill, { width: `${item.value}%`, backgroundColor: item.color }]} />
+                      </View>
+                    </View>
                   ))}
                 </View>
-              )}
-              
-              <View style={styles.revenueGraphCard}>
-                <RevenueGraph data={revenueData} />
-              </View>
-            </View>
-            
-            <View style={styles.revenueGrid}>
-              <View style={styles.revenueCard}>
-                <Text style={styles.revenueValue}>${liveMetrics.totalRevenue.toLocaleString()}</Text>
-                <Text style={styles.revenueLabel}>Total Revenue</Text>
-                <Text style={styles.revenueTrend}>+18% vs last month</Text>
-              </View>
-              <View style={styles.revenueCard}>
-                <Text style={styles.revenueValue}>${liveMetrics.avgRate.toFixed(0)}</Text>
-                <Text style={styles.revenueLabel}>Avg Rate</Text>
-                <Text style={styles.revenueTrend}>+5% vs last month</Text>
-              </View>
-            </View>
-            
-            <Text style={styles.sectionTitle}>Performance Metrics</Text>
-            <View style={styles.performanceList}>
-              {[
-                { metric: 'Load Completion Rate', value: '94.2%', trend: '+2.1%', color: theme.colors.success },
-                { metric: 'Average Delivery Time', value: '2.3 days', trend: '-0.2 days', color: theme.colors.success },
-                { metric: 'Customer Satisfaction', value: '4.7/5', trend: '+0.1', color: theme.colors.success },
-                { metric: 'Driver Utilization', value: '87%', trend: '+3%', color: theme.colors.success },
-                { metric: 'Platform Uptime', value: '99.9%', trend: '0%', color: theme.colors.success },
-              ].map((item) => (
-                <View key={item.metric} style={styles.performanceCard}>
-                  <View style={styles.performanceInfo}>
-                    <Text style={styles.performanceMetric}>{item.metric}</Text>
-                    <Text style={styles.performanceValue}>{item.value}</Text>
-                  </View>
-                  <Text style={[styles.performanceTrend, { color: item.color }]}>{item.trend}</Text>
+                <View style={styles.payrollSection}>
+                  <Text style={styles.payrollTitle}>Monthly Payroll</Text>
+                  <Text style={styles.payrollValue}>21.04M</Text>
+                  <Text style={styles.payrollGrowth}>Payroll Growth: 2%</Text>
+                  <Text style={styles.payrollRating}>Overall Rating: 2.73</Text>
                 </View>
-              ))}
-            </View>
-            
-            <Text style={styles.sectionTitle}>Growth Trends</Text>
-            <View style={styles.trendsList}>
-              {[
-                { period: 'This Week', users: '+23', loads: '+45', revenue: '+$12.5K' },
-                { period: 'This Month', users: '+89', loads: '+156', revenue: '+$47.2K' },
-                { period: 'This Quarter', users: '+234', loads: '+567', revenue: '+$156.8K' },
-              ].map((trend) => (
-                <View key={trend.period} style={styles.trendCard}>
-                  <Text style={styles.trendPeriod}>{trend.period}</Text>
-                  <View style={styles.trendMetrics}>
-                    <Text style={styles.trendItem}>Users: {trend.users}</Text>
-                    <Text style={styles.trendItem}>Loads: {trend.loads}</Text>
-                    <Text style={styles.trendItem}>Revenue: {trend.revenue}</Text>
-                  </View>
-                </View>
-              ))}
+              </View>
             </View>
           </>
         )}
@@ -940,4 +1215,62 @@ const styles = StyleSheet.create({
   tooltipContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' },
   tooltip: { position: 'absolute', backgroundColor: theme.colors.dark, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, opacity: 0.8 },
   tooltipText: { fontSize: theme.fontSize.xs, color: theme.colors.white, fontWeight: fontWeight600 },
+  
+  // Reports Dashboard Styles
+  reportsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.lg },
+  reportsTitle: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.dark },
+  exportButtons: { flexDirection: 'row', gap: 8 },
+  exportBtn: { backgroundColor: theme.colors.secondary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.borderRadius.md },
+  exportBtnText: { color: theme.colors.white, fontSize: theme.fontSize.sm, fontWeight: fontWeight600 },
+  
+  // Top Metrics Row
+  topMetricsRow: { flexDirection: 'row', gap: 12, marginBottom: theme.spacing.lg },
+  metricPanel: { flex: 1, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
+  metricPanelTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8 },
+  metricSubtitle: { fontSize: theme.fontSize.xs, color: theme.colors.gray, marginTop: 8 },
+  
+  // Pie Chart Styles
+  pieChartContainer: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
+  pieChartWrapper: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  pieChartCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center', width: 80, height: 80 },
+  pieChartCenterText: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
+  
+  // Area Chart Styles
+  areaChartContainer: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
+  
+  // Time Dimensions Panel
+  timeDimensionsPanel: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border },
+  barChartsRow: { flexDirection: 'row', gap: 12 },
+  barChartSection: { flex: 1, alignItems: 'center' },
+  barChartTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8 },
+  
+  // Bottom Row
+  bottomRow: { flexDirection: 'row', gap: 12 },
+  
+  // Gender Panel
+  genderPanel: { flex: 1, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  genderChartContainer: { alignItems: 'center', marginVertical: theme.spacing.md },
+  genderStats: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: theme.spacing.md },
+  genderStatItem: { alignItems: 'center' },
+  genderStatLabel: { fontSize: theme.fontSize.xs, color: theme.colors.gray },
+  genderStatValue: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
+  
+  filterSection: { marginTop: theme.spacing.md },
+  filterTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 4 },
+  checkboxRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+  checkboxLabel: { fontSize: theme.fontSize.xs, color: theme.colors.gray },
+  
+  // Job Role Panel
+  jobRolePanel: { flex: 1, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  jobRoleList: { marginVertical: theme.spacing.md },
+  jobRoleItem: { marginBottom: 8 },
+  jobRoleLabel: { fontSize: theme.fontSize.xs, color: theme.colors.dark, marginBottom: 2 },
+  jobRoleBar: { height: 8, backgroundColor: theme.colors.lightGray, borderRadius: 4, overflow: 'hidden' },
+  jobRoleBarFill: { height: '100%', borderRadius: 4 },
+  
+  payrollSection: { marginTop: theme.spacing.md, padding: theme.spacing.sm, backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md },
+  payrollTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark },
+  payrollValue: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.dark, marginVertical: 4 },
+  payrollGrowth: { fontSize: theme.fontSize.xs, color: theme.colors.success },
+  payrollRating: { fontSize: theme.fontSize.xs, color: theme.colors.gray },
 });
