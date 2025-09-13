@@ -6,11 +6,11 @@ import { BarChart3 } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
+import ReportAnalyticsDashboard from '@/components/analytics/ReportAnalyticsDashboard';
 
 const fontWeight700 = '700' as const;
-const fontWeight600 = '600' as const;
 
-export default function ReportAnalyticsScreen() {
+export default function ReportsScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
@@ -57,21 +57,7 @@ export default function ReportAnalyticsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]} testID="reportAnalyticsScreen">
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <BarChart3 size={32} color={theme.colors.primary} />
-          <Text style={styles.title}>Report Analytics</Text>
-          <Text style={styles.subtitle}>Admin-only analytics and reporting dashboard</Text>
-        </View>
-        
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>Report Analytics Dashboard</Text>
-          <Text style={styles.placeholderSubtext}>
-            This is the new Report Analytics page accessible only to admin users.
-            Future analytics features will be implemented here.
-          </Text>
-        </View>
-      </View>
+      <ReportAnalyticsDashboard />
     </View>
   );
 }
@@ -79,51 +65,7 @@ export default function ReportAnalyticsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.lightGray,
-  },
-  content: {
-    flex: 1,
-    padding: theme.spacing.lg,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.xl,
-  },
-  title: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: fontWeight700,
-    color: theme.colors.dark,
-    marginTop: theme.spacing.md,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
-    marginTop: theme.spacing.sm,
-    textAlign: 'center',
-  },
-  placeholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.xl,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  placeholderText: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: fontWeight600,
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.md,
-    textAlign: 'center',
-  },
-  placeholderSubtext: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
-    textAlign: 'center',
-    lineHeight: 22,
+    backgroundColor: '#F8FAFC',
   },
   accessDenied: {
     flex: 1,
