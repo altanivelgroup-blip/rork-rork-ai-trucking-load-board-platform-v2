@@ -623,6 +623,15 @@ export default function AdminScreen() {
               </TouchableOpacity>
             );
           })}
+          <TouchableOpacity 
+            onPress={() => router.push('/debug-nav')} 
+            style={styles.devToolsBtn}
+            accessibilityRole="button"
+            testID="devToolsBtn"
+          >
+            <Settings color={theme.colors.primary} size={16} />
+            <Text style={styles.devToolsText}>Dev Tools</Text>
+          </TouchableOpacity>
           <View style={styles.tabSpacer} />
           <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn} accessibilityRole="button" testID="refreshBtn">
             <RefreshCcw color={theme.colors.secondary} size={20} />
@@ -1224,6 +1233,10 @@ const styles = StyleSheet.create({
   activityDetails: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 2 },
   
   tabSpacer: { flex: 1 },
+  
+  // Dev Tools Button
+  devToolsBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, marginRight: 8, borderWidth: 1, borderColor: theme.colors.primary, borderLeftWidth: 3, borderLeftColor: theme.colors.primary },
+  devToolsText: { marginLeft: 6, fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.primary },
   
   // Live Metrics Styles
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 as unknown as number, marginBottom: theme.spacing.lg },
