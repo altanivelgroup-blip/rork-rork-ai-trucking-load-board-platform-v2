@@ -859,91 +859,112 @@ export default function AdminScreen() {
         {activeTab === 'analytics' && (
           <>
             {/* Header */}
-            <View style={styles.reportsHeader}>
-              <Text style={styles.reportsTitle}>LoadRush Analytics Dashboard</Text>
-              <View style={styles.exportButtons}>
-                <TouchableOpacity style={styles.exportBtn}>
-                  <Text style={styles.exportBtnText}>Export PDF</Text>
+            <View style={styles.hrHeader}>
+              <Text style={styles.hrTitle}>HR Attrition Management</Text>
+              <View style={styles.periodToggle}>
+                <TouchableOpacity 
+                  style={[styles.periodBtn, reportPeriod === 'Daily' && styles.periodBtnActive]}
+                  onPress={() => setReportPeriod('Daily')}
+                >
+                  <Text style={[styles.periodBtnText, reportPeriod === 'Daily' && styles.periodBtnTextActive]}>Daily</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.exportBtn}>
-                  <Text style={styles.exportBtnText}>Export CSV</Text>
+                <TouchableOpacity 
+                  style={[styles.periodBtn, reportPeriod === 'Weekly' && styles.periodBtnActive]}
+                  onPress={() => setReportPeriod('Weekly')}
+                >
+                  <Text style={[styles.periodBtnText, reportPeriod === 'Weekly' && styles.periodBtnTextActive]}>Weekly</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.periodBtn, reportPeriod === 'Monthly' && styles.periodBtnActive]}
+                  onPress={() => setReportPeriod('Monthly')}
+                >
+                  <Text style={[styles.periodBtnText, reportPeriod === 'Monthly' && styles.periodBtnTextActive]}>Monthly</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.periodBtn, reportPeriod === 'Quarterly' && styles.periodBtnActive]}
+                  onPress={() => setReportPeriod('Quarterly')}
+                >
+                  <Text style={[styles.periodBtnText, reportPeriod === 'Quarterly' && styles.periodBtnTextActive]}>Quarterly</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Top Row - Key Metrics */}
-            <View style={styles.topMetricsRow}>
-              {/* Total Load Count */}
-              <View style={styles.metricPanel}>
-                <Text style={styles.metricPanelTitle}>Total Load Count</Text>
-                <View style={styles.pieChartContainer}>
+            <View style={styles.hrTopRow}>
+              {/* Total Head Count */}
+              <View style={styles.hrMetricCard}>
+                <Text style={styles.hrCardTitle}>Total Head Count</Text>
+                <View style={styles.hrPieContainer}>
                   <PieChart 
                     data={[
-                      { value: liveMetrics.availableLoads, color: '#4CAF50', label: 'Available' },
-                      { value: liveMetrics.inTransitLoads, color: '#FF9800', label: 'In Transit' },
-                      { value: liveMetrics.completedLoads, color: '#2196F3', label: 'Completed' }
+                      { value: 60, color: '#4CAF50', label: 'Active' },
+                      { value: 25, color: '#FF9800', label: 'Inactive' },
+                      { value: 15, color: '#2196F3', label: 'New' }
                     ]}
-                    centerValue={liveMetrics.totalLoads.toString()}
+                    centerValue="1470"
                   />
                 </View>
-                <Text style={styles.metricSubtitle}>Breakdown by Status</Text>
+                <Text style={styles.hrCardSubtitle}>Breakdown by Dept</Text>
               </View>
 
-              {/* Load Distribution */}
-              <View style={styles.metricPanel}>
-                <Text style={styles.metricPanelTitle}>Load Distribution</Text>
-                <View style={styles.areaChartContainer}>
+              {/* Age Distribution */}
+              <View style={styles.hrMetricCard}>
+                <Text style={styles.hrCardTitle}>Age Distribution</Text>
+                <View style={styles.hrAreaContainer}>
                   <AreaChart 
                     data={[
-                      { x: 0, y: 45, label: 'Jan' },
-                      { x: 1, y: 52, label: 'Feb' },
-                      { x: 2, y: 48, label: 'Mar' },
-                      { x: 3, y: 61, label: 'Apr' },
-                      { x: 4, y: 55, label: 'May' },
-                      { x: 5, y: 67, label: 'Jun' }
+                      { x: 0, y: 25, label: '20-25' },
+                      { x: 1, y: 45, label: '26-30' },
+                      { x: 2, y: 65, label: '31-35' },
+                      { x: 3, y: 55, label: '36-40' },
+                      { x: 4, y: 40, label: '41-45' },
+                      { x: 5, y: 30, label: '46-50' },
+                      { x: 6, y: 20, label: '51-55' },
+                      { x: 7, y: 15, label: '56-60' }
                     ]}
                   />
                 </View>
-                <Text style={styles.metricSubtitle}>Loads by Month</Text>
+                <Text style={styles.hrCardSubtitle}>Startup by Dept</Text>
               </View>
 
-              {/* Revenue Distribution */}
-              <View style={styles.metricPanel}>
-                <Text style={styles.metricPanelTitle}>Revenue by Role</Text>
-                <View style={styles.pieChartContainer}>
+              {/* Most Costly Role */}
+              <View style={styles.hrMetricCard}>
+                <Text style={styles.hrCardTitle}>Most Costly Role</Text>
+                <View style={styles.hrPieContainer}>
                   <PieChart 
                     data={[
-                      { value: 65, color: '#FF6B6B', label: 'Drivers' },
-                      { value: 35, color: '#4ECDC4', label: 'Shippers' }
+                      { value: 45, color: '#FF9800', label: 'Engineering' },
+                      { value: 30, color: '#4CAF50', label: 'Sales' },
+                      { value: 25, color: '#2196F3', label: 'Operations' }
                     ]}
                     centerValue="4.7M"
                   />
                 </View>
-                <Text style={styles.metricSubtitle}>Breakdown by Role</Text>
+                <Text style={styles.hrCardSubtitle}>Breakdown by Role</Text>
               </View>
 
-              {/* User Attrition */}
-              <View style={styles.metricPanel}>
-                <Text style={styles.metricPanelTitle}>User Attrition</Text>
-                <View style={styles.pieChartContainer}>
+              {/* Employee Attrition */}
+              <View style={styles.hrMetricCard}>
+                <Text style={styles.hrCardTitle}>Employee Attrition</Text>
+                <View style={styles.hrPieContainer}>
                   <PieChart 
                     data={[
-                      { value: 85, color: '#00BCD4', label: 'Active' },
-                      { value: 15, color: '#F44336', label: 'Inactive' }
+                      { value: 75, color: '#00BCD4', label: 'Retained' },
+                      { value: 25, color: '#F44336', label: 'Attrition' }
                     ]}
                     centerValue="237"
                   />
                 </View>
-                <Text style={styles.metricSubtitle}>Attrition Head Count & Percentage</Text>
+                <Text style={styles.hrCardSubtitle}>Attrition Head Count & Percentage</Text>
               </View>
             </View>
 
             {/* Middle Row - Time Dimensions */}
-            <View style={styles.timeDimensionsPanel}>
-              <Text style={styles.sectionTitle}>Attrition Share by Time Dimensions</Text>
-              <View style={styles.barChartsRow}>
-                <View style={styles.barChartSection}>
-                  <Text style={styles.barChartTitle}>Years with Company</Text>
+            <View style={styles.hrTimeDimensionsPanel}>
+              <Text style={styles.hrSectionTitle}>Attrition Share by Time Dimensions</Text>
+              <View style={styles.hrBarChartsRow}>
+                <View style={styles.hrBarChartSection}>
+                  <Text style={styles.hrBarChartTitle}>Years with Company</Text>
                   <BarChart 
                     data={[
                       { value: 12, color: '#4ECDC4' },
@@ -958,9 +979,10 @@ export default function AdminScreen() {
                       { value: 25, color: '#4ECDC4' }
                     ]}
                   />
+                  <Text style={styles.hrAxisLabel}>0 1 2 3 4 5 6 7 8 9 {'>'} 10</Text>
                 </View>
-                <View style={styles.barChartSection}>
-                  <Text style={styles.barChartTitle}>Years in Current Role</Text>
+                <View style={styles.hrBarChartSection}>
+                  <Text style={styles.hrBarChartTitle}>Years in Current Role</Text>
                   <BarChart 
                     data={[
                       { value: 8, color: '#FF6B6B' },
@@ -975,9 +997,10 @@ export default function AdminScreen() {
                       { value: 20, color: '#FF6B6B' }
                     ]}
                   />
+                  <Text style={styles.hrAxisLabel}>0 1 2 3 4 5 6 7 8 9 {'>'} 10</Text>
                 </View>
-                <View style={styles.barChartSection}>
-                  <Text style={styles.barChartTitle}>Years with Current Manager</Text>
+                <View style={styles.hrBarChartSection}>
+                  <Text style={styles.hrBarChartTitle}>Years with Current Manager</Text>
                   <BarChart 
                     data={[
                       { value: 6, color: '#4CAF50' },
@@ -992,48 +1015,96 @@ export default function AdminScreen() {
                       { value: 18, color: '#4CAF50' }
                     ]}
                   />
+                  <Text style={styles.hrAxisLabel}>0 1 2 3 4 5 6 7 8 9 {'>'} 10</Text>
                 </View>
               </View>
             </View>
 
             {/* Bottom Row */}
-            <View style={styles.bottomRow}>
+            <View style={styles.hrBottomRow}>
               {/* Gender Distribution */}
-              <View style={styles.genderPanel}>
-                <Text style={styles.sectionTitle}>Attrition Age Distribution by Gender</Text>
-                <View style={styles.genderChartContainer}>
+              <View style={styles.hrGenderPanel}>
+                <Text style={styles.hrSectionTitle}>Attrition Age Distribution by Gender</Text>
+                <View style={styles.hrGenderChartContainer}>
                   <GenderDistributionChart />
                 </View>
-                <View style={styles.genderStats}>
-                  <View style={styles.genderStatItem}>
-                    <Text style={styles.genderStatLabel}>Total</Text>
-                    <Text style={styles.genderStatValue}>882</Text>
+                <View style={styles.hrGenderStats}>
+                  <View style={styles.hrGenderStatItem}>
+                    <View style={styles.hrGenderIcon}>
+                      <Text style={styles.hrGenderIconText}>♀</Text>
+                    </View>
+                    <Text style={styles.hrGenderStatLabel}>Total</Text>
+                    <Text style={styles.hrGenderStatValue}>882</Text>
                   </View>
-                  <View style={styles.genderStatItem}>
-                    <Text style={styles.genderStatLabel}>Total</Text>
-                    <Text style={styles.genderStatValue}>588</Text>
+                  <View style={styles.hrGenderStatItem}>
+                    <View style={styles.hrGenderIcon}>
+                      <Text style={styles.hrGenderIconText}>♂</Text>
+                    </View>
+                    <Text style={styles.hrGenderStatLabel}>Total</Text>
+                    <Text style={styles.hrGenderStatValue}>588</Text>
                   </View>
                 </View>
-                <View style={styles.filterSection}>
-                  <Text style={styles.filterTitle}>Marital</Text>
-                  <View style={styles.checkboxRow}>
-                    <Text style={styles.checkboxLabel}>☐ Divorced</Text>
-                    <Text style={styles.checkboxLabel}>☐ Married</Text>
-                    <Text style={styles.checkboxLabel}>☐ Single</Text>
+                <View style={styles.hrFilterSection}>
+                  <View style={styles.hrFilterColumn}>
+                    <Text style={styles.hrFilterTitle}>Marital</Text>
+                    <View style={styles.hrCheckboxGroup}>
+                      <Text style={styles.hrCheckboxLabel}>☐ Divorced</Text>
+                      <Text style={styles.hrCheckboxLabel}>☐ Married</Text>
+                      <Text style={styles.hrCheckboxLabel}>☐ Single</Text>
+                    </View>
                   </View>
-                  <Text style={styles.filterTitle}>Travel</Text>
-                  <View style={styles.checkboxRow}>
-                    <Text style={styles.checkboxLabel}>☐ Rarely</Text>
-                    <Text style={styles.checkboxLabel}>☐ No Travel</Text>
-                    <Text style={styles.checkboxLabel}>☐ Frequently</Text>
+                  <View style={styles.hrFilterColumn}>
+                    <Text style={styles.hrFilterTitle}>Travel</Text>
+                    <View style={styles.hrCheckboxGroup}>
+                      <Text style={styles.hrCheckboxLabel}>☐ Rarely</Text>
+                      <Text style={styles.hrCheckboxLabel}>☐ No Travel</Text>
+                      <Text style={styles.hrCheckboxLabel}>☐ Frequently</Text>
+                    </View>
+                  </View>
+                  <View style={styles.hrFilterColumn}>
+                    <Text style={styles.hrFilterTitle}>Attrition</Text>
+                    <View style={styles.hrCheckboxGroup}>
+                      <Text style={styles.hrCheckboxLabel}>☐ Yes</Text>
+                      <Text style={styles.hrCheckboxLabel}>☐ No</Text>
+                    </View>
+                  </View>
+                  <View style={styles.hrFilterColumn}>
+                    <Text style={styles.hrFilterTitle}>Gender</Text>
+                    <View style={styles.hrCheckboxGroup}>
+                      <Text style={styles.hrCheckboxLabel}>☐ Female</Text>
+                      <Text style={styles.hrCheckboxLabel}>☐ Male</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.hrRatingSection}>
+                  <Text style={styles.hrRatingTitle}>Work Relationship Rating</Text>
+                  <View style={styles.hrRatingSlider}>
+                    <View style={styles.hrSliderTrack}>
+                      <View style={[styles.hrSliderFill, { width: '60%' }]} />
+                    </View>
+                    <Text style={styles.hrRatingValue}>3</Text>
+                  </View>
+                  <Text style={styles.hrRatingTitle}>Work-Life Balance Rating</Text>
+                  <View style={styles.hrRatingSlider}>
+                    <View style={styles.hrSliderTrack}>
+                      <View style={[styles.hrSliderFill, { width: '50%' }]} />
+                    </View>
+                    <Text style={styles.hrRatingValue}>2.5</Text>
+                  </View>
+                  <Text style={styles.hrRatingTitle}>Work Environment Rating</Text>
+                  <View style={styles.hrRatingSlider}>
+                    <View style={styles.hrSliderTrack}>
+                      <View style={[styles.hrSliderFill, { width: '70%' }]} />
+                    </View>
+                    <Text style={styles.hrRatingValue}>3.5</Text>
                   </View>
                 </View>
               </View>
 
               {/* Job Role Distribution */}
-              <View style={styles.jobRolePanel}>
-                <Text style={styles.sectionTitle}>Attrition by Job Role</Text>
-                <View style={styles.jobRoleList}>
+              <View style={styles.hrJobRolePanel}>
+                <Text style={styles.hrSectionTitle}>Attrition by Job Role</Text>
+                <View style={styles.hrJobRoleList}>
                   {[
                     { role: 'Sales Executive', value: 85, color: '#FF6B6B' },
                     { role: 'Sales Representative', value: 72, color: '#FF6B6B' },
@@ -1046,22 +1117,35 @@ export default function AdminScreen() {
                     { role: 'Research Director', value: 2, color: '#FF6B6B' },
                     { role: 'Human Resources', value: 52, color: '#FF6B6B' }
                   ].map((item, index) => (
-                    <View key={index} style={styles.jobRoleItem}>
-                      <Text style={styles.jobRoleLabel}>{item.role}</Text>
-                      <View style={styles.jobRoleBar}>
-                        <View style={[styles.jobRoleBarFill, { width: `${item.value}%`, backgroundColor: item.color }]} />
+                    <View key={index} style={styles.hrJobRoleItem}>
+                      <Text style={styles.hrJobRoleLabel}>{item.role}</Text>
+                      <View style={styles.hrJobRoleBar}>
+                        <View style={[styles.hrJobRoleBarFill, { width: `${item.value}%`, backgroundColor: item.color }]} />
                       </View>
                     </View>
                   ))}
                 </View>
-                <View style={styles.payrollSection}>
-                  <Text style={styles.payrollTitle}>Monthly Payroll</Text>
-                  <Text style={styles.payrollValue}>21.04M</Text>
-                  <Text style={styles.payrollGrowth}>Payroll Growth: 2%</Text>
-                  <Text style={styles.payrollRating}>Overall Rating: 2.73</Text>
+                <View style={styles.hrPayrollSection}>
+                  <View style={styles.hrPayrollRow}>
+                    <View style={styles.hrPayrollItem}>
+                      <Text style={styles.hrPayrollTitle}>Monthly Payroll</Text>
+                      <Text style={styles.hrPayrollValue}>21.04M</Text>
+                      <Text style={styles.hrPayrollSubtext}>Click for Breakdown</Text>
+                    </View>
+                    <View style={styles.hrPayrollItem}>
+                      <Text style={styles.hrPayrollTitle}>Payroll Growth</Text>
+                      <Text style={styles.hrPayrollGrowth}>2%</Text>
+                    </View>
+                    <View style={styles.hrPayrollItem}>
+                      <Text style={styles.hrPayrollTitle}>Overall Rating</Text>
+                      <Text style={styles.hrPayrollRating}>2.73</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
             </View>
+            
+            <Text style={styles.hrUpdateNote}>Updated via API - {formatNow()}</Text>
           </>
         )}
       </ScrollView>
@@ -1216,61 +1300,80 @@ const styles = StyleSheet.create({
   tooltip: { position: 'absolute', backgroundColor: theme.colors.dark, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, opacity: 0.8 },
   tooltipText: { fontSize: theme.fontSize.xs, color: theme.colors.white, fontWeight: fontWeight600 },
   
-  // Reports Dashboard Styles
-  reportsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.lg },
-  reportsTitle: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.dark },
-  exportButtons: { flexDirection: 'row', gap: 8 },
-  exportBtn: { backgroundColor: theme.colors.secondary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.borderRadius.md },
-  exportBtnText: { color: theme.colors.white, fontSize: theme.fontSize.sm, fontWeight: fontWeight600 },
+  // HR Dashboard Styles
+  hrHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.lg },
+  hrTitle: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.dark },
+  periodToggle: { flexDirection: 'row', backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: theme.colors.border },
+  periodBtn: { paddingHorizontal: 12, paddingVertical: 6 },
+  periodBtnActive: { backgroundColor: theme.colors.secondary },
+  periodBtnText: { fontSize: theme.fontSize.sm, color: theme.colors.gray },
+  periodBtnTextActive: { color: theme.colors.white },
   
-  // Top Metrics Row
-  topMetricsRow: { flexDirection: 'row', gap: 12, marginBottom: theme.spacing.lg },
-  metricPanel: { flex: 1, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
-  metricPanelTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8 },
-  metricSubtitle: { fontSize: theme.fontSize.xs, color: theme.colors.gray, marginTop: 8 },
+  // HR Top Row
+  hrTopRow: { flexDirection: 'row', gap: 8, marginBottom: theme.spacing.lg },
+  hrMetricCard: { flex: 1, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md, padding: 12, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
+  hrCardTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8 },
+  hrCardSubtitle: { fontSize: theme.fontSize.xs, color: theme.colors.gray, marginTop: 8, textAlign: 'center' },
   
-  // Pie Chart Styles
-  pieChartContainer: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
+  // HR Pie Chart Styles
+  hrPieContainer: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
   pieChartWrapper: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   pieChartCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center', width: 80, height: 80 },
   pieChartCenterText: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
   
-  // Area Chart Styles
-  areaChartContainer: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
+  // HR Area Chart Styles
+  hrAreaContainer: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
   
-  // Time Dimensions Panel
-  timeDimensionsPanel: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border },
-  barChartsRow: { flexDirection: 'row', gap: 12 },
-  barChartSection: { flex: 1, alignItems: 'center' },
-  barChartTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8 },
+  // HR Time Dimensions Panel
+  hrTimeDimensionsPanel: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md, padding: theme.spacing.md, marginBottom: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border },
+  hrSectionTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight700, color: theme.colors.dark, marginBottom: theme.spacing.md },
+  hrBarChartsRow: { flexDirection: 'row', gap: 16 },
+  hrBarChartSection: { flex: 1, alignItems: 'center' },
+  hrBarChartTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8, textAlign: 'center' },
+  hrAxisLabel: { fontSize: theme.fontSize.xs, color: theme.colors.gray, marginTop: 4, textAlign: 'center' },
   
-  // Bottom Row
-  bottomRow: { flexDirection: 'row', gap: 12 },
+  // HR Bottom Row
+  hrBottomRow: { flexDirection: 'row', gap: 12 },
   
-  // Gender Panel
-  genderPanel: { flex: 1, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
-  genderChartContainer: { alignItems: 'center', marginVertical: theme.spacing.md },
-  genderStats: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: theme.spacing.md },
-  genderStatItem: { alignItems: 'center' },
-  genderStatLabel: { fontSize: theme.fontSize.xs, color: theme.colors.gray },
-  genderStatValue: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
+  // HR Gender Panel
+  hrGenderPanel: { flex: 1.2, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  hrGenderChartContainer: { alignItems: 'center', marginVertical: theme.spacing.md },
+  hrGenderStats: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: theme.spacing.md },
+  hrGenderStatItem: { alignItems: 'center' },
+  hrGenderIcon: { width: 24, height: 24, borderRadius: 12, backgroundColor: theme.colors.lightGray, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  hrGenderIconText: { fontSize: theme.fontSize.sm, color: theme.colors.dark },
+  hrGenderStatLabel: { fontSize: theme.fontSize.xs, color: theme.colors.gray },
+  hrGenderStatValue: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
   
-  filterSection: { marginTop: theme.spacing.md },
-  filterTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 4 },
-  checkboxRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
-  checkboxLabel: { fontSize: theme.fontSize.xs, color: theme.colors.gray },
+  hrFilterSection: { flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.md },
+  hrFilterColumn: { flex: 1 },
+  hrFilterTitle: { fontSize: theme.fontSize.xs, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 4 },
+  hrCheckboxGroup: { gap: 2 },
+  hrCheckboxLabel: { fontSize: theme.fontSize.xs, color: theme.colors.gray },
   
-  // Job Role Panel
-  jobRolePanel: { flex: 1, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
-  jobRoleList: { marginVertical: theme.spacing.md },
-  jobRoleItem: { marginBottom: 8 },
-  jobRoleLabel: { fontSize: theme.fontSize.xs, color: theme.colors.dark, marginBottom: 2 },
-  jobRoleBar: { height: 8, backgroundColor: theme.colors.lightGray, borderRadius: 4, overflow: 'hidden' },
-  jobRoleBarFill: { height: '100%', borderRadius: 4 },
+  hrRatingSection: { marginTop: theme.spacing.md, paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  hrRatingTitle: { fontSize: theme.fontSize.xs, color: theme.colors.dark, marginBottom: 4 },
+  hrRatingSlider: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  hrSliderTrack: { flex: 1, height: 4, backgroundColor: theme.colors.lightGray, borderRadius: 2, marginRight: 8 },
+  hrSliderFill: { height: '100%', backgroundColor: theme.colors.secondary, borderRadius: 2 },
+  hrRatingValue: { fontSize: theme.fontSize.xs, color: theme.colors.dark, minWidth: 20 },
   
-  payrollSection: { marginTop: theme.spacing.md, padding: theme.spacing.sm, backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md },
-  payrollTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark },
-  payrollValue: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.dark, marginVertical: 4 },
-  payrollGrowth: { fontSize: theme.fontSize.xs, color: theme.colors.success },
-  payrollRating: { fontSize: theme.fontSize.xs, color: theme.colors.gray },
+  // HR Job Role Panel
+  hrJobRolePanel: { flex: 1, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  hrJobRoleList: { marginVertical: theme.spacing.md },
+  hrJobRoleItem: { marginBottom: 6 },
+  hrJobRoleLabel: { fontSize: theme.fontSize.xs, color: theme.colors.dark, marginBottom: 2 },
+  hrJobRoleBar: { height: 6, backgroundColor: theme.colors.lightGray, borderRadius: 3, overflow: 'hidden' },
+  hrJobRoleBarFill: { height: '100%', borderRadius: 3 },
+  
+  hrPayrollSection: { marginTop: theme.spacing.md, paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  hrPayrollRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  hrPayrollItem: { alignItems: 'center' },
+  hrPayrollTitle: { fontSize: theme.fontSize.xs, color: theme.colors.gray, marginBottom: 2 },
+  hrPayrollValue: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
+  hrPayrollSubtext: { fontSize: theme.fontSize.xs, color: theme.colors.secondary },
+  hrPayrollGrowth: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.success },
+  hrPayrollRating: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
+  
+  hrUpdateNote: { fontSize: theme.fontSize.xs, color: theme.colors.gray, textAlign: 'center', marginTop: theme.spacing.lg, fontStyle: 'italic' },
 });
