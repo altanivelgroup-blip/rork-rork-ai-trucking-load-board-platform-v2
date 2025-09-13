@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal } from 'react-native';
-import { Truck, RefreshCw, Activity, AlertCircle, ChevronRight, X, FileText, FileSpreadsheet, Brain, TrendingUp, DollarSign, Target, MapPin, Weight, Clock, ArrowLeft } from 'lucide-react-native';
+import { Truck, RefreshCw, ChevronRight, X, FileText, FileSpreadsheet, Brain, TrendingUp, DollarSign, Target, MapPin, Weight, Clock, ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAnalytics } from '@/hooks/useAnalytics';
-import { trpc } from '@/lib/trpc';
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
@@ -42,23 +41,120 @@ const ReportAnalyticsDashboard: React.FC = () => {
     fillRate: 87.3
   };
   
-  const mockGraphData = {
-    dailyRevenue: [
-      { day: 'Mon', revenue: 25000, platformFee: 1250 },
-      { day: 'Tue', revenue: 23000, platformFee: 1150 },
-      { day: 'Wed', revenue: 30000, platformFee: 1500 },
-      { day: 'Thu', revenue: 32000, platformFee: 1600 },
-      { day: 'Fri', revenue: 28000, platformFee: 1400 },
-      { day: 'Sat', revenue: 30000, platformFee: 1500 }
-    ],
-    loadsVsFills: [
-      { period: 'Week 1', loads: 18, fills: 11 },
-      { period: 'Week 2', loads: 25, fills: 17 },
-      { period: 'Week 3', loads: 19, fills: 16 },
-      { period: 'Week 4', loads: 23, fills: 21 },
-      { period: 'Week 5', loads: 30, fills: 21 }
-    ]
+  const generateFullRangeData = (timeRange: TimeRange) => {
+    switch (timeRange) {
+      case 'daily':
+        return {
+          dailyRevenue: [
+            { day: '6am', revenue: 8000, platformFee: 400 },
+            { day: '9am', revenue: 12000, platformFee: 600 },
+            { day: '12pm', revenue: 15000, platformFee: 750 },
+            { day: '3pm', revenue: 18000, platformFee: 900 },
+            { day: '6pm', revenue: 22000, platformFee: 1100 },
+            { day: '9pm', revenue: 19000, platformFee: 950 },
+            { day: '12am', revenue: 25000, platformFee: 1250 },
+            { day: '3am', revenue: 28000, platformFee: 1400 }
+          ],
+          loadsVsFills: [
+            { period: '6am', loads: 25, fills: 18 },
+            { period: '9am', loads: 35, fills: 28 },
+            { period: '12pm', loads: 45, fills: 38 },
+            { period: '3pm', loads: 52, fills: 44 },
+            { period: '6pm', loads: 48, fills: 41 },
+            { period: '9pm', loads: 61, fills: 52 },
+            { period: '12am', loads: 55, fills: 47 },
+            { period: '3am', loads: 67, fills: 58 }
+          ]
+        };
+      case 'weekly':
+        return {
+          dailyRevenue: [
+            { day: 'Mon', revenue: 12000, platformFee: 600 },
+            { day: 'Tue', revenue: 15000, platformFee: 750 },
+            { day: 'Wed', revenue: 18000, platformFee: 900 },
+            { day: 'Thu', revenue: 22000, platformFee: 1100 },
+            { day: 'Fri', revenue: 19000, platformFee: 950 },
+            { day: 'Sat', revenue: 25000, platformFee: 1250 },
+            { day: 'Sun', revenue: 28000, platformFee: 1400 }
+          ],
+          loadsVsFills: [
+            { period: 'Mon', loads: 45, fills: 38 },
+            { period: 'Tue', loads: 52, fills: 44 },
+            { period: 'Wed', loads: 48, fills: 41 },
+            { period: 'Thu', loads: 61, fills: 52 },
+            { period: 'Fri', loads: 55, fills: 47 },
+            { period: 'Sat', loads: 67, fills: 58 },
+            { period: 'Sun', loads: 73, fills: 63 }
+          ]
+        };
+      case 'monthly':
+        return {
+          dailyRevenue: [
+            { day: 'Jan', revenue: 85000, platformFee: 4250 },
+            { day: 'Feb', revenue: 92000, platformFee: 4600 },
+            { day: 'Mar', revenue: 88000, platformFee: 4400 },
+            { day: 'Apr', revenue: 95000, platformFee: 4750 },
+            { day: 'May', revenue: 102000, platformFee: 5100 },
+            { day: 'Jun', revenue: 98000, platformFee: 4900 },
+            { day: 'Jul', revenue: 105000, platformFee: 5250 },
+            { day: 'Aug', revenue: 112000, platformFee: 5600 },
+            { day: 'Sep', revenue: 108000, platformFee: 5400 },
+            { day: 'Oct', revenue: 115000, platformFee: 5750 },
+            { day: 'Nov', revenue: 122000, platformFee: 6100 },
+            { day: 'Dec', revenue: 118000, platformFee: 5900 }
+          ],
+          loadsVsFills: [
+            { period: 'Jan', loads: 320, fills: 272 },
+            { period: 'Feb', loads: 350, fills: 298 },
+            { period: 'Mar', loads: 330, fills: 281 },
+            { period: 'Apr', loads: 380, fills: 323 },
+            { period: 'May', loads: 410, fills: 349 },
+            { period: 'Jun', loads: 390, fills: 332 },
+            { period: 'Jul', loads: 420, fills: 357 },
+            { period: 'Aug', loads: 450, fills: 383 },
+            { period: 'Sep', loads: 430, fills: 366 },
+            { period: 'Oct', loads: 460, fills: 391 },
+            { period: 'Nov', loads: 490, fills: 417 },
+            { period: 'Dec', loads: 470, fills: 400 }
+          ]
+        };
+      case 'quarterly':
+        return {
+          dailyRevenue: [
+            { day: 'Q1 2024', revenue: 265000, platformFee: 13250 },
+            { day: 'Q2 2024', revenue: 295000, platformFee: 14750 },
+            { day: 'Q3 2024', revenue: 315000, platformFee: 15750 },
+            { day: 'Q4 2024', revenue: 355000, platformFee: 17750 }
+          ],
+          loadsVsFills: [
+            { period: 'Q1 2024', loads: 1000, fills: 851 },
+            { period: 'Q2 2024', loads: 1160, fills: 986 },
+            { period: 'Q3 2024', loads: 1290, fills: 1097 },
+            { period: 'Q4 2024', loads: 1420, fills: 1207 }
+          ]
+        };
+      default:
+        return {
+          dailyRevenue: [
+            { day: 'Mon', revenue: 25000, platformFee: 1250 },
+            { day: 'Tue', revenue: 23000, platformFee: 1150 },
+            { day: 'Wed', revenue: 30000, platformFee: 1500 },
+            { day: 'Thu', revenue: 32000, platformFee: 1600 },
+            { day: 'Fri', revenue: 28000, platformFee: 1400 },
+            { day: 'Sat', revenue: 30000, platformFee: 1500 }
+          ],
+          loadsVsFills: [
+            { period: 'Week 1', loads: 18, fills: 11 },
+            { period: 'Week 2', loads: 25, fills: 17 },
+            { period: 'Week 3', loads: 19, fills: 16 },
+            { period: 'Week 4', loads: 23, fills: 21 },
+            { period: 'Week 5', loads: 30, fills: 21 }
+          ]
+        };
+    }
   };
+  
+  const mockGraphData = generateFullRangeData(timeRange);
   
   const mockBottomRowData = {
     equipmentMix: [
@@ -113,7 +209,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
       setLastRefresh(new Date());
     }
     if (liveMetricsQuery.error) {
-      console.error('[Analytics] ❌ Failed to fetch live metrics:', liveMetricsQuery.error?.message || 'Failed to fetch');
+      console.error('[Analytics] ❌ Failed to fetch live metrics:', 'Failed to fetch');
     }
   }, [liveMetricsQuery.data, liveMetricsQuery.isLoading, liveMetricsQuery.error]);
 
@@ -125,7 +221,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
       }
     }
     if (liveGraphDataQuery.error) {
-      console.error('[Analytics] ❌ Failed to fetch live graph data:', liveGraphDataQuery.error?.message || 'Failed to fetch');
+      console.error('[Analytics] ❌ Failed to fetch live graph data:', 'Failed to fetch');
     }
   }, [liveGraphDataQuery.data, liveGraphDataQuery.isLoading, liveGraphDataQuery.error]);
 
@@ -137,7 +233,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
       }
     }
     if (liveBottomRowQuery.error) {
-      console.error('[Analytics] ❌ Failed to fetch live bottom row data:', liveBottomRowQuery.error?.message || 'Failed to fetch');
+      console.error('[Analytics] ❌ Failed to fetch live bottom row data:', 'Failed to fetch');
     }
   }, [liveBottomRowQuery.data, liveBottomRowQuery.isLoading, liveBottomRowQuery.error]);
 
@@ -223,7 +319,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
     
     console.log('[Analytics] Generated', insights.length, 'AI insights:', insights);
     setAiInsights(insights);
-  }, []);
+  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data]);
 
   // Generate AI insights on data changes with live updates
   useEffect(() => {
@@ -231,25 +327,16 @@ const ReportAnalyticsDashboard: React.FC = () => {
     if (liveMetricsQuery.data || liveGraphDataQuery.data || liveBottomRowQuery.data) {
       generateAIInsights();
     }
-  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data, timeRange]);
+  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data, timeRange, generateAIInsights]);
 
   // Show loading state only for initial load (first 3 seconds max)
-  const [showInitialLoading, setShowInitialLoading] = useState(true);
-  
   useEffect(() => {
     const timer = setTimeout(() => {
-      setShowInitialLoading(false);
+      // Loading state handled by mock data
     }, 3000); // Show loading for max 3 seconds
     
     return () => clearTimeout(timer);
   }, []);
-  
-  // Hide loading immediately if we get any data
-  useEffect(() => {
-    if (liveMetricsQuery.data || liveGraphDataQuery.data || liveBottomRowQuery.data) {
-      setShowInitialLoading(false);
-    }
-  }, [liveMetricsQuery.data, liveGraphDataQuery.data, liveBottomRowQuery.data]);
   
   // No loading or error states - immediate access with mock data
   console.log('[Analytics] ✅ Full access granted - Using mock data for immediate display');
@@ -418,9 +505,9 @@ const ReportAnalyticsDashboard: React.FC = () => {
     }
   };
 
-  const handleTimeRangeChange = (newRange: TimeRange) => {
+  const handleTimeRangeChange = useCallback((newRange: TimeRange) => {
     // Input validation for newRange parameter
-    if (!newRange || typeof newRange !== 'string' || newRange.length > 20) {
+    if (!newRange || typeof newRange !== 'string' || newRange.trim().length === 0 || newRange.length > 20) {
       console.warn('[Analytics] Invalid newRange parameter:', String(newRange).slice(0, 50));
       return;
     }
@@ -435,13 +522,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
     console.log('[Analytics] All data will automatically refresh with new time range via API...');
     
     setTimeRange(sanitizedRange);
-    
-    // Generate insights after a short delay to allow state to update
-    setTimeout(() => {
-      console.log('[Analytics] Regenerating AI insights for new time range...');
-      generateAIInsights();
-    }, 100);
-  };
+  }, [timeRange]);
 
   const showDetailModal = (title: string, value: string, details: string) => {
     console.log('[Analytics] 📋 Opening detail modal:', { title, value });
@@ -464,7 +545,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
       <View style={styles.timeRangeButtons}>
         {(['daily', 'weekly', 'monthly', 'quarterly'] as TimeRange[]).map((range: TimeRange) => {
           // Input validation for range parameter
-          if (!range || typeof range !== 'string' || range.length > 20) {
+          if (!range || typeof range !== 'string' || range.trim().length === 0 || range.length > 20) {
             console.warn('[TimeRangeSelector] Invalid range parameter:', String(range).slice(0, 50));
             return null;
           }
@@ -562,24 +643,19 @@ const ReportAnalyticsDashboard: React.FC = () => {
   const LoadsPostedVsFilledChart: React.FC = () => {
     // Use live data or fallback to mock data
     const graphData = liveGraphDataQuery.data;
-    const loadsVsFills = graphData?.loadsVsFills || [
-      { period: 'Week 1', loads: 18, fills: 11 },
-      { period: 'Week 2', loads: 25, fills: 17 },
-      { period: 'Week 3', loads: 19, fills: 16 },
-      { period: 'Week 4', loads: 23, fills: 21 },
-      { period: 'Week 5', loads: 30, fills: 21 },
-      { period: 'Week 6', loads: 25, fills: 20 },
-      { period: 'Week 7', loads: 15, fills: 16 },
-      { period: 'Week 8', loads: 9, fills: 14 },
-      { period: 'Week 9', loads: 7, fills: 13 },
-      { period: 'Week 10', loads: 8, fills: 18 },
-      { period: 'Week 11', loads: 19, fills: 23 }
-    ];
+    const loadsVsFills = graphData?.loadsVsFills || generateFullRangeData(timeRange).loadsVsFills;
     
     const loadsData = loadsVsFills.map((d: LoadsVsFillsData) => d.loads);
     const fillsData = loadsVsFills.map((d: LoadsVsFillsData) => d.fills);
-    const labels = loadsVsFills.slice(0, 5).map((d: LoadsVsFillsData) => d.period.replace('Week ', 'W'));
-    const maxValue = 60; // Fixed scale as shown in image
+    const labels = loadsVsFills.map((d: LoadsVsFillsData) => {
+      // Format labels based on time range
+      if (timeRange === 'daily') return d.period;
+      if (timeRange === 'weekly') return d.period;
+      if (timeRange === 'monthly') return d.period;
+      if (timeRange === 'quarterly') return d.period;
+      return d.period.replace('Week ', 'W');
+    });
+    const maxValue = Math.max(...loadsData, ...fillsData, 60); // Dynamic scale based on data
     
     return (
       <View style={styles.chartContainer}>
@@ -609,20 +685,21 @@ const ReportAnalyticsDashboard: React.FC = () => {
             <View style={styles.chartArea}>
               {/* Render connecting lines first (behind points) */}
               {loadsData.slice(0, -1).map((value: number, index: number) => {
+                const pointSpacing = 300 / (loadsData.length - 1 || 1);
                 const currentLoadsY = 120 - (value / maxValue) * 100;
                 const nextLoadsY = 120 - (loadsData[index + 1] / maxValue) * 100;
                 const currentFillsY = 120 - (fillsData[index] / maxValue) * 100;
                 const nextFillsY = 120 - (fillsData[index + 1] / maxValue) * 100;
                 
                 const loadsLineLength = Math.sqrt(
-                  Math.pow(30, 2) + Math.pow(nextLoadsY - currentLoadsY, 2)
+                  Math.pow(pointSpacing, 2) + Math.pow(nextLoadsY - currentLoadsY, 2)
                 );
                 const fillsLineLength = Math.sqrt(
-                  Math.pow(30, 2) + Math.pow(nextFillsY - currentFillsY, 2)
+                  Math.pow(pointSpacing, 2) + Math.pow(nextFillsY - currentFillsY, 2)
                 );
                 
-                const loadsAngle = Math.atan2(nextLoadsY - currentLoadsY, 30) * (180 / Math.PI);
-                const fillsAngle = Math.atan2(nextFillsY - currentFillsY, 30) * (180 / Math.PI);
+                const loadsAngle = Math.atan2(nextLoadsY - currentLoadsY, pointSpacing) * (180 / Math.PI);
+                const fillsAngle = Math.atan2(nextFillsY - currentFillsY, pointSpacing) * (180 / Math.PI);
                 
                 return (
                   <View key={`lines-${index}`}>
@@ -631,7 +708,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
                       style={[
                         styles.smoothLine,
                         {
-                          left: index * 30 + 15,
+                          left: index * pointSpacing + 15,
                           top: currentLoadsY,
                           width: loadsLineLength,
                           backgroundColor: '#3B82F6',
@@ -644,7 +721,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
                       style={[
                         styles.smoothLine,
                         {
-                          left: index * 30 + 15,
+                          left: index * pointSpacing + 15,
                           top: currentFillsY,
                           width: fillsLineLength,
                           backgroundColor: '#10B981',
@@ -658,6 +735,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
               
               {/* Render data points on top of lines */}
               {loadsData.map((value: number, index: number) => {
+                const pointSpacing = 300 / (loadsData.length - 1 || 1); // Distribute points evenly
                 const loadsY = 120 - (value / maxValue) * 100;
                 const fillsY = 120 - (fillsData[index] / maxValue) * 100;
                 const fillRate = fillsData[index] > 0 ? ((fillsData[index] / value) * 100).toFixed(1) : '0';
@@ -669,7 +747,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
                       style={[
                         styles.dataPoint,
                         {
-                          left: index * 30 + 11,
+                          left: index * pointSpacing + 11,
                           top: loadsY - 4,
                           backgroundColor: '#3B82F6',
                         },
@@ -685,7 +763,7 @@ const ReportAnalyticsDashboard: React.FC = () => {
                       style={[
                         styles.dataPoint,
                         {
-                          left: index * 30 + 11,
+                          left: index * pointSpacing + 11,
                           top: fillsY - 4,
                           backgroundColor: '#10B981',
                         },
@@ -703,11 +781,17 @@ const ReportAnalyticsDashboard: React.FC = () => {
             
             {/* X-axis labels */}
             <View style={styles.xAxisLabels}>
-              {labels.map((label: string, index: number) => (
-                <Text key={`label-${index}`} style={[styles.xAxisLabel, { left: index * 60 + 30 }]}>
-                  {label}
-                </Text>
-              ))}
+              {labels.map((label: string, index: number) => {
+                const labelWidth = 300 / labels.length; // Distribute evenly across chart width
+                return (
+                  <Text key={`label-${index}`} style={[styles.xAxisLabel, { 
+                    left: index * labelWidth + labelWidth/2 - 15, // Center the label
+                    width: 30
+                  }]}>
+                    {label}
+                  </Text>
+                );
+              })}
             </View>
           </View>
         </View>
@@ -1303,6 +1387,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
+    minHeight: 280, // Ensure adequate height for all charts
+    flex: 1, // Allow charts to expand fully
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -1349,7 +1435,8 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
   lineChart: {
-    height: 140,
+    height: 180, // Increased height for better visibility
+    minHeight: 180,
   },
   lineChartGrid: {
     flexDirection: 'row',
@@ -1635,18 +1722,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 20,
     gap: 16,
+    minHeight: 600, // Ensure adequate height for charts
   },
   leftColumn: {
     flex: 1,
     gap: 16,
+    minWidth: 300, // Ensure minimum width for proper chart display
   },
   centerColumn: {
     flex: 1,
     gap: 16,
+    minWidth: 300,
   },
   rightColumn: {
     flex: 1,
     gap: 16,
+    minWidth: 300,
   },
   barGroup: {
     alignItems: 'center',
@@ -1766,6 +1857,7 @@ const styles = StyleSheet.create({
   chartArea: {
     position: 'relative',
     height: 120,
+    width: 300, // Fixed width for consistent spacing
     marginTop: 20,
     marginLeft: 20,
     marginRight: 20,
