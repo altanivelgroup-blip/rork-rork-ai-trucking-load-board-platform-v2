@@ -1,5 +1,7 @@
 import { trpc } from '@/lib/trpc';
 import { useCallback, useEffect, useState } from 'react';
+import type { TRPCClientErrorLike } from '@trpc/client';
+import type { AppRouter } from '@/backend/trpc/app-router';
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
@@ -13,7 +15,7 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
       staleTime: 30000, // 30 seconds
-      cacheTime: 300000, // 5 minutes
+      gcTime: 300000, // 5 minutes
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       onSuccess: () => {
@@ -21,7 +23,7 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
         setLastSuccessfulFetch(new Date());
         console.log('[ReportAnalytics] ✅ Graph data fetched successfully');
       },
-      onError: (error) => {
+      onError: (error: TRPCClientErrorLike<AppRouter>) => {
         setConnectionStable(false);
         console.error('[ReportAnalytics] ❌ Failed to fetch graph data:', error.message);
       },
@@ -34,7 +36,7 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
       staleTime: 30000,
-      cacheTime: 300000,
+      gcTime: 300000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       onSuccess: () => {
@@ -42,7 +44,7 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
         setLastSuccessfulFetch(new Date());
         console.log('[ReportAnalytics] ✅ Metrics data fetched successfully');
       },
-      onError: (error) => {
+      onError: (error: TRPCClientErrorLike<AppRouter>) => {
         setConnectionStable(false);
         console.error('[ReportAnalytics] ❌ Failed to fetch metrics:', error.message);
       },
@@ -55,7 +57,7 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
       staleTime: 30000,
-      cacheTime: 300000,
+      gcTime: 300000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       onSuccess: () => {
@@ -63,7 +65,7 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
         setLastSuccessfulFetch(new Date());
         console.log('[ReportAnalytics] ✅ Bottom row data fetched successfully');
       },
-      onError: (error) => {
+      onError: (error: TRPCClientErrorLike<AppRouter>) => {
         setConnectionStable(false);
         console.error('[ReportAnalytics] ❌ Failed to fetch bottom row data:', error.message);
       },
