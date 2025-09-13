@@ -82,14 +82,6 @@ export default function ShipperProfileScreen() {
 
   const quickActions = [
     {
-      id: 'dashboard',
-      title: 'Analytics Dashboard',
-      subtitle: 'View performance metrics',
-      icon: BarChart3,
-      route: '/shipper-dashboard',
-      color: theme.colors.primary
-    },
-    {
       id: 'membership',
       title: 'Membership',
       subtitle: 'Upgrade your plan',

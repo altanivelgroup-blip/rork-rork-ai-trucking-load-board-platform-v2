@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Crown, Upload, FileText, Zap, DollarSign, Settings } from 'lucide-react-native';
+import { Crown, Zap, DollarSign, Settings } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
@@ -29,16 +29,6 @@ export default function ShipperHome() {
   const goMembership = useCallback(() => {
     console.log('shipper.goMembership');
     router.push('/shipper-membership');
-  }, [router]);
-
-  const goLoadTemplates = useCallback(() => {
-    console.log('shipper.goLoadTemplates');
-    router.push('/load-templates');
-  }, [router]);
-
-  const goCsvBulkUpload = useCallback(() => {
-    console.log('shipper.goCsvBulkUpload');
-    router.push('/csv-bulk-upload');
   }, [router]);
 
   const goAiTools = useCallback(() => {
@@ -77,9 +67,7 @@ export default function ShipperHome() {
         <Text style={styles.heading}>Welcome, Shipper</Text>
         <Text style={styles.subheading}>Quick actions and tools</Text>
 
-        {/* Main Actions */}
-        <Tile title="CSV Bulk Upload" subtitle="Upload loads from CSV file" onPress={goCsvBulkUpload} Icon={Upload} testID="tile-csv-bulk-upload" />
-        <Tile title="Load Templates" subtitle="Save and reuse configurations" onPress={goLoadTemplates} Icon={FileText} testID="tile-load-templates" />
+        {/* Main Actions - Consolidated to Post Loads tab */}
 
         {/* Tools & Features */}
         <View style={styles.sectionHeader}>

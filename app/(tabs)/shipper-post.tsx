@@ -53,14 +53,6 @@ export default function ShipperPostScreen() {
       testID: 'bulk-upload-csv'
     },
     {
-      id: 'my-loads',
-      title: 'My Posted Loads',
-      subtitle: 'View and manage your active postings',
-      icon: Package,
-      route: '/shipper-loads',
-      testID: 'my-posted-loads'
-    },
-    {
       id: 'load-templates',
       title: 'Load Templates',
       subtitle: 'Save and reuse common load configurations',
