@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { BarChart3, Users, DollarSign, Activity, RefreshCw } from 'lucide-react-native';
+import { BarChart3, Users, DollarSign, Activity, RefreshCw, Lock } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
+import { isAdminClient } from '@/src/lib/authz';
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
@@ -36,6 +37,8 @@ const Skeleton: React.FC<SkeletonProps> = ({ height, width = '100%' }) => (
 const ReportAnalyticsScreen: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('monthly');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -60,6 +63,62 @@ const ReportAnalyticsScreen: React.FC = () => {
   const handleKPIPress = (kpiName: string) => {
     console.log(`[ReportAnalytics] KPI pressed: ${kpiName}`);
   };
+
+  // Check admin privileges on mount
+  useEffect(() => {
+    let isMounted = true;
+    
+    const checkAdminAccess = async () => {
+      try {
+        console.log('[ReportAnalytics] Checking admin access...');
+        const adminResult = await isAdminClient();
+        
+        if (isMounted) {
+          setIsAdmin(adminResult);
+          setIsCheckingAuth(false);
+          console.log('[ReportAnalytics] Admin check complete:', adminResult);
+        }
+      } catch (error) {
+        console.error('[ReportAnalytics] Admin check failed:', error);
+        if (isMounted) {
+          setIsAdmin(false);
+          setIsCheckingAuth(false);
+        }
+      }
+    };
+    
+    checkAdminAccess();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Show loading state while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.lockScreen}>
+          <RefreshCw size={48} color={theme.colors.gray} />
+          <Text style={styles.lockTitle}>Checking Access...</Text>
+          <Text style={styles.lockSubtext}>Verifying admin privileges</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Show access denied screen for non-admins
+  if (!isAdmin) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.lockScreen}>
+          <Lock size={48} color={theme.colors.gray} />
+          <Text style={styles.lockTitle}>Admins Only</Text>
+          <Text style={styles.lockSubtext}>Ask an owner to grant you access.</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false} testID="report-analytics-screen">
@@ -441,6 +500,25 @@ const styles = StyleSheet.create({
   footerSubtext: {
     fontSize: theme.fontSize.xs,
     color: '#94A3B8',
+    textAlign: 'center',
+  },
+  lockScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  lockTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700' as const,
+    color: theme.colors.dark,
+    marginTop: theme.spacing.md,
+    textAlign: 'center',
+  },
+  lockSubtext: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+    marginTop: theme.spacing.sm,
     textAlign: 'center',
   },
 });

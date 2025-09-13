@@ -1,58 +1,50 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
 import { BarChart3, ArrowLeft, ChevronRight, FileText, TrendingUp } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/components/Toast';
+
+import { isAdminClient } from '@/src/lib/authz';
 
 const fontWeight700 = '700' as const;
 
 export default function ReportsScreen() {
-  const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const { show } = useToast();
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState<boolean>(true);
   
-  // Admin access control with role-based redirects
+  // Check admin privileges for UI visibility
   useEffect(() => {
-    console.log('[ReportAnalytics] Checking user access:', { role: user?.role, email: user?.email });
+    let isMounted = true;
     
-    // Check if user is admin
-    const isAdmin = (user?.role as string) === 'admin' || user?.email === 'admin@loadrush.com';
-    
-    if (!isAdmin) {
-      console.log('[ReportAnalytics] Access denied - not admin, redirecting');
-      show('Not authorized', 'info', 3000);
-      
-      // Role-based redirect
-      if (user?.role === 'driver') {
-        router.replace('/dashboard');
-      } else if (user?.role === 'shipper') {
-        router.replace('/shipper');
-      } else {
-        router.replace('/dashboard');
+    const checkAdminAccess = async () => {
+      try {
+        console.log('[Reports] Checking admin access for UI visibility...');
+        const adminResult = await isAdminClient();
+        
+        if (isMounted) {
+          setIsAdmin(adminResult);
+          setIsCheckingAdmin(false);
+          console.log('[Reports] Admin check complete:', adminResult);
+        }
+      } catch (error) {
+        console.error('[Reports] Admin check failed:', error);
+        if (isMounted) {
+          setIsAdmin(false);
+          setIsCheckingAdmin(false);
+        }
       }
-      return;
-    }
+    };
     
-    console.log('[ReportAnalytics] Admin access granted');
-  }, [user, show]);
+    checkAdminAccess();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   
-  // Show loading or access denied state while checking permissions
-  const isAdmin = (user?.role as string) === 'admin' || user?.email === 'admin@loadrush.com';
-  
-  if (!isAdmin) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.accessDenied}>
-          <BarChart3 size={48} color={theme.colors.gray} />
-          <Text style={styles.accessDeniedTitle}>Checking Access...</Text>
-          <Text style={styles.accessDeniedText}>Verifying admin privileges</Text>
-        </View>
-      </View>
-    );
-  }
+
 
   const handleBackPress = () => {
     // Navigate back to admin loads page
@@ -91,47 +83,56 @@ export default function ReportsScreen() {
           <Text style={styles.headerSubtitle}>Access comprehensive analytics and reporting tools</Text>
         </View>
 
-        {/* Report Analytics Card */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Analytics</Text>
-          <TouchableOpacity 
-            style={styles.reportCard} 
-            onPress={handleOpenReportAnalytics}
-            testID="open-report-analytics-button"
-          >
-            <View style={styles.reportCardLeft}>
-              <View style={styles.reportIcon}>
-                <BarChart3 size={24} color="#3B82F6" />
-              </View>
-              <View style={styles.reportContent}>
-                <Text style={styles.reportTitle}>Report Analytics</Text>
-                <Text style={styles.reportDescription}>Live performance graphs, KPI metrics, and activity monitoring</Text>
-                <View style={styles.reportFeatures}>
-                  <View style={styles.featureItem}>
-                    <TrendingUp size={12} color="#10B981" />
-                    <Text style={styles.featureText}>Live Graphs</Text>
-                  </View>
-                  <View style={styles.featureItem}>
-                    <FileText size={12} color="#10B981" />
-                    <Text style={styles.featureText}>KPI Cards</Text>
-                  </View>
-                  <View style={styles.featureItem}>
-                    <BarChart3 size={12} color="#10B981" />
-                    <Text style={styles.featureText}>Activity Tables</Text>
+        {/* Report Analytics Card - Only show for admins */}
+        {!isCheckingAdmin && isAdmin && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Analytics</Text>
+            <TouchableOpacity 
+              style={styles.reportCard} 
+              onPress={handleOpenReportAnalytics}
+              testID="open-report-analytics-button"
+            >
+              <View style={styles.reportCardLeft}>
+                <View style={styles.reportIcon}>
+                  <BarChart3 size={24} color="#3B82F6" />
+                </View>
+                <View style={styles.reportContent}>
+                  <Text style={styles.reportTitle}>Report Analytics</Text>
+                  <Text style={styles.reportDescription}>Live performance graphs, KPI metrics, and activity monitoring</Text>
+                  <View style={styles.reportFeatures}>
+                    <View style={styles.featureItem}>
+                      <TrendingUp size={12} color="#10B981" />
+                      <Text style={styles.featureText}>Live Graphs</Text>
+                    </View>
+                    <View style={styles.featureItem}>
+                      <FileText size={12} color="#10B981" />
+                      <Text style={styles.featureText}>KPI Cards</Text>
+                    </View>
+                    <View style={styles.featureItem}>
+                      <BarChart3 size={12} color="#10B981" />
+                      <Text style={styles.featureText}>Activity Tables</Text>
+                    </View>
                   </View>
                 </View>
               </View>
-            </View>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
+              <ChevronRight size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+        )}
 
-        {/* Coming Soon Section */}
+        {/* Coming Soon Section - Show for all users */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Coming Soon</Text>
+          <Text style={styles.sectionTitle}>{isAdmin ? 'Coming Soon' : 'Reports'}</Text>
           <View style={styles.comingSoonCard}>
-            <Text style={styles.comingSoonTitle}>Additional Reports</Text>
-            <Text style={styles.comingSoonDescription}>More reporting features will be available in future updates</Text>
+            <Text style={styles.comingSoonTitle}>
+              {isAdmin ? 'Additional Reports' : 'Report Analytics'}
+            </Text>
+            <Text style={styles.comingSoonDescription}>
+              {isAdmin 
+                ? 'More reporting features will be available in future updates'
+                : 'Advanced analytics are available for admin users only'
+              }
+            </Text>
           </View>
         </View>
       </ScrollView>
