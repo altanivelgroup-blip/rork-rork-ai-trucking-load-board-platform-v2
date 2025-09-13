@@ -1,18 +1,29 @@
 import { trpc } from '@/lib/trpc';
 
-export const useReportAnalytics = () => {
-  const graphQuery = trpc.reportAnalytics.graph.useQuery(undefined, {
-    retry: 2,
-    retryDelay: 1000,
-  });
-  const metricsQuery = trpc.reportAnalytics.metrics.useQuery(undefined, {
-    retry: 2,
-    retryDelay: 1000,
-  });
-  const bottomRowQuery = trpc.reportAnalytics.bottomRow.useQuery(undefined, {
-    retry: 2,
-    retryDelay: 1000,
-  });
+type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
+
+export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
+  const graphQuery = trpc.reportAnalytics.graph.useQuery(
+    { period: timeFilter },
+    {
+      retry: 2,
+      retryDelay: 1000,
+    }
+  );
+  const metricsQuery = trpc.reportAnalytics.metrics.useQuery(
+    { period: timeFilter },
+    {
+      retry: 2,
+      retryDelay: 1000,
+    }
+  );
+  const bottomRowQuery = trpc.reportAnalytics.bottomRow.useQuery(
+    { period: timeFilter },
+    {
+      retry: 2,
+      retryDelay: 1000,
+    }
+  );
 
   const refetchAll = async () => {
     console.log('[ReportAnalytics] Refetching all data...');

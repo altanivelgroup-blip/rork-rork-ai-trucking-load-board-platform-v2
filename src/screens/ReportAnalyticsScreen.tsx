@@ -42,7 +42,7 @@ const ReportAnalyticsScreen: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   
-  // Use tRPC hooks for data fetching
+  // Use tRPC hooks for data fetching with time filter
   const {
     graphData,
     isLoadingGraph,
@@ -55,7 +55,7 @@ const ReportAnalyticsScreen: React.FC = () => {
     bottomRowError,
     refetchAll,
     isRefreshing
-  } = useReportAnalytics();
+  } = useReportAnalytics(timeFilter);
   
 
 
@@ -74,12 +74,25 @@ const ReportAnalyticsScreen: React.FC = () => {
     setTimeFilter(sanitizedFilter);
     console.log(`[ReportAnalytics] Time filter changed to: ${sanitizedFilter}`);
     
-    // Refresh data when filter changes
-    handleRefresh();
+    // Data will automatically refresh due to the tRPC query dependency on timeFilter
   };
 
   const handleKPIPress = (kpiName: string) => {
     console.log(`[ReportAnalytics] KPI pressed: ${kpiName}`);
+  };
+
+  // Helper function to get contextual KPI titles based on time period
+  const getKPITitle = (baseTitle: string) => {
+    const titleMap: Record<string, Record<TimeFilter, string>> = {
+      'Loads Today': {
+        daily: 'Loads Today',
+        weekly: 'Loads This Week',
+        monthly: 'Loads This Month',
+        quarterly: 'Loads This Quarter'
+      }
+    };
+    
+    return titleMap[baseTitle]?.[timeFilter] || baseTitle;
   };
 
 
@@ -258,7 +271,7 @@ const ReportAnalyticsScreen: React.FC = () => {
         ) : metricsData?.kpis ? (
           <View style={styles.kpiGrid}>
             <KPICard
-              title="Loads Today"
+              title={getKPITitle('Loads Today')}
               value={String(metricsData.kpis.loadsToday?.value || "--")}
               subtitle={metricsData.kpis.loadsToday?.change || "No change"}
               icon={<BarChart3 size={20} color="#3B82F6" />}
