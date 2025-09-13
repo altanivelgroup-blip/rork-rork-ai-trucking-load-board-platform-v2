@@ -506,23 +506,9 @@ const ReportAnalyticsDashboard: React.FC = () => {
   };
 
   const handleTimeRangeChange = useCallback((newRange: TimeRange) => {
-    // Input validation for newRange parameter
-    if (!newRange || typeof newRange !== 'string' || newRange.trim().length === 0 || newRange.length > 20) {
-      console.warn('[Analytics] Invalid newRange parameter:', String(newRange).slice(0, 50));
-      return;
-    }
-    const sanitizedRange = newRange as TimeRange;
-    
-    // Prevent unnecessary updates if same range
-    if (sanitizedRange === timeRange) {
-      return;
-    }
-    
-    console.log(`[Analytics] 📊 Time range filter changed: ${timeRange} → ${sanitizedRange}`);
-    console.log('[Analytics] All data will automatically refresh with new time range via API...');
-    
-    setTimeRange(sanitizedRange);
-  }, [timeRange]);
+    console.log(`[Analytics] 📊 Time range filter changed: ${timeRange} → ${newRange}`);
+    setTimeRange(newRange);
+  }, []);
 
   const showDetailModal = (title: string, value: string, details: string) => {
     console.log('[Analytics] 📋 Opening detail modal:', { title, value });
@@ -543,26 +529,18 @@ const ReportAnalyticsDashboard: React.FC = () => {
   const TimeRangeSelector: React.FC = () => (
     <View style={styles.timeRangeContainer}>
       <View style={styles.timeRangeButtons}>
-        {(['daily', 'weekly', 'monthly', 'quarterly'] as TimeRange[]).map((range: TimeRange) => {
-          // Input validation for range parameter
-          if (!range || typeof range !== 'string' || range.trim().length === 0 || range.length > 20) {
-            console.warn('[TimeRangeSelector] Invalid range parameter:', String(range).slice(0, 50));
-            return null;
-          }
-          const sanitizedRange = range as TimeRange;
-          
-          return (
-            <TouchableOpacity
-              key={sanitizedRange}
-              style={[styles.timeRangeButton, timeRange === sanitizedRange && styles.timeRangeButtonActive]}
-              onPress={() => handleTimeRangeChange(sanitizedRange)}
-            >
-              <Text style={[styles.timeRangeText, timeRange === sanitizedRange && styles.timeRangeTextActive]}>
-                {sanitizedRange.charAt(0).toUpperCase() + sanitizedRange.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+        {(['daily', 'weekly', 'monthly', 'quarterly'] as TimeRange[]).map((range: TimeRange) => (
+          <TouchableOpacity
+            key={range}
+            style={[styles.timeRangeButton, timeRange === range && styles.timeRangeButtonActive]}
+            onPress={() => handleTimeRangeChange(range)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.timeRangeText, timeRange === range && styles.timeRangeTextActive]}>
+              {range.charAt(0).toUpperCase() + range.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
       
       {/* AI Insights Toggle */}
