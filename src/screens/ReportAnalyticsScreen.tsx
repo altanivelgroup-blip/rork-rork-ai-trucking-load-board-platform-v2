@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { BarChart3, Users, DollarSign, Activity, RefreshCw, Lock, AlertCircle } from 'lucide-react-native';
+import { BarChart3, Users, DollarSign, Activity, RefreshCw, Lock, AlertCircle, Database } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { isAdminClient } from '@/src/lib/authz';
 import { getLiveGraph, getBottomRow, getLiveMetrics } from '@/src/lib/reportsApi';
 import { useToast } from '@/components/Toast';
+import { logPreflightStatus } from '@/utils/preflightCheck';
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
 
@@ -144,6 +145,9 @@ const ReportAnalyticsScreen: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     
+    // Run preflight check in development
+    logPreflightStatus();
+    
     const checkAdminAccess = async () => {
       try {
         console.log('[ReportAnalytics] Checking admin access...');
@@ -277,10 +281,14 @@ const ReportAnalyticsScreen: React.FC = () => {
               <Text style={styles.placeholderSubtext}>Live data as of {new Date().toLocaleTimeString()}</Text>
             </View>
           ) : (
-            <View style={styles.graphPlaceholder}>
+            <View style={styles.emptyStateContainer}>
               <BarChart3 size={48} color="#94A3B8" />
-              <Text style={styles.placeholderText}>No graph data available</Text>
-              <Text style={styles.placeholderSubtext}>Click refresh to load data</Text>
+              <Text style={styles.emptyStateTitle}>No Graph Data Available</Text>
+              <Text style={styles.emptyStateSubtext}>Performance trends will appear here once data is available</Text>
+              <TouchableOpacity style={styles.emptyStateButton} onPress={fetchGraphData}>
+                <RefreshCw size={16} color="#2563EB" />
+                <Text style={styles.emptyStateButtonText}>Load Graph</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -311,29 +319,39 @@ const ReportAnalyticsScreen: React.FC = () => {
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
-        ) : (
+        ) : metricsData ? (
           <View style={styles.kpiGrid}>
             <KPICard
               title="Loads Today"
               value={metricsData?.loadsToday || "--"}
-              subtitle={metricsData?.loadsTodayChange || "Loading..."}
+              subtitle={metricsData?.loadsTodayChange || "No change"}
               icon={<BarChart3 size={20} color="#3B82F6" />}
               onPress={() => handleKPIPress('Loads Today')}
             />
             <KPICard
               title="$/Mile Avg"
               value={metricsData?.avgRate || "--"}
-              subtitle={metricsData?.avgRateSubtitle || "Loading..."}
+              subtitle={metricsData?.avgRateSubtitle || "No data"}
               icon={<DollarSign size={20} color="#10B981" />}
               onPress={() => handleKPIPress('$/Mile Avg')}
             />
             <KPICard
               title="Active Drivers"
               value={metricsData?.activeDrivers || "--"}
-              subtitle={metricsData?.activeDriversSubtitle || "Loading..."}
+              subtitle={metricsData?.activeDriversSubtitle || "No drivers"}
               icon={<Users size={20} color="#F59E0B" />}
               onPress={() => handleKPIPress('Active Drivers')}
             />
+          </View>
+        ) : (
+          <View style={styles.emptyStateContainer}>
+            <Database size={48} color="#94A3B8" />
+            <Text style={styles.emptyStateTitle}>No Metrics Available</Text>
+            <Text style={styles.emptyStateSubtext}>Click refresh to load performance data</Text>
+            <TouchableOpacity style={styles.emptyStateButton} onPress={fetchMetricsData}>
+              <RefreshCw size={16} color="#2563EB" />
+              <Text style={styles.emptyStateButtonText}>Load Metrics</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -381,7 +399,7 @@ const ReportAnalyticsScreen: React.FC = () => {
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
             </View>
-          ) : bottomRowData?.length > 0 ? (
+          ) : bottomRowData && bottomRowData.length > 0 ? (
             <>
               {bottomRowData.map((item: any, index: number) => (
                 <View key={item.loadId || `row-${index}`} style={styles.tableRow}>
@@ -401,10 +419,14 @@ const ReportAnalyticsScreen: React.FC = () => {
               ))}
             </>
           ) : (
-            <View style={styles.tablePlaceholder}>
-              <Activity size={24} color="#94A3B8" />
-              <Text style={styles.placeholderText}>No recent activity</Text>
-              <Text style={styles.placeholderSubtext}>Live data as of {new Date().toLocaleTimeString()}</Text>
+            <View style={styles.emptyStateContainer}>
+              <Activity size={48} color="#94A3B8" />
+              <Text style={styles.emptyStateTitle}>No Recent Activity</Text>
+              <Text style={styles.emptyStateSubtext}>No loads or anomalies to display</Text>
+              <TouchableOpacity style={styles.emptyStateButton} onPress={fetchBottomRowData}>
+                <RefreshCw size={16} color="#2563EB" />
+                <Text style={styles.emptyStateButtonText}>Check for Updates</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -721,6 +743,41 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: theme.colors.dark,
     textAlign: 'center',
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyStateTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600' as const,
+    color: theme.colors.dark,
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: theme.fontSize.sm,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  emptyStateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#EBF8FF',
+    borderRadius: 8,
+    gap: 8,
+  },
+  emptyStateButtonText: {
+    fontSize: theme.fontSize.sm,
+    color: '#2563EB',
+    fontWeight: '500' as const,
   },
 });
 
