@@ -69,19 +69,34 @@ export async function testFirebaseConnection() {
       console.warn("[Firebase Test] ⚠️ Public read failed:", readError.code, readError.message);
     }
 
-    // Test 3: User-specific read
+    // Test 3: User-specific read (simplified to avoid index issues)
     console.log("[Firebase Test] 👤 Testing user-specific read access...");
     try {
+      // Use a simpler query that doesn't require composite index
       const userQuery = query(
         collection(db, LOADS_COLLECTION),
         where("createdBy", "==", auth.currentUser.uid),
-        orderBy("clientCreatedAt", "desc"),
         limit(5)
       );
       const userSnap = await getDocsFromServer(userQuery);
       console.log("[Firebase Test] ✅ User-specific read OK, docs:", userSnap.docs.length);
     } catch (userReadError: any) {
-      console.warn("[Firebase Test] ⚠️ User-specific read failed:", userReadError.code, userReadError.message);
+      if (userReadError.code === 'failed-precondition' && userReadError.message.includes('index')) {
+        console.warn("[Firebase Test] ⚠️ Index required for complex queries - this is normal for new projects");
+        // Try a simpler query without orderBy
+        try {
+          const simpleQuery = query(
+            collection(db, LOADS_COLLECTION),
+            limit(3)
+          );
+          const simpleSnap = await getDocsFromServer(simpleQuery);
+          console.log("[Firebase Test] ✅ Simple read OK, docs:", simpleSnap.docs.length);
+        } catch (simpleError: any) {
+          console.warn("[Firebase Test] ❌ Even simple read failed:", simpleError.code, simpleError.message);
+        }
+      } else {
+        console.warn("[Firebase Test] ⚠️ User-specific read failed:", userReadError.code, userReadError.message);
+      }
     }
 
     // Test 4: Write permissions
@@ -94,7 +109,9 @@ export async function testFirebaseConnection() {
         createdBy: auth.currentUser.uid,
         createdAt: serverTimestamp(),
         clientCreatedAt: Date.now(),
-        isTest: true
+        isTest: true,
+        isArchived: false,
+        archivedAt: null
       });
       console.log("[Firebase Test] ✅ Write test successful");
       
@@ -103,16 +120,26 @@ export async function testFirebaseConnection() {
       console.log("[Firebase Test] 🧹 Test document cleaned up");
     } catch (writeError: any) {
       console.warn("[Firebase Test] ❌ Write test failed:", writeError.code, writeError.message);
+      
+      // Provide specific guidance for permission errors
+      let errorGuidance = writeError.message;
+      if (writeError.code === 'permission-denied') {
+        errorGuidance = 'Anonymous users need write permissions. Check Firestore security rules.';
+      } else if (writeError.code === 'failed-precondition') {
+        errorGuidance = 'Database index required. Check Firebase Console for index creation link.';
+      }
+      
       return {
         success: false,
-        error: `Write permission denied: ${writeError.message}`,
+        error: `Write permission denied: ${errorGuidance}`,
         code: writeError.code,
         details: {
           canRead: true,
           canWrite: false,
           userId: auth.currentUser.uid,
           isAnonymous: auth.currentUser.isAnonymous,
-          errorCode: writeError.code
+          errorCode: writeError.code,
+          guidance: errorGuidance
         }
       };
     }
