@@ -319,26 +319,26 @@ const ReportAnalyticsScreen: React.FC = () => {
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
-        ) : metricsData ? (
+        ) : metricsData?.kpis ? (
           <View style={styles.kpiGrid}>
             <KPICard
               title="Loads Today"
-              value={metricsData?.loadsToday || "--"}
-              subtitle={metricsData?.loadsTodayChange || "No change"}
+              value={String(metricsData.kpis.loadsToday?.value || "--")}
+              subtitle={metricsData.kpis.loadsToday?.change || "No change"}
               icon={<BarChart3 size={20} color="#3B82F6" />}
               onPress={() => handleKPIPress('Loads Today')}
             />
             <KPICard
               title="$/Mile Avg"
-              value={metricsData?.avgRate || "--"}
-              subtitle={metricsData?.avgRateSubtitle || "No data"}
+              value={`${metricsData.kpis.avgRatePerMile?.value || "--"}`}
+              subtitle={metricsData.kpis.avgRatePerMile?.change || "No data"}
               icon={<DollarSign size={20} color="#10B981" />}
               onPress={() => handleKPIPress('$/Mile Avg')}
             />
             <KPICard
               title="Active Drivers"
-              value={metricsData?.activeDrivers || "--"}
-              subtitle={metricsData?.activeDriversSubtitle || "No drivers"}
+              value={String(metricsData.kpis.activeDrivers?.value || "--")}
+              subtitle={metricsData.kpis.activeDrivers?.change || "No drivers"}
               icon={<Users size={20} color="#F59E0B" />}
               onPress={() => handleKPIPress('Active Drivers')}
             />
@@ -364,7 +364,7 @@ const ReportAnalyticsScreen: React.FC = () => {
             <Text style={styles.tableHeaderText}>Load ID</Text>
             <Text style={styles.tableHeaderText}>Status</Text>
             <Text style={styles.tableHeaderText}>Revenue</Text>
-            <Text style={styles.tableHeaderText}>Alert</Text>
+            <Text style={styles.tableHeaderText}>Driver</Text>
           </View>
           
           {isLoadingBottomRow ? (
@@ -399,21 +399,21 @@ const ReportAnalyticsScreen: React.FC = () => {
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
             </View>
-          ) : bottomRowData && bottomRowData.length > 0 ? (
+          ) : bottomRowData?.recentLoads && bottomRowData.recentLoads.length > 0 ? (
             <>
-              {bottomRowData.map((item: any, index: number) => (
-                <View key={item.loadId || `row-${index}`} style={styles.tableRow}>
+              {bottomRowData.recentLoads.map((item: any, index: number) => (
+                <View key={item.id || `row-${index}`} style={styles.tableRow}>
                   <View style={styles.tableCell}>
-                    <Text style={styles.tableCellText}>{item.loadId || '--'}</Text>
+                    <Text style={styles.tableCellText}>{item.id || '--'}</Text>
                   </View>
                   <View style={styles.tableCell}>
                     <Text style={styles.tableCellText}>{item.status || '--'}</Text>
                   </View>
                   <View style={styles.tableCell}>
-                    <Text style={styles.tableCellText}>{item.revenue || '--'}</Text>
+                    <Text style={styles.tableCellText}>${item.rate || '--'}</Text>
                   </View>
                   <View style={styles.tableCell}>
-                    <Text style={styles.tableCellText}>{item.alert || '--'}</Text>
+                    <Text style={styles.tableCellText}>{item.driver || '--'}</Text>
                   </View>
                 </View>
               ))}

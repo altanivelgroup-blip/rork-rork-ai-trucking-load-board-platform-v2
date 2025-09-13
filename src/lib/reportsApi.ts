@@ -23,6 +23,6 @@ async function apiGET(path: string) {
   return res.json();
 }
 
-export const getLiveGraph = () => apiGET("/api/report-analytics/graph");
-export const getBottomRow = () => apiGET("/api/report-analytics/bottom-row");
-export const getLiveMetrics = () => apiGET("/api/report-analytics/metrics");
+export const getLiveGraph = () => apiGET("/reportAnalyticsGraph");
+export const getBottomRow = () => apiGET("/reportAnalyticsBottomRow");
+export const getLiveMetrics = () => apiGET("/reportAnalyticsMetrics");
