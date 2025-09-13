@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { BarChart3 } from 'lucide-react-native';
+import { router, Stack } from 'expo-router';
+import { BarChart3, ArrowLeft } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
@@ -55,10 +55,35 @@ export default function ReportsScreen() {
     );
   }
 
+  const handleBackPress = () => {
+    // Navigate back to admin loads page
+    router.push('/loads');
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]} testID="reportAnalyticsScreen">
-      <ReportAnalyticsDashboard />
-    </View>
+    <>
+      <Stack.Screen 
+        options={{
+          title: 'Report Analytics',
+          headerLeft: () => (
+            <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+              <ArrowLeft size={24} color={theme.colors.dark} />
+            </TouchableOpacity>
+          ),
+          headerStyle: {
+            backgroundColor: theme.colors.white,
+          },
+          headerTitleStyle: {
+            color: theme.colors.dark,
+            fontSize: theme.fontSize.lg,
+            fontWeight: '600' as const,
+          },
+        }}
+      />
+      <View style={[styles.container, { paddingTop: insets.top }]} testID="reportAnalyticsScreen">
+        <ReportAnalyticsDashboard />
+      </View>
+    </>
   );
 }
 
@@ -85,5 +110,9 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     marginTop: theme.spacing.sm,
     textAlign: 'center',
+  },
+  backButton: {
+    padding: theme.spacing.sm,
+    marginLeft: -theme.spacing.sm,
   },
 });
