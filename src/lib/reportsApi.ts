@@ -70,9 +70,6 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       gcTime: 300000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      onError: (error: any) => {
-        console.error('[ReportAnalytics] Graph query error:', error);
-      },
     }
   );
   
@@ -85,9 +82,6 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       gcTime: 300000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      onError: (error: any) => {
-        console.error('[ReportAnalytics] Metrics query error:', error);
-      },
     }
   );
   
@@ -100,9 +94,6 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       gcTime: 300000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      onError: (error: any) => {
-        console.error('[ReportAnalytics] Bottom row query error:', error);
-      },
     }
   );
 

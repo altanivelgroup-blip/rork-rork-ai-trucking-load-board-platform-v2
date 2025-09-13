@@ -1,30 +1,21 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ReportAnalyticsScreen from '@/src/screens/ReportAnalyticsScreen';
+import ReportAnalyticsDashboard from '@/components/analytics/ReportAnalyticsDashboard';
 
 export default function ReportsAnalyticsPage() {
-  const insets = useSafeAreaInsets();
-  
   return (
     <>
       <Stack.Screen 
         options={{
           title: 'Report Analytics',
-          headerStyle: {
-            backgroundColor: '#FFFFFF',
-          },
-          headerTitleStyle: {
-            color: '#1F2937',
-            fontSize: 18,
-            fontWeight: '600',
-          },
+          headerShown: false, // Hide header to show full dashboard
         }}
       />
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ReportAnalyticsScreen />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <ReportAnalyticsDashboard />
+      </SafeAreaView>
     </>
   );
 }

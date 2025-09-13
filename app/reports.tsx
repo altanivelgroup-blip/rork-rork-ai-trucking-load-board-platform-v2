@@ -1,49 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
 import { BarChart3, ArrowLeft, ChevronRight, FileText, TrendingUp } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 
-import { isAdminClient } from '@/src/lib/authz';
-
-
 const fontWeight700 = '700' as const;
 
 export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState<boolean>(true);
-  
-  // Check admin privileges for UI visibility
-  useEffect(() => {
-    let isMounted = true;
-    
-    const checkAdminAccess = async () => {
-      try {
-        console.log('[Reports] Checking admin access for UI visibility...');
-        const adminResult = await isAdminClient();
-        
-        if (isMounted) {
-          setIsAdmin(adminResult);
-          setIsCheckingAdmin(false);
-          console.log('[Reports] Admin check complete:', adminResult);
-        }
-      } catch (error) {
-        console.error('[Reports] Admin check failed:', error);
-        if (isMounted) {
-          setIsAdmin(false);
-          setIsCheckingAdmin(false);
-        }
-      }
-    };
-    
-    checkAdminAccess();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, []);
   
 
 
@@ -54,7 +19,6 @@ export default function ReportsScreen() {
 
   const handleOpenReportAnalytics = () => {
     console.log('[Reports] Opening Report Analytics screen');
-    console.log('[Reports] Current admin status:', isAdmin);
     console.log('[Reports] Navigating to /reports-analytics');
     router.push('/reports-analytics' as any);
   };
@@ -90,55 +54,48 @@ export default function ReportsScreen() {
 
 
 
-        {/* Report Analytics Card - Only show for admins */}
-        {!isCheckingAdmin && isAdmin && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Analytics</Text>
-            <TouchableOpacity 
-              style={styles.reportCard} 
-              onPress={handleOpenReportAnalytics}
-              testID="open-report-analytics-button"
-            >
-              <View style={styles.reportCardLeft}>
-                <View style={styles.reportIcon}>
-                  <BarChart3 size={24} color="#3B82F6" />
-                </View>
-                <View style={styles.reportContent}>
-                  <Text style={styles.reportTitle}>Report Analytics</Text>
-                  <Text style={styles.reportDescription}>Live performance graphs, KPI metrics, and activity monitoring</Text>
-                  <View style={styles.reportFeatures}>
-                    <View style={styles.featureItem}>
-                      <TrendingUp size={12} color="#10B981" />
-                      <Text style={styles.featureText}>Live Graphs</Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <FileText size={12} color="#10B981" />
-                      <Text style={styles.featureText}>KPI Cards</Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <BarChart3 size={12} color="#10B981" />
-                      <Text style={styles.featureText}>Activity Tables</Text>
-                    </View>
+        {/* Report Analytics Card - Available for all users */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Analytics</Text>
+          <TouchableOpacity 
+            style={styles.reportCard} 
+            onPress={handleOpenReportAnalytics}
+            testID="open-report-analytics-button"
+          >
+            <View style={styles.reportCardLeft}>
+              <View style={styles.reportIcon}>
+                <BarChart3 size={24} color="#3B82F6" />
+              </View>
+              <View style={styles.reportContent}>
+                <Text style={styles.reportTitle}>Report Analytics</Text>
+                <Text style={styles.reportDescription}>Live performance graphs, KPI metrics, and activity monitoring</Text>
+                <View style={styles.reportFeatures}>
+                  <View style={styles.featureItem}>
+                    <TrendingUp size={12} color="#10B981" />
+                    <Text style={styles.featureText}>Live Graphs</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <FileText size={12} color="#10B981" />
+                    <Text style={styles.featureText}>KPI Cards</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <BarChart3 size={12} color="#10B981" />
+                    <Text style={styles.featureText}>Activity Tables</Text>
                   </View>
                 </View>
               </View>
-              <ChevronRight size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-          </View>
-        )}
+            </View>
+            <ChevronRight size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+        </View>
 
-        {/* Coming Soon Section - Show for all users */}
+        {/* Coming Soon Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{isAdmin ? 'Coming Soon' : 'Reports'}</Text>
+          <Text style={styles.sectionTitle}>Coming Soon</Text>
           <View style={styles.comingSoonCard}>
-            <Text style={styles.comingSoonTitle}>
-              {isAdmin ? 'Additional Reports' : 'Report Analytics'}
-            </Text>
+            <Text style={styles.comingSoonTitle}>Additional Reports</Text>
             <Text style={styles.comingSoonDescription}>
-              {isAdmin 
-                ? 'More reporting features will be available in future updates'
-                : 'Advanced analytics are available for admin users only'
-              }
+              More reporting features will be available in future updates
             </Text>
           </View>
         </View>
