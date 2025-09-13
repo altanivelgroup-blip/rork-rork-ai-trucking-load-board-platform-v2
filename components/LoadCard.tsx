@@ -108,7 +108,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#E3F2FD',
     borderRadius: 12,
     padding: 16,
     marginHorizontal: 0,
