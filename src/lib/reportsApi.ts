@@ -1,9 +1,61 @@
+import { getAuth } from 'firebase/auth';
+import { requireApiBaseUrl } from '@/utils/env';
 import { trpc } from '@/lib/trpc';
 import { useCallback, useEffect, useState } from 'react';
-import type { TRPCClientErrorLike } from '@trpc/client';
-import type { AppRouter } from '@/backend/trpc/app-router';
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
+
+// Helper function to make authenticated API requests
+async function apiGET(path: string): Promise<any> {
+  const API_BASE = requireApiBaseUrl();
+  const url = `${API_BASE}${path}`;
+  
+  console.log(`[ReportAnalytics] Making request to: ${url}`);
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Add auth token if available
+  try {
+    const user = getAuth().currentUser;
+    if (user) {
+      const token = await user.getIdToken();
+      headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (error) {
+    console.warn('[ReportAnalytics] Failed to get auth token:', error);
+  }
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  });
+  
+  if (!response.ok) {
+    const bodyText = await response.text().catch(() => 'Unknown error');
+    const errorMsg = `[${response.status}] ${response.statusText} ${bodyText.slice(0, 100)}`;
+    throw new Error(errorMsg);
+  }
+  
+  return response.json();
+}
+
+// API functions
+export const getLiveGraph = async (period?: TimeFilter) => {
+  const path = period ? `/api/report-analytics/graph?period=${period}` : '/api/report-analytics/graph';
+  return apiGET(path);
+};
+
+export const getLiveMetrics = async (period?: TimeFilter) => {
+  const path = period ? `/api/report-analytics/metrics?period=${period}` : '/api/report-analytics/metrics';
+  return apiGET(path);
+};
+
+export const getBottomRow = async (period?: TimeFilter) => {
+  const path = period ? `/api/report-analytics/bottom-row?period=${period}` : '/api/report-analytics/bottom-row';
+  return apiGET(path);
+};
 
 export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
   const [connectionStable, setConnectionStable] = useState(true);
@@ -15,18 +67,9 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
       staleTime: 30000, // 30 seconds
-      gcTime: 300000, // 5 minutes
+      gcTime: 300000, // 5 minutes (replaced cacheTime)
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      onSuccess: () => {
-        setConnectionStable(true);
-        setLastSuccessfulFetch(new Date());
-        console.log('[ReportAnalytics] ✅ Graph data fetched successfully');
-      },
-      onError: (error: TRPCClientErrorLike<AppRouter>) => {
-        setConnectionStable(false);
-        console.error('[ReportAnalytics] ❌ Failed to fetch graph data:', error.message);
-      },
     }
   );
   
@@ -36,18 +79,9 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
       staleTime: 30000,
-      gcTime: 300000,
+      gcTime: 300000, // 5 minutes (replaced cacheTime)
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      onSuccess: () => {
-        setConnectionStable(true);
-        setLastSuccessfulFetch(new Date());
-        console.log('[ReportAnalytics] ✅ Metrics data fetched successfully');
-      },
-      onError: (error: TRPCClientErrorLike<AppRouter>) => {
-        setConnectionStable(false);
-        console.error('[ReportAnalytics] ❌ Failed to fetch metrics:', error.message);
-      },
     }
   );
   
@@ -57,20 +91,48 @@ export const useReportAnalytics = (timeFilter: TimeFilter = 'weekly') => {
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
       staleTime: 30000,
-      gcTime: 300000,
+      gcTime: 300000, // 5 minutes (replaced cacheTime)
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      onSuccess: () => {
-        setConnectionStable(true);
-        setLastSuccessfulFetch(new Date());
-        console.log('[ReportAnalytics] ✅ Bottom row data fetched successfully');
-      },
-      onError: (error: TRPCClientErrorLike<AppRouter>) => {
-        setConnectionStable(false);
-        console.error('[ReportAnalytics] ❌ Failed to fetch bottom row data:', error.message);
-      },
     }
   );
+
+  // Handle success/error states with useEffect
+  useEffect(() => {
+    if (graphQuery.isSuccess && !graphQuery.isFetching) {
+      setConnectionStable(true);
+      setLastSuccessfulFetch(new Date());
+      console.log('[ReportAnalytics] ✅ Graph data fetched successfully');
+    }
+    if (graphQuery.error) {
+      setConnectionStable(false);
+      console.error('[ReportAnalytics] ❌ Failed to fetch graph data:', graphQuery.error.message);
+    }
+  }, [graphQuery.isSuccess, graphQuery.isFetching, graphQuery.error]);
+
+  useEffect(() => {
+    if (metricsQuery.isSuccess && !metricsQuery.isFetching) {
+      setConnectionStable(true);
+      setLastSuccessfulFetch(new Date());
+      console.log('[ReportAnalytics] ✅ Metrics data fetched successfully');
+    }
+    if (metricsQuery.error) {
+      setConnectionStable(false);
+      console.error('[ReportAnalytics] ❌ Failed to fetch metrics:', metricsQuery.error.message);
+    }
+  }, [metricsQuery.isSuccess, metricsQuery.isFetching, metricsQuery.error]);
+
+  useEffect(() => {
+    if (bottomRowQuery.isSuccess && !bottomRowQuery.isFetching) {
+      setConnectionStable(true);
+      setLastSuccessfulFetch(new Date());
+      console.log('[ReportAnalytics] ✅ Bottom row data fetched successfully');
+    }
+    if (bottomRowQuery.error) {
+      setConnectionStable(false);
+      console.error('[ReportAnalytics] ❌ Failed to fetch bottom row data:', bottomRowQuery.error.message);
+    }
+  }, [bottomRowQuery.isSuccess, bottomRowQuery.isFetching, bottomRowQuery.error]);
 
   const refetchAll = useCallback(async () => {
     console.log('[ReportAnalytics] Refetching all data...');
