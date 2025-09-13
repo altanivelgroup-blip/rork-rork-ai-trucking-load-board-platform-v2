@@ -624,62 +624,99 @@ const ReportAnalyticsDashboard: React.FC = () => {
     ];
     
     const maxValue = Math.max(...dailyRevenue.map((d: DailyRevenueData) => d.revenue));
+    const revenueData = dailyRevenue.map((d: DailyRevenueData) => d.revenue);
+    const labels = dailyRevenue.map((d: DailyRevenueData) => d.day);
     
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>Revenue by Day/Week/Month (with 5% highlights)</Text>
-        <View style={styles.revenueChartContainer}>
-          <View style={styles.revenueBarChart}>
-            {dailyRevenue.map((dayData: DailyRevenueData, index: number) => {
-              const barHeight = Math.max((dayData.revenue / maxValue) * 120, 4); // Minimum height of 4
-              const feeHeight = Math.max((dayData.platformFee / maxValue) * 120, 2); // Minimum height of 2
-              
-              return (
-                <TouchableOpacity 
-                  key={`revenue-${index}`} 
-                  style={styles.revenueBarGroup}
-                  onPress={() => showDetailModal(
-                    `${dayData.day} Revenue`,
-                    `${(dayData.revenue / 1000).toFixed(1)}K`,
-                    `Total: ${dayData.revenue.toLocaleString()}\n5% Platform Fee: ${dayData.platformFee.toLocaleString()}\nNet: ${(dayData.revenue - dayData.platformFee).toLocaleString()}`
-                  )}
-                >
-                  <View style={styles.revenueBarStack}>
-                    <View 
-                      style={[
-                        styles.revenueBar, 
-                        { 
-                          height: barHeight,
-                          backgroundColor: '#10B981'
-                        }
-                      ]} 
-                    />
-                    <View 
-                      style={[
-                        styles.revenueFeeBar, 
-                        { 
-                          height: feeHeight,
-                          backgroundColor: '#F59E0B',
-                          position: 'absolute',
-                          bottom: 0,
-                          right: 0
-                        }
-                      ]} 
-                    />
-                  </View>
-                  <Text style={styles.revenueBarLabel}>{dayData.day}</Text>
-                </TouchableOpacity>
-              );
-            })}
+        <View style={styles.revenueLineChart}>
+          <View style={styles.yAxisLabels}>
+            <Text style={styles.yAxisLabel}>{Math.round(maxValue / 1000)}K</Text>
+            <Text style={styles.yAxisLabel}>{Math.round(maxValue * 0.75 / 1000)}K</Text>
+            <Text style={styles.yAxisLabel}>{Math.round(maxValue * 0.5 / 1000)}K</Text>
+            <Text style={styles.yAxisLabel}>{Math.round(maxValue * 0.25 / 1000)}K</Text>
+            <Text style={styles.yAxisLabel}>0</Text>
           </View>
-          <View style={styles.revenueChartLegend}>
-            <View style={styles.revenueLegendItem}>
-              <View style={[styles.revenueLegendColor, { backgroundColor: '#10B981' }]} />
-              <Text style={styles.revenueLegendText}>Total Revenue</Text>
+          <View style={styles.revenueChartArea}>
+            {/* Legend */}
+            <View style={styles.chartLegend}>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendLine, { backgroundColor: '#3B82F6' }]} />
+                <Text style={styles.legendLabel}>Revenue</Text>
+              </View>
             </View>
-            <View style={styles.revenueLegendItem}>
-              <View style={[styles.revenueLegendColor, { backgroundColor: '#F59E0B' }]} />
-              <Text style={styles.revenueLegendText}>5% Platform Fee</Text>
+            
+            {/* Chart Area */}
+            <View style={styles.chartArea}>
+              {/* Render connecting lines first (behind points) */}
+              {revenueData.slice(0, -1).map((value: number, index: number) => {
+                const pointSpacing = 300 / (revenueData.length - 1 || 1);
+                const currentY = 120 - (value / maxValue) * 100;
+                const nextY = 120 - (revenueData[index + 1] / maxValue) * 100;
+                
+                const lineLength = Math.sqrt(
+                  Math.pow(pointSpacing, 2) + Math.pow(nextY - currentY, 2)
+                );
+                
+                const angle = Math.atan2(nextY - currentY, pointSpacing) * (180 / Math.PI);
+                
+                return (
+                  <View
+                    key={`revenue-line-${index}`}
+                    style={[
+                      styles.smoothLine,
+                      {
+                        left: index * pointSpacing + 15,
+                        top: currentY,
+                        width: lineLength,
+                        backgroundColor: '#3B82F6',
+                        transform: [{ rotate: `${angle}deg` }],
+                      },
+                    ]}
+                  />
+                );
+              })}
+              
+              {/* Render data points on top of lines */}
+              {revenueData.map((value: number, index: number) => {
+                const pointSpacing = 300 / (revenueData.length - 1 || 1);
+                const pointY = 120 - (value / maxValue) * 100;
+                
+                return (
+                  <TouchableOpacity
+                    key={`revenue-point-${index}`}
+                    style={[
+                      styles.dataPoint,
+                      {
+                        left: index * pointSpacing + 11,
+                        top: pointY - 4,
+                        backgroundColor: '#3B82F6',
+                      },
+                    ]}
+                    onPress={() => showDetailModal(
+                      `${dailyRevenue[index]?.day || `Period ${index + 1}`} Revenue`,
+                      `${(value / 1000).toFixed(1)}K`,
+                      `Total: ${value.toLocaleString()}\n5% Platform Fee: ${dailyRevenue[index]?.platformFee.toLocaleString()}\nNet: ${(value - dailyRevenue[index]?.platformFee).toLocaleString()}`
+                    )}
+                  />
+                );
+              })}
+            </View>
+            
+            {/* X-axis labels */}
+            <View style={styles.xAxisLabels}>
+              {labels.map((label: string, index: number) => {
+                const labelWidth = 300 / labels.length;
+                return (
+                  <Text key={`revenue-label-${index}`} style={[styles.xAxisLabel, { 
+                    left: index * labelWidth + labelWidth/2 - 15,
+                    width: 30
+                  }]}>
+                    {label}
+                  </Text>
+                );
+              })}
             </View>
           </View>
         </View>
@@ -1879,6 +1916,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   // Revenue chart specific styles
+  revenueLineChart: {
+    height: 180,
+    minHeight: 180,
+  },
+  revenueChartArea: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    height: '100%',
+    position: 'relative',
+  },
   revenueChartContainer: {
     flex: 1,
     paddingHorizontal: 8,
