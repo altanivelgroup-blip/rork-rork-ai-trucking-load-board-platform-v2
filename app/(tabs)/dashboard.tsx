@@ -387,9 +387,13 @@ export default function DashboardScreen() {
           <View style={styles.welcomeRow}>
             <Text style={styles.welcomeText}>Welcome back,</Text>
             <Text style={styles.welcomeName} allowFontScaling={false}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
-            <TouchableOpacity style={styles.voiceButton} testID="dashboard-voice-capture">
-              <Mic size={moderateScale(20)} color={theme.colors.primary} />
-            </TouchableOpacity>
+            {isDriver && (
+              <VoiceCapture
+                onTranscribed={handleVoiceTranscribed}
+                size="sm"
+                testID="dashboard-welcome-voice-capture"
+              />
+            )}
           </View>
 
           <View style={styles.statsRow}>
@@ -622,15 +626,7 @@ const styles = StyleSheet.create({
     paddingTop: moderateScale(theme.spacing.md),
     justifyContent: 'space-between',
   },
-  voiceButton: {
-    padding: moderateScale(theme.spacing.xs),
-    borderRadius: moderateScale(theme.borderRadius.sm),
-    backgroundColor: theme.colors.lightGray,
-    minHeight: 44,
-    minWidth: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
