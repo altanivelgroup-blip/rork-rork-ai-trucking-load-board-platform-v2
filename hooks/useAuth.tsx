@@ -217,9 +217,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
     
     try {
-      // Enhanced Firebase auth integration
+      // FIXED: Enhanced Firebase auth integration with proper error handling
       console.log('[auth] Auth optimized - Ensuring Firebase authentication...');
-      await ensureFirebaseAuth();
+      const firebaseAuthSuccess = await ensureFirebaseAuth();
+      if (!firebaseAuthSuccess) {
+        console.warn('[auth] ⚠️ Firebase authentication failed, but continuing with local auth');
+      } else {
+        console.log('[auth] ✅ Firebase authentication successful');
+      }
       
       // Check if this is an admin login
       const isAdminLogin = email === 'admin@loadrush.com' || role === 'admin';

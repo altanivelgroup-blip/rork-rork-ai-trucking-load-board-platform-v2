@@ -459,10 +459,22 @@ export function PhotoUploader({
 
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
+      // FIXED: Ensure proper Firebase authentication before upload
+      console.log('[PhotoUploader] Ensuring Firebase authentication before upload...');
       const authSuccess = await ensureFirebaseAuth();
       if (!authSuccess) {
-        console.warn('[PhotoUploader] Authentication failed, but continuing for development');
+        console.error('[PhotoUploader] Firebase authentication failed - cannot upload photos');
+        throw new Error('Authentication required for photo uploads. Please check your connection and try again.');
       }
+      
+      // Verify we have a current user
+      const { auth } = getFirebase();
+      if (!auth?.currentUser?.uid) {
+        console.error('[PhotoUploader] No authenticated user found');
+        throw new Error('User authentication required. Please sign in and try again.');
+      }
+      
+      console.log('[PhotoUploader] ✅ Authentication verified - user:', auth.currentUser.uid);
       const fileId = uuid.v4() as string;
       console.log('[UPLOAD_START] Processing image before upload...', input);
       const photoItem: PhotoItem = {
@@ -476,10 +488,13 @@ export function PhotoUploader({
         ...prev,
         photos: [...prev.photos, photoItem],
       }));
-      const { auth } = getFirebase();
-      const uid = auth?.currentUser?.uid ?? 'NOAUTH';
+      // Use authenticated user ID for storage path
+      const uid = auth.currentUser.uid;
       const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
       const basePath = `loadPhotos/${uid}/${safeId}`;
+      
+      console.log('[PhotoUploader] Upload path:', basePath);
+      console.log('[PhotoUploader] Authenticated user:', uid);
       if (qaState.qaSlowNetwork) {
         const delay = random(300, 1200);
         console.log('[QA] Simulating network delay:', delay + 'ms');

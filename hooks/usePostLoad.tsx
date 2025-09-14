@@ -379,15 +379,31 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     try {
       if (!user?.id || photosLocal.length === 0) return [];
 
+      // FIXED: Ensure proper Firebase authentication before upload
+      console.log('[PostLoad] Ensuring Firebase authentication before photo upload...');
       const authed = await ensureFirebaseAuth();
       if (!authed) {
+        console.error('[PostLoad] Firebase authentication failed - cannot upload photos');
         console.warn('[PostLoad] Firebase auth not available, falling back to placeholders');
         return photosLocal.map((_, i) => `https://picsum.photos/400/300?random=${Date.now()}-${i}`);
       }
+      
+      // Verify we have a current user
+      const { auth } = getFirebase();
+      if (!auth?.currentUser?.uid) {
+        console.error('[PostLoad] No authenticated user found for photo upload');
+        console.warn('[PostLoad] No authenticated user, falling back to placeholders');
+        return photosLocal.map((_, i) => `https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+      }
+      
+      console.log('[PostLoad] ✅ Authentication verified for photo upload - user:', auth.currentUser.uid);
 
-      const { storage, auth } = getFirebase();
-      const uid = auth?.currentUser?.uid ?? user.id;
+      const { storage } = getFirebase();
+      const uid = auth.currentUser.uid; // Use authenticated user ID
       const basePath = `loadPhotos/${uid}/${String(reference).trim()}`;
+      
+      console.log('[PostLoad] Photo upload path:', basePath);
+      console.log('[PostLoad] Authenticated user for photos:', uid);
 
       const uploadedUrls: string[] = [];
 
