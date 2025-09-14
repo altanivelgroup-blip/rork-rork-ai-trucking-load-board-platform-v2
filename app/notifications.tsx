@@ -6,19 +6,17 @@ import { theme } from '@/constants/theme';
 import { Bell, Mail, MessageSquare, ArrowLeft, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useToast } from '@/components/Toast';
-import { useAuth } from '@/hooks/useAuth';
 import { trpcClient } from '@/lib/trpc';
 
 export default function NotificationsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, userId } = useAuth();
   const { settings, isLoading, error, updateChannel, updateCategory, refreshSettings } = useNotifications();
   const toast = useToast();
   const [offlineMode, setOfflineMode] = useState<boolean>(false);
   const [testingConnection, setTestingConnection] = useState<boolean>(false);
 
-  console.log('[NotificationsScreen] Render - isAuthenticated:', isAuthenticated, 'userId:', userId, 'isLoading:', isLoading, 'error:', error);
+  console.log('[NotificationsScreen] Render - isLoading:', isLoading, 'error:', error);
 
   useEffect(() => {
     if (error) {
@@ -35,12 +33,10 @@ export default function NotificationsScreen() {
   }, [error, toast]);
 
   const testBackendConnection = useCallback(async () => {
-    if (!userId) return;
-    
     setTestingConnection(true);
     try {
       console.log('[NotificationsScreen] Testing backend connection...');
-      const result = await trpcClient.notifications.getSettings.query({ userId });
+      const result = await trpcClient.notifications.getSettings.query({ userId: 'demo-user' });
       console.log('[NotificationsScreen] Backend test result:', result);
       
       if (result.success) {
@@ -57,7 +53,7 @@ export default function NotificationsScreen() {
     } finally {
       setTestingConnection(false);
     }
-  }, [userId, toast, refreshSettings]);
+  }, [toast, refreshSettings]);
 
   const handleChannelToggle = useCallback(async (channel: 'push' | 'email' | 'sms', enabled: boolean) => {
     if (!channel || typeof enabled !== 'boolean') return;
@@ -81,16 +77,7 @@ export default function NotificationsScreen() {
     }
   }, [updateCategory, toast]);
 
-  if (!isAuthenticated || !userId) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ title: 'Notifications', headerShown: false }} />
-        <View style={styles.centerContent}>
-          <Text style={styles.errorText}>Please sign in to manage notifications</Text>
-        </View>
-      </View>
-    );
-  }
+
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]} testID="notifications-screen">

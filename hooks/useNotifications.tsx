@@ -1,6 +1,4 @@
-import createContextHook from '@nkzw/create-context-hook';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAuth } from './useAuth';
+import { useCallback, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 
 export interface NotificationSettings {
@@ -38,20 +36,24 @@ const defaultSettings: NotificationSettings = {
   },
 };
 
-export const [NotificationProvider, useNotifications] = createContextHook<NotificationState>(() => {
-  const { userId, isAuthenticated } = useAuth();
+export function useNotifications(): NotificationState {
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const settingsQuery = trpc.notifications.getSettings.useQuery(
-    { userId: userId || '' },
+    { userId: 'demo-user' },
     { 
-      enabled: !!userId && isAuthenticated,
       refetchOnWindowFocus: false,
       retry: 1,
-      retryDelay: 2000,
       staleTime: 5 * 60 * 1000,
+      onSuccess: (data) => {
+        if (data?.success && data.settings) {
+          setSettings(data.settings);
+          setError(null);
+        } else if (data && !data.success) {
+          setError(data.error || 'Failed to load notification settings');
+        }
+      },
       onError: (error) => {
         console.error('[Notifications] Query error:', error);
         setError(error.message || 'Failed to load notification settings');
@@ -62,53 +64,7 @@ export const [NotificationProvider, useNotifications] = createContextHook<Notifi
   const updateChannelMutation = trpc.notifications.updateChannel.useMutation();
   const updateCategoryMutation = trpc.notifications.updateCategory.useMutation();
 
-  useEffect(() => {
-    if (!isAuthenticated || !userId) {
-      console.log('[Notifications] User not authenticated, using defaults');
-      setSettings(defaultSettings);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
-    if (settingsQuery.data?.success && settingsQuery.data.settings) {
-      console.log('[Notifications] Settings loaded:', settingsQuery.data.settings);
-      setSettings(prev => {
-        const newSettings = settingsQuery.data.settings;
-        if (JSON.stringify(prev) !== JSON.stringify(newSettings)) {
-          return newSettings;
-        }
-        return prev;
-      });
-      setError(null);
-    } else if (settingsQuery.error) {
-      console.error('[Notifications] Error loading settings:', settingsQuery.error);
-      setError(settingsQuery.error.message || 'Failed to load notification settings');
-    } else if (settingsQuery.data && !settingsQuery.data.success) {
-      console.warn('[Notifications] Query returned unsuccessful result:', settingsQuery.data);
-      setError(settingsQuery.data.error || 'Failed to load notification settings');
-    }
-  }, [settingsQuery.data, settingsQuery.error, isAuthenticated, userId]);
-
-  useEffect(() => {
-    if (isAuthenticated && userId) {
-      setIsLoading(settingsQuery.isLoading);
-    } else {
-      setIsLoading(false);
-    }
-  }, [settingsQuery.isLoading, isAuthenticated, userId]);
-
   const updateChannel = useCallback(async (channel: 'push' | 'email' | 'sms', enabled: boolean) => {
-    if (!userId) {
-      console.warn('[Notifications] No user ID available');
-      return;
-    }
-
-    if (!channel || typeof enabled !== 'boolean') {
-      console.warn('[Notifications] Invalid parameters');
-      return;
-    }
-
     try {
       console.log('[Notifications] Updating channel:', channel, 'to', enabled);
       
@@ -122,7 +78,7 @@ export const [NotificationProvider, useNotifications] = createContextHook<Notifi
       }));
 
       const result = await updateChannelMutation.mutateAsync({
-        userId,
+        userId: 'demo-user',
         channel,
         enabled,
       });
@@ -156,19 +112,9 @@ export const [NotificationProvider, useNotifications] = createContextHook<Notifi
       }));
       setError(err.message || 'Failed to update channel');
     }
-  }, [userId, updateChannelMutation]);
+  }, [updateChannelMutation]);
 
   const updateCategory = useCallback(async (category: 'loadUpdates' | 'payments' | 'system', enabled: boolean) => {
-    if (!userId) {
-      console.warn('[Notifications] No user ID available');
-      return;
-    }
-
-    if (!category || typeof enabled !== 'boolean') {
-      console.warn('[Notifications] Invalid parameters');
-      return;
-    }
-
     try {
       console.log('[Notifications] Updating category:', category, 'to', enabled);
       
@@ -182,7 +128,7 @@ export const [NotificationProvider, useNotifications] = createContextHook<Notifi
       }));
 
       const result = await updateCategoryMutation.mutateAsync({
-        userId,
+        userId: 'demo-user',
         category,
         enabled,
       });
@@ -216,22 +162,18 @@ export const [NotificationProvider, useNotifications] = createContextHook<Notifi
       }));
       setError(err.message || 'Failed to update category');
     }
-  }, [userId, updateCategoryMutation]);
+  }, [updateCategoryMutation]);
 
   const refreshSettings = useCallback(async () => {
-    if (userId) {
-      await settingsQuery.refetch();
-    }
-  }, [userId, settingsQuery]);
+    await settingsQuery.refetch();
+  }, [settingsQuery]);
 
-  const value = useMemo<NotificationState>(() => ({
+  return {
     settings,
-    isLoading,
+    isLoading: settingsQuery.isLoading,
     error,
     updateChannel,
     updateCategory,
     refreshSettings,
-  }), [settings, isLoading, error, updateChannel, updateCategory, refreshSettings]);
-
-  return value;
-});
+  };
+}
