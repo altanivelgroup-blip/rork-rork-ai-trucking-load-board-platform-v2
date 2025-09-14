@@ -13,6 +13,7 @@ import { SettingsProvider } from "@/hooks/useSettings";
 import { PostLoadProvider } from "@/hooks/usePostLoad";
 import { LoadsProvider } from "@/hooks/useLoads";
 import { AutoArriveProvider } from "@/hooks/useAutoArrive";
+import { NotificationProvider } from "@/hooks/useNotifications";
 
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
