@@ -189,6 +189,7 @@ function RootLayoutNav() {
       <Stack.Screen name="reports" options={{ title: "Reports" }} />
       <Stack.Screen name="reports-analytics" options={{ title: "Report Analytics" }} />
       <Stack.Screen name="device-testing" options={{ title: "Device Testing Suite" }} />
+      <Stack.Screen name="submission-readiness-check" options={{ title: "Submission Readiness" }} />
     </Stack>
   );
 }
