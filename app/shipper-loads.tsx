@@ -174,8 +174,9 @@ export default function ShipperLoadsScreen() {
             style={styles.backButton}
             onPress={() => router.back()}
             testID="back-button"
+            activeOpacity={0.7}
           >
-            <ArrowLeft size={24} color={theme.colors.dark} />
+            <ArrowLeft size={28} color={theme.colors.dark} />
           </TouchableOpacity>
         ),
         headerRight: () => (
@@ -663,14 +664,19 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.sm,
   },
   backButton: {
-    padding: theme.spacing.sm,
-    marginLeft: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: 'transparent',
-    minWidth: 44,
-    minHeight: 44,
+    padding: theme.spacing.md,
+    marginLeft: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.lightGray,
+    minWidth: 48,
+    minHeight: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   emptyActions: {
     flexDirection: 'row',
