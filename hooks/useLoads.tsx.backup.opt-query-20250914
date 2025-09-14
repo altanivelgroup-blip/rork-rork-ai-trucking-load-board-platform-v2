@@ -1,3 +1,6 @@
+<BACKUP>
+-- hooks/useLoads.tsx snapshot (2025-09-14) --
+
 import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -90,7 +93,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     return Array.from(map.values());
   }, []);
 
-  // Always define memoized values in the same order
   const FAVORITES_KEY = useMemo(() => {
     return user ? `favorites:${user.id}` : 'favorites:guest';
   }, [user]);
@@ -260,9 +262,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
           ...baseConstraints,
           orderBy('clientCreatedAt', 'desc'),
         );
-        const orderedFetch = getDocs(qOrdered);
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('QUERY_TIMEOUT_ORDERED')), 4000));
-        snap = await Promise.race([orderedFetch, timeout]) as typeof snap;
+        snap = await getDocs(qOrdered);
       } catch (e: any) {
         if (e?.code === 'failed-precondition') {
           console.warn('[Loads] Missing Firestore index for ordered query. Falling back without orderBy.');
@@ -271,15 +271,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
             ...baseConstraints,
           );
           snap = await getDocs(qUnordered);
-        } else if (typeof e?.message === 'string' && e.message === 'QUERY_TIMEOUT_ORDERED') {
-          console.warn('[Loads] Ordered query is slow. Retrying with smaller limit and without orderBy');
-          const qSmaller = query(
-            collection(db, LOADS_COLLECTION),
-            where('status', '==', LOAD_STATUS.OPEN),
-            where('isArchived', '==', false),
-            limit(25),
-          );
-          snap = await getDocs(qSmaller);
         } else {
           throw e;
         }
@@ -291,7 +282,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
         const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
         
-        // Handle both structured and friendly fallback fields for origin/destination
         const originCity = d?.origin?.city || d?.originCity || 'Unknown';
         const originState = d?.origin?.state || d?.originState || '';
         const destCity = d?.destination?.city || d?.destCity || 'Unknown';
@@ -410,7 +400,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         console.log('[Loads] Offline: delete will sync later');
       }
       
-      // Try Firebase delete first
       try {
         const authed = await ensureFirebaseAuth();
         const { db } = getFirebase();
@@ -423,10 +412,8 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         console.warn('[Loads] Firebase delete failed, continuing with local delete:', firebaseError);
       }
       
-      // Remove from local state
       setLoads(prevLoads => prevLoads.filter(load => load.id !== loadId));
       
-      // Remove from AsyncStorage
       try {
         const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
         if (existingLoads) {
@@ -451,13 +438,8 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   const deleteCompletedLoad = useCallback(async (loadId: string) => {
     setIsLoading(true);
     try {
-      // For completed loads, we only remove from local history
-      // Don't delete from Firebase as it affects shipper analytics
-      
-      // Remove from local state
       setLoads(prevLoads => prevLoads.filter(load => load.id !== loadId));
       
-      // Remove from accepted loads history
       try {
         const acceptedLoads = await AsyncStorage.getItem('acceptedLoads');
         if (acceptedLoads) {
@@ -518,12 +500,10 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   useEffect(() => {
     let mounted = true;
     
-    // Start Firestore listener in background (non-blocking)
     const start = async () => {
       try {
         if (!online) return;
         
-        // Try Firebase auth with short timeout
         const authed = await Promise.race([
           ensureFirebaseAuth(),
           new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1000))
@@ -562,7 +542,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
               const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
               const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
               
-              // Handle both structured and friendly fallback fields for origin/destination
               const originCity = d?.origin?.city || d?.originCity || 'Unknown';
               const originState = d?.origin?.state || d?.originState || '';
               const destCity = d?.destination?.city || d?.destCity || 'Unknown';
@@ -612,7 +591,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
                 const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
                 const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
                 
-                // Handle both structured and friendly fallback fields for origin/destination
                 const originCity = d?.origin?.city || d?.originCity || 'Unknown';
                 const originState = d?.origin?.state || d?.originState || '';
                 const destCity = d?.destination?.city || d?.destCity || 'Unknown';
@@ -655,7 +633,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       }
     };
     
-    // Start in background without blocking
     setTimeout(start, 100);
     
     return () => {
@@ -689,7 +666,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     if (isLoading) {
       if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
       slowTimerRef.current = setTimeout(() => {
-        if (isLoading) console.log('[Loads] Optimizing query - Please wait');
+        if (isLoading) console.log('[Loads] Network seems slow…');
       }, 1500);
     } else if (slowTimerRef.current) {
       clearTimeout(slowTimerRef.current);
@@ -698,7 +675,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     return () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
   }, [isLoading]);
 
-  // Always return the same structure - no conditional hooks
   const value = useMemo(() => {
     const result: LoadsState = {
       loads,
@@ -729,10 +705,8 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
 export const LoadsProvider = LoadsProviderInternal;
 
 export function useLoads(): LoadsState {
-  // Always call the hook first to maintain hook order
   const context = useLoadsInternal();
   
-  // Then handle the error cases
   if (!context) {
     console.warn('[useLoads] Context is null, returning default state');
     return getDefaultLoadsState();
@@ -765,7 +739,6 @@ function getDefaultLoadsState(): LoadsState {
 }
 
 export function useLoadsWithToast(): LoadsWithToast {
-  // Always call hooks in the same order
   const { acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad } = useLoads();
   const { show } = useToast();
   const { online } = useOnlineStatus();
@@ -844,3 +817,4 @@ export function useLoadsWithToast(): LoadsWithToast {
     deleteCompletedLoadWithToast,
   };
 }
+</BACKUP>
