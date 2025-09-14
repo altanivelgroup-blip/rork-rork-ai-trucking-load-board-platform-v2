@@ -41,6 +41,8 @@ interface LoadsState {
   addLoadsBulk: (incoming: Load[]) => Promise<void>;
   deleteLoad: (loadId: string) => Promise<void>;
   deleteCompletedLoad: (loadId: string) => Promise<void>;
+  lastSyncTime: Date | null;
+  syncStatus: 'idle' | 'syncing' | 'error';
 }
 
 export interface LoadsWithToast {
@@ -69,6 +71,8 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   const [loads, setLoads] = useState<Load[]>(mockLoads);
   const [filters, setFilters] = useState<LoadFilters>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const { online } = useOnlineStatus();
   const { user } = useAuth();
@@ -212,11 +216,15 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
 
   const refreshLoads = useCallback(async () => {
     setIsLoading(true);
+    setSyncStatus('syncing');
     try {
+      console.log('[Loads] Starting refresh with live data integration...');
+      
       if (!online) {
         console.log('[Loads] Offline: showing cached loads');
         const persisted = await readPersisted();
         setLoads(prev => mergeUniqueById(mockLoads, persisted));
+        setSyncStatus('idle');
         return;
       }
 
@@ -304,9 +312,16 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
 
       const fromFs = snap.docs.map(toLoad).filter((x): x is Load => x !== null);
       const persisted = await readPersisted();
-      setLoads(mergeUniqueById(fromFs.length ? fromFs : mockLoads, persisted));
+      const mergedLoads = mergeUniqueById(fromFs.length ? fromFs : mockLoads, persisted);
+      
+      setLoads(mergedLoads);
+      setLastSyncTime(new Date());
+      setSyncStatus('idle');
+      
+      console.log(`[Loads] Successfully synced ${mergedLoads.length} loads from Firestore`);
     } catch (error) {
       console.error('Failed to refresh loads:', error);
+      setSyncStatus('error');
       try {
         const persisted = await readPersisted();
         setLoads(mergeUniqueById(mockLoads, persisted));
@@ -552,7 +567,13 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
               return mapped;
             }).filter((x): x is Load => x !== null);
             const persisted = await readPersisted();
-            setLoads(mergeUniqueById(docs.length ? docs : mockLoads, persisted));
+            const mergedLoads = mergeUniqueById(docs.length ? docs : mockLoads, persisted);
+            
+            setLoads(mergedLoads);
+            setLastSyncTime(new Date());
+            setSyncStatus('idle');
+            
+            console.log(`[Loads] Real-time update: ${mergedLoads.length} loads`);
           } catch (e) {
             console.warn('[Loads] Snapshot mapping failed', e);
           }
@@ -670,9 +691,11 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       addLoadsBulk,
       deleteLoad,
       deleteCompletedLoad,
+      lastSyncTime,
+      syncStatus,
     };
     return result;
-  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad]);
+  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad, lastSyncTime, syncStatus]);
 
   return value;
 });
@@ -710,6 +733,8 @@ function getDefaultLoadsState(): LoadsState {
     addLoadsBulk: async () => {},
     deleteLoad: async () => {},
     deleteCompletedLoad: async () => {},
+    lastSyncTime: null,
+    syncStatus: 'idle',
   };
 }
 

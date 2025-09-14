@@ -23,6 +23,8 @@ export default function ShipperLoadsScreen() {
   
   const [showFiltersModal, setShowFiltersModal] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [liveDataEnabled, setLiveDataEnabled] = useState<boolean>(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [showBulkOnly, setShowBulkOnly] = useState<boolean>(false);
   const [showLastImportOnly, setShowLastImportOnly] = useState<boolean>(false);
   const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
@@ -74,8 +76,12 @@ export default function ShipperLoadsScreen() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      console.log('[ShipperLoads] Refreshing live data...');
       await refreshLoads();
-    } catch {
+      setLastRefresh(new Date());
+      show('Live data updated', 'success', 1500);
+    } catch (error) {
+      console.error('[ShipperLoads] Refresh failed:', error);
       show('Failed to refresh loads', 'error');
     } finally {
       setRefreshing(false);
@@ -299,12 +305,31 @@ export default function ShipperLoadsScreen() {
           </View>
         )}
         
-        <Text style={styles.debugBanner}>
-          {viewMode === 'my-loads' 
-            ? `${loads.length} posted loads` 
-            : `${loads.length} available loads`
-          }
-        </Text>
+        <View style={styles.liveDataHeader}>
+          <View style={styles.liveDataInfo}>
+            <Text style={styles.debugBanner}>
+              {viewMode === 'my-loads' 
+                ? `${loads.length} posted loads` 
+                : `${loads.length} available loads`
+              }
+            </Text>
+            {liveDataEnabled && (
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>Live</Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+            disabled={refreshing}
+          >
+            <Text style={styles.refreshText}>
+              {refreshing ? 'Updating...' : 'Refresh'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         
         <ScrollView 
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing.xl }]}
@@ -312,7 +337,14 @@ export default function ShipperLoadsScreen() {
           {isLoading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
-              <Text style={styles.loadingText}>Loading loads...</Text>
+              <Text style={styles.loadingText}>
+                {liveDataEnabled ? 'Syncing live data...' : 'Loading loads...'}
+              </Text>
+              {liveDataEnabled && (
+                <Text style={styles.loadingSubtext}>
+                  Real-time updates from Firestore
+                </Text>
+              )}
             </View>
           ) : loads.length === 0 ? (
             <View style={styles.emptyState}>
@@ -803,5 +835,54 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
     color: theme.colors.white,
+  },
+  liveDataHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  liveDataInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.success,
+  },
+  liveText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.success,
+    textTransform: 'uppercase',
+  },
+  refreshButton: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+  },
+  refreshText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  loadingSubtext: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
   },
 });

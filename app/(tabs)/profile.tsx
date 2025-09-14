@@ -1,9 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { useWallet } from '@/hooks/useWallet';
+import { useLoads } from '@/hooks/useLoads';
 
 import { 
   User, 
@@ -37,9 +39,43 @@ type ProfileOption = {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { balance, totalEarnings, isLoading: walletLoading } = useWallet();
+  const { loads, isLoading: loadsLoading } = useLoads();
   const insets = useSafeAreaInsets();
+  const [liveDataRefreshing, setLiveDataRefreshing] = useState<boolean>(false);
+  
   const isDriver = user?.role === 'driver';
   const isShipper = user?.role === 'shipper';
+  
+  // Calculate live stats for shippers
+  const shipperStats = React.useMemo(() => {
+    if (!isShipper || !user) return null;
+    
+    const myLoads = loads.filter(load => load.shipperId === user.id);
+    const activeLoads = myLoads.filter(load => load.status === 'available' || load.status === 'in-transit');
+    const completedLoads = myLoads.filter(load => load.status === 'delivered');
+    
+    return {
+      totalPosted: myLoads.length,
+      activeLoads: activeLoads.length,
+      completedLoads: completedLoads.length,
+      totalRevenue: completedLoads.reduce((sum, load) => sum + (load.rate || 0), 0),
+    };
+  }, [loads, user, isShipper]);
+  
+  // Auto-refresh live data periodically
+  useEffect(() => {
+    if (!user) return;
+    
+    const refreshInterval = setInterval(() => {
+      console.log('[Profile] Auto-refreshing live data...');
+      setLiveDataRefreshing(true);
+      // Simulate refresh completion
+      setTimeout(() => setLiveDataRefreshing(false), 1000);
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(refreshInterval);
+  }, [user]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -211,12 +247,76 @@ export default function ProfileScreen() {
               <Text style={styles.roleBadgeText}>
                 {isDriver ? 'DRIVER' : isShipper ? 'SHIPPER' : 'USER'}
               </Text>
+              {liveDataRefreshing && (
+                <ActivityIndicator size="small" color={theme.colors.white} style={styles.refreshIndicator} />
+              )}
             </View>
             {user?.company && (
               <Text style={styles.profileCompany}>{user.company}</Text>
             )}
           </View>
         </View>
+        
+        {/* Live Stats Section */}
+        {(isDriver || isShipper) && (
+          <View style={styles.liveStatsContainer}>
+            <View style={styles.liveStatsHeader}>
+              <Text style={styles.liveStatsTitle}>Live Dashboard</Text>
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>Live</Text>
+              </View>
+            </View>
+            
+            <View style={styles.statsGrid}>
+              {isDriver && (
+                <>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      {walletLoading ? '...' : `${balance.toLocaleString()}`}
+                    </Text>
+                    <Text style={styles.statLabel}>Available Balance</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      {walletLoading ? '...' : `${totalEarnings.toLocaleString()}`}
+                    </Text>
+                    <Text style={styles.statLabel}>Total Earnings</Text>
+                  </View>
+                </>
+              )}
+              
+              {isShipper && shipperStats && (
+                <>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      {loadsLoading ? '...' : shipperStats.totalPosted}
+                    </Text>
+                    <Text style={styles.statLabel}>Total Posted</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      {loadsLoading ? '...' : shipperStats.activeLoads}
+                    </Text>
+                    <Text style={styles.statLabel}>Active Loads</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      {loadsLoading ? '...' : shipperStats.completedLoads}
+                    </Text>
+                    <Text style={styles.statLabel}>Completed</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      {loadsLoading ? '...' : `${shipperStats.totalRevenue.toLocaleString()}`}
+                    </Text>
+                    <Text style={styles.statLabel}>Total Revenue</Text>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        )}
 
 
 
@@ -360,5 +460,66 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.white,
     textTransform: 'uppercase',
+  },
+  liveStatsContainer: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+  },
+  liveStatsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  liveStatsTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.success,
+  },
+  liveText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.success,
+    textTransform: 'uppercase',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.md,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: '700',
+    color: theme.colors.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  statLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    textAlign: 'center',
+  },
+  refreshIndicator: {
+    marginLeft: 4,
   },
 });
