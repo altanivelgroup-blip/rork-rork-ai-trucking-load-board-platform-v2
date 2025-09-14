@@ -362,6 +362,16 @@ export default function PlatformSanityCheckScreen() {
     }
   }, [results, isRunning, calculateScores]);
 
+  // Auto-run check on component mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isRunning && results.length === 0) {
+        runComprehensiveCheck();
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const getScoreColor = (score: number) => {
     if (score >= 9) return '#10b981'; // Excellent - Green
     if (score >= 7) return '#3b82f6'; // Good - Blue  
