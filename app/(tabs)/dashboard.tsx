@@ -385,17 +385,32 @@ export default function DashboardScreen() {
           </ImageBackground>
 
           <View style={styles.welcomeRow}>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.welcomeName} allowFontScaling={false}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
+            <View style={styles.welcomeTextContainer}>
+              <Text style={styles.welcomeText}>Welcome back,</Text>
+              <Text style={styles.welcomeName} allowFontScaling={false}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
+            </View>
+            {isDriver && (
+              <View style={styles.welcomeActions}>
+                <VoiceCapture
+                  onTranscribed={handleVoiceTranscribed}
+                  size="sm"
+                  testID="describe-load-voice-capture"
+                />
+                <TouchableOpacity
+                  onPress={onSubmitNlSearch}
+                  testID="describe-load-ai-intelligence"
+                  style={styles.aiLoadsButton}
+                >
+                  <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>
+                    AI LOADS
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {isDriver && (
             <View style={styles.describeLoadRow}>
-              <VoiceCapture
-                onTranscribed={handleVoiceTranscribed}
-                size="sm"
-                testID="describe-load-voice-capture"
-              />
               <TextInput
                 testID="describe-load-input"
                 value={nlQuery}
@@ -407,15 +422,6 @@ export default function DashboardScreen() {
                 style={styles.describeInput}
                 accessibilityLabel="Natural language search"
               />
-              <TouchableOpacity
-                onPress={onSubmitNlSearch}
-                testID="describe-load-ai-intelligence"
-                style={styles.applyButton}
-              >
-                <Text style={styles.applyButtonText} allowFontScaling={false}>
-                  AI LOADS
-                </Text>
-              </TouchableOpacity>
             </View>
           )}
 
@@ -616,10 +622,32 @@ const styles = StyleSheet.create({
   },
   welcomeRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     paddingHorizontal: moderateScale(theme.spacing.lg),
     paddingTop: moderateScale(theme.spacing.md),
     justifyContent: 'space-between',
+  },
+  welcomeTextContainer: {
+    flex: 1,
+  },
+  welcomeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: moderateScale(8),
+  },
+  aiLoadsButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: moderateScale(12),
+    paddingVertical: moderateScale(8),
+    borderRadius: moderateScale(8),
+    minHeight: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiLoadsButtonText: {
+    color: theme.colors.white,
+    fontSize: font(12),
+    fontWeight: '700',
   },
 
   loadingContainer: {
@@ -639,7 +667,6 @@ const styles = StyleSheet.create({
     fontSize: font(20),
     fontWeight: '700',
     color: theme.colors.dark,
-    flex: 1,
   },
   statsRow: {
     flexDirection: 'row',
