@@ -226,7 +226,14 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       }
 
       toast?.success?.('Load posted successfully');
-      router?.replace?.('/(tabs)/loads');
+      console.log('[PostLoad] Navigating to loads tab after successful post');
+      try {
+        router?.replace?.('/(tabs)/loads');
+      } catch (navError) {
+        console.error('[PostLoad] Navigation error:', navError);
+        // Fallback navigation
+        router?.push?.('/(tabs)/loads');
+      }
       try { setField && setField('isPosting', false); } catch {}
     } catch (fireErr: any) {
       console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
@@ -244,7 +251,14 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
           console.log('[PostLoad] local addLoad failed', e);
         }
         toast?.show?.('Posted locally. Sync will resume when permissions are fixed.', 'warning', 2800);
-        router?.replace?.('/(tabs)/loads');
+        console.log('[PostLoad] Navigating to loads tab after local post');
+        try {
+          router?.replace?.('/(tabs)/loads');
+        } catch (navError) {
+          console.error('[PostLoad] Navigation error:', navError);
+          // Fallback navigation
+          router?.push?.('/(tabs)/loads');
+        }
         try { setField && setField('isPosting', false); } catch {}
       } else {
         throw fireErr;
@@ -252,7 +266,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
     }
   } catch (err: any) {
     console.error('[PostLoad] failed:', err?.code || '', err?.message || err);
-    toast?.error?.(err?.message || 'Post failed — please try again');
+    toast?.show?.(err?.message || 'Post failed — please try again', 'error');
   } finally {
     try { setField && setField('isPosting', false); } catch {}
   }
@@ -287,6 +301,53 @@ export default function PostLoadStep5() {
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
   }, [router]);
+
+  // Update the draft contact field when local contact changes
+  React.useEffect(() => {
+    if (contact !== draft.contact) {
+      setField('contact', contact);
+    }
+  }, [contact, draft.contact, setField]);
+
+  const handlePostLoad = useCallback(async () => {
+    try {
+      console.log('[PostLoadStep5] handlePostLoad called with contact:', contact);
+      
+      // Validate contact info
+      if (!contact?.trim()) {
+        toast?.show?.('Please enter contact information', 'error');
+        return;
+      }
+      
+      // Validate photos
+      const photoCount = draft.photoUrls?.length || 0;
+      const isVehicleLoad = draft.vehicleType === 'car-hauler';
+      const minRequired = isVehicleLoad ? 5 : 1;
+      
+      if (photoCount < minRequired) {
+        const errorMsg = isVehicleLoad 
+          ? 'Vehicle loads require at least 5 photos for protection.'
+          : 'Please add at least 1 photo.';
+        toast?.show?.(errorMsg, 'error');
+        return;
+      }
+      
+      // Update contact in draft before submitting
+      setField('contact', contact.trim());
+      
+      // Call the submit function with updated draft
+      await submitLoadWithPhotos(
+        { ...draft, contact: contact.trim() }, 
+        toast, 
+        router, 
+        loadsStore, 
+        (k: string, v: any) => setField(k as any, v)
+      );
+    } catch (error: any) {
+      console.error('[PostLoadStep5] handlePostLoad error:', error);
+      toast?.show?.(error?.message || 'Failed to post load', 'error');
+    }
+  }, [contact, draft, toast, router, loadsStore, setField]);
 
 
 
@@ -394,21 +455,24 @@ export default function PostLoadStep5() {
               <Text style={styles.secondaryBtnText}>Previous</Text>
             </Pressable>
             <Pressable 
-              onPress={() => submitLoadWithPhotos(draft, toast, router, loadsStore, (k: string, v: any) => setField(k as any, v))} 
+              onPress={handlePostLoad} 
               style={[
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
+                 !contact?.trim() ||
                  (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
                  draft.isPosting) && styles.postBtnDisabled
               ]} 
               disabled={
                 uploadsInProgress > 0 || 
+                !contact?.trim() ||
                 (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
                 draft.isPosting
               } 
               accessibilityRole="button" 
               accessibilityState={{ 
                 disabled: uploadsInProgress > 0 || 
+                         !contact?.trim() ||
                          (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
                          draft.isPosting 
               }} 
@@ -424,6 +488,8 @@ export default function PostLoadStep5() {
                   ? `Uploading photos (${uploadsInProgress}/${(draft.photoUrls?.length || draft.photosLocal?.length || 0)})...` 
                   : draft.isPosting 
                   ? 'Posting...' 
+                  : !contact?.trim()
+                  ? 'Enter Contact Info'
                   : 'Post Load'
                 }
               </Text>
