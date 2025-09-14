@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
-import { trpc } from '@/lib/trpc';
+import { useCallback, useMemo, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface NotificationSettings {
   channels: {
@@ -36,70 +36,83 @@ const defaultSettings: NotificationSettings = {
   },
 };
 
+const STORAGE_KEY = 'notification_settings';
+
 export function useNotifications(): NotificationState {
-  const isUpdatingRef = useRef<boolean>(false);
   const [localSettings, setLocalSettings] = useState<NotificationSettings>(defaultSettings);
-  const [hasInitialized, setHasInitialized] = useState<boolean>(false);
-  
-  const settingsQuery = trpc.notifications.getSettings.useQuery(
-    { userId: 'demo-user' },
-    { 
-      refetchOnWindowFocus: false,
-      retry: 1,
-      staleTime: 5 * 60 * 1000,
-      refetchOnMount: false,
-      enabled: !isUpdatingRef.current,
-    }
-  );
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Load settings from AsyncStorage on mount
   useEffect(() => {
-    if (settingsQuery.data?.success && settingsQuery.data.settings) {
-      setLocalSettings(settingsQuery.data.settings);
-    }
-    if (settingsQuery.data || settingsQuery.error) {
-      setHasInitialized(true);
-    }
-  }, [settingsQuery.data, settingsQuery.error]);
+    loadSettings();
+  }, []);
 
-  const updateChannelMutation = trpc.notifications.updateChannel.useMutation();
-  const updateCategoryMutation = trpc.notifications.updateCategory.useMutation();
+  const loadSettings = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setLocalSettings({
+          channels: {
+            push: parsed.channels?.push ?? defaultSettings.channels.push,
+            email: parsed.channels?.email ?? defaultSettings.channels.email,
+            sms: parsed.channels?.sms ?? defaultSettings.channels.sms,
+          },
+          categories: {
+            loadUpdates: parsed.categories?.loadUpdates ?? defaultSettings.categories.loadUpdates,
+            payments: parsed.categories?.payments ?? defaultSettings.categories.payments,
+            system: parsed.categories?.system ?? defaultSettings.categories.system,
+          },
+        });
+        console.log('[Notifications] Loaded settings from storage:', parsed);
+      } else {
+        console.log('[Notifications] No stored settings, using defaults');
+        setLocalSettings(defaultSettings);
+      }
+    } catch (err: any) {
+      console.error('[Notifications] Error loading settings:', err);
+      setError('Failed to load notification settings');
+      setLocalSettings(defaultSettings);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const saveSettings = useCallback(async (settings: NotificationSettings) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      console.log('[Notifications] Settings saved to storage:', settings);
+    } catch (err: any) {
+      console.error('[Notifications] Error saving settings:', err);
+      throw new Error('Failed to save notification settings');
+    }
+  }, []);
 
   const updateChannel = useCallback(async (channel: 'push' | 'email' | 'sms', enabled: boolean) => {
     try {
       console.log('[Notifications] Updating channel:', channel, 'to', enabled);
+      setError(null);
       
-      // Optimistically update local state
-      setLocalSettings(prev => ({
-        ...prev,
+      const updatedSettings = {
+        ...localSettings,
         channels: {
-          ...prev.channels,
+          ...localSettings.channels,
           [channel]: enabled,
         },
-      }));
+      };
       
-      const result = await updateChannelMutation.mutateAsync({
-        userId: 'demo-user',
-        channel,
-        enabled,
-      });
-
-      if (!result.success) {
-        console.error('[Notifications] Failed to update channel:', result.error);
-        // Revert optimistic update
-        setLocalSettings(prev => ({
-          ...prev,
-          channels: {
-            ...prev.channels,
-            [channel]: !enabled,
-          },
-        }));
-        throw new Error(result.error || 'Failed to update channel');
-      }
+      setLocalSettings(updatedSettings);
+      await saveSettings(updatedSettings);
       
-      console.log('[Notifications] ✅ Channel updated:', result.message);
+      console.log('[Notifications] ✅ Channel updated successfully');
     } catch (err: any) {
       console.error('[Notifications] Error updating channel:', err);
-      // Revert optimistic update on error
+      setError(err.message || 'Failed to update channel');
+      // Revert on error
       setLocalSettings(prev => ({
         ...prev,
         channels: {
@@ -109,44 +122,29 @@ export function useNotifications(): NotificationState {
       }));
       throw err;
     }
-  }, [updateChannelMutation]);
+  }, [localSettings, saveSettings]);
 
   const updateCategory = useCallback(async (category: 'loadUpdates' | 'payments' | 'system', enabled: boolean) => {
     try {
       console.log('[Notifications] Updating category:', category, 'to', enabled);
+      setError(null);
       
-      // Optimistically update local state
-      setLocalSettings(prev => ({
-        ...prev,
+      const updatedSettings = {
+        ...localSettings,
         categories: {
-          ...prev.categories,
+          ...localSettings.categories,
           [category]: enabled,
         },
-      }));
+      };
       
-      const result = await updateCategoryMutation.mutateAsync({
-        userId: 'demo-user',
-        category,
-        enabled,
-      });
-
-      if (!result.success) {
-        console.error('[Notifications] Failed to update category:', result.error);
-        // Revert optimistic update
-        setLocalSettings(prev => ({
-          ...prev,
-          categories: {
-            ...prev.categories,
-            [category]: !enabled,
-          },
-        }));
-        throw new Error(result.error || 'Failed to update category');
-      }
+      setLocalSettings(updatedSettings);
+      await saveSettings(updatedSettings);
       
-      console.log('[Notifications] ✅ Category updated:', result.message);
+      console.log('[Notifications] ✅ Category updated successfully');
     } catch (err: any) {
       console.error('[Notifications] Error updating category:', err);
-      // Revert optimistic update on error
+      setError(err.message || 'Failed to update category');
+      // Revert on error
       setLocalSettings(prev => ({
         ...prev,
         categories: {
@@ -156,37 +154,19 @@ export function useNotifications(): NotificationState {
       }));
       throw err;
     }
-  }, [updateCategoryMutation]);
+  }, [localSettings, saveSettings]);
 
   const refreshSettings = useCallback(async () => {
-    if (!isUpdatingRef.current) {
-      await settingsQuery.refetch();
-    }
-  }, [settingsQuery]);
+    await loadSettings();
+  }, [loadSettings]);
 
   const settings = useMemo(() => {
     return localSettings;
   }, [localSettings]);
 
-  const error = useMemo(() => {
-    if (updateChannelMutation.error) {
-      return updateChannelMutation.error.message;
-    }
-    if (updateCategoryMutation.error) {
-      return updateCategoryMutation.error.message;
-    }
-    if (settingsQuery.error) {
-      return settingsQuery.error.message;
-    }
-    if (settingsQuery.data && !settingsQuery.data.success) {
-      return settingsQuery.data.error || 'Failed to load notification settings';
-    }
-    return null;
-  }, [settingsQuery.error, settingsQuery.data, updateChannelMutation.error, updateCategoryMutation.error]);
-
   return {
     settings,
-    isLoading: (!hasInitialized && settingsQuery.isLoading) || updateChannelMutation.isLoading || updateCategoryMutation.isLoading,
+    isLoading,
     error,
     updateChannel,
     updateCategory,

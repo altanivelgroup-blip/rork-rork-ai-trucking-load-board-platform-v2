@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +6,6 @@ import { theme } from '@/constants/theme';
 import { Bell, Mail, MessageSquare, ArrowLeft, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useToast } from '@/components/Toast';
-import { trpcClient } from '@/lib/trpc';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
 function NotificationsScreenContent() {
@@ -14,8 +13,6 @@ function NotificationsScreenContent() {
   const insets = useSafeAreaInsets();
   const { settings, isLoading, error, updateChannel, updateCategory, refreshSettings } = useNotifications();
   const toast = useToast();
-  const [offlineMode, setOfflineMode] = useState<boolean>(false);
-  const [testingConnection, setTestingConnection] = useState<boolean>(false);
   const [hasShownError, setHasShownError] = useState<boolean>(false);
 
   console.log('[NotificationsScreen] Render - isLoading:', isLoading, 'error:', error);
@@ -28,59 +25,18 @@ function NotificationsScreenContent() {
     }
   }, [toast]);
 
-  const isNetworkError = useMemo(() => {
-    return error && (error.includes('Failed to fetch') || error.includes('Network') || error.includes('fetch'));
-  }, [error]);
-
   useEffect(() => {
     if (error && !hasShownError) {
       console.error('[NotificationsScreen] Error:', error);
-      if (isNetworkError) {
-        setOfflineMode(true);
-        showToast('Working in offline mode - changes will sync when connection is restored', 'warning');
-      } else {
-        showToast(error, 'error');
-      }
+      showToast(error, 'error');
       setHasShownError(true);
-    } else if (!error) {
-      setOfflineMode(false);
+    } else if (!error && hasShownError) {
       setHasShownError(false);
     }
-  }, [error, isNetworkError, showToast, hasShownError]);
-
-  const testBackendConnection = useCallback(async () => {
-    if (testingConnection) return;
-    
-    setTestingConnection(true);
-    try {
-      console.log('[NotificationsScreen] Testing backend connection...');
-      const result = await trpcClient.notifications.getSettings.query({ userId: 'demo-user' });
-      console.log('[NotificationsScreen] Backend test result:', result);
-      
-      if (result?.success) {
-        showToast('Backend connection successful!', 'success');
-        setOfflineMode(false);
-        setHasShownError(false);
-        await refreshSettings();
-      } else {
-        showToast('Backend returned error: ' + (result?.error || 'Unknown error'), 'error');
-      }
-    } catch (err: any) {
-      console.error('[NotificationsScreen] Backend test failed:', err);
-      showToast('Backend connection failed. Using offline mode.', 'warning');
-      setOfflineMode(true);
-    } finally {
-      setTestingConnection(false);
-    }
-  }, [showToast, refreshSettings, testingConnection]);
+  }, [error, showToast, hasShownError]);
 
   const handleChannelToggle = useCallback(async (channel: 'push' | 'email' | 'sms', enabled: boolean) => {
     if (!channel || typeof enabled !== 'boolean') return;
-    
-    if (offlineMode) {
-      showToast('Changes will be saved when connection is restored', 'warning');
-      return;
-    }
     
     console.log('[Notifications] Toggle updated - Channel:', channel, 'enabled:', enabled);
     try {
@@ -89,22 +45,12 @@ function NotificationsScreenContent() {
     } catch (err: any) {
       console.error('[NotificationsScreen] Error updating channel:', err);
       const errorMsg = err?.message || 'Unknown error';
-      if (errorMsg.includes('fetch')) {
-        setOfflineMode(true);
-        showToast('Connection lost. Working in offline mode.', 'warning');
-      } else {
-        showToast(`Failed to update ${channel} notifications: ${errorMsg}`, 'error');
-      }
+      showToast(`Failed to update ${channel} notifications: ${errorMsg}`, 'error');
     }
-  }, [updateChannel, showToast, offlineMode]);
+  }, [updateChannel, showToast]);
 
   const handleCategoryToggle = useCallback(async (category: 'loadUpdates' | 'payments' | 'system', enabled: boolean) => {
     if (!category || typeof enabled !== 'boolean') return;
-    
-    if (offlineMode) {
-      showToast('Changes will be saved when connection is restored', 'warning');
-      return;
-    }
     
     console.log('[Notifications] Toggle updated - Category:', category, 'enabled:', enabled);
     try {
@@ -113,14 +59,9 @@ function NotificationsScreenContent() {
     } catch (err: any) {
       console.error('[NotificationsScreen] Error updating category:', err);
       const errorMsg = err?.message || 'Unknown error';
-      if (errorMsg.includes('fetch')) {
-        setOfflineMode(true);
-        showToast('Connection lost. Working in offline mode.', 'warning');
-      } else {
-        showToast(`Failed to update ${category} notifications: ${errorMsg}`, 'error');
-      }
+      showToast(`Failed to update ${category} notifications: ${errorMsg}`, 'error');
     }
-  }, [updateCategory, showToast, offlineMode]);
+  }, [updateCategory, showToast]);
 
 
 
@@ -150,19 +91,17 @@ function NotificationsScreenContent() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>
-          {offlineMode && (
-            <View style={styles.offlineBanner}>
-              <AlertTriangle size={16} color={theme.colors.warning} />
-              <Text style={styles.offlineText}>Offline Mode - Changes will sync when connected</Text>
+          {error && (
+            <View style={styles.errorBanner}>
+              <AlertTriangle size={16} color={theme.colors.error} />
+              <Text style={styles.errorText}>Settings saved locally</Text>
               <TouchableOpacity 
                 style={styles.retryButton} 
-                onPress={testBackendConnection}
-                disabled={testingConnection}
+                onPress={refreshSettings}
               >
                 <RefreshCw 
                   size={16} 
-                  color={theme.colors.primary} 
-                  style={testingConnection ? { opacity: 0.5 } : undefined}
+                  color={theme.colors.primary}
                 />
               </TouchableOpacity>
             </View>
@@ -298,7 +237,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: theme.spacing.lg,
   },
-  errorText: {
+  errorTextLarge: {
     fontSize: theme.fontSize.lg,
     color: theme.colors.error,
     textAlign: 'center',
@@ -326,19 +265,19 @@ const styles = StyleSheet.create({
     marginLeft: theme.spacing.sm,
     fontWeight: '600',
   },
-  offlineBanner: {
+  errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.warning + '20',
+    backgroundColor: theme.colors.error + '10',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
     marginBottom: theme.spacing.md,
     borderWidth: 1,
-    borderColor: theme.colors.warning + '40',
+    borderColor: theme.colors.error + '20',
   },
-  offlineText: {
+  errorText: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.warning,
+    color: theme.colors.error,
     marginLeft: theme.spacing.sm,
     fontWeight: '600',
     flex: 1,
