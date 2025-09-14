@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
@@ -18,19 +18,27 @@ export default function NotificationsScreen() {
 
   console.log('[NotificationsScreen] Render - isLoading:', isLoading, 'error:', error);
 
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning') => {
+    try {
+      toast.show(message, type);
+    } catch (err) {
+      console.warn('[NotificationsScreen] Toast error:', err);
+    }
+  }, [toast]);
+
   useEffect(() => {
     if (error) {
       console.error('[NotificationsScreen] Error:', error);
       if (error.includes('Failed to fetch') || error.includes('Network') || error.includes('fetch')) {
         setOfflineMode(true);
-        toast.show('Working in offline mode - changes will sync when connection is restored', 'warning');
+        showToast('Working in offline mode - changes will sync when connection is restored', 'warning');
       } else {
-        toast.show(error, 'error');
+        showToast(error, 'error');
       }
     } else {
       setOfflineMode(false);
     }
-  }, [error, toast]);
+  }, [error, showToast]);
 
   const testBackendConnection = useCallback(async () => {
     setTestingConnection(true);
@@ -40,66 +48,65 @@ export default function NotificationsScreen() {
       console.log('[NotificationsScreen] Backend test result:', result);
       
       if (result.success) {
-        toast.show('Backend connection successful!', 'success');
+        showToast('Backend connection successful!', 'success');
         setOfflineMode(false);
         await refreshSettings();
       } else {
-        toast.show('Backend returned error: ' + (result.error || 'Unknown error'), 'error');
+        showToast('Backend returned error: ' + (result.error || 'Unknown error'), 'error');
       }
     } catch (err: any) {
       console.error('[NotificationsScreen] Backend test failed:', err);
-      toast.show('Backend connection failed: ' + err.message, 'error');
+      showToast('Backend connection failed: ' + err.message, 'error');
       setOfflineMode(true);
     } finally {
       setTestingConnection(false);
     }
-  }, [toast, refreshSettings]);
+  }, [showToast, refreshSettings]);
 
   const handleChannelToggle = useCallback(async (channel: 'push' | 'email' | 'sms', enabled: boolean) => {
     if (!channel || typeof enabled !== 'boolean') return;
     console.log('[Notifications] Toggle updated - Channel:', channel, 'enabled:', enabled);
     try {
       await updateChannel(channel, enabled);
-      toast.show(`${channel} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
-    } catch (err) {
+      showToast(`${channel} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch (err: any) {
       console.error('[NotificationsScreen] Error updating channel:', err);
+      showToast(`Failed to update ${channel} notifications: ${err.message || 'Unknown error'}`, 'error');
     }
-  }, [updateChannel, toast]);
+  }, [updateChannel, showToast]);
 
   const handleCategoryToggle = useCallback(async (category: 'loadUpdates' | 'payments' | 'system', enabled: boolean) => {
     if (!category || typeof enabled !== 'boolean') return;
     console.log('[Notifications] Toggle updated - Category:', category, 'enabled:', enabled);
     try {
       await updateCategory(category, enabled);
-      toast.show(`${category} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
-    } catch (err) {
+      showToast(`${category} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch (err: any) {
       console.error('[NotificationsScreen] Error updating category:', err);
+      showToast(`Failed to update ${category} notifications: ${err.message || 'Unknown error'}`, 'error');
     }
-  }, [updateCategory, toast]);
+  }, [updateCategory, showToast]);
 
 
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]} testID="notifications-screen">
-      <Stack.Screen 
-        options={{ 
-          title: 'Notifications',
-          headerLeft: () => (
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.push('/settings');
-                }
-              }}
-            >
-              <ArrowLeft size={24} color={theme.colors.dark} />
-            </TouchableOpacity>
-          )
-        }} 
-      />
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.push('/settings');
+            }
+          }}
+        >
+          <ArrowLeft size={24} color={theme.colors.dark} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Notifications</Text>
+        <View style={styles.headerSpacer} />
+      </View>
       
       {isLoading ? (
         <View style={styles.centerContent}>
@@ -188,11 +195,11 @@ export default function NotificationsScreen() {
   );
 }
 
-function Row({ icon, title, subtitle, value, onChange, testID, disabled }: { icon?: React.ReactNode; title: string; subtitle?: string; value: boolean; onChange: (v: boolean) => void; testID?: string; disabled?: boolean; }) {
+const Row = React.memo(function Row({ icon, title, subtitle, value, onChange, testID, disabled }: { icon?: React.ReactNode; title: string; subtitle?: string; value: boolean; onChange: (v: boolean) => void; testID?: string; disabled?: boolean; }) {
   return (
     <View style={styles.row} testID={testID}>
       <View style={styles.rowLeft}>
-        {icon ? <View style={styles.iconWrap}>{icon}</View> : null}
+        {icon && <View style={styles.iconWrap}>{icon}</View>}
         <View style={styles.rowText}>
           <Text style={styles.rowTitle}>{title}</Text>
           {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
@@ -201,20 +208,38 @@ function Row({ icon, title, subtitle, value, onChange, testID, disabled }: { ico
       <Switch value={value} onValueChange={onChange} disabled={disabled ?? false} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
   scroll: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
   backButton: {
     padding: theme.spacing.sm,
-    marginLeft: theme.spacing.xs,
     borderRadius: theme.borderRadius.md,
     backgroundColor: 'transparent',
     minWidth: 40,
     minHeight: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.dark,
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 40,
   },
   sectionTitle: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark, marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm },
   card: { backgroundColor: theme.colors.card, borderRadius: theme.borderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border },
