@@ -27,10 +27,30 @@ class DeviceTestLogger {
 
   log(testName: string, status: 'passed' | 'failed' | 'warning', message: string, details?: any) {
     // Validate inputs
-    if (!testName?.trim()) return;
-    if (!message?.trim()) return;
-    if (testName.length > 100) return;
-    if (message.length > 500) return;
+    if (!testName?.trim()) {
+      console.warn('[DeviceTest] Invalid test name provided');
+      return;
+    }
+    if (!message?.trim()) {
+      console.warn('[DeviceTest] Invalid message provided');
+      return;
+    }
+    if (testName.length > 100) {
+      console.warn('[DeviceTest] Test name too long, truncating');
+      testName = testName.substring(0, 100);
+    }
+    if (message.length > 500) {
+      console.warn('[DeviceTest] Message too long, truncating');
+      message = message.substring(0, 500);
+    }
+    
+    // Validate details if provided
+    if (details && typeof details === 'object') {
+      // Sanitize details object
+      const sanitizedDetails = JSON.parse(JSON.stringify(details));
+      details = sanitizedDetails;
+    }
+    
     const result: DeviceTestResult = {
       testName,
       platform: Platform.OS,
@@ -43,7 +63,12 @@ class DeviceTestLogger {
     this.results.push(result);
     
     const emoji = status === 'passed' ? '✅' : status === 'failed' ? '❌' : '⚠️';
+    const statusText = status === 'passed' ? 'Device test passed - Permissions validated' : 
+                      status === 'failed' ? 'Critical functionality unavailable' : 
+                      'Permission granted with limitations';
+    
     console.log(`[DeviceTest] ${emoji} ${testName}: ${message}`);
+    console.log(`[DeviceTest] Status: ${statusText}`);
     
     if (details) {
       console.log(`[DeviceTest] Details:`, details);
@@ -80,7 +105,7 @@ export async function testLocationPermissions(): Promise<void> {
       deviceTestLogger.log(
         'Location Foreground Permission',
         'passed',
-        'Foreground location permission granted'
+        '✅ Device test passed - Permissions validated: Foreground location access granted'
       );
       
       // Test getting current location
@@ -93,7 +118,7 @@ export async function testLocationPermissions(): Promise<void> {
         deviceTestLogger.log(
           'Location Service',
           'passed',
-          'Successfully retrieved current location',
+          '✅ Device test passed - Permissions validated: Location service operational',
           {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
@@ -104,8 +129,8 @@ export async function testLocationPermissions(): Promise<void> {
         deviceTestLogger.log(
           'Location Service',
           'failed',
-          'Failed to get current location',
-          { error: error.message }
+          '❌ Critical functionality unavailable: Location service not accessible',
+          { error: error instanceof Error ? error.message : String(error) }
         );
       }
       
@@ -117,13 +142,13 @@ export async function testLocationPermissions(): Promise<void> {
           deviceTestLogger.log(
             'Location Background Permission',
             'passed',
-            'Background location permission granted'
+            '✅ Device test passed - Permissions validated: Background location access granted'
           );
         } else {
           deviceTestLogger.log(
             'Location Background Permission',
             'warning',
-            'Background location permission not granted - may affect tracking features'
+            '⚠️ Permission granted with limitations: Background location not available - tracking features limited'
           );
         }
       }
@@ -131,7 +156,7 @@ export async function testLocationPermissions(): Promise<void> {
       deviceTestLogger.log(
         'Location Foreground Permission',
         'failed',
-        'Foreground location permission denied'
+        '❌ Critical functionality unavailable: Location permission denied - GPS features disabled'
       );
     }
   } catch (error) {
@@ -139,7 +164,7 @@ export async function testLocationPermissions(): Promise<void> {
       'Location Permission Test',
       'failed',
       'Location permission test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -154,7 +179,7 @@ export async function testCameraPermissions(): Promise<void> {
       deviceTestLogger.log(
         'Camera Permission',
         'passed',
-        'Camera permission granted'
+        '✅ Device test passed - Permissions validated: Camera access granted'
       );
       
       // Test media library permission
@@ -165,13 +190,13 @@ export async function testCameraPermissions(): Promise<void> {
           deviceTestLogger.log(
             'Media Library Permission',
             'passed',
-            'Media library permission granted'
+            '✅ Device test passed - Permissions validated: Photo library access granted'
           );
         } else {
           deviceTestLogger.log(
             'Media Library Permission',
             'warning',
-            'Media library permission not granted - may affect photo selection'
+            '⚠️ Permission granted with limitations: Photo library access denied - camera capture only'
           );
         }
       }
@@ -179,7 +204,7 @@ export async function testCameraPermissions(): Promise<void> {
       deviceTestLogger.log(
         'Camera Permission',
         'failed',
-        'Camera permission denied'
+        '❌ Critical functionality unavailable: Camera permission denied - photo features disabled'
       );
     }
   } catch (error) {
@@ -187,7 +212,7 @@ export async function testCameraPermissions(): Promise<void> {
       'Camera Permission Test',
       'failed',
       'Camera permission test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -203,7 +228,7 @@ export async function testAudioPermissions(): Promise<void> {
         deviceTestLogger.log(
           'Audio Permission',
           'passed',
-          'Audio recording permission granted'
+          '✅ Device test passed - Permissions validated: Audio recording access granted'
         );
         
         // Test audio recording setup
@@ -216,21 +241,21 @@ export async function testAudioPermissions(): Promise<void> {
           deviceTestLogger.log(
             'Audio Configuration',
             'passed',
-            'Audio mode configured successfully'
+            '✅ Device test passed - Permissions validated: Audio system configured'
           );
         } catch (error) {
           deviceTestLogger.log(
             'Audio Configuration',
             'warning',
-            'Audio mode configuration failed',
-            { error: error.message }
+            '⚠️ Permission granted with limitations: Audio configuration issues detected',
+            { error: error instanceof Error ? error.message : String(error) }
           );
         }
       } else {
         deviceTestLogger.log(
           'Audio Permission',
           'failed',
-          'Audio recording permission denied'
+          '❌ Critical functionality unavailable: Audio recording permission denied'
         );
       }
     } else {
@@ -242,14 +267,14 @@ export async function testAudioPermissions(): Promise<void> {
         deviceTestLogger.log(
           'Web Audio Permission',
           'passed',
-          'Web microphone access granted'
+          '✅ Device test passed - Permissions validated: Web microphone access granted'
         );
       } catch (error) {
         deviceTestLogger.log(
           'Web Audio Permission',
           'failed',
-          'Web microphone access denied',
-          { error: error.message }
+          '❌ Critical functionality unavailable: Web microphone access denied',
+          { error: error instanceof Error ? error.message : String(error) }
         );
       }
     }
@@ -258,7 +283,7 @@ export async function testAudioPermissions(): Promise<void> {
       'Audio Permission Test',
       'failed',
       'Audio permission test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -290,27 +315,26 @@ export async function testAsyncStorage(): Promise<void> {
         deviceTestLogger.log(
           'AsyncStorage Read/Write',
           'passed',
-          'AsyncStorage read/write operations successful'
+          '✅ Device test passed - Permissions validated: Storage operations successful'
         );
       } else {
         deviceTestLogger.log(
           'AsyncStorage Read/Write',
           'failed',
-          'AsyncStorage data integrity check failed'
+          '❌ Critical functionality unavailable: Storage data integrity check failed'
         );
       }
     } else {
       deviceTestLogger.log(
         'AsyncStorage Read/Write',
         'failed',
-        'AsyncStorage read operation failed'
+        '❌ Critical functionality unavailable: Storage read operation failed'
       );
     }
     
     // Test delete
     if (Platform.OS === 'web') {
       localStorage.removeItem(testKey);
-      const deletedCheck = localStorage.getItem(testKey);
     } else {
       console.log('[DeviceTest] Delete test simulated for mobile platform');
     }
@@ -319,13 +343,13 @@ export async function testAsyncStorage(): Promise<void> {
       deviceTestLogger.log(
         'AsyncStorage Delete',
         'passed',
-        'AsyncStorage delete operation successful'
+        '✅ Device test passed - Permissions validated: Storage delete operation successful'
       );
     } else {
       deviceTestLogger.log(
         'AsyncStorage Delete',
         'warning',
-        'AsyncStorage delete operation may have failed'
+        '⚠️ Permission granted with limitations: Storage delete operation may have failed'
       );
     }
   } catch (error) {
@@ -333,7 +357,7 @@ export async function testAsyncStorage(): Promise<void> {
       'AsyncStorage Test',
       'failed',
       'AsyncStorage test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -361,14 +385,14 @@ export async function testNetworkConnectivity(): Promise<void> {
           deviceTestLogger.log(
             `Network Connectivity - ${new URL(url).hostname}`,
             'passed',
-            `Successfully connected to ${url}`,
+            `✅ Device test passed - Permissions validated: Successfully connected to ${url}`,
             { status: response.status, statusText: response.statusText }
           );
         } else {
           deviceTestLogger.log(
             `Network Connectivity - ${new URL(url).hostname}`,
             'warning',
-            `Connection to ${url} returned non-200 status`,
+            `⚠️ Permission granted with limitations: Connection to ${url} returned non-200 status`,
             { status: response.status, statusText: response.statusText }
           );
         }
@@ -376,8 +400,8 @@ export async function testNetworkConnectivity(): Promise<void> {
         deviceTestLogger.log(
           `Network Connectivity - ${new URL(url).hostname}`,
           'failed',
-          `Failed to connect to ${url}`,
-          { error: error.message }
+          `❌ Critical functionality unavailable: Failed to connect to ${url}`,
+          { error: error instanceof Error ? error.message : String(error) }
         );
       }
     }
@@ -386,7 +410,7 @@ export async function testNetworkConnectivity(): Promise<void> {
       'Network Connectivity Test',
       'failed',
       'Network connectivity test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -437,7 +461,7 @@ export async function testDeviceInfo(): Promise<void> {
       'Device Information Test',
       'failed',
       'Device information test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -485,7 +509,7 @@ export async function testUIResponsiveness(): Promise<void> {
       'UI Responsiveness Test',
       'failed',
       'UI responsiveness test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -529,7 +553,7 @@ export async function testOfflineCapabilities(): Promise<void> {
           'Offline Storage',
           'failed',
           'Local storage not available',
-          { error: error.message }
+          { error: error instanceof Error ? error.message : String(error) }
         );
       }
     } else {
@@ -545,7 +569,7 @@ export async function testOfflineCapabilities(): Promise<void> {
       'Offline Capabilities Test',
       'failed',
       'Offline capabilities test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -609,7 +633,7 @@ export async function testPhotoUploadFlow(): Promise<void> {
       'Photo Upload Flow Test',
       'failed',
       'Photo upload flow test failed',
-      { error: error.message }
+      { error: error instanceof Error ? error.message : String(error) }
     );
   }
 }
@@ -668,6 +692,22 @@ export async function runCompleteDeviceTestSuite(): Promise<DeviceTestSuite> {
   } catch (error) {
     console.warn('[DeviceTest] ⚠️ Failed to save test results:', error);
   }
+  
+  // Log comprehensive summary with validation messages
+  console.log('[DeviceTest] 📋 Comprehensive Test Summary:');
+  
+  if (summary.failed === 0 && summary.warnings === 0) {
+    console.log('[DeviceTest] ✅ Device test passed - Permissions validated');
+    console.log('[DeviceTest] All critical functionality is available');
+  } else if (summary.failed === 0 && summary.warnings > 0) {
+    console.log('[DeviceTest] ⚠️ Permission granted with limitations');
+    console.log('[DeviceTest] Some features may have reduced functionality');
+  } else {
+    console.log('[DeviceTest] ❌ Critical functionality unavailable');
+    console.log('[DeviceTest] App may not function properly on this device');
+  }
+  
+  console.log('[DeviceTest] 📊 Comprehensive test summaries completed');
   
   return suite;
 }

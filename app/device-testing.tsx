@@ -270,6 +270,25 @@ export default function DeviceTestingScreen() {
                 <Text style={styles.summaryText}>{summary.failed} Failed</Text>
               </View>
             </View>
+            
+            <View style={styles.validationStatus}>
+              {summary.failed === 0 && summary.warnings === 0 ? (
+                <View style={styles.statusRow}>
+                  <CheckCircle size={20} color="#10B981" />
+                  <Text style={styles.statusTextPassed}>Device test passed - Permissions validated</Text>
+                </View>
+              ) : summary.failed === 0 && summary.warnings > 0 ? (
+                <View style={styles.statusRow}>
+                  <AlertTriangle size={20} color="#F59E0B" />
+                  <Text style={styles.statusTextWarning}>Permission granted with limitations</Text>
+                </View>
+              ) : (
+                <View style={styles.statusRow}>
+                  <XCircle size={20} color="#EF4444" />
+                  <Text style={styles.statusTextFailed}>Critical functionality unavailable</Text>
+                </View>
+              )}
+            </View>
           </View>
         )}
         
@@ -449,6 +468,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#CBD5E1',
     fontWeight: fontWeightSemi,
+  },
+  validationStatus: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusTextPassed: {
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: fontWeightSemi,
+    flex: 1,
+  },
+  statusTextWarning: {
+    fontSize: 14,
+    color: '#F59E0B',
+    fontWeight: fontWeightSemi,
+    flex: 1,
+  },
+  statusTextFailed: {
+    fontSize: 14,
+    color: '#EF4444',
+    fontWeight: fontWeightSemi,
+    flex: 1,
   },
   buttonRow: {
     flexDirection: 'row',
