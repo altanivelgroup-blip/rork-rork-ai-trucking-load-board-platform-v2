@@ -36,7 +36,7 @@ function Stepper({ current, total }: { current: number; total: number }) {
   );
 }
 
-type PickerKind = 'pickup' | 'delivery';
+type PickerKind = 'pickup' | 'delivery' | 'deliveryLocal';
 
 type DayCell = {
   date: Date;
@@ -275,6 +275,13 @@ export default function PostLoadStep3() {
   const [pickupDate, setPickupDate] = useState<Date | null>(draft.pickupDate ?? defaultDates.pickup);
   const [deliveryDate, setDeliveryDate] = useState<Date | null>(draft.deliveryDate ?? defaultDates.delivery);
   const [picker, setPicker] = useState<PickerKind | null>(null);
+  const [deliveryLocalDate, setDeliveryLocalDate] = useState<Date | null>(() => {
+    if (draft.deliveryDateLocal) {
+      const parsed = new Date(draft.deliveryDateLocal);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
+    return null;
+  });
   
   // Set default dates in draft if they don't exist
   useEffect(() => {
@@ -294,9 +301,19 @@ export default function PostLoadStep3() {
   const closePicker = useCallback(() => setPicker(null), []);
 
   const onConfirm = useCallback((d: Date) => {
-    if (picker === 'pickup') setPickupDate(d); else if (picker === 'delivery') setDeliveryDate(d);
+    if (picker === 'pickup') {
+      setPickupDate(d);
+    } else if (picker === 'delivery') {
+      setDeliveryDate(d);
+    } else if (picker === 'deliveryLocal') {
+      setDeliveryLocalDate(d);
+      // Update the delivery local date/time in the draft
+      const currentTime = draft.deliveryDateLocal ? draft.deliveryDateLocal.split('T')[1] || '17:00' : '17:00';
+      const newDateTime = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${currentTime}`;
+      setField('deliveryDateLocal', newDateTime);
+    }
     setPicker(null);
-  }, [picker]);
+  }, [picker, draft.deliveryDateLocal, setField]);
 
   useEffect(() => {
     console.log('[PostLoadStep3] setting pickupDate in draft:', pickupDate);
@@ -366,8 +383,8 @@ export default function PostLoadStep3() {
                   <View style={styles.flex1}>
                     <Text style={styles.smallLabel}>Date (YYYY-MM-DD)</Text>
                     <ScrollView keyboardShouldPersistTaps="handled">
-                      <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => {}}>
-                        <Text style={styles.dateText} selectable testID="deliveryLocalDateText">{(draft.deliveryDateLocal || '').split('T')[0] || 'YYYY-MM-DD'}</Text>
+                      <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => openPicker('deliveryLocal')} testID="deliveryLocalDateBtn">
+                        <Text style={styles.dateText} testID="deliveryLocalDateText">{(draft.deliveryDateLocal || '').split('T')[0] || 'YYYY-MM-DD'}</Text>
                       </Pressable>
                     </ScrollView>
                   </View>
@@ -398,7 +415,7 @@ export default function PostLoadStep3() {
 
       <CalendarModal
         visible={picker !== null}
-        initialDate={picker === 'pickup' ? pickupDate : deliveryDate}
+        initialDate={picker === 'pickup' ? pickupDate : picker === 'delivery' ? deliveryDate : deliveryLocalDate}
         onClose={closePicker}
         onConfirm={onConfirm}
         minDate={new Date()}
