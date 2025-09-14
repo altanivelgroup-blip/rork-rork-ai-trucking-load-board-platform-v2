@@ -368,9 +368,9 @@ export default function PlatformSanityCheckScreen() {
       if (!isRunning && results.length === 0) {
         runComprehensiveCheck();
       }
-    }, 1000);
+    }, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [runComprehensiveCheck]);
 
   const getScoreColor = (score: number) => {
     if (score >= 9) return '#10b981'; // Excellent - Green
