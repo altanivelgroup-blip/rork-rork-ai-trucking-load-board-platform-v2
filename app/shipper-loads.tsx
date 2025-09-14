@@ -162,12 +162,20 @@ export default function ShipperLoadsScreen() {
     <>
       <Stack.Screen options={{ 
         title: 'My Loads',
+        headerStyle: {
+          backgroundColor: theme.colors.white,
+        },
+        headerTitleStyle: {
+          color: theme.colors.dark,
+          fontWeight: '600',
+        },
         headerLeft: () => (
           <TouchableOpacity 
-            style={styles.headerButton}
+            style={styles.backButton}
             onPress={() => router.back()}
+            testID="back-button"
           >
-            <ArrowLeft size={20} color={theme.colors.primary} />
+            <ArrowLeft size={24} color={theme.colors.dark} />
           </TouchableOpacity>
         ),
         headerRight: () => (
@@ -653,6 +661,16 @@ const styles = StyleSheet.create({
   headerButton: {
     padding: theme.spacing.xs,
     borderRadius: theme.borderRadius.sm,
+  },
+  backButton: {
+    padding: theme.spacing.sm,
+    marginLeft: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: 'transparent',
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyActions: {
     flexDirection: 'row',
