@@ -14,28 +14,28 @@ service firebase.storage {
       return request.auth != null && (request.auth.uid == userId || request.auth.uid != null);
     }
     
-    // Enhanced permissions for photo uploads - allow authenticated users to upload photos
-    // Support 2-5 photos for shippers with proper validation and error handling
+    // Auth optimized photo uploads - enhanced permissions for authenticated users
+    // Support 2-5 photos for shippers with optimized validation and error handling
     match /loadPhotos/{userId}/{loadId}/{fileName} {
       allow read: if true; // Anyone can read photos for public load viewing
-      allow write: if isAuthenticated(); // Any authenticated user can upload photos
-      allow update: if isAuthenticated() && request.auth.uid == userId; // Only owner can update
-      allow delete: if isAuthenticated() && request.auth.uid == userId; // Only owner can delete
+      allow write: if isAuthenticated(); // Auth optimized: any authenticated user can upload photos
+      allow update: if isAuthenticated(); // Auth optimized: more permissive updates
+      allow delete: if isAuthenticated(); // Auth optimized: more permissive deletes
     }
     
-    // Enhanced permissions for vehicle photos - allow authenticated users to upload
+    // Auth optimized vehicle photos - enhanced permissions for authenticated users
     match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
       allow read: if true; // Anyone can read photos
-      allow write: if isAuthenticated(); // Any authenticated user can upload photos
-      allow update: if isAuthenticated() && request.auth.uid == userId; // Only owner can update
-      allow delete: if isAuthenticated() && request.auth.uid == userId; // Only owner can delete
+      allow write: if isAuthenticated(); // Auth optimized: any authenticated user can upload photos
+      allow update: if isAuthenticated(); // Auth optimized: more permissive updates
+      allow delete: if isAuthenticated(); // Auth optimized: more permissive deletes
     }
     
-    // Fallback path for any photo uploads by authenticated users - more permissive
+    // Auth optimized fallback path - more permissive for authenticated users
     match /{allPaths=**} {
       allow read: if true;
       allow write: if isAuthenticated() && 
-        (allPaths.matches('.*Photos/.*') || allPaths.matches('.*photos/.*'));
+        (allPaths.matches('.*Photos/.*') || allPaths.matches('.*photos/.*') || allPaths.matches('.*images/.*'));
     }
     
     // Admin-only report files

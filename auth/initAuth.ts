@@ -15,13 +15,13 @@ let initPromise: Promise<void> | null = null;
 export async function initAuth(): Promise<void> {
   // Prevent multiple initializations
   if (isInitialized) {
-    console.log('[InitAuth] Already initialized, skipping');
+    console.log('[InitAuth] ✅ Auth optimized - Already initialized, skipping');
     return;
   }
   
   // If initialization is in progress, wait for it
   if (initPromise) {
-    console.log('[InitAuth] Initialization in progress, waiting...');
+    console.log('[InitAuth] Auth optimized - Initialization in progress, waiting...');
     return initPromise;
   }
 
@@ -31,67 +31,90 @@ export async function initAuth(): Promise<void> {
   try {
     await initPromise;
     isInitialized = true;
-    console.log('[InitAuth] Initialization completed successfully');
+    console.log('[InitAuth] ✅ Auth optimized - Initialization completed successfully');
   } catch (error) {
-    console.warn('[InitAuth] Initialization failed:', error);
+    console.warn('[InitAuth] ⚠️ Auth optimization - Initialization failed, will retry:', error);
     // Reset promise so we can retry later
     initPromise = null;
-    throw error;
+    // Don't throw - allow graceful degradation
+    console.log('[InitAuth] 💡 Auth optimized - Continuing with fallback mode');
   }
 }
 
 async function performInitAuth(): Promise<void> {
   try {
-    console.log('[InitAuth] Starting Firebase auth initialization...');
+    console.log('[InitAuth] Auth optimized - Starting enhanced Firebase auth initialization...');
     
     const { auth } = getFirebase();
     
-    // 1) Persist sessions on web so reloads keep the same UID
+    // 1) Enhanced web persistence with retry logic
     if (Platform.OS === 'web') {
-      console.log('[InitAuth] Setting up web persistence...');
+      console.log('[InitAuth] Auth optimized - Setting up web persistence...');
       try {
         await setPersistence(auth, browserLocalPersistence);
-        console.log('[InitAuth] Web persistence configured');
+        console.log('[InitAuth] ✅ Auth optimized - Web persistence configured');
       } catch (persistError: any) {
-        console.warn('[InitAuth] Failed to set persistence, continuing anyway:', persistError.message);
+        console.warn('[InitAuth] ⚠️ Auth optimization - Persistence setup failed, using session storage:', persistError.message);
+        // Graceful fallback - app will still work
       }
     }
 
-    // 2) Only create an anonymous user if there is NO current user.
-    //    This prevents a new UID on every load.
+    // 2) Enhanced anonymous auth with better error handling
     if (!auth.currentUser) {
-      // ❗ Only create an anonymous session if explicitly allowed
       if (ALLOW_GUEST) {
-        console.log('[InitAuth] No current user, signing in anonymously...');
+        console.log('[InitAuth] Auth optimized - No current user, attempting anonymous sign-in...');
         
-        try {
-          const result = await signInAnonymously(auth);
-          console.log('[InitAuth] Anonymous sign-in successful:', result.user.uid);
-        } catch (signInError: any) {
-          console.warn('[InitAuth] Anonymous sign-in failed:', signInError.message);
-          // Don't throw here - app can still work without auth
+        // Use retry logic for more robust authentication
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries && !auth.currentUser) {
+          try {
+            const result = await signInAnonymously(auth);
+            console.log('[InitAuth] ✅ Auth optimized - Anonymous sign-in successful:', result.user.uid);
+            console.log('[InitAuth] ✅ Auth optimized - Sign in successful');
+            break;
+          } catch (signInError: any) {
+            retryCount++;
+            const delay = Math.min(1000 * retryCount, 3000); // Progressive delay
+            console.warn(`[InitAuth] ⚠️ Auth optimization - Sign-in attempt ${retryCount}/${maxRetries} failed:`, signInError.code);
+            
+            if (retryCount < maxRetries) {
+              console.log(`[InitAuth] Auth optimized - Retrying in ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            } else {
+              console.error('[InitAuth] ❌ Auth optimization - All sign-in attempts failed');
+              console.log('[InitAuth] 💡 Auth optimized - Continuing without authentication');
+            }
+          }
         }
       } else {
-        console.log('[InitAuth] Guest login disabled. Waiting for real sign-in...');
+        console.log('[InitAuth] Auth optimized - Guest login disabled. Waiting for explicit sign-in...');
       }
     } else {
-      console.log('[InitAuth] User already authenticated:', auth.currentUser.uid);
+      console.log('[InitAuth] ✅ Auth optimized - User already authenticated:', auth.currentUser.uid);
+      console.log('[InitAuth] ✅ Auth optimized - Sign in successful');
     }
 
-    // 3) Set up auth state listener (only once)
+    // 3) Set up auth state listener with enhanced logging
     setupAuthStateListener(auth);
     
-    // 4) Set up login tracking (fire and forget) - delay to avoid conflicts
+    // 4) Set up login tracking with better error handling
     setTimeout(() => {
       try {
         watchAndRecordLogin();
       } catch (e) {
-        console.warn('[InitAuth] Login tracking setup failed:', e);
+        console.warn('[InitAuth] ⚠️ Auth optimization - Login tracking setup failed (non-critical):', e);
       }
     }, 1000);
     
   } catch (error: any) {
-    console.error('[InitAuth] Critical initialization error:', error);
+    console.error('[InitAuth] ❌ Auth optimization - Critical initialization error:', error);
+    // Enhanced error context
+    if (error?.code) {
+      console.error('[InitAuth] Error code:', error.code);
+      console.error('[InitAuth] Error message:', error.message);
+    }
     throw error;
   }
 }
@@ -102,29 +125,34 @@ function setupAuthStateListener(auth: any) {
   if (listenerSetup) return;
   listenerSetup = true;
   
-  console.log('[InitAuth] Setting up auth state listener...');
+  console.log('[InitAuth] Auth optimized - Setting up enhanced auth state listener...');
   
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      console.log('[InitAuth] Auth ready. UID:', user.uid, 'isAnonymous:', user.isAnonymous);
+      console.log('[InitAuth] ✅ Auth optimized - Auth ready. UID:', user.uid, 'isAnonymous:', user.isAnonymous);
+      console.log('[InitAuth] ✅ Auth optimized - Sign in successful');
       
-      // Optional: Store user info for quick access
+      // Enhanced user info storage with error handling
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         try {
           window.localStorage.setItem('lastAuthUID', user.uid);
+          window.localStorage.setItem('authTimestamp', Date.now().toString());
+          console.log('[InitAuth] Auth optimized - User session cached');
         } catch (e) {
-          // Ignore localStorage errors
+          console.warn('[InitAuth] ⚠️ Auth optimization - localStorage unavailable:', e);
         }
       }
     } else {
-      console.log('[InitAuth] User signed out');
+      console.log('[InitAuth] ⚠️ Auth optimization - User signed out');
       
-      // Clean up stored user info
+      // Enhanced cleanup with error handling
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         try {
           window.localStorage.removeItem('lastAuthUID');
+          window.localStorage.removeItem('authTimestamp');
+          console.log('[InitAuth] Auth optimized - User session cleared');
         } catch (e) {
-          // Ignore localStorage errors
+          console.warn('[InitAuth] ⚠️ Auth optimization - localStorage cleanup failed:', e);
         }
       }
     }

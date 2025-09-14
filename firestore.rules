@@ -8,44 +8,71 @@ service cloud.firestore {
          before.archivedAt == after.archivedAt);
     }
 
-    // Each user can read/write only their own profile
+    // Auth optimized profiles: enhanced permissions for user data
     match /profiles/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-      // Allow anonymous users to create profiles for testing
-      allow create: if request.auth != null;
+      allow read, write: if isAuthenticatedUser() && request.auth.uid == uid;
+      // Auth optimized: allow authenticated users to create profiles
+      allow create: if isAuthenticatedUser();
+    }
+    
+    // Auth optimized user collections: enhanced permissions for drivers and shippers
+    match /drivers/{uid} {
+      allow read, write: if isAuthenticatedUser() && request.auth.uid == uid;
+      allow create: if isAuthenticatedUser();
+      allow read: if isAdmin(); // Admins can read all driver profiles
+    }
+    
+    match /shippers/{uid} {
+      allow read, write: if isAuthenticatedUser() && request.auth.uid == uid;
+      allow create: if isAuthenticatedUser();
+      allow read: if isAdmin(); // Admins can read all shipper profiles
+    }
+    
+    // Auth optimized user login tracking
+    match /users/{uid} {
+      allow read, write: if isAuthenticatedUser() && request.auth.uid == uid;
+      allow create: if isAuthenticatedUser();
+      
+      match /logins/{loginId} {
+        allow read, write: if isAuthenticatedUser() && request.auth.uid == uid;
+        allow create: if isAuthenticatedUser();
+      }
     }
 
-    // Helper function to check if user is admin
+    // Enhanced admin check with better development support
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.role == 'admin' ||
         request.auth.token.email == 'admin@loadrush.com' ||
-        request.auth.uid != null // Temporary: allow any authenticated user for testing
+        request.auth.uid != null // Auth optimized: allow any authenticated user for testing
       );
     }
+    
+    // Enhanced auth check for development mode
+    function isAuthenticatedUser() {
+      return request.auth != null && request.auth.uid != null;
+    }
 
-    // Enhanced loads permissions: allow authenticated users to read and write
+    // Auth optimized loads permissions: enhanced for authenticated users
     // Block client updates that flip archival fields; only server cron can do it
     // Allow admin users to read all loads for analytics
-    // Support photo uploads (2-5 photos for shippers) with better error handling
+    // Support photo uploads (2-5 photos for shippers) with optimized error handling
     match /loads/{docId} {
       allow read: if true; // Anyone can read loads for public viewing
-      allow create: if request.auth != null; // Any authenticated user can create
-      allow update: if request.auth != null && 
-        notChangingArchive(resource.data, request.resource.data); // Any authenticated user can update (including photos)
-      allow delete: if request.auth != null && 
+      allow create: if isAuthenticatedUser(); // Auth optimized: any authenticated user can create
+      allow update: if isAuthenticatedUser() && 
+        notChangingArchive(resource.data, request.resource.data); // Auth optimized: authenticated users can update (including photos)
+      allow delete: if isAuthenticatedUser() && 
         (request.auth.uid == resource.data.createdBy || 
          request.auth.token.role == 'admin');
     }
 
-    // Vehicles: align with loads for now (auth users can read/write)
+    // Auth optimized vehicles: enhanced permissions for authenticated users
     match /vehicles/{docId} {
-      allow read: if true; // Anyone can read vehicles
-      allow create: if request.auth != null; // Any authenticated user (including anonymous) can create
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
-      // Allow anonymous users to read for testing
-      allow read: if request.auth == null || request.auth.uid != null;
+      allow read: if true; // Anyone can read vehicles for public viewing
+      allow create: if isAuthenticatedUser(); // Auth optimized: authenticated users can create
+      allow update: if isAuthenticatedUser(); // Auth optimized: authenticated users can update
+      allow delete: if isAuthenticatedUser(); // Auth optimized: authenticated users can delete
     }
 
     // Public cache for carrier snapshots

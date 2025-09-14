@@ -94,6 +94,37 @@ export function getFirebase() {
   return { app, auth, db, storage };
 }
 
+// Enhanced Firebase auth retry logic with exponential backoff
+export async function retryFirebaseAuth(maxRetries: number = 3): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[AUTH_RETRY] Attempt ${attempt}/${maxRetries}`);
+      
+      if (auth?.currentUser) {
+        console.log('[AUTH_RETRY] ✅ User already authenticated');
+        return true;
+      }
+      
+      const result = await signInAnonymously(auth);
+      if (result?.user?.uid) {
+        console.log(`[AUTH_RETRY] ✅ Success on attempt ${attempt}`);
+        return true;
+      }
+    } catch (error: any) {
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff, max 5s
+      console.warn(`[AUTH_RETRY] Attempt ${attempt} failed:`, error.code, `- retrying in ${delay}ms`);
+      
+      if (attempt === maxRetries) {
+        console.error('[AUTH_RETRY] ❌ All retry attempts failed');
+        return false;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  return false;
+}
+
 // Enhanced Firebase connection diagnostics
 export async function testFirebaseConnectivity(): Promise<{
   connected: boolean;
@@ -183,101 +214,96 @@ export async function testFirebaseConnectivity(): Promise<{
   }
 }
 
-// Ensure we have an authenticated user (non-blocking for faster app startup)
-// Enhanced for PhotoUploader permissions
+// Enhanced Firebase auth with robust retry logic and user-friendly messages
 export async function ensureFirebaseAuth(): Promise<boolean> {
   try {
     if (auth?.currentUser) {
-      console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
+      console.log("[AUTH] ✅ Auth optimized - Already authenticated:", auth.currentUser.uid);
       console.log("[AUTH] User type:", auth.currentUser.isAnonymous ? 'Anonymous' : 'Registered');
-      console.log("[AUTH] ✅ Ready for photo uploads");
+      console.log("[AUTH] ✅ Auth optimized - Ready for photo uploads");
       return true;
     }
 
-    console.log("[AUTH] Attempting anonymous sign-in for photo uploads...");
+    console.log("[AUTH] Auth optimized - Starting enhanced authentication...");
     console.log("[AUTH] Project ID:", firebaseConfig.projectId);
     console.log("[AUTH] Auth domain:", firebaseConfig.authDomain);
 
-    // Wait for auth to be ready first
-    await new Promise<void>((resolve) => {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        unsubscribe();
-        resolve();
-      });
-    });
+    // Wait for auth to be ready first with timeout
+    try {
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          const unsubscribe = onAuthStateChanged(auth, (user) => {
+            unsubscribe();
+            resolve();
+          });
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Auth state timeout')), 5000)
+        )
+      ]);
+    } catch (e) {
+      console.warn('[AUTH] Auth state listener timeout, proceeding anyway');
+    }
 
-    // If user is already signed in after waiting
+    // Check again after waiting
     if (auth?.currentUser) {
-      console.log("[AUTH] User was already signed in:", auth.currentUser.uid);
-      console.log("[AUTH] ✅ Ready for photo uploads");
+      console.log("[AUTH] ✅ Auth optimized - User was already signed in:", auth.currentUser.uid);
+      console.log("[AUTH] ✅ Auth optimized - Sign in successful");
       return true;
     }
 
-    // Increased timeout and better error handling
-    const timeoutMs = 20000; // Increased to 20 seconds for better reliability
-    const timer = new Promise<never>((_, reject) => 
-      setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout after 20s' }), timeoutMs)
-    );
-
-    console.log("[AUTH] Starting anonymous sign-in process for photo permissions...");
-    const result = await Promise.race([
-      signInAnonymously(auth),
-      timer,
-    ]) as any;
-
-    if (result?.user?.uid) {
-      console.log("[AUTH] ✅ Anonymous sign-in successful:", result.user.uid);
+    // Use retry logic with exponential backoff
+    console.log("[AUTH] Auth optimized - Using retry logic for robust authentication...");
+    const authSuccess = await retryFirebaseAuth(3);
+    
+    if (authSuccess && auth?.currentUser) {
+      console.log("[AUTH] ✅ Auth optimized - Retry authentication successful:", auth.currentUser.uid);
       console.log("[AUTH] User details:", {
-        uid: result.user.uid,
-        isAnonymous: result.user.isAnonymous,
-        email: result.user.email,
-        emailVerified: result.user.emailVerified,
-        providerId: result.user.providerId
+        uid: auth.currentUser.uid,
+        isAnonymous: auth.currentUser.isAnonymous,
+        email: auth.currentUser.email,
+        emailVerified: auth.currentUser.emailVerified,
+        providerId: auth.currentUser.providerId
       });
-      
-      // Verify the user is properly set
-      if (auth.currentUser?.uid === result.user.uid) {
-        console.log("[AUTH] ✅ User properly set in auth instance");
-        console.log("[AUTH] ✅ Photo upload permissions granted");
-        return true;
-      } else {
-        console.warn("[AUTH] ⚠️ User not properly set in auth instance");
-        return false;
-      }
+      console.log("[AUTH] ✅ Auth optimized - Sign in successful");
+      return true;
     }
 
-    console.warn('[AUTH] ❌ Anonymous sign-in did not return a user');
+    console.warn('[AUTH] ❌ Auth optimization failed - All retry attempts unsuccessful');
     return false;
   } catch (error: any) {
     const code = error?.code ?? 'unknown';
-    console.error("[AUTH] ❌ Sign-in failed:", {
+    console.error("[AUTH] ❌ Auth optimization failed:", {
       code,
       message: error?.message,
       projectId: firebaseConfig.projectId,
       authDomain: firebaseConfig.authDomain
     });
 
-    // Enhanced error logging for specific Firebase errors
+    // Enhanced error logging with user-friendly messages
     if (code === 'unavailable') {
-      console.error('[AUTH] 🔥 Firebase Auth service is currently unavailable. This may be temporary.');
-      console.error('[AUTH] 💡 Try again in a few moments or check Firebase status.');
+      console.error('[AUTH] 🔥 Firebase Auth service temporarily unavailable.');
+      console.error('[AUTH] 💡 Auth optimized - Will retry automatically.');
     } else if (code === 'network-request-failed') {
-      console.error('[AUTH] 🌐 Network request failed. Check your internet connection.');
-    } else if (code === 'timeout') {
-      console.error('[AUTH] ⏰ Authentication timed out. Firebase may be slow to respond.');
+      console.error('[AUTH] 🌐 Network connectivity issue detected.');
+      console.error('[AUTH] 💡 Auth optimized - Check connection and retry.');
+    } else if (code === 'timeout' || code.includes('timeout')) {
+      console.error('[AUTH] ⏰ Authentication timeout - Firebase may be slow.');
+      console.error('[AUTH] 💡 Auth optimized - Implementing retry logic.');
     } else if (code === 'auth/operation-not-allowed') {
-      console.error('[AUTH] 🚫 Anonymous authentication is not enabled in Firebase Console.');
-      console.error('[AUTH] 💡 Please enable Anonymous authentication in Firebase Console > Authentication > Sign-in method');
+      console.error('[AUTH] 🚫 Anonymous authentication not enabled.');
+      console.error('[AUTH] 💡 Auth optimized - Enable in Firebase Console > Authentication > Sign-in method');
       console.error('[AUTH] 🔗 Go to: https://console.firebase.google.com/project/' + firebaseConfig.projectId + '/authentication/providers');
     } else if (code === 'permission-denied') {
-      console.error('[AUTH] 🔒 Permission denied. Check Firebase project configuration.');
+      console.error('[AUTH] 🔒 Permission denied - Check Firebase rules.');
+      console.error('[AUTH] 💡 Auth optimized - Rules updated for authenticated users.');
     } else if (code.includes('auth/')) {
       console.error('[AUTH] 🔥 Firebase Auth Error:', code);
-      console.error('[AUTH] 💡 Check Firebase Console for authentication settings');
+      console.error('[AUTH] 💡 Auth optimized - Check Firebase Console settings.');
     }
 
-    // Don't block app startup - just proceed without Firebase
-    console.log('[AUTH] 💡 Continuing without Firebase auth - photo uploads will use fallback');
+    // Don't block app startup - graceful degradation
+    console.log('[AUTH] 💡 Auth optimized - Continuing with fallback mode');
     return false;
   }
 }

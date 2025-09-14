@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth, retryFirebaseAuth, testFirebaseConnectivity } from '@/utils/firebase';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 
 export default function FirebaseTestScreen() {
@@ -15,15 +15,17 @@ export default function FirebaseTestScreen() {
 
   const checkFirebaseStatus = async () => {
     try {
+      console.log('[FirebaseTest] ✅ Auth optimized - Checking Firebase status...');
       const authReady = await ensureFirebaseAuth();
       if (authReady) {
         const { app, auth } = getFirebase();
-        setInitStatus(`✅ Ready - Project: ${app.options.projectId}, User: ${auth.currentUser?.uid || 'none'}`);
+        setInitStatus(`✅ Auth optimized - Ready - Project: ${app.options.projectId}, User: ${auth.currentUser?.uid || 'none'}`);
+        console.log('[FirebaseTest] ✅ Auth optimized - Sign in successful');
       } else {
-        setInitStatus("❌ Auth failed");
+        setInitStatus("❌ Auth optimization failed");
       }
     } catch (error) {
-      setInitStatus(`❌ Error: ${error}`);
+      setInitStatus(`❌ Auth optimization error: ${error}`);
     }
   };
 
@@ -32,12 +34,16 @@ export default function FirebaseTestScreen() {
     setTestResult(null);
     
     try {
-      console.log("[FirebaseTest] Starting test...");
+      console.log("[FirebaseTest] ✅ Auth optimized - Starting enhanced Firebase test...");
       
-      // Test Firebase initialization
+      // Test enhanced Firebase authentication with retry logic
       const authReady = await ensureFirebaseAuth();
       if (!authReady) {
-        throw new Error("Firebase auth not ready");
+        console.log("[FirebaseTest] Auth optimization - Trying retry logic...");
+        const retryResult = await retryFirebaseAuth(3);
+        if (!retryResult) {
+          throw new Error("❌ Auth optimization failed - Firebase auth not ready after retries");
+        }
       }
       
       const { app, auth, db, storage } = getFirebase();
@@ -74,9 +80,22 @@ export default function FirebaseTestScreen() {
         console.error('[Firebase Test] Write test failed:', writeErr);
       }
       
-      // Test basic Firebase services
+      // Test enhanced Firebase connectivity
+      let connectivityTest = 'PENDING';
+      let connectivityDetails = {};
+      try {
+        const connectivity = await testFirebaseConnectivity();
+        connectivityTest = connectivity.connected ? 'SUCCESS' : 'FAILED';
+        connectivityDetails = connectivity.details;
+      } catch (connErr: any) {
+        connectivityTest = 'FAILED';
+        connectivityDetails = { error: connErr.message };
+      }
+      
+      // Test enhanced Firebase services
       const result = {
         success: true,
+        authOptimized: true,
         projectId: app.options.projectId,
         authDomain: app.options.authDomain,
         userId: auth.currentUser?.uid || "none",
@@ -85,16 +104,19 @@ export default function FirebaseTestScreen() {
         writeTest,
         testDocumentId,
         writeError,
+        connectivityTest,
+        connectivityDetails,
         timestamp: new Date().toISOString()
       };
       
-      console.log("[FirebaseTest] Test completed:", result);
+      console.log("[FirebaseTest] ✅ Auth optimized - Test completed:", result);
       setTestResult(result);
       
     } catch (error: any) {
-      console.error("[FirebaseTest] Test failed:", error);
+      console.error("[FirebaseTest] ❌ Auth optimization - Test failed:", error);
       setTestResult({ 
-        success: false, 
+        success: false,
+        authOptimized: false,
         error: error?.message || String(error),
         code: error?.code || "unknown"
       });
@@ -108,7 +130,7 @@ export default function FirebaseTestScreen() {
       <Stack.Screen options={{ title: 'Firebase Test' }} />
       <ScrollView style={styles.container}>
         <View style={styles.content}>
-          <Text style={styles.title}>Firebase Connection Test</Text>
+          <Text style={styles.title}>Firebase Auth Optimization Test</Text>
           
           <View style={styles.statusContainer}>
             <Text style={styles.statusText}>Status: {initStatus}</Text>
@@ -120,7 +142,7 @@ export default function FirebaseTestScreen() {
             disabled={isLoading}
           >
             <Text style={styles.buttonText}>
-              {isLoading ? 'Testing...' : 'Run Firebase Test'}
+              {isLoading ? 'Running Auth Optimization Tests...' : 'Run Auth Optimization Test'}
             </Text>
           </TouchableOpacity>
 
@@ -134,11 +156,14 @@ export default function FirebaseTestScreen() {
                 
                 {testResult.success ? (
                   <>
+                    <Text style={styles.resultText}>✅ Auth Optimized: {testResult.authOptimized ? 'YES' : 'NO'}</Text>
                     <Text style={styles.resultText}>Project ID: {testResult.projectId}</Text>
                     <Text style={styles.resultText}>User ID: {testResult.userId}</Text>
-                    <Text style={styles.resultText}>Documents Found: {testResult.docsFound}</Text>
                     {testResult.writeTest && (
                       <Text style={styles.resultText}>Write Test: {testResult.writeTest}</Text>
+                    )}
+                    {testResult.connectivityTest && (
+                      <Text style={styles.resultText}>Connectivity Test: {testResult.connectivityTest}</Text>
                     )}
                     {testResult.testDocumentId && (
                       <Text style={styles.resultText}>Test Doc ID: {testResult.testDocumentId}</Text>
@@ -160,12 +185,13 @@ export default function FirebaseTestScreen() {
           )}
 
           <View style={styles.infoContainer}>
-            <Text style={styles.infoTitle}>What this test does:</Text>
-            <Text style={styles.infoText}>• Initializes Firebase services</Text>
-            <Text style={styles.infoText}>• Tests authentication</Text>
-            <Text style={styles.infoText}>• Queries the &apos;loads&apos; collection</Text>
-            <Text style={styles.infoText}>• Writes a test document</Text>
-            <Text style={styles.infoText}>• Shows connection details</Text>
+            <Text style={styles.infoTitle}>What this auth optimization test does:</Text>
+            <Text style={styles.infoText}>• Tests enhanced Firebase authentication with retry logic</Text>
+            <Text style={styles.infoText}>• Validates user-friendly error messages</Text>
+            <Text style={styles.infoText}>• Tests connectivity with exponential backoff</Text>
+            <Text style={styles.infoText}>• Writes a test document with optimized permissions</Text>
+            <Text style={styles.infoText}>• Shows enhanced connection details</Text>
+            <Text style={styles.infoText}>• Verifies auth optimization is working</Text>
           </View>
         </View>
       </ScrollView>

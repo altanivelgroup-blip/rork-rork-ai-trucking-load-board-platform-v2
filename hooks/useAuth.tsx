@@ -76,25 +76,35 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     };
   }, []);
 
-  // Firebase auth setup - always called to maintain hook order
+  // Enhanced Firebase auth setup with retry logic and user-friendly messages
   useEffect(() => {
     let isMounted = true;
     let unsubscribe: (() => void) | undefined;
     
     const setupFirebaseAuth = async () => {
       try {
-        console.log('[auth] Setting up Firebase auth...');
-        await ensureFirebaseAuth();
+        console.log('[auth] ✅ Auth optimized - Setting up enhanced Firebase auth...');
+        const authSuccess = await ensureFirebaseAuth();
         
         if (!isMounted) return;
+        
+        if (authSuccess) {
+          console.log('[auth] ✅ Auth optimized - Firebase auth setup successful');
+        } else {
+          console.warn('[auth] ⚠️ Auth optimization - Firebase auth setup failed, using fallback');
+        }
         
         unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
           if (!isMounted) return;
           
-          console.log('[auth] Firebase auth state changed:', {
+          console.log('[auth] ✅ Auth optimized - Firebase auth state changed:', {
             uid: firebaseUser?.uid,
             isAnonymous: firebaseUser?.isAnonymous,
           });
+          
+          if (firebaseUser) {
+            console.log('[auth] ✅ Auth optimized - Sign in successful');
+          }
           
           setUserId(firebaseUser?.uid || null);
           setIsFirebaseAuthenticated(!!firebaseUser);
@@ -104,11 +114,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             setIsAnonymous(firebaseUser?.isAnonymous ?? true);
           }
         });
-      } catch (error) {
-        console.warn('[auth] Firebase auth setup failed:', error);
+      } catch (error: any) {
+        console.warn('[auth] ❌ Auth optimization - Firebase auth setup failed:', error?.message || error);
         if (isMounted) {
           setIsFirebaseAuthenticated(false);
           setUserId(null);
+          console.log('[auth] 💡 Auth optimized - Continuing with local auth only');
         }
       }
     };
@@ -188,43 +199,52 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const login = useCallback(async (email: string, password: string, role: UserRole = 'driver') => {
-    console.log('[auth] login attempt for', email, 'as', role);
+    console.log('[auth] ✅ Auth optimized - Login attempt for', email, 'as', role);
     
-    // Validate inputs
+    // Enhanced input validation with user-friendly messages
     if (!email || !password) {
       const error = new Error('Email and password are required');
-      console.error('[auth] login failed: missing credentials');
+      console.error('[auth] ❌ Auth optimization - Login failed: missing credentials');
       throw error;
     }
     
-    // Validate email format
+    // Enhanced email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (email !== 'guest@example.com' && !emailRegex.test(email.trim())) {
       const error = new Error('Please enter a valid email address.');
-      console.error('[auth] login failed: invalid email format');
+      console.error('[auth] ❌ Auth optimization - Login failed: invalid email format');
       throw error;
     }
     
     try {
+      // Enhanced Firebase auth integration
+      console.log('[auth] Auth optimized - Ensuring Firebase authentication...');
+      await ensureFirebaseAuth();
+      
       // Check if this is an admin login
       const isAdminLogin = email === 'admin@loadrush.com' || role === 'admin';
       const finalRole = isAdminLogin ? 'admin' : role;
       
-      // First check if we have cached data for this email/role combination
+      // Enhanced caching logic with better error handling
       const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
       let mockUser: Driver | Shipper | Admin;
       
       if (cached) {
-        const cachedUser = JSON.parse(cached);
-        if (cachedUser.email === email && cachedUser.role === finalRole) {
-          console.log('[auth] using cached user data for', email);
-          mockUser = cachedUser;
-        } else {
-          console.log('[auth] cached user mismatch, creating new user');
+        try {
+          const cachedUser = JSON.parse(cached);
+          if (cachedUser.email === email && cachedUser.role === finalRole) {
+            console.log('[auth] ✅ Auth optimized - Using cached user data for', email);
+            mockUser = cachedUser;
+          } else {
+            console.log('[auth] Auth optimized - Cached user mismatch, creating new user');
+            mockUser = await createNewUser(email, finalRole as UserRole);
+          }
+        } catch (parseError) {
+          console.warn('[auth] ⚠️ Auth optimization - Cached data corrupted, creating new user');
           mockUser = await createNewUser(email, finalRole as UserRole);
         }
       } else {
-        console.log('[auth] no cached data, creating new user');
+        console.log('[auth] Auth optimized - No cached data, creating new user');
         mockUser = await createNewUser(email, finalRole as UserRole);
       }
       
@@ -232,10 +252,19 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       setUserId(mockUser.id);
       setIsAnonymous(email === 'guest@example.com');
       setHasSignedInThisSession(true);
-      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
-      console.log('[auth] login successful as', finalRole);
-    } catch (error) {
-      console.error('[auth] login failed:', error);
+      
+      // Enhanced storage with error handling
+      try {
+        await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
+        console.log('[auth] ✅ Auth optimized - User data cached successfully');
+      } catch (storageError) {
+        console.warn('[auth] ⚠️ Auth optimization - Failed to cache user data:', storageError);
+      }
+      
+      console.log('[auth] ✅ Auth optimized - Login successful as', finalRole);
+      console.log('[auth] ✅ Auth optimized - Sign in successful');
+    } catch (error: any) {
+      console.error('[auth] ❌ Auth optimization - Login failed:', error?.message || error);
       throw error;
     }
   }, [createNewUser]);
@@ -298,10 +327,19 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const logout = useCallback(async () => {
-    await AsyncStorage.removeItem(USER_STORAGE_KEY);
+    console.log('[auth] ✅ Auth optimized - Logging out user...');
+    
+    try {
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
+      console.log('[auth] ✅ Auth optimized - User data cleared from storage');
+    } catch (storageError) {
+      console.warn('[auth] ⚠️ Auth optimization - Failed to clear storage:', storageError);
+    }
+    
     setUser(null);
     setIsAnonymous(true);
     setHasSignedInThisSession(false);
+    console.log('[auth] ✅ Auth optimized - Logout successful');
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -310,22 +348,34 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const updateProfile = useCallback(async (updates: Partial<Driver | Shipper | Admin>) => {
     if (!user) {
-      console.log('[auth] updateProfile called but no user found');
+      console.log('[auth] ⚠️ Auth optimization - updateProfile called but no user found');
       return;
     }
-    console.log('[auth] updateProfile called with updates:', JSON.stringify(updates, null, 2));
+    
+    console.log('[auth] ✅ Auth optimized - updateProfile called with updates:', JSON.stringify(updates, null, 2));
     const updated = { ...user, ...updates } as Driver | Shipper | Admin;
-    console.log('[auth] updated user object:', JSON.stringify(updated, null, 2));
+    console.log('[auth] Auth optimized - updated user object:', JSON.stringify(updated, null, 2));
+    
     setUser(updated);
-    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
-    console.log('[auth] profile saved to AsyncStorage');
-
+    
+    // Enhanced local storage with error handling
     try {
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
+      console.log('[auth] ✅ Auth optimized - Profile saved to AsyncStorage');
+    } catch (storageError) {
+      console.warn('[auth] ⚠️ Auth optimization - Failed to save profile locally:', storageError);
+    }
+
+    // Enhanced Firestore integration with better error handling
+    try {
+      console.log('[auth] Auth optimized - Syncing profile to Firestore...');
       await ensureFirebaseAuth();
+      
       if (auth?.currentUser?.uid) {
         const uid = auth.currentUser.uid;
         const collection = user.role === 'driver' ? 'drivers' : 'shippers';
         const ref = doc(db, collection, uid);
+        
         const payload: Record<string, unknown> = {
           displayName: updated.name ?? '',
           email: updated.email ?? '',
@@ -360,13 +410,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp(),
         };
+        
         await setDoc(ref, payload, { merge: true });
-        console.log(`[auth] ${user.role} profile persisted to Firestore`);
+        console.log(`[auth] ✅ Auth optimized - ${user.role} profile persisted to Firestore`);
       } else {
-        console.log('[auth] no firebase uid, skipped Firestore write');
+        console.log('[auth] ⚠️ Auth optimization - No Firebase UID, skipped Firestore sync');
       }
-    } catch (err) {
-      console.warn('[auth] Firestore write failed, cached locally only', err);
+    } catch (err: any) {
+      console.warn('[auth] ⚠️ Auth optimization - Firestore sync failed, profile cached locally only:', err?.message || err);
     }
   }, [user]);
 
