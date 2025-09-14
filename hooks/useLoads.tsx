@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { collection, getDocs, limit, onSnapshot, orderBy, query, where, QueryConstraint } from 'firebase/firestore';
+import { getCache, setCache } from '@/utils/simpleCache';
 
 interface GeoPoint { lat: number; lng: number }
 
@@ -80,6 +81,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const USER_POSTED_LOADS_KEY = 'userPostedLoads';
+  const CACHE_KEY = 'cache:loads:open:v1';
 
   const mergeUniqueById = useCallback((primary: Load[], extras: Load[]): Load[] => {
     const map = new Map<string, Load>();
@@ -218,6 +220,15 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     setIsLoading(true);
     setSyncStatus('syncing');
     try {
+      try {
+        const cached = await getCache<Load[]>(CACHE_KEY);
+        if (cached.hit && Array.isArray(cached.data)) {
+          console.log('[Loads] Loading from cache...');
+          setLoads(cached.data ?? []);
+        }
+      } catch (cacheErr) {
+        console.warn('[Loads] cache check failed', cacheErr);
+      }
       console.log('[Loads] Starting refresh with live data integration...');
       
       if (!online) {
@@ -317,6 +328,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       setLoads(mergedLoads);
       setLastSyncTime(new Date());
       setSyncStatus('idle');
+      try { await setCache<Load[]>(CACHE_KEY, mergedLoads, 5 * 60 * 1000); } catch {}
       
       console.log(`[Loads] Successfully synced ${mergedLoads.length} loads from Firestore`);
     } catch (error) {
@@ -572,6 +584,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
             setLoads(mergedLoads);
             setLastSyncTime(new Date());
             setSyncStatus('idle');
+            try { await setCache<Load[]>(CACHE_KEY, mergedLoads, 5 * 60 * 1000); } catch {}
             
             console.log(`[Loads] Real-time update: ${mergedLoads.length} loads`);
           } catch (e) {
@@ -616,7 +629,9 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
                 return mapped;
               }).filter((x): x is Load => x !== null);
               const persisted = await readPersisted();
-              setLoads(mergeUniqueById(docs.length ? docs : mockLoads, persisted));
+              const merged = mergeUniqueById(docs.length ? docs : mockLoads, persisted);
+              setLoads(merged);
+              try { await setCache<Load[]>(CACHE_KEY, merged, 5 * 60 * 1000); } catch {}
             } else {
               console.warn('[Loads] Firestore listener error', err);
             }

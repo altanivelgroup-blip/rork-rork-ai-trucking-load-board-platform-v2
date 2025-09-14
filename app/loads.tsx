@@ -7,16 +7,31 @@ import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestor
 import { db } from '@/utils/firebase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadCard } from '@/components/LoadCard';
+import { getCache, setCache } from '@/utils/simpleCache';
 
 export default function LiveLoadsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [fromCache, setFromCache] = useState<boolean>(false);
 
 useEffect(() => {
   console.log('[LiveLoads] temp query: createdAt desc');
   setIsLoading(true);
+
+  (async () => {
+    try {
+      const cached = await getCache<any[]>('cache:liveLoads:v1');
+      if (cached.hit && Array.isArray(cached.data)) {
+        console.log('[LiveLoads] Loading from cache...');
+        setItems(cached.data ?? []);
+        setFromCache(true);
+      }
+    } catch (e) {
+      console.warn('[LiveLoads] cache read failed', e);
+    }
+  })();
 
   const q = query(
     collection(db, 'loads'),
@@ -26,11 +41,13 @@ useEffect(() => {
 
   const unsub = onSnapshot(
     q,
-    (snap) => {
+    async (snap) => {
       const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
       console.log('[LiveLoads] fetched', arr.length);
       setItems(arr);
       setIsLoading(false);
+      setFromCache(false);
+      try { await setCache('cache:liveLoads:v1', arr, 5 * 60 * 1000); } catch {}
     },
     (err) => {
       console.error('[LiveLoads] snapshot error', err.code, err.message);
@@ -80,7 +97,7 @@ const loads = useMemo(() => {
           {isLoading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
-              <Text style={styles.loadingText}>Loading loads...</Text>
+              <Text style={styles.loadingText}>{fromCache ? 'Loading from cache...' : 'Loading loads...'}</Text>
             </View>
           ) : loads.length === 0 ? (
             <View style={styles.emptyState}>
