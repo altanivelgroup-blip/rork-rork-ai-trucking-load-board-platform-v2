@@ -387,28 +387,7 @@ export default function DashboardScreen() {
           <View style={styles.welcomeRow}>
             <Text style={styles.welcomeText}>Welcome back,</Text>
             <Text style={styles.welcomeName} allowFontScaling={false}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
-            {isDriver && (
-              <VoiceCapture
-                onTranscribed={handleVoiceTranscribed}
-                size="sm"
-                testID="dashboard-welcome-voice-capture"
-              />
-            )}
           </View>
-
-          {AI_COPILOT_CHIPS_ENABLED && isDriver ? (
-            <View style={styles.filtersRow}>
-              <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
-                <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
-              </Text>
-              <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
-                <Text style={[styles.sortChipText, { color: theme.colors.white }]} allowFontScaling={false}>Near me</Text>
-              </Text>
-              <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
-                <Text style={styles.sortChipText} allowFontScaling={false}>Lightest</Text>
-              </Text>
-            </View>
-          ) : null}
 
           {isDriver && (
             <View style={styles.describeLoadRow}>
@@ -439,6 +418,22 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
           )}
+
+          {AI_COPILOT_CHIPS_ENABLED && isDriver ? (
+            <View style={styles.filtersRow}>
+              <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
+                <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
+              </Text>
+              <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
+                <Text style={[styles.sortChipText, { color: theme.colors.white }]} allowFontScaling={false}>Near me</Text>
+              </Text>
+              <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
+                <Text style={styles.sortChipText} allowFontScaling={false}>Lightest</Text>
+              </Text>
+            </View>
+          ) : null}
+
+
 
           {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
             <View style={styles.filtersRow}>
