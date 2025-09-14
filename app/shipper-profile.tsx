@@ -21,7 +21,9 @@ import {
   Settings,
   DollarSign,
   Package,
-  TrendingUp
+  TrendingUp,
+  ArrowLeft,
+  Home
 } from 'lucide-react-native';
 
 export default function ShipperProfileScreen() {
@@ -124,6 +126,26 @@ export default function ShipperProfileScreen() {
       <Stack.Screen 
         options={{ 
           title: 'Shipper Profile',
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => {
+                try {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/(tabs)/shipper');
+                  }
+                } catch (error) {
+                  console.error('Navigation error:', error);
+                  router.replace('/(tabs)/shipper');
+                }
+              }}
+              style={styles.backButton}
+              testID="back-button"
+            >
+              <ArrowLeft size={24} color={theme.colors.dark} />
+            </TouchableOpacity>
+          ),
           headerRight: () => (
             <TouchableOpacity
               onPress={() => setIsEditing(!isEditing)}
@@ -407,6 +429,16 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: theme.spacing.sm,
+  },
+  backButton: {
+    padding: theme.spacing.sm,
+    marginLeft: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: 'transparent',
+    minWidth: 40,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileHeader: {
     flexDirection: 'row',

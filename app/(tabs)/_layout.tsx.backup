@@ -64,7 +64,7 @@ export default function TabsLayout() {
         }}
       />
       
-      {/* Shipper Dashboard Tab (Always visible for shippers) */}
+      {/* Shipper Dashboard Tab (Shipper only) */}
       <Tabs.Screen
         name="shipper"
         options={{
@@ -74,7 +74,7 @@ export default function TabsLayout() {
         }}
       />
       
-      {/* Shipper Post Loads Tab (Always visible for shippers) */}
+      {/* Shipper Post Loads Tab */}
       <Tabs.Screen
         name="shipper-post"
         options={{
@@ -84,12 +84,12 @@ export default function TabsLayout() {
         }}
       />
       
-      {/* Analytics Tab (Always visible for shippers and admins) */}
+      {/* Analytics / Reports Tab */}
       <Tabs.Screen
         name="shipper-analytics"
         options={{
           title: 'Analytics',
-          tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => isAdmin ? <BarChart3 color={color} size={size} /> : <BarChart3 color={color} size={size} />,
           href: isAdmin ? '/reports' : (isShipper ? '/shipper-analytics' : null),
         }}
       />
