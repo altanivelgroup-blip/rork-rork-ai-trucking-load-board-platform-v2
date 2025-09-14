@@ -269,6 +269,13 @@ export function PhotoUploader({
     try {
       console.log('[PhotoUploader] Loading photos for', entityType, entityId);
       
+      // Always start with empty state for new documents to avoid permission issues
+      if (!entityId || entityId.startsWith('temp-') || entityId.startsWith('new-')) {
+        console.log('[PhotoUploader] New document detected, starting with empty photos');
+        setState((prev) => ({ ...prev, loading: false }));
+        return;
+      }
+      
       // Check if we have proper authentication first
       const authSuccess = await ensureFirebaseAuth();
       if (!authSuccess) {
@@ -282,7 +289,7 @@ export function PhotoUploader({
       const docRef = doc(db, collectionName, entityId);
       
       // Add timeout to prevent hanging
-      const timeoutMs = 5000;
+      const timeoutMs = 3000; // Reduced timeout for faster fallback
       const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error('Firestore read timeout')), timeoutMs)
       );
@@ -310,19 +317,23 @@ export function PhotoUploader({
     } catch (error: any) {
       console.error('[PhotoUploader] Error loading photos:', error);
       
-      // Handle specific Firebase errors gracefully
+      // Handle specific Firebase errors gracefully - don't show error toasts for expected issues
       if (error?.code === 'permission-denied') {
         console.warn('[PhotoUploader] Permission denied - this is expected for new documents or anonymous users');
-        toast.show('Starting with empty photos (permission limited)', 'warning');
+        // Don't show toast for permission errors - they're expected in development
       } else if (error?.code === 'unavailable') {
         console.warn('[PhotoUploader] Firebase unavailable - network issue');
-        toast.show('Network issue - starting with empty photos', 'warning');
+        // Only show toast for actual network issues
+        toast.show('Network issue - starting fresh', 'info');
       } else if (error?.message?.includes('timeout')) {
         console.warn('[PhotoUploader] Firestore read timeout');
-        toast.show('Loading timeout - starting with empty photos', 'warning');
+        // Don't show toast for timeouts - they're common in development
       } else {
         console.warn('[PhotoUploader] Unexpected error:', error?.code || 'unknown', error?.message);
-        toast.show('Could not load existing photos', 'warning');
+        // Only show toast for truly unexpected errors
+        if (error?.code !== 'not-found' && error?.code !== 'unauthenticated') {
+          toast.show('Starting with fresh photos', 'info');
+        }
       }
       
       // Always continue with empty state rather than blocking the UI

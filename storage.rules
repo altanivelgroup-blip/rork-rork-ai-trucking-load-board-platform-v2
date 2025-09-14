@@ -5,6 +5,22 @@ service firebase.storage {
       return request.auth != null
         && (request.auth.token.admin == true || request.auth.token.role == 'admin');
     }
+    
+    // Allow authenticated users (including anonymous) to upload and read photos
+    match /loadPhotos/{userId}/{loadId}/{fileName} {
+      allow read: if true; // Anyone can read photos
+      allow write: if request.auth != null; // Any authenticated user can upload
+      allow delete: if request.auth != null && request.auth.uid == userId; // Only owner can delete
+    }
+    
+    // Allow authenticated users to upload vehicle photos
+    match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
+      allow read: if true; // Anyone can read photos
+      allow write: if request.auth != null; // Any authenticated user can upload
+      allow delete: if request.auth != null && request.auth.uid == userId; // Only owner can delete
+    }
+    
+    // Admin-only report files
     match /reports/{allPaths=**} { allow read, write: if isAdmin(); }
     match /reportAnalytics/{allPaths=**} { allow read, write: if isAdmin(); }
   }
