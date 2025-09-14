@@ -216,9 +216,11 @@ export default function RootLayout() {
                                   <LoadsProvider>
                                     <PostLoadProvider>
                                       <AutoArriveProvider>
-                                        <RootLayoutNav />
-                                        <FirebaseConnectionStatus />
-                                        <AutoArriveSheet />
+                                        <NotificationProvider>
+                                          <RootLayoutNav />
+                                          <FirebaseConnectionStatus />
+                                          <AutoArriveSheet />
+                                        </NotificationProvider>
                                       </AutoArriveProvider>
                                     </PostLoadProvider>
                                   </LoadsProvider>
