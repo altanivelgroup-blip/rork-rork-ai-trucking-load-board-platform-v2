@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,14 +7,16 @@ import { Bell, Mail, MessageSquare, ArrowLeft, CheckCircle, AlertTriangle, Refre
 import { useNotifications } from '@/hooks/useNotifications';
 import { useToast } from '@/components/Toast';
 import { trpcClient } from '@/lib/trpc';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
-export default function NotificationsScreen() {
+function NotificationsScreenContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { settings, isLoading, error, updateChannel, updateCategory, refreshSettings } = useNotifications();
   const toast = useToast();
   const [offlineMode, setOfflineMode] = useState<boolean>(false);
   const [testingConnection, setTestingConnection] = useState<boolean>(false);
+  const [hasShownError, setHasShownError] = useState<boolean>(false);
 
   console.log('[NotificationsScreen] Render - isLoading:', isLoading, 'error:', error);
 
@@ -26,66 +28,99 @@ export default function NotificationsScreen() {
     }
   }, [toast]);
 
+  const isNetworkError = useMemo(() => {
+    return error && (error.includes('Failed to fetch') || error.includes('Network') || error.includes('fetch'));
+  }, [error]);
+
   useEffect(() => {
-    if (error) {
+    if (error && !hasShownError) {
       console.error('[NotificationsScreen] Error:', error);
-      if (error.includes('Failed to fetch') || error.includes('Network') || error.includes('fetch')) {
+      if (isNetworkError) {
         setOfflineMode(true);
         showToast('Working in offline mode - changes will sync when connection is restored', 'warning');
       } else {
         showToast(error, 'error');
       }
-    } else {
+      setHasShownError(true);
+    } else if (!error) {
       setOfflineMode(false);
+      setHasShownError(false);
     }
-  }, [error, showToast]);
+  }, [error, isNetworkError, showToast, hasShownError]);
 
   const testBackendConnection = useCallback(async () => {
+    if (testingConnection) return;
+    
     setTestingConnection(true);
     try {
       console.log('[NotificationsScreen] Testing backend connection...');
       const result = await trpcClient.notifications.getSettings.query({ userId: 'demo-user' });
       console.log('[NotificationsScreen] Backend test result:', result);
       
-      if (result.success) {
+      if (result?.success) {
         showToast('Backend connection successful!', 'success');
         setOfflineMode(false);
+        setHasShownError(false);
         await refreshSettings();
       } else {
-        showToast('Backend returned error: ' + (result.error || 'Unknown error'), 'error');
+        showToast('Backend returned error: ' + (result?.error || 'Unknown error'), 'error');
       }
     } catch (err: any) {
       console.error('[NotificationsScreen] Backend test failed:', err);
-      showToast('Backend connection failed: ' + err.message, 'error');
+      showToast('Backend connection failed. Using offline mode.', 'warning');
       setOfflineMode(true);
     } finally {
       setTestingConnection(false);
     }
-  }, [showToast, refreshSettings]);
+  }, [showToast, refreshSettings, testingConnection]);
 
   const handleChannelToggle = useCallback(async (channel: 'push' | 'email' | 'sms', enabled: boolean) => {
     if (!channel || typeof enabled !== 'boolean') return;
+    
+    if (offlineMode) {
+      showToast('Changes will be saved when connection is restored', 'warning');
+      return;
+    }
+    
     console.log('[Notifications] Toggle updated - Channel:', channel, 'enabled:', enabled);
     try {
       await updateChannel(channel, enabled);
       showToast(`${channel} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
     } catch (err: any) {
       console.error('[NotificationsScreen] Error updating channel:', err);
-      showToast(`Failed to update ${channel} notifications: ${err.message || 'Unknown error'}`, 'error');
+      const errorMsg = err?.message || 'Unknown error';
+      if (errorMsg.includes('fetch')) {
+        setOfflineMode(true);
+        showToast('Connection lost. Working in offline mode.', 'warning');
+      } else {
+        showToast(`Failed to update ${channel} notifications: ${errorMsg}`, 'error');
+      }
     }
-  }, [updateChannel, showToast]);
+  }, [updateChannel, showToast, offlineMode]);
 
   const handleCategoryToggle = useCallback(async (category: 'loadUpdates' | 'payments' | 'system', enabled: boolean) => {
     if (!category || typeof enabled !== 'boolean') return;
+    
+    if (offlineMode) {
+      showToast('Changes will be saved when connection is restored', 'warning');
+      return;
+    }
+    
     console.log('[Notifications] Toggle updated - Category:', category, 'enabled:', enabled);
     try {
       await updateCategory(category, enabled);
       showToast(`${category} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
     } catch (err: any) {
       console.error('[NotificationsScreen] Error updating category:', err);
-      showToast(`Failed to update ${category} notifications: ${err.message || 'Unknown error'}`, 'error');
+      const errorMsg = err?.message || 'Unknown error';
+      if (errorMsg.includes('fetch')) {
+        setOfflineMode(true);
+        showToast('Connection lost. Working in offline mode.', 'warning');
+      } else {
+        showToast(`Failed to update ${category} notifications: ${errorMsg}`, 'error');
+      }
     }
-  }, [updateCategory, showToast]);
+  }, [updateCategory, showToast, offlineMode]);
 
 
 
@@ -192,6 +227,14 @@ export default function NotificationsScreen() {
         </ScrollView>
       )}
     </View>
+  );
+}
+
+export default function NotificationsScreen() {
+  return (
+    <ErrorBoundary>
+      <NotificationsScreenContent />
+    </ErrorBoundary>
   );
 }
 

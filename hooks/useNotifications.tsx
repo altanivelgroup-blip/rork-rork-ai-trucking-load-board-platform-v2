@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
 
 export interface NotificationSettings {
@@ -37,30 +37,45 @@ const defaultSettings: NotificationSettings = {
 };
 
 export function useNotifications(): NotificationState {
+  const isUpdatingRef = useRef<boolean>(false);
+  const [localSettings, setLocalSettings] = useState<NotificationSettings>(defaultSettings);
+  const [hasInitialized, setHasInitialized] = useState<boolean>(false);
+  
   const settingsQuery = trpc.notifications.getSettings.useQuery(
     { userId: 'demo-user' },
     { 
       refetchOnWindowFocus: false,
       retry: 1,
       staleTime: 5 * 60 * 1000,
+      refetchOnMount: false,
+      enabled: !isUpdatingRef.current,
     }
   );
 
-  const updateChannelMutation = trpc.notifications.updateChannel.useMutation({
-    onSuccess: () => {
-      settingsQuery.refetch();
-    },
-  });
-  
-  const updateCategoryMutation = trpc.notifications.updateCategory.useMutation({
-    onSuccess: () => {
-      settingsQuery.refetch();
-    },
-  });
+  useEffect(() => {
+    if (settingsQuery.data?.success && settingsQuery.data.settings) {
+      setLocalSettings(settingsQuery.data.settings);
+    }
+    if (settingsQuery.data || settingsQuery.error) {
+      setHasInitialized(true);
+    }
+  }, [settingsQuery.data, settingsQuery.error]);
+
+  const updateChannelMutation = trpc.notifications.updateChannel.useMutation();
+  const updateCategoryMutation = trpc.notifications.updateCategory.useMutation();
 
   const updateChannel = useCallback(async (channel: 'push' | 'email' | 'sms', enabled: boolean) => {
     try {
       console.log('[Notifications] Updating channel:', channel, 'to', enabled);
+      
+      // Optimistically update local state
+      setLocalSettings(prev => ({
+        ...prev,
+        channels: {
+          ...prev.channels,
+          [channel]: enabled,
+        },
+      }));
       
       const result = await updateChannelMutation.mutateAsync({
         userId: 'demo-user',
@@ -70,12 +85,28 @@ export function useNotifications(): NotificationState {
 
       if (!result.success) {
         console.error('[Notifications] Failed to update channel:', result.error);
+        // Revert optimistic update
+        setLocalSettings(prev => ({
+          ...prev,
+          channels: {
+            ...prev.channels,
+            [channel]: !enabled,
+          },
+        }));
         throw new Error(result.error || 'Failed to update channel');
       }
       
       console.log('[Notifications] ✅ Channel updated:', result.message);
     } catch (err: any) {
       console.error('[Notifications] Error updating channel:', err);
+      // Revert optimistic update on error
+      setLocalSettings(prev => ({
+        ...prev,
+        channels: {
+          ...prev.channels,
+          [channel]: !enabled,
+        },
+      }));
       throw err;
     }
   }, [updateChannelMutation]);
@@ -83,6 +114,15 @@ export function useNotifications(): NotificationState {
   const updateCategory = useCallback(async (category: 'loadUpdates' | 'payments' | 'system', enabled: boolean) => {
     try {
       console.log('[Notifications] Updating category:', category, 'to', enabled);
+      
+      // Optimistically update local state
+      setLocalSettings(prev => ({
+        ...prev,
+        categories: {
+          ...prev.categories,
+          [category]: enabled,
+        },
+      }));
       
       const result = await updateCategoryMutation.mutateAsync({
         userId: 'demo-user',
@@ -92,28 +132,49 @@ export function useNotifications(): NotificationState {
 
       if (!result.success) {
         console.error('[Notifications] Failed to update category:', result.error);
+        // Revert optimistic update
+        setLocalSettings(prev => ({
+          ...prev,
+          categories: {
+            ...prev.categories,
+            [category]: !enabled,
+          },
+        }));
         throw new Error(result.error || 'Failed to update category');
       }
       
       console.log('[Notifications] ✅ Category updated:', result.message);
     } catch (err: any) {
       console.error('[Notifications] Error updating category:', err);
+      // Revert optimistic update on error
+      setLocalSettings(prev => ({
+        ...prev,
+        categories: {
+          ...prev.categories,
+          [category]: !enabled,
+        },
+      }));
       throw err;
     }
   }, [updateCategoryMutation]);
 
   const refreshSettings = useCallback(async () => {
-    await settingsQuery.refetch();
+    if (!isUpdatingRef.current) {
+      await settingsQuery.refetch();
+    }
   }, [settingsQuery]);
 
   const settings = useMemo(() => {
-    if (settingsQuery.data?.success && settingsQuery.data.settings) {
-      return settingsQuery.data.settings;
-    }
-    return defaultSettings;
-  }, [settingsQuery.data]);
+    return localSettings;
+  }, [localSettings]);
 
   const error = useMemo(() => {
+    if (updateChannelMutation.error) {
+      return updateChannelMutation.error.message;
+    }
+    if (updateCategoryMutation.error) {
+      return updateCategoryMutation.error.message;
+    }
     if (settingsQuery.error) {
       return settingsQuery.error.message;
     }
@@ -121,11 +182,11 @@ export function useNotifications(): NotificationState {
       return settingsQuery.data.error || 'Failed to load notification settings';
     }
     return null;
-  }, [settingsQuery.error, settingsQuery.data]);
+  }, [settingsQuery.error, settingsQuery.data, updateChannelMutation.error, updateCategoryMutation.error]);
 
   return {
     settings,
-    isLoading: settingsQuery.isLoading,
+    isLoading: (!hasInitialized && settingsQuery.isLoading) || updateChannelMutation.isLoading || updateCategoryMutation.isLoading,
     error,
     updateChannel,
     updateCategory,

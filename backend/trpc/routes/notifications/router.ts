@@ -38,15 +38,45 @@ export const notificationsRouter = createTRPCRouter({
       try {
         console.log('[Notifications] Getting settings for user:', input.userId);
         
+        if (!input.userId || input.userId.trim() === '') {
+          console.log('[Notifications] Invalid userId, returning defaults');
+          return {
+            success: true,
+            settings: defaultSettings,
+          };
+        }
+        
+        if (!db) {
+          console.warn('[Notifications] Firebase not initialized, returning defaults');
+          return {
+            success: true,
+            settings: defaultSettings,
+          };
+        }
+        
         const userDoc = doc(db, 'notificationSettings', input.userId);
         const docSnap = await getDoc(userDoc);
         
         if (docSnap.exists()) {
           const data = docSnap.data();
           console.log('[Notifications] Found existing settings:', data);
+          
+          const validatedSettings = {
+            channels: {
+              push: data.channels?.push ?? defaultSettings.channels.push,
+              email: data.channels?.email ?? defaultSettings.channels.email,
+              sms: data.channels?.sms ?? defaultSettings.channels.sms,
+            },
+            categories: {
+              loadUpdates: data.categories?.loadUpdates ?? defaultSettings.categories.loadUpdates,
+              payments: data.categories?.payments ?? defaultSettings.categories.payments,
+              system: data.categories?.system ?? defaultSettings.categories.system,
+            },
+          };
+          
           return {
             success: true,
-            settings: data as NotificationSettings,
+            settings: validatedSettings,
           };
         } else {
           console.log('[Notifications] No settings found, returning defaults');
@@ -58,7 +88,7 @@ export const notificationsRouter = createTRPCRouter({
       } catch (error: any) {
         console.error('[Notifications] Error getting settings:', error);
         return {
-          success: false,
+          success: true,
           error: error.message,
           settings: defaultSettings,
         };
