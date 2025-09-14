@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { trpc } from '@/lib/trpc';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface NotificationSettings {
   channels: {
@@ -42,11 +44,16 @@ export function useNotifications(): NotificationState {
   const [localSettings, setLocalSettings] = useState<NotificationSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  
+  // tRPC mutations
+  const updateChannelMutation = trpc.notifications.updateChannel.useMutation();
+  const updateCategoryMutation = trpc.notifications.updateCategory.useMutation();
 
   // Load settings from AsyncStorage on mount
   useEffect(() => {
     loadSettings();
-  }, []);
+  }, [loadSettings]);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -105,8 +112,26 @@ export function useNotifications(): NotificationState {
         },
       };
       
+      // Update local state immediately for optimistic UI
       setLocalSettings(updatedSettings);
+      
+      // Save to AsyncStorage
       await saveSettings(updatedSettings);
+      
+      // Try to sync with backend if user is available
+      if (user?.uid) {
+        try {
+          await updateChannelMutation.mutateAsync({
+            userId: user.uid,
+            channel,
+            enabled,
+          });
+          console.log('[Notifications] ✅ Channel synced with backend');
+        } catch (backendError: any) {
+          console.warn('[Notifications] Backend sync failed, but local update succeeded:', backendError);
+          // Don't throw here - local update succeeded
+        }
+      }
       
       console.log('[Notifications] ✅ Channel updated successfully');
     } catch (err: any) {
@@ -122,7 +147,7 @@ export function useNotifications(): NotificationState {
       }));
       throw err;
     }
-  }, [localSettings, saveSettings]);
+  }, [localSettings, saveSettings, user?.uid, updateChannelMutation]);
 
   const updateCategory = useCallback(async (category: 'loadUpdates' | 'payments' | 'system', enabled: boolean) => {
     try {
@@ -137,8 +162,26 @@ export function useNotifications(): NotificationState {
         },
       };
       
+      // Update local state immediately for optimistic UI
       setLocalSettings(updatedSettings);
+      
+      // Save to AsyncStorage
       await saveSettings(updatedSettings);
+      
+      // Try to sync with backend if user is available
+      if (user?.uid) {
+        try {
+          await updateCategoryMutation.mutateAsync({
+            userId: user.uid,
+            category,
+            enabled,
+          });
+          console.log('[Notifications] ✅ Category synced with backend');
+        } catch (backendError: any) {
+          console.warn('[Notifications] Backend sync failed, but local update succeeded:', backendError);
+          // Don't throw here - local update succeeded
+        }
+      }
       
       console.log('[Notifications] ✅ Category updated successfully');
     } catch (err: any) {
@@ -154,7 +197,7 @@ export function useNotifications(): NotificationState {
       }));
       throw err;
     }
-  }, [localSettings, saveSettings]);
+  }, [localSettings, saveSettings, user?.uid, updateCategoryMutation]);
 
   const refreshSettings = useCallback(async () => {
     await loadSettings();
@@ -166,7 +209,7 @@ export function useNotifications(): NotificationState {
 
   return {
     settings,
-    isLoading,
+    isLoading: isLoading || updateChannelMutation.isLoading || updateCategoryMutation.isLoading,
     error,
     updateChannel,
     updateCategory,
