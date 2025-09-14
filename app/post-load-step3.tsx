@@ -9,6 +9,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Modal,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
@@ -37,6 +38,7 @@ function Stepper({ current, total }: { current: number; total: number }) {
 }
 
 type PickerKind = 'pickup' | 'delivery' | 'deliveryLocal';
+type TimePickerKind = 'deliveryLocalTime';
 
 type DayCell = {
   date: Date;
@@ -164,6 +166,122 @@ function CalendarModal({
   );
 }
 
+function TimePickerModal({
+  visible,
+  initialTime,
+  onClose,
+  onConfirm,
+}: {
+  visible: boolean;
+  initialTime: string;
+  onClose: () => void;
+  onConfirm: (time: string) => void;
+}) {
+  const [hour, setHour] = useState<string>(() => {
+    const parts = initialTime.split(':');
+    return parts[0] || '17';
+  });
+  const [minute, setMinute] = useState<string>(() => {
+    const parts = initialTime.split(':');
+    return parts[1] || '00';
+  });
+
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), []);
+  const minutes = useMemo(() => Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')), []);
+
+  const onUse = useCallback(() => {
+    const timeString = `${hour}:${minute}`;
+    onConfirm(timeString);
+  }, [hour, minute, onConfirm]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.backdrop}>
+        <View style={styles.timePickerCard}>
+          <View style={styles.timePickerHeader}>
+            <Text style={styles.timePickerTitle}>Select Time</Text>
+            <Pressable accessibilityRole="button" onPress={onClose} testID="timePickerClose" style={styles.iconBtnRight}>
+              <X color={theme.colors.gray} size={18} />
+            </Pressable>
+          </View>
+
+          <View style={styles.timePickerContent}>
+            <View style={styles.timeInputRow}>
+              <View style={styles.timeInputGroup}>
+                <Text style={styles.timeInputLabel}>Hour</Text>
+                <TextInput
+                  style={styles.timeInput}
+                  value={hour}
+                  onChangeText={(text) => {
+                    const num = parseInt(text, 10);
+                    if (!isNaN(num) && num >= 0 && num <= 23) {
+                      setHour(String(num).padStart(2, '0'));
+                    } else if (text === '') {
+                      setHour('');
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  placeholder="HH"
+                  testID="hourInput"
+                />
+              </View>
+              <Text style={styles.timeSeparator}>:</Text>
+              <View style={styles.timeInputGroup}>
+                <Text style={styles.timeInputLabel}>Minute</Text>
+                <TextInput
+                  style={styles.timeInput}
+                  value={minute}
+                  onChangeText={(text) => {
+                    const num = parseInt(text, 10);
+                    if (!isNaN(num) && num >= 0 && num <= 59) {
+                      setMinute(String(num).padStart(2, '0'));
+                    } else if (text === '') {
+                      setMinute('');
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  placeholder="MM"
+                  testID="minuteInput"
+                />
+              </View>
+            </View>
+
+            <View style={styles.quickTimeRow}>
+              <Text style={styles.quickTimeLabel}>Quick select:</Text>
+              {['08:00', '12:00', '17:00', '18:00'].map((time) => (
+                <Pressable
+                  key={time}
+                  onPress={() => {
+                    const [h, m] = time.split(':');
+                    setHour(h);
+                    setMinute(m);
+                  }}
+                  style={styles.quickTimePill}
+                  accessibilityRole="button"
+                  testID={`quickTime-${time}`}
+                >
+                  <Text style={styles.quickTimeText}>{time}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.modalFooter}>
+            <Pressable onPress={onClose} style={styles.secondaryBtn} accessibilityRole="button" testID="cancelTimeBtn">
+              <Text style={styles.secondaryBtnText}>Cancel</Text>
+            </Pressable>
+            <Pressable onPress={onUse} style={styles.primaryBtn} accessibilityRole="button" testID="useTimeBtn">
+              <Text style={styles.primaryBtnText}>Use this time</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // Helper functions for default dates
 const startOfTodayAt = (h: number) => { 
   const d = new Date(); 
@@ -275,6 +393,7 @@ export default function PostLoadStep3() {
   const [pickupDate, setPickupDate] = useState<Date | null>(draft.pickupDate ?? defaultDates.pickup);
   const [deliveryDate, setDeliveryDate] = useState<Date | null>(draft.deliveryDate ?? defaultDates.delivery);
   const [picker, setPicker] = useState<PickerKind | null>(null);
+  const [timePicker, setTimePicker] = useState<TimePickerKind | null>(null);
   const [deliveryLocalDate, setDeliveryLocalDate] = useState<Date | null>(() => {
     if (draft.deliveryDateLocal) {
       const parsed = new Date(draft.deliveryDateLocal);
@@ -282,6 +401,17 @@ export default function PostLoadStep3() {
     }
     return null;
   });
+  const [tempTime, setTempTime] = useState<string>('');
+
+  // Update delivery local date when it changes
+  useEffect(() => {
+    if (draft.deliveryDateLocal) {
+      const parsed = new Date(draft.deliveryDateLocal);
+      if (!isNaN(parsed.getTime())) {
+        setDeliveryLocalDate(parsed);
+      }
+    }
+  }, [draft.deliveryDateLocal]);
   
   // Set default dates in draft if they don't exist
   useEffect(() => {
@@ -302,6 +432,14 @@ export default function PostLoadStep3() {
     setPicker(k);
   }, []);
   const closePicker = useCallback(() => setPicker(null), []);
+  
+  const openTimePicker = useCallback((k: TimePickerKind) => {
+    console.log('[PostLoadStep3] Opening time picker for:', k);
+    const currentTime = (draft.deliveryDateLocal || '').split('T')[1] || '17:00';
+    setTempTime(currentTime);
+    setTimePicker(k);
+  }, [draft.deliveryDateLocal]);
+  const closeTimePicker = useCallback(() => setTimePicker(null), []);
 
   const onConfirm = useCallback((d: Date) => {
     console.log('[PostLoadStep3] Calendar confirmed date:', d, 'for picker:', picker);
@@ -398,8 +536,8 @@ export default function PostLoadStep3() {
                   <View style={styles.spacer12} />
                   <View style={styles.flex1}>
                     <Text style={styles.smallLabel}>Time (HH:MM)</Text>
-                    <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => {}}>
-                      <Text style={styles.dateText} selectable testID="deliveryLocalTimeText">{(draft.deliveryDateLocal || '').split('T')[1] || 'HH:MM'}</Text>
+                    <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => openTimePicker('deliveryLocalTime')} testID="deliveryLocalTimeBtn">
+                      <Text style={styles.dateText} testID="deliveryLocalTimeText">{(draft.deliveryDateLocal || '').split('T')[1] || 'HH:MM'}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -424,6 +562,19 @@ export default function PostLoadStep3() {
         onClose={closePicker}
         onConfirm={onConfirm}
         minDate={new Date()}
+      />
+      
+      <TimePickerModal
+        visible={timePicker !== null}
+        initialTime={tempTime}
+        onClose={closeTimePicker}
+        onConfirm={(time) => {
+          const currentDate = draft.deliveryDateLocal ? draft.deliveryDateLocal.split('T')[0] : new Date().toISOString().split('T')[0];
+          const newDateTime = `${currentDate}T${time}`;
+          console.log('[PostLoadStep3] Setting deliveryDateLocal time to:', newDateTime);
+          setField('deliveryDateLocal', newDateTime);
+          setTimePicker(null);
+        }}
       />
     </SafeAreaView>
   );
@@ -488,4 +639,17 @@ const styles = StyleSheet.create({
   inputLike: { backgroundColor: theme.colors.white, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.select({ ios: 14, android: 12, default: 12 }) as number },
   flex1: { flex: 1 },
   spacer12: { width: 12 },
+  timePickerCard: { width: '100%', maxWidth: 400, backgroundColor: theme.colors.card, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, overflow: 'hidden' },
+  timePickerHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  timePickerTitle: { flex: 1, fontSize: theme.fontSize.lg, fontWeight: '700', color: theme.colors.dark },
+  timePickerContent: { padding: 16 },
+  timeInputRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', marginBottom: 24 },
+  timeInputGroup: { alignItems: 'center' },
+  timeInputLabel: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginBottom: 8 },
+  timeInput: { backgroundColor: theme.colors.white, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: theme.fontSize.xl, fontWeight: '700', textAlign: 'center', width: 80, color: theme.colors.dark },
+  timeSeparator: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.dark, marginHorizontal: 8, marginBottom: 8 },
+  quickTimeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  quickTimeLabel: { fontSize: theme.fontSize.sm, color: theme.colors.gray, fontWeight: '600' },
+  quickTimePill: { backgroundColor: '#e5e7eb', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#d1d5db' },
+  quickTimeText: { color: theme.colors.dark, fontWeight: '600', fontSize: theme.fontSize.sm },
 });
