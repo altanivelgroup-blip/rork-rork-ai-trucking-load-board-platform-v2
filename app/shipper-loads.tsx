@@ -172,11 +172,24 @@ export default function ShipperLoadsScreen() {
         headerLeft: () => (
           <TouchableOpacity 
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => {
+              try {
+                // Navigate back to shipper profile or tabs if back doesn't work
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/shipper-profile');
+                }
+              } catch (error) {
+                console.error('Navigation error:', error);
+                // Fallback to shipper profile
+                router.replace('/shipper-profile');
+              }
+            }}
             testID="back-button"
             activeOpacity={0.7}
           >
-            <ArrowLeft size={28} color={theme.colors.dark} />
+            <ArrowLeft size={28} color={theme.colors.white} />
           </TouchableOpacity>
         ),
         headerRight: () => (
@@ -667,16 +680,16 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     marginLeft: theme.spacing.sm,
     borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: theme.colors.primary,
     minWidth: 48,
     minHeight: 48,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   emptyActions: {
     flexDirection: 'row',
