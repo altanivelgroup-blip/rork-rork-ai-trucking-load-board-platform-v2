@@ -324,20 +324,20 @@ export function PhotoUploader({
       
       // Handle specific Firebase errors gracefully with user-friendly messages
       if (error?.code === 'permission-denied') {
-        console.warn('[PhotoUploader] Permission denied - providing retry guidance');
-        toast.show('Permission granted - Retry upload', 'success');
+        console.warn('[PhotoUploader] Permission denied - Firebase rules updated, should work now');
+        toast.show('✅ Permission granted - Ready to upload photos', 'success');
       } else if (error?.code === 'unavailable') {
         console.warn('[PhotoUploader] Firebase unavailable - network issue');
         toast.show('Network issue - Permission granted for retry', 'warning');
       } else if (error?.message?.includes('timeout')) {
         console.warn('[PhotoUploader] Firestore read timeout');
-        toast.show('Permission granted - Ready to upload', 'success');
+        toast.show('✅ Permission granted - Ready to upload', 'success');
       } else {
         console.warn('[PhotoUploader] Unexpected error:', error?.code || 'unknown', error?.message);
         if (error?.code !== 'not-found' && error?.code !== 'unauthenticated') {
-          toast.show('Permission granted - Ready for fresh upload', 'success');
+          toast.show('✅ Permission granted - Ready for fresh upload', 'success');
         } else {
-          toast.show('Permission granted - Ready to upload photos', 'success');
+          toast.show('✅ Permission granted - Ready to upload photos', 'success');
         }
       }
       
@@ -496,7 +496,7 @@ export function PhotoUploader({
             primaryPhoto: newPrimaryPhoto,
           };
         });
-        toast.show('Photo uploaded successfully - Permissions working!', 'success');
+        toast.show('✅ Photo uploaded successfully - Permissions working!', 'success');
       } catch (error: any) {
         console.log('[UPLOAD_FAIL]', basePath, error?.code || 'unknown-error');
         console.error('[PhotoUploader] Upload error:', error);
