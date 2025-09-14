@@ -297,19 +297,26 @@ export default function PostLoadStep3() {
 
   const canProceed = useMemo(() => !!pickupDate && !!deliveryDate, [pickupDate, deliveryDate]);
 
-  const openPicker = useCallback((k: PickerKind) => setPicker(k), []);
+  const openPicker = useCallback((k: PickerKind) => {
+    console.log('[PostLoadStep3] Opening picker for:', k);
+    setPicker(k);
+  }, []);
   const closePicker = useCallback(() => setPicker(null), []);
 
   const onConfirm = useCallback((d: Date) => {
+    console.log('[PostLoadStep3] Calendar confirmed date:', d, 'for picker:', picker);
     if (picker === 'pickup') {
       setPickupDate(d);
+      setField('pickupDate', d);
     } else if (picker === 'delivery') {
       setDeliveryDate(d);
+      setField('deliveryDate', d);
     } else if (picker === 'deliveryLocal') {
       setDeliveryLocalDate(d);
       // Update the delivery local date/time in the draft
       const currentTime = draft.deliveryDateLocal ? draft.deliveryDateLocal.split('T')[1] || '17:00' : '17:00';
       const newDateTime = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${currentTime}`;
+      console.log('[PostLoadStep3] Setting deliveryDateLocal to:', newDateTime);
       setField('deliveryDateLocal', newDateTime);
     }
     setPicker(null);
@@ -382,20 +389,18 @@ export default function PostLoadStep3() {
                 <View style={styles.timeRow}>
                   <View style={styles.flex1}>
                     <Text style={styles.smallLabel}>Date (YYYY-MM-DD)</Text>
-                    <ScrollView keyboardShouldPersistTaps="handled">
-                      <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => openPicker('deliveryLocal')} testID="deliveryLocalDateBtn">
-                        <Text style={styles.dateText} testID="deliveryLocalDateText">{(draft.deliveryDateLocal || '').split('T')[0] || 'YYYY-MM-DD'}</Text>
-                      </Pressable>
-                    </ScrollView>
+                    <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => openPicker('deliveryLocal')} testID="deliveryLocalDateBtn">
+                      <Text style={styles.dateText} testID="deliveryLocalDateText">
+                        {deliveryLocalDate ? formatDateLabel(deliveryLocalDate) : (draft.deliveryDateLocal || '').split('T')[0] || 'Select date'}
+                      </Text>
+                    </Pressable>
                   </View>
                   <View style={styles.spacer12} />
                   <View style={styles.flex1}>
                     <Text style={styles.smallLabel}>Time (HH:MM)</Text>
-                    <ScrollView keyboardShouldPersistTaps="handled">
-                      <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => {}}>
-                        <Text style={styles.dateText} selectable testID="deliveryLocalTimeText">{(draft.deliveryDateLocal || '').split('T')[1] || 'HH:MM'}</Text>
-                      </Pressable>
-                    </ScrollView>
+                    <Pressable style={styles.inputLike} accessibilityRole="button" onPress={() => {}}>
+                      <Text style={styles.dateText} selectable testID="deliveryLocalTimeText">{(draft.deliveryDateLocal || '').split('T')[1] || 'HH:MM'}</Text>
+                    </Pressable>
                   </View>
                 </View>
               </View>
