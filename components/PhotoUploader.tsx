@@ -548,9 +548,18 @@ export function PhotoUploader({
 
   const handleAddPhotos = useCallback(async () => {
     try {
+      // Enhanced validation for photo limits
       if (state.photos.length >= effectiveMaxPhotos) {
-        toast.show(`Maximum ${effectiveMaxPhotos} photos allowed`, 'warning');
+        const message = entityType === 'load' && loadType === 'vehicle' 
+          ? `Vehicle loads require exactly ${effectiveMaxPhotos} photos (mandatory for protection)`
+          : `Maximum ${effectiveMaxPhotos} photos allowed`;
+        toast.show(message, 'warning');
         return;
+      }
+      
+      // Check if we need more photos for vehicle loads
+      if (entityType === 'load' && loadType === 'vehicle' && state.photos.length === 0) {
+        toast.show('Add 5 photos for vehicle loads (mandatory for protection)', 'info');
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -573,6 +582,15 @@ export function PhotoUploader({
         let validFiles = 0;
         let errorFiles = 0;
         
+        // Additional validation for vehicle loads
+        if (entityType === 'load' && loadType === 'vehicle') {
+          const totalAfterUpload = state.photos.length + filesToUpload.length;
+          if (totalAfterUpload > effectiveMaxPhotos) {
+            toast.show(`Vehicle loads require exactly ${effectiveMaxPhotos} photos. You can add ${effectiveMaxPhotos - state.photos.length} more.`, 'warning');
+            return;
+          }
+        }
+        
         filesToUpload.forEach((asset) => {
           const validationError = validateFile(asset as any);
           if (validationError) {
@@ -590,11 +608,25 @@ export function PhotoUploader({
           });
         });
         
-        // Show summary message
+        // Show summary message with validation context
         if (validFiles > 0 && errorFiles > 0) {
           toast.show(`${validFiles} photos uploading, ${errorFiles} failed validation`, 'warning');
         } else if (validFiles > 1) {
-          toast.show(`${validFiles} photos uploading...`, 'success');
+          const remainingNeeded = entityType === 'load' && loadType === 'vehicle' 
+            ? Math.max(0, effectiveMinPhotos - (state.photos.length + validFiles))
+            : 0;
+          if (remainingNeeded > 0) {
+            toast.show(`${validFiles} photos uploading... ${remainingNeeded} more needed for vehicle load`, 'info');
+          } else {
+            toast.show(`${validFiles} photos uploading...`, 'success');
+          }
+        } else if (validFiles === 1) {
+          const remainingNeeded = entityType === 'load' && loadType === 'vehicle' 
+            ? Math.max(0, effectiveMinPhotos - (state.photos.length + 1))
+            : 0;
+          if (remainingNeeded > 0) {
+            toast.show(`Photo uploading... ${remainingNeeded} more needed for vehicle load`, 'info');
+          }
         }
         
         if (result.assets.length > perPickLimit) {
@@ -609,9 +641,18 @@ export function PhotoUploader({
 
   const handleTakePhoto = useCallback(async () => {
     try {
+      // Enhanced validation for photo limits
       if (state.photos.length >= effectiveMaxPhotos) {
-        toast.show(`Maximum ${effectiveMaxPhotos} photos allowed`, 'warning');
+        const message = entityType === 'load' && loadType === 'vehicle' 
+          ? `Vehicle loads require exactly ${effectiveMaxPhotos} photos (mandatory for protection)`
+          : `Maximum ${effectiveMaxPhotos} photos allowed`;
+        toast.show(message, 'warning');
         return;
+      }
+      
+      // Check if we need more photos for vehicle loads
+      if (entityType === 'load' && loadType === 'vehicle' && state.photos.length === 0) {
+        toast.show('Add 5 photos for vehicle loads (mandatory for protection)', 'info');
       }
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
       if (!camPerm.granted) {
@@ -934,8 +975,16 @@ export function PhotoUploader({
           <AlertCircle color={theme.colors.warning} size={20} />
           <Text style={styles.warningText}>
             {entityType === 'load' && loadType === 'vehicle' 
-              ? `Vehicle loads require exactly ${effectiveMinPhotos} photos (mandatory for protection).`
-              : `You need at least ${effectiveMinPhotos} photos to publish (up to ${effectiveMaxPhotos} allowed).`}
+              ? `Vehicle loads require exactly ${effectiveMinPhotos} photos (mandatory for protection). ${Math.max(0, effectiveMinPhotos - completedPhotos)} more needed.`
+              : `You need at least ${effectiveMinPhotos} photos to publish (up to ${effectiveMaxPhotos} allowed). ${Math.max(0, effectiveMinPhotos - completedPhotos)} more needed.`}
+          </Text>
+        </View>
+      )}
+      
+      {canPublish && entityType === 'load' && loadType === 'vehicle' && completedPhotos === effectiveMinPhotos && (
+        <View style={styles.successContainer}>
+          <Text style={styles.successText}>
+            ✅ Vehicle load photos complete! All ${effectiveMinPhotos} mandatory photos uploaded.
           </Text>
         </View>
       )}
@@ -1261,6 +1310,18 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: theme.fontSize.md,
     color: theme.colors.danger,
+  },
+  successContainer: {
+    backgroundColor: theme.colors.success + '20',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginTop: theme.spacing.md,
+  },
+  successText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.success,
+    fontWeight: '600' as const,
+    textAlign: 'center',
   },
 });
 
