@@ -5,6 +5,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { startAudit, endAudit } from './performanceAudit';
 
 // Production Firebase Storage implementation
 // Mock Storage implementation for development fallback
@@ -243,11 +244,13 @@ export async function testFirebaseConnectivity(): Promise<{
 
 // Enhanced Firebase auth with robust retry logic and user-friendly messages
 export async function ensureFirebaseAuth(): Promise<boolean> {
+  startAudit('firebase-auth-ensure');
   try {
     if (auth?.currentUser) {
       console.log("[AUTH] ✅ Auth optimized - Already authenticated:", auth.currentUser.uid);
       console.log("[AUTH] User type:", auth.currentUser.isAnonymous ? 'Anonymous' : 'Registered');
       console.log("[AUTH] ✅ Auth optimized - Ready for photo uploads");
+      endAudit('firebase-auth-ensure', { success: true, cached: true });
       return true;
     }
 
@@ -257,6 +260,7 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
 
     // Wait for auth to be ready first with timeout
     try {
+      startAudit('auth-state-listener');
       await Promise.race([
         new Promise<void>((resolve) => {
           const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -268,7 +272,9 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
           setTimeout(() => reject(new Error('Auth state timeout')), 5000)
         )
       ]);
+      endAudit('auth-state-listener', { success: true });
     } catch (e) {
+      endAudit('auth-state-listener', { success: false, timeout: true });
       console.warn('[AUTH] Auth state listener timeout, proceeding anyway');
     }
 
@@ -276,12 +282,15 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     if (auth?.currentUser) {
       console.log("[AUTH] ✅ Auth optimized - User was already signed in:", auth.currentUser.uid);
       console.log("[AUTH] ✅ Auth optimized - Sign in successful");
+      endAudit('firebase-auth-ensure', { success: true, alreadySignedIn: true });
       return true;
     }
 
     // Use retry logic with exponential backoff
     console.log("[AUTH] Auth optimized - Using retry logic for robust authentication...");
+    startAudit('firebase-auth-retry');
     const authSuccess = await retryFirebaseAuth(3);
+    endAudit('firebase-auth-retry', { success: authSuccess });
     
     if (authSuccess && auth?.currentUser) {
       console.log("[AUTH] ✅ Auth optimized - Retry authentication successful:", auth.currentUser.uid);
@@ -293,10 +302,12 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
         providerId: auth.currentUser.providerId
       });
       console.log("[AUTH] ✅ Auth optimized - Sign in successful");
+      endAudit('firebase-auth-ensure', { success: true, retrySuccess: true });
       return true;
     }
 
     console.warn('[AUTH] ❌ Auth optimization failed - All retry attempts unsuccessful');
+    endAudit('firebase-auth-ensure', { success: false, allRetriesFailed: true });
     return false;
   } catch (error: any) {
     const code = error?.code ?? 'unknown';
@@ -331,6 +342,7 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
 
     // Don't block app startup - graceful degradation
     console.log('[AUTH] 💡 Auth optimized - Continuing with fallback mode');
+    endAudit('firebase-auth-ensure', { success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     return false;
   }
 }

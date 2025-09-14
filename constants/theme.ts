@@ -4,6 +4,7 @@ export type ThemeColors = {
   success: string;
   warning: string;
   danger: string;
+  error: string;
   dark: string;
   gray: string;
   lightGray: string;
@@ -79,6 +80,7 @@ export const lightTheme: Theme = {
     success: '#10b981',
     warning: '#f59e0b',
     danger: '#ef4444',
+    error: '#ef4444',
     dark: '#111827',
     gray: '#6b7280',
     lightGray: '#f3f4f6',
@@ -106,6 +108,7 @@ export const darkTheme: Theme = {
     success: '#34d399',
     warning: '#fbbf24',
     danger: '#f87171',
+    error: '#f87171',
     dark: '#F9FAFB',
     gray: '#9CA3AF',
     lightGray: '#111827',

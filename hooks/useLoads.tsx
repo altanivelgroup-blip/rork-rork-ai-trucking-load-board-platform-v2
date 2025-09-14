@@ -11,6 +11,7 @@ import { LOADS_COLLECTION, LOAD_STATUS } from '@/lib/loadSchema';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { collection, getDocs, limit, onSnapshot, orderBy, query, where, QueryConstraint } from 'firebase/firestore';
 import { getCache, setCache } from '@/utils/simpleCache';
+import { startAudit, endAudit, auditAsync } from '@/utils/performanceAudit';
 
 interface GeoPoint { lat: number; lng: number }
 
@@ -217,11 +218,14 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   }, [USER_POSTED_LOADS_KEY, reviveLoad, isExpired]);
 
   const refreshLoads = useCallback(async () => {
+    startAudit('refreshLoads', { source: 'useLoads' });
     setIsLoading(true);
     setSyncStatus('syncing');
     try {
       try {
+        startAudit('cache-check', { key: CACHE_KEY });
         const cached = await getCache<Load[]>(CACHE_KEY);
+        endAudit('cache-check', { hit: cached.hit, dataLength: cached.data?.length });
         if (cached.hit && Array.isArray(cached.data)) {
           console.log('[Loads] Loading from cache...');
           setLoads(cached.data ?? []);
@@ -233,18 +237,26 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       
       if (!online) {
         console.log('[Loads] Offline: showing cached loads');
+        startAudit('offline-persisted-read');
         const persisted = await readPersisted();
+        endAudit('offline-persisted-read', { count: persisted.length });
         setLoads(prev => mergeUniqueById(mockLoads, persisted));
         setSyncStatus('idle');
+        endAudit('refreshLoads', { success: true, mode: 'offline' });
         return;
       }
 
+      startAudit('firebase-auth');
       const authed = await ensureFirebaseAuth();
+      endAudit('firebase-auth', { success: authed });
       const { db } = getFirebase();
       if (!authed || !db) {
         console.log('[Loads] Firebase not available, using mock + persisted');
+        startAudit('fallback-persisted-read');
         const persisted = await readPersisted();
+        endAudit('fallback-persisted-read', { count: persisted.length });
         setLoads(mergeUniqueById(mockLoads, persisted));
+        endAudit('refreshLoads', { success: true, mode: 'fallback' });
         return;
       }
 
@@ -255,6 +267,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       ];
       let snap;
       try {
+        startAudit('firestore-query-ordered', { collection: LOADS_COLLECTION, limit: 50 });
         const qOrdered = query(
           collection(db, LOADS_COLLECTION),
           ...baseConstraints,
@@ -263,16 +276,21 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         const orderedFetch = getDocs(qOrdered);
         const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('QUERY_TIMEOUT_ORDERED')), 4000));
         snap = await Promise.race([orderedFetch, timeout]) as typeof snap;
+        endAudit('firestore-query-ordered', { success: true, docCount: snap.docs.length });
       } catch (e: any) {
+        endAudit('firestore-query-ordered', { success: false, error: e?.code || e?.message });
         if (e?.code === 'failed-precondition') {
           console.warn('[Loads] Missing Firestore index for ordered query. Falling back without orderBy.');
+          startAudit('firestore-query-unordered-fallback');
           const qUnordered = query(
             collection(db, LOADS_COLLECTION),
             ...baseConstraints,
           );
           snap = await getDocs(qUnordered);
+          endAudit('firestore-query-unordered-fallback', { success: true, docCount: snap.docs.length });
         } else if (typeof e?.message === 'string' && e.message === 'QUERY_TIMEOUT_ORDERED') {
           console.warn('[Loads] Ordered query is slow. Retrying with smaller limit and without orderBy');
+          startAudit('firestore-query-smaller-limit', { limit: 25 });
           const qSmaller = query(
             collection(db, LOADS_COLLECTION),
             where('status', '==', LOAD_STATUS.OPEN),
@@ -280,6 +298,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
             limit(25),
           );
           snap = await getDocs(qSmaller);
+          endAudit('firestore-query-smaller-limit', { success: true, docCount: snap.docs.length });
         } else {
           throw e;
         }
@@ -332,25 +351,33 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         };
       };
 
+      startAudit('data-processing', { firestoreDocs: snap.docs.length });
       const fromFs = snap.docs.map(toLoad).filter((x): x is Load => x !== null);
       const persisted = await readPersisted();
       const mergedLoads = mergeUniqueById(fromFs.length ? fromFs : mockLoads, persisted);
+      endAudit('data-processing', { processedLoads: fromFs.length, persistedLoads: persisted.length, totalMerged: mergedLoads.length });
       
       setLoads(mergedLoads);
       setLastSyncTime(new Date());
       setSyncStatus('idle');
-      try { await setCache<Load[]>(CACHE_KEY, mergedLoads, 5 * 60 * 1000); } catch {}
+      startAudit('cache-write');
+      try { await setCache<Load[]>(CACHE_KEY, mergedLoads, 5 * 60 * 1000); endAudit('cache-write', { success: true }); } catch { endAudit('cache-write', { success: false }); }
       
       console.log(`[Loads] Successfully synced ${mergedLoads.length} loads from Firestore`);
+      endAudit('refreshLoads', { success: true, mode: 'firestore', totalLoads: mergedLoads.length });
     } catch (error) {
       console.error('Failed to refresh loads:', error);
       setSyncStatus('error');
       try {
+        startAudit('error-fallback-read');
         const persisted = await readPersisted();
         setLoads(mergeUniqueById(mockLoads, persisted));
+        endAudit('error-fallback-read', { success: true, count: persisted.length });
       } catch {
         setLoads([...mockLoads]);
+        endAudit('error-fallback-read', { success: false });
       }
+      endAudit('refreshLoads', { success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     } finally {
       setIsLoading(false);
     }

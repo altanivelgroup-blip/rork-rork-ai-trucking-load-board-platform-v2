@@ -15,6 +15,7 @@ import { useLiveLocation, GeoCoords } from '@/hooks/useLiveLocation';
 import { font, moderateScale } from '@/src/ui/scale';
 import { trpcClient } from '@/lib/trpc';
 import { OPENWEATHER_API_KEY, ORS_API_KEY, MAPBOX_TOKEN } from '@/utils/env';
+import { startAudit, endAudit } from '@/utils/performanceAudit';
 
 interface RecentLoadProps {
   id: string;
@@ -69,9 +70,18 @@ const RecentLoadRow = memo<RecentLoadProps & { distanceMiles?: number }>(({ id, 
 });
 
 export default function DashboardScreen() {
+  startAudit('dashboard-render');
   console.log('[Dashboard] rendering');
   const { user, isLoading } = useAuth();
   const { loads: actualLoads, filteredLoads } = useLoads();
+  
+  // Track component mount/unmount
+  React.useEffect(() => {
+    endAudit('dashboard-render');
+    return () => {
+      console.log('[PERF_AUDIT] Dashboard unmounting');
+    };
+  }, []);
   const isDriver = user?.role === 'driver';
   const isShipper = user?.role === 'shipper';
   const router = useRouter();
@@ -135,9 +145,12 @@ export default function DashboardScreen() {
       try {
         const hasKey: boolean = typeof OPENWEATHER_API_KEY === 'string' && !!OPENWEATHER_API_KEY;
         if (!currentLoc || !hasKey) { setWeather(null); return; }
+        startAudit('weather-api-call', { lat: currentLoc.latitude, lon: currentLoc.longitude });
         const res = await trpcClient.weather.current.query({ lat: currentLoc.latitude, lon: currentLoc.longitude, openWeatherKey: OPENWEATHER_API_KEY });
+        endAudit('weather-api-call', { success: true, hasData: !!res });
         setWeather(res ?? null);
       } catch (e) {
+        endAudit('weather-api-call', { success: false, error: e instanceof Error ? e.message : 'Unknown error' });
         console.warn('[Dashboard] weather fetch failed', e);
         setWeather(null);
       }

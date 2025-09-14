@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { LoadCard } from '@/components/LoadCard';
+import { startAudit, endAudit } from '@/utils/performanceAudit';
 
 export default function LoadsScreen() {
   const router = useRouter();
@@ -101,10 +102,13 @@ export default function LoadsScreen() {
   }, []);
   
   const handleRefresh = useCallback(async () => {
+    startAudit('loads-screen-refresh');
     setRefreshing(true);
     try {
       await refreshLoads();
+      endAudit('loads-screen-refresh', { success: true });
     } catch {
+      endAudit('loads-screen-refresh', { success: false });
       show('Failed to refresh loads', 'error');
     } finally {
       setRefreshing(false);
