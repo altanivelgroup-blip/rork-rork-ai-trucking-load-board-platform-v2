@@ -184,15 +184,17 @@ export async function testFirebaseConnectivity(): Promise<{
 }
 
 // Ensure we have an authenticated user (non-blocking for faster app startup)
+// Enhanced for PhotoUploader permissions
 export async function ensureFirebaseAuth(): Promise<boolean> {
   try {
     if (auth?.currentUser) {
       console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
       console.log("[AUTH] User type:", auth.currentUser.isAnonymous ? 'Anonymous' : 'Registered');
+      console.log("[AUTH] ✅ Ready for photo uploads");
       return true;
     }
 
-    console.log("[AUTH] Attempting anonymous sign-in...");
+    console.log("[AUTH] Attempting anonymous sign-in for photo uploads...");
     console.log("[AUTH] Project ID:", firebaseConfig.projectId);
     console.log("[AUTH] Auth domain:", firebaseConfig.authDomain);
 
@@ -207,6 +209,7 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     // If user is already signed in after waiting
     if (auth?.currentUser) {
       console.log("[AUTH] User was already signed in:", auth.currentUser.uid);
+      console.log("[AUTH] ✅ Ready for photo uploads");
       return true;
     }
 
@@ -216,7 +219,7 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
       setTimeout(() => reject({ code: 'timeout', message: 'Auth timeout after 20s' }), timeoutMs)
     );
 
-    console.log("[AUTH] Starting anonymous sign-in process...");
+    console.log("[AUTH] Starting anonymous sign-in process for photo permissions...");
     const result = await Promise.race([
       signInAnonymously(auth),
       timer,
@@ -235,6 +238,7 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
       // Verify the user is properly set
       if (auth.currentUser?.uid === result.user.uid) {
         console.log("[AUTH] ✅ User properly set in auth instance");
+        console.log("[AUTH] ✅ Photo upload permissions granted");
         return true;
       } else {
         console.warn("[AUTH] ⚠️ User not properly set in auth instance");
@@ -273,6 +277,7 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     }
 
     // Don't block app startup - just proceed without Firebase
+    console.log('[AUTH] 💡 Continuing without Firebase auth - photo uploads will use fallback');
     return false;
   }
 }

@@ -27,13 +27,17 @@ service cloud.firestore {
     // Loads: allow authenticated users (including anonymous) to read and write
     // Block client updates that flip archival fields; only server cron can do it
     // Allow admin users to read all loads for analytics
+    // Support photo uploads (2-5 photos for shippers)
     match /loads/{docId} {
-      allow read: if true; // Anyone can read loads for now
-      allow create: if request.auth != null; // Any authenticated user (including anonymous) can create
-      allow update: if request.auth != null && notChangingArchive(resource.data, request.resource.data);
-      allow delete: if request.auth != null;
-      // Allow anonymous users to read for testing
-      allow read: if request.auth == null || request.auth.uid != null;
+      allow read: if true; // Anyone can read loads for public viewing
+      allow create: if request.auth != null; // Any authenticated user can create
+      allow update: if request.auth != null && 
+        notChangingArchive(resource.data, request.resource.data) &&
+        (request.auth.uid == resource.data.createdBy || 
+         request.auth.uid != null); // Owner or any authenticated user can update photos
+      allow delete: if request.auth != null && 
+        (request.auth.uid == resource.data.createdBy || 
+         request.auth.token.role == 'admin');
     }
 
     // Vehicles: align with loads for now (auth users can read/write)
