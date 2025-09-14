@@ -41,16 +41,28 @@ function formatUSD(amount: number): string {
 }
 
 const RecentLoadRow = memo<RecentLoadProps & { distanceMiles?: number }>(({ id, originCity, originState, destinationCity, destinationState, pickupDate, weight, rate, onPress, distanceMiles }) => {
-  const bidsCount = Math.floor(Math.random() * 5) + 1;
+  const bidsCount = useMemo(() => {
+    // Use ID for consistent demo behavior instead of random
+    return (id.charCodeAt(0) % 5) + 1;
+  }, [id]);
+  
+  const isRushDelivery = useMemo(() => {
+    // Use ID for consistent demo behavior instead of random
+    return id.charCodeAt(0) % 3 === 0;
+  }, [id]);
+  
+  const handlePress = useCallback(() => {
+    onPress(id);
+  }, [onPress, id]);
   
   return (
-    <TouchableOpacity key={id} onPress={() => onPress(id)} style={styles.loadCard} testID={`recent-load-${id}`}>
+    <TouchableOpacity onPress={handlePress} style={styles.loadCard} testID={`recent-load-${id}`}>
       {/* Status Pills Row */}
       <View style={styles.statusRow}>
         <View style={styles.statusBadge}>
           <Text style={styles.statusText}>Active</Text>
         </View>
-        {Math.random() > 0.7 && (
+        {isRushDelivery && (
           <View style={styles.rushBadge}>
             <Text style={styles.rushText}>Rush Delivery</Text>
           </View>
@@ -68,6 +80,8 @@ const RecentLoadRow = memo<RecentLoadProps & { distanceMiles?: number }>(({ id, 
     </TouchableOpacity>
   );
 });
+
+RecentLoadRow.displayName = 'RecentLoadRow';
 
 export default function DashboardScreen() {
   startAudit('dashboard-render');

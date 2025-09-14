@@ -85,10 +85,21 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   const CACHE_KEY = 'cache:loads:open:v1';
 
   const mergeUniqueById = useCallback((primary: Load[], extras: Load[]): Load[] => {
+    console.log('[PERF_AUDIT] Merge unique loads - start', { primaryCount: primary.length, extrasCount: extras.length });
+    const startTime = performance.now();
+    
     const map = new Map<string, Load>();
     for (const l of extras) map.set(l.id, l);
     for (const l of primary) if (!map.has(l.id)) map.set(l.id, l);
-    return Array.from(map.values());
+    const result = Array.from(map.values());
+    
+    const endTime = performance.now();
+    console.log('[PERF_AUDIT] Merge unique loads - complete', { 
+      duration: `${(endTime - startTime).toFixed(2)}ms`,
+      resultCount: result.length
+    });
+    
+    return result;
   }, []);
 
   // Always define memoized values in the same order
@@ -102,7 +113,10 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   }, [loads]);
 
   const filteredLoads = useMemo(() => {
-    return loads.filter(load => {
+    console.log('[PERF_AUDIT] Filtering loads - start', { loadsCount: loads.length, filtersCount: Object.keys(filters).length });
+    const startTime = performance.now();
+    
+    const result = loads.filter(load => {
       if (filters.vehicleType && load.vehicleType !== filters.vehicleType) return false;
       if (filters.minRate && load.rate < filters.minRate) return false;
       if (filters.maxDistance && load.distance > filters.maxDistance) return false;
@@ -119,13 +133,33 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       }
       return load.status === 'available';
     });
-  }, [loads, filters]);
+    
+    const endTime = performance.now();
+    console.log('[PERF_AUDIT] Filtering loads - complete', { 
+      duration: `${(endTime - startTime).toFixed(2)}ms`,
+      inputCount: loads.length,
+      outputCount: result.length
+    });
+    
+    return result;
+  }, [loads, filters, haversineMiles]);
 
   const aiRecommendedLoads = useMemo(() => {
-    return loads
+    console.log('[PERF_AUDIT] AI recommended loads - start', { loadsCount: loads.length });
+    const startTime = performance.now();
+    
+    const result = loads
       .filter(load => load.aiScore && load.aiScore > 85 && load.status === 'available')
       .sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0))
       .slice(0, 5);
+    
+    const endTime = performance.now();
+    console.log('[PERF_AUDIT] AI recommended loads - complete', { 
+      duration: `${(endTime - startTime).toFixed(2)}ms`,
+      resultCount: result.length
+    });
+    
+    return result;
   }, [loads]);
 
   const acceptLoad = useCallback(async (loadId: string) => {

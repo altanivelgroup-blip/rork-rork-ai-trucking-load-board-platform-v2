@@ -40,6 +40,14 @@ export default function LoadsScreen() {
 
   
   const loads = useMemo(() => {
+    console.log('[PERF_AUDIT] Loads screen filtering - start', { 
+      filteredLoadsCount: filteredLoads.length,
+      showBulkOnly,
+      showLastImportOnly,
+      lastBulkImportId
+    });
+    const startTime = performance.now();
+    
     let filtered = filteredLoads;
     
     // Apply bulk filter if enabled
@@ -52,12 +60,19 @@ export default function LoadsScreen() {
       filtered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
     }
     
+    const endTime = performance.now();
+    console.log('[PERF_AUDIT] Loads screen filtering - complete', { 
+      duration: `${(endTime - startTime).toFixed(2)}ms`,
+      inputCount: filteredLoads.length,
+      outputCount: filtered.length
+    });
+    
     return filtered;
   }, [filteredLoads, showBulkOnly, showLastImportOnly, lastBulkImportId]);
   
-  const handleLoadPress = (loadId: string) => {
+  const handleLoadPress = useCallback((loadId: string) => {
     router.push({ pathname: '/load-details', params: { loadId } });
-  };
+  }, [router]);
   
   const handleOpenFilters = useCallback(() => {
     setShowFiltersModal(true);
@@ -332,20 +347,23 @@ export default function LoadsScreen() {
             </View>
           ) : (
             <View style={styles.loadsContainer}>
-              {loads.map((load: any, index: number) => (
-                <View key={load.id}>
-                  <View style={styles.loadCardWrapper}>
-                    <LoadCard
-                      load={load}
-                      onPress={() => handleLoadPress(load.id)}
-                      showBids={true}
-                      showStatus={true}
-                    />
+              {loads.map((load: any, index: number) => {
+                const handlePress = () => handleLoadPress(load.id);
+                return (
+                  <View key={load.id}>
+                    <View style={styles.loadCardWrapper}>
+                      <LoadCard
+                        load={load}
+                        onPress={handlePress}
+                        showBids={true}
+                        showStatus={true}
+                      />
+                    </View>
+                    {/* Gray Divider */}
+                    {index < loads.length - 1 && <View style={styles.divider} />}
                   </View>
-                  {/* Gray Divider */}
-                  {index < loads.length - 1 && <View style={styles.divider} />}
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </ScrollView>

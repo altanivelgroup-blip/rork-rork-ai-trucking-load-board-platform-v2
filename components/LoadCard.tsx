@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Load } from '@/types';
 
@@ -21,7 +21,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
     try { onPress(); } catch (err) { console.log('[LoadCard] onPress error', err); }
   }, [onPress]);
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = useCallback((amount: number) => {
     if (!amount || typeof amount !== 'number' || amount < 0) return '$0';
     const sanitizedAmount = Math.min(amount, 999999); // Cap at reasonable max
     return new Intl.NumberFormat('en-US', {
@@ -30,9 +30,9 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(sanitizedAmount);
-  };
+  }, []);
 
-  const getStatusBadge = () => {
+  const statusBadgeData = useMemo(() => {
     if (!showStatus) return null;
     
     const status = load.status === 'available' || load.status === 'OPEN' ? 'Active' : 
@@ -43,17 +43,25 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
                            status === 'Completed' ? '#F44336' : 
                            status === 'Booked' ? '#4CAF50' : '#4CAF50';
     
+    return { status, backgroundColor };
+  }, [showStatus, load.status]);
+
+  const getStatusBadge = () => {
+    if (!statusBadgeData) return null;
+    
     return (
-      <View style={[styles.statusBadge, { backgroundColor }]}>
-        <Text style={styles.statusText}>{status}</Text>
+      <View style={[styles.statusBadge, { backgroundColor: statusBadgeData.backgroundColor }]}>
+        <Text style={styles.statusText}>{statusBadgeData.status}</Text>
       </View>
     );
   };
 
+  const isRushDelivery = useMemo(() => {
+    // Show rush badge based on aiScore or use load ID for consistent demo behavior
+    return (load.aiScore && load.aiScore > 90) || load.id.charCodeAt(0) % 3 === 0;
+  }, [load.aiScore, load.id]);
+
   const getRushBadge = () => {
-    // Show rush badge based on aiScore or randomly for demo
-    const isRushDelivery = (load.aiScore && load.aiScore > 90) || Math.random() > 0.7;
-    
     if (isRushDelivery) {
       return (
         <View style={styles.rushBadge}>
@@ -64,18 +72,28 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
     return null;
   };
 
-  const originText = typeof load.origin === 'string'
-    ? load.origin
-    : `${load.origin?.city ?? 'Dallas'}, ${load.origin?.state ?? 'TX'}`;
+  const originText = useMemo(() => {
+    return typeof load.origin === 'string'
+      ? load.origin
+      : `${load.origin?.city ?? 'Dallas'}, ${load.origin?.state ?? 'TX'}`;
+  }, [load.origin]);
   
-  const destText = typeof load.destination === 'string'
-    ? load.destination
-    : `${load.destination?.city ?? 'Chicago'}, ${load.destination?.state ?? 'IL'}`;
+  const destText = useMemo(() => {
+    return typeof load.destination === 'string'
+      ? load.destination
+      : `${load.destination?.city ?? 'Chicago'}, ${load.destination?.state ?? 'IL'}`;
+  }, [load.destination]);
 
-  const bidsCount = Math.floor(Math.random() * 5) + 1;
-  const statusText = load.status === 'available' || load.status === 'OPEN' ? 'Pending' : 
-                    load.status === 'delivered' ? 'Completed' : 
-                    load.status === 'in-transit' ? 'Booked' : 'Pending';
+  const bidsCount = useMemo(() => {
+    // Use load ID for consistent demo behavior instead of random
+    return (load.id.charCodeAt(0) % 5) + 1;
+  }, [load.id]);
+  
+  const statusText = useMemo(() => {
+    return load.status === 'available' || load.status === 'OPEN' ? 'Pending' : 
+           load.status === 'delivered' ? 'Completed' : 
+           load.status === 'in-transit' ? 'Booked' : 'Pending';
+  }, [load.status]);
 
   return (
     <Pressable
