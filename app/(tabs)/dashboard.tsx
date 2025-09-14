@@ -396,46 +396,6 @@ export default function DashboardScreen() {
             )}
           </View>
 
-          <View style={styles.statsRow}>
-            {isDriver ? (
-              <>
-                <View style={styles.statCard} testID="stat-available-loads">
-                  <Truck size={moderateScale(20)} color={theme.colors.primary} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{actualLoads?.length ?? 0}</Text>
-                  <Text style={styles.statLabel} allowFontScaling={false}>Available Loads</Text>
-                </View>
-                <View style={styles.statCard} testID="stat-rating">
-                  <Star size={moderateScale(20)} color={theme.colors.warning} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{user?.rating?.toString() ?? '4.8'}</Text>
-                  <Text style={styles.statLabel} allowFontScaling={false}>Your Rating</Text>
-                </View>
-                <View style={styles.statCard} testID="stat-completed">
-                  <Package size={moderateScale(20)} color={theme.colors.gray} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{user?.completedLoads ?? 24}</Text>
-                  <Text style={styles.statLabel} allowFontScaling={false}>Completed</Text>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.statCard} testID="stat-posted-loads">
-                  <Package size={moderateScale(20)} color={theme.colors.primary} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{(user as any)?.totalLoadsPosted ?? 0}</Text>
-                  <Text style={styles.statLabel} allowFontScaling={false}>Posted Loads</Text>
-                </View>
-                <View style={styles.statCard} testID="stat-active-loads">
-                  <Truck size={moderateScale(20)} color={theme.colors.warning} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{(user as any)?.activeLoads ?? 0}</Text>
-                  <Text style={styles.statLabel} allowFontScaling={false}>Active Loads</Text>
-                </View>
-                <View style={styles.statCard} testID="stat-revenue">
-                  <Star size={moderateScale(20)} color={theme.colors.gray} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{formatUSD((user as any)?.totalRevenue ?? 0)}</Text>
-                  <Text style={styles.statLabel} allowFontScaling={false}>Revenue</Text>
-                </View>
-              </>
-            )}
-          </View>
-
           {isDriver && (
             <View style={styles.describeLoadRow}>
               <VoiceCapture
@@ -495,6 +455,46 @@ export default function DashboardScreen() {
               ))}
             </View>
           )}
+
+          <View style={styles.statsRow}>
+            {isDriver ? (
+              <>
+                <View style={styles.statCard} testID="stat-available-loads">
+                  <Truck size={moderateScale(20)} color={theme.colors.primary} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{actualLoads?.length ?? 0}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Available Loads</Text>
+                </View>
+                <View style={styles.statCard} testID="stat-rating">
+                  <Star size={moderateScale(20)} color={theme.colors.warning} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{user?.rating?.toString() ?? '4.8'}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Your Rating</Text>
+                </View>
+                <View style={styles.statCard} testID="stat-completed">
+                  <Package size={moderateScale(20)} color={theme.colors.gray} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{user?.completedLoads ?? 24}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Completed</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.statCard} testID="stat-posted-loads">
+                  <Package size={moderateScale(20)} color={theme.colors.primary} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{(user as any)?.totalLoadsPosted ?? 0}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Posted Loads</Text>
+                </View>
+                <View style={styles.statCard} testID="stat-active-loads">
+                  <Truck size={moderateScale(20)} color={theme.colors.warning} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{(user as any)?.activeLoads ?? 0}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Active Loads</Text>
+                </View>
+                <View style={styles.statCard} testID="stat-revenue">
+                  <Star size={moderateScale(20)} color={theme.colors.gray} />
+                  <Text style={styles.statValue} allowFontScaling={false}>{formatUSD((user as any)?.totalRevenue ?? 0)}</Text>
+                  <Text style={styles.statLabel} allowFontScaling={false}>Revenue</Text>
+                </View>
+              </>
+            )}
+          </View>
 
           <View style={styles.sectionHeader}>
             {isHydrating && <Text style={styles.viewAllText}>Loading preferences…</Text>}
