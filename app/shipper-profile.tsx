@@ -303,7 +303,7 @@ export default function ShipperProfileScreen() {
             </View>
             <TouchableOpacity 
               style={styles.viewLoadsButton}
-              onPress={() => router.push('/shipper-loads')}
+              onPress={() => router.push('/(tabs)/loads')}
             >
               <Text style={styles.viewLoadsButtonText}>View All Loads</Text>
             </TouchableOpacity>

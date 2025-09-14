@@ -173,7 +173,7 @@ function RootLayoutNav() {
       <Stack.Screen name="blog" options={{ title: "Blog" }} />
       <Stack.Screen name="blog/[slug]" options={{ title: "Blog Post" }} />
       <Stack.Screen name="shipper-dashboard" options={{ title: "Shipper Dashboard" }} />
-      <Stack.Screen name="shipper-loads" options={{ title: "My Loads", headerShown: false }} />
+      <Stack.Screen name="shipper-loads" options={{ title: "My Loads" }} />
       <Stack.Screen name="shipper-profile" options={{ title: "Shipper Profile" }} />
       <Stack.Screen name="post-load" options={{ title: "Post Load" }} />
       <Stack.Screen name="load-edit" options={{ title: "Edit Load" }} />

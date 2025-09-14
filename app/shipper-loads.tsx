@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { DollarSign, Phone, Mail, Plus, X, Upload, Trash2, ToggleLeft, ToggleRight, ArrowLeft } from 'lucide-react-native';
+import { DollarSign, Phone, Mail, Plus, X, Upload, Trash2, ToggleLeft, ToggleRight, ArrowLeft, Home } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
 import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
@@ -189,7 +189,7 @@ export default function ShipperLoadsScreen() {
             testID="back-button"
             activeOpacity={0.7}
           >
-            <ArrowLeft size={28} color={theme.colors.white} />
+            <ArrowLeft size={24} color={theme.colors.dark} />
           </TouchableOpacity>
         ),
         headerRight: () => (
@@ -415,6 +415,24 @@ export default function ShipperLoadsScreen() {
           onConfirm={() => deleteConfirmModal.loadId && handleDeleteLoad(deleteConfirmModal.loadId)}
           onCancel={() => setDeleteConfirmModal({ visible: false, loadId: null })}
         />
+        
+        {/* Persistent Back to Menu Button */}
+        <TouchableOpacity 
+          style={[styles.backToMenuButton, { bottom: insets.bottom + 20 }]}
+          onPress={() => {
+            try {
+              router.replace('/(tabs)/shipper');
+            } catch (error) {
+              console.error('Navigation error:', error);
+              router.replace('/(tabs)');
+            }
+          }}
+          testID="back-to-menu-button"
+          activeOpacity={0.8}
+        >
+          <Home size={20} color={theme.colors.white} />
+          <Text style={styles.backToMenuText}>Menu</Text>
+        </TouchableOpacity>
       </View>
     </>
   );
@@ -677,19 +695,14 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.sm,
   },
   backButton: {
-    padding: theme.spacing.md,
-    marginLeft: theme.spacing.sm,
+    padding: theme.spacing.sm,
+    marginLeft: theme.spacing.xs,
     borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.primary,
-    minWidth: 48,
-    minHeight: 48,
+    backgroundColor: 'transparent',
+    minWidth: 40,
+    minHeight: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
   emptyActions: {
     flexDirection: 'row',
@@ -723,5 +736,26 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     color: '#EF4444',
+  },
+  backToMenuButton: {
+    position: 'absolute',
+    right: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  backToMenuText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.white,
   },
 });
