@@ -1,17 +1,36 @@
 import React, { useState } from 'react';
-import { Stack } from 'expo-router';
-import { View, Text, StyleSheet, Switch, ScrollView } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity } from 'react-native';
 import { theme } from '@/constants/theme';
-import { Bell, Mail, MessageSquare } from 'lucide-react-native';
+import { Bell, Mail, MessageSquare, ArrowLeft } from 'lucide-react-native';
 
 export default function NotificationsScreen() {
+  const router = useRouter();
   const [pushEnabled, setPushEnabled] = useState<boolean>(true);
   const [emailEnabled, setEmailEnabled] = useState<boolean>(true);
   const [smsEnabled, setSmsEnabled] = useState<boolean>(false);
 
   return (
     <View style={styles.container} testID="notifications-screen">
-      <Stack.Screen options={{ title: 'Notifications' }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Notifications',
+          headerLeft: () => (
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)');
+                }
+              }}
+            >
+              <ArrowLeft size={24} color={theme.colors.dark} />
+            </TouchableOpacity>
+          )
+        }} 
+      />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.sectionTitle}>Channels</Text>
         <View style={styles.card}>
@@ -49,6 +68,16 @@ function Row({ icon, title, subtitle, value, onChange, testID, disabled }: { ico
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
   scroll: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
+  backButton: {
+    padding: theme.spacing.sm,
+    marginLeft: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: 'transparent',
+    minWidth: 40,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   sectionTitle: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark, marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm },
   card: { backgroundColor: theme.colors.card, borderRadius: theme.borderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border },
   row: { paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.card, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border, flexDirection: 'row', alignItems: 'center' },

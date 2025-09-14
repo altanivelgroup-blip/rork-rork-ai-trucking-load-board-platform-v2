@@ -82,6 +82,22 @@ export default function ShipperProfileScreen() {
 
   const quickActions = [
     {
+      id: 'settings',
+      title: 'Settings',
+      subtitle: 'App preferences & privacy',
+      icon: Settings,
+      route: '/settings',
+      color: theme.colors.primary
+    },
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      subtitle: 'Manage alerts & updates',
+      icon: Shield,
+      route: '/notifications',
+      color: theme.colors.success
+    },
+    {
       id: 'membership',
       title: 'Membership',
       subtitle: 'Upgrade your plan',

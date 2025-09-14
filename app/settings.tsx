@@ -1,13 +1,14 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert } from 'react-native';
-import { Stack, Link } from 'expo-router';
-import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info, Phone, Crown } from 'lucide-react-native';
+import { Stack, Link, useRouter } from 'expo-router';
+import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info, Phone, Crown, ArrowLeft } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useSettings } from '@/hooks/useSettings';
 
 
 export default function SettingsScreen() {
   console.log('[Settings] Screen rendering');
+  const router = useRouter();
   const s = useSettings();
   console.log('[Settings] Settings loaded:', !!s);
 
@@ -56,7 +57,25 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Settings' }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Settings',
+          headerLeft: () => (
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)');
+                }
+              }}
+            >
+              <ArrowLeft size={24} color={theme.colors.dark} />
+            </TouchableOpacity>
+          )
+        }} 
+      />
       <ScrollView contentContainerStyle={styles.scroll}>
 
         
@@ -266,6 +285,16 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
   scroll: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
+  backButton: {
+    padding: theme.spacing.sm,
+    marginLeft: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: 'transparent',
+    minWidth: 40,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   sectionTitle: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark, marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm },
   card: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 1 },
   row: { paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.white, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center' },
