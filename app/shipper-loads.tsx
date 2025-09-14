@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { DollarSign, Phone, Mail, Plus, X, Upload, Trash2, ToggleLeft, ToggleRight } from 'lucide-react-native';
+import { DollarSign, Phone, Mail, Plus, X, Upload, Trash2, ToggleLeft, ToggleRight, ArrowLeft } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
 import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
@@ -161,7 +161,15 @@ export default function ShipperLoadsScreen() {
   return (
     <>
       <Stack.Screen options={{ 
-        title: 'Loads',
+        title: 'My Loads',
+        headerLeft: () => (
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+        ),
         headerRight: () => (
           <View style={styles.headerActions}>
             <TouchableOpacity 
