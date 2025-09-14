@@ -183,12 +183,17 @@ function enqueueUpload(job: () => Promise<void>) {
 }
 
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
-  const { storage } = getFirebase();
-  console.log('[PhotoUploader] ✅ Production upload to path:', path);
+  console.log('[PhotoUploader] ✅ PRODUCTION upload to path:', path);
   try {
-    // FIXED: Use proper Firebase Storage modular API
-    const actualStorage = (storage as any)._storage || storage;
-    const storageRef = ref(actualStorage, path);
+    // PRODUCTION FIXED: Use Firebase Storage modular API directly
+    const { getStorage } = await import('firebase/storage');
+    const { getFirebase } = await import('@/utils/firebase');
+    const { app } = getFirebase();
+    const storage = getStorage(app);
+    const storageRef = ref(storage, path);
+    
+    console.log('[PhotoUploader] Creating storage reference for path:', path);
+    console.log('[PhotoUploader] Storage bucket:', storage.app.options.storageBucket);
     
     // Use resumable upload with progress tracking
     const uploadTask = uploadBytesResumable(storageRef, blob, {
@@ -205,13 +210,15 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
         },
         (error) => {
           console.error('[PhotoUploader] Upload error:', error);
+          console.error('[PhotoUploader] Error code:', error.code);
+          console.error('[PhotoUploader] Error message:', error.message);
           reject(error);
         },
         async () => {
           // Upload completed successfully
           try {
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            console.log('[PhotoUploader] ✅ Production upload successful:', downloadURL);
+            console.log('[PhotoUploader] ✅ PRODUCTION upload successful:', downloadURL);
             resolve(downloadURL);
           } catch (urlError) {
             console.error('[PhotoUploader] Error getting download URL:', urlError);
@@ -774,14 +781,16 @@ export function PhotoUploader({
                 const url = photoToDelete.url;
                 if (url.includes('firebasestorage.googleapis.com')) {
                   // This is a real Firebase Storage URL, attempt to delete
-                  const { storage } = getFirebase();
-                  const actualStorage = (storage as any)._storage || storage;
+                  const { getStorage } = await import('firebase/storage');
+                  const { getFirebase } = await import('@/utils/firebase');
+                  const { app } = getFirebase();
+                  const storage = getStorage(app);
                   const pathMatch = url.match(/o\/(.*?)\?/);
                   if (pathMatch) {
                     const storagePath = decodeURIComponent(pathMatch[1]);
-                    const storageRef = ref(actualStorage, storagePath);
+                    const storageRef = ref(storage, storagePath);
                     await deleteObject(storageRef);
-                    console.log('[PhotoUploader] ✅ Production storage file deleted:', storagePath);
+                    console.log('[PhotoUploader] ✅ PRODUCTION storage file deleted:', storagePath);
                   }
                 } else {
                   console.log('[PhotoUploader] Skipping deletion for non-Firebase URL:', url);

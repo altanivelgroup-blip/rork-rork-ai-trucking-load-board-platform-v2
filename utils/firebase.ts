@@ -31,13 +31,15 @@ class MockStorage {
   }
 }
 
-// FIXED: Create a wrapper that provides both modular and legacy API compatibility
+// PRODUCTION FIXED: Create a wrapper that provides both modular and legacy API compatibility
 class FirebaseStorageWrapper {
   constructor(private storage: any) {}
   
-  // Legacy API compatibility for existing code
-  ref(path: string): MockStorageRef {
-    return new MockStorageRef(path);
+  // Legacy API compatibility for existing code - REMOVED for production
+  ref(path: string): any {
+    // Return the actual Firebase storage reference for production
+    const { ref } = require('firebase/storage');
+    return ref(this.storage, path);
   }
   
   // Expose the actual Firebase storage for modular API
