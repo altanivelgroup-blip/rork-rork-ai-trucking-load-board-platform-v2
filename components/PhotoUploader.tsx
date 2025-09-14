@@ -184,16 +184,41 @@ function enqueueUpload(job: () => Promise<void>) {
 
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
   const { storage } = getFirebase();
-  console.log('[PhotoUploader] Mock upload to path:', path);
+  console.log('[PhotoUploader] ✅ Production upload to path:', path);
   try {
-    const steps = [10, 25, 50, 75, 90, 100];
-    for (const progress of steps) {
-      updateProgress?.(progress);
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    const storageRef = storage.ref(path);
-    const result = await storageRef.put(blob);
-    return await result.ref.getDownloadURL();
+    // ✅ PRODUCTION: Use real Firebase Storage
+    const storageRef = ref(storage, path);
+    
+    // Use resumable upload with progress tracking
+    const uploadTask = uploadBytesResumable(storageRef, blob, {
+      contentType: mime,
+    });
+    
+    return new Promise((resolve, reject) => {
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          // Track upload progress
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          updateProgress?.(Math.round(progress));
+          console.log('[PhotoUploader] Upload progress:', Math.round(progress) + '%');
+        },
+        (error) => {
+          console.error('[PhotoUploader] Upload error:', error);
+          reject(error);
+        },
+        async () => {
+          // Upload completed successfully
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            console.log('[PhotoUploader] ✅ Production upload successful:', downloadURL);
+            resolve(downloadURL);
+          } catch (urlError) {
+            console.error('[PhotoUploader] Error getting download URL:', urlError);
+            reject(urlError);
+          }
+        }
+      );
+    });
   } catch (error: any) {
     console.error('[PhotoUploader] Upload error in uploadSmart:', error);
     throw error;
@@ -479,7 +504,7 @@ export function PhotoUploader({
           presetToOptions(resizePreset)
         );
         console.log('[UPLOAD_DONE]', basePath);
-        console.log('[PhotoUploader] ✅ Photo upload successful - permissions working correctly');
+        console.log('[PhotoUploader] ✅ Production photo upload successful - Firebase Storage working correctly');
         setState(prev => {
           const updatedPhotos = prev.photos.map(p =>
             p.id === fileId ? { ...p, url, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
@@ -496,7 +521,7 @@ export function PhotoUploader({
             primaryPhoto: newPrimaryPhoto,
           };
         });
-        toast.show('✅ Photo uploaded successfully - Permissions working!', 'success');
+        toast.show('✅ Photo uploaded to production Firebase Storage!', 'success');
       } catch (error: any) {
         console.log('[UPLOAD_FAIL]', basePath, error?.code || 'unknown-error');
         console.error('[PhotoUploader] Upload error:', error);
@@ -727,11 +752,25 @@ export function PhotoUploader({
                 const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
                 onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
               }, 0);
+              // ✅ PRODUCTION: Delete from real Firebase Storage
               try {
-                console.log('[PhotoUploader] Mock mode - skipping storage deletion');
-                console.log('[PhotoUploader] Would delete:', photoToDelete.url);
-              } catch (storageError) {
-                console.warn('[PhotoUploader] Could not delete from storage:', storageError);
+                // Extract storage path from URL to delete the file
+                const url = photoToDelete.url;
+                if (url.includes('firebasestorage.googleapis.com')) {
+                  // This is a real Firebase Storage URL, attempt to delete
+                  const { storage } = getFirebase();
+                  const pathMatch = url.match(/o\/(.*?)\?/);
+                  if (pathMatch) {
+                    const storagePath = decodeURIComponent(pathMatch[1]);
+                    const storageRef = ref(storage, storagePath);
+                    await deleteObject(storageRef);
+                    console.log('[PhotoUploader] ✅ Production storage file deleted:', storagePath);
+                  }
+                } else {
+                  console.log('[PhotoUploader] Skipping deletion for non-Firebase URL:', url);
+                }
+              } catch (deleteError: any) {
+                console.warn('[PhotoUploader] Could not delete from storage (this is normal for some URLs):', deleteError?.code);
               }
               toast.show('Photo deleted', 'success');
             } catch (error) {

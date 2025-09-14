@@ -4,13 +4,15 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
-// Mock Storage implementation for development
+// Production Firebase Storage implementation
+// Mock Storage implementation for development fallback
 class MockStorageRef {
   constructor(private path: string) {}
   
   async put(blob: Blob): Promise<{ ref: MockStorageRef }> {
-    console.log('[MockStorage] Simulating upload to:', this.path);
+    console.log('[MockStorage] Fallback - Simulating upload to:', this.path);
     // Simulate upload delay
     await new Promise(resolve => setTimeout(resolve, 500));
     return { ref: this };
@@ -50,16 +52,23 @@ try {
   auth = getAuth(app);
   db = getFirestore(app);
   
-  // Use mock storage for development to avoid authentication issues
-  console.log("[FIREBASE] Using mock storage for development");
-  storage = new MockStorage() as any;
+  // ✅ PRODUCTION: Enable real Firebase Storage for photo uploads
+  try {
+    storage = getStorage(app);
+    console.log("[FIREBASE] ✅ Production Firebase Storage enabled");
+    console.log("[FIREBASE] Storage bucket:", firebaseConfig.storageBucket);
+  } catch (storageError: any) {
+    console.warn("[FIREBASE] Storage initialization failed, using fallback:", storageError);
+    storage = new MockStorage() as any;
+  }
   
   console.log("[FIREBASE] Successfully initialized Firebase");
   console.log("[FIREBASE] Project ID:", firebaseConfig.projectId);
+  console.log("[FIREBASE] Mode: Production with real Storage");
 } catch (error: any) {
   console.error("[FIREBASE] Initialization failed:", error);
-  // Create mock implementations for development
-  console.log("[FIREBASE] Creating mock implementations for development");
+  // Create mock implementations for development fallback
+  console.log("[FIREBASE] Creating mock implementations for development fallback");
   storage = new MockStorage() as any;
   throw error;
 }

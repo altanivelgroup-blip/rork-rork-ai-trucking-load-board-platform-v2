@@ -1,0 +1,46 @@
+// BACKUP: Original storage.rules before production switch
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null
+        && (request.auth.token.admin == true || request.auth.token.role == 'admin');
+    }
+    
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+    
+    function isOwnerOrAuthenticated(userId) {
+      return request.auth != null && (request.auth.uid == userId || request.auth.uid != null);
+    }
+    
+    // Auth optimized photo uploads - enhanced permissions for authenticated users
+    // Support 2-5 photos for shippers with optimized validation and error handling
+    match /loadPhotos/{userId}/{loadId}/{fileName} {
+      allow read: if true; // Anyone can read photos for public load viewing
+      allow write: if isAuthenticated(); // Auth optimized: any authenticated user can upload photos
+      allow update: if isAuthenticated(); // Auth optimized: more permissive updates
+      allow delete: if isAuthenticated(); // Auth optimized: more permissive deletes
+    }
+    
+    // Auth optimized vehicle photos - enhanced permissions for authenticated users
+    match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
+      allow read: if true; // Anyone can read photos
+      allow write: if isAuthenticated(); // Auth optimized: any authenticated user can upload photos
+      allow update: if isAuthenticated(); // Auth optimized: more permissive updates
+      allow delete: if isAuthenticated(); // Auth optimized: more permissive deletes
+    }
+    
+    // Auth optimized fallback path - more permissive for authenticated users
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && 
+        (allPaths.matches('.*Photos/.*') || allPaths.matches('.*photos/.*') || allPaths.matches('.*images/.*'));
+    }
+    
+    // Admin-only report files
+    match /reports/{allPaths=**} { allow read, write: if isAdmin(); }
+    match /reportAnalytics/{allPaths=**} { allow read, write: if isAdmin(); }
+  }
+}
