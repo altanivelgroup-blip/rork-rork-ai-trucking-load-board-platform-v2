@@ -438,6 +438,11 @@ export default function DashboardScreen() {
 
           {isDriver && (
             <View style={styles.describeLoadRow}>
+              <VoiceCapture
+                onTranscribed={handleVoiceTranscribed}
+                size="sm"
+                testID="describe-load-voice-capture"
+              />
               <TextInput
                 testID="describe-load-input"
                 value={nlQuery}
@@ -448,11 +453,6 @@ export default function DashboardScreen() {
                 onSubmitEditing={onSubmitNlSearch}
                 style={styles.describeInput}
                 accessibilityLabel="Natural language search"
-              />
-              <VoiceCapture
-                onTranscribed={handleVoiceTranscribed}
-                size="sm"
-                testID="describe-load-voice-capture"
               />
               <TouchableOpacity
                 onPress={onSubmitNlSearch}
