@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import { Stack } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { ensureFirebaseAuth, getFirebase } from '@/utils/firebase';
@@ -47,7 +47,9 @@ export default function FirebaseStorageTestScreen() {
       const testPath = `loadPhotos/${auth.currentUser.uid}/test-${Date.now()}/test.txt`;
       setTestResult(prev => prev + `Uploading to path: ${testPath}\n`);
       
-      const storageRef = ref(storage, testPath);
+      // FIXED: Use proper Firebase Storage modular API
+      const actualStorage = (storage as any)._storage || storage;
+      const storageRef = ref(actualStorage, testPath);
       const uploadResult = await uploadBytes(storageRef, blob);
       setTestResult(prev => prev + '✅ File uploaded successfully\n');
       
@@ -72,7 +74,7 @@ export default function FirebaseStorageTestScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Stack.Screen 
         options={{ 
           title: 'Firebase Storage Test',
@@ -104,14 +106,14 @@ export default function FirebaseStorageTestScreen() {
           </View>
         ) : null}
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.white,
   },
   content: {
     flex: 1,

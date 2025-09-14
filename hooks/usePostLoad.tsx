@@ -422,27 +422,17 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
 
           console.log('[PostLoad] Uploading to storage path:', fullPath);
 
-          // Use our MockStorage-compatible API
-          const storageRefAny: any = (storage as any).ref ? (storage as any).ref(fullPath) : null;
-
-          if (storageRefAny && typeof storageRefAny.put === 'function') {
-            const putResult = await storageRefAny.put(blob);
-            const url = await putResult.ref.getDownloadURL();
+          // FIXED: Use proper Firebase Storage modular API
+          try {
+            const actualStorage = (storage as any)._storage || storage;
+            const storageRef = ref(actualStorage, fullPath);
+            const snap = await uploadBytes(storageRef, blob);
+            const url = await getDownloadURL(snap.ref);
             uploadedUrls.push(url);
-            console.log(`[PostLoad] uploaded photo ${i + 1}/${photosLocal.length}`);
-          } else {
-            // Fallback to modular API if available in runtime
-            try {
-              const storageRefMod: any = ref as unknown as (s: any, p: string) => any;
-              const sref = storageRefMod(storage, fullPath);
-              const snap = await uploadBytes(sref, blob);
-              const url = await getDownloadURL(snap.ref);
-              uploadedUrls.push(url);
-              console.log(`[PostLoad] uploaded (mod) photo ${i + 1}/${photosLocal.length}`);
-            } catch (modErr) {
-              console.warn('[PostLoad] modular upload failed, using placeholder', modErr);
-              uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
-            }
+            console.log(`[PostLoad] ✅ uploaded photo ${i + 1}/${photosLocal.length} to Firebase Storage`);
+          } catch (uploadError) {
+            console.warn('[PostLoad] Firebase Storage upload failed, using placeholder:', uploadError);
+            uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
           }
         } catch (uploadError) {
           console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);

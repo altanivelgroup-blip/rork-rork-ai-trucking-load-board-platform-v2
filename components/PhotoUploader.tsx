@@ -186,8 +186,9 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
   const { storage } = getFirebase();
   console.log('[PhotoUploader] ✅ Production upload to path:', path);
   try {
-    // ✅ PRODUCTION: Use real Firebase Storage
-    const storageRef = ref(storage, path);
+    // FIXED: Use proper Firebase Storage modular API
+    const actualStorage = (storage as any)._storage || storage;
+    const storageRef = ref(actualStorage, path);
     
     // Use resumable upload with progress tracking
     const uploadTask = uploadBytesResumable(storageRef, blob, {
@@ -774,10 +775,11 @@ export function PhotoUploader({
                 if (url.includes('firebasestorage.googleapis.com')) {
                   // This is a real Firebase Storage URL, attempt to delete
                   const { storage } = getFirebase();
+                  const actualStorage = (storage as any)._storage || storage;
                   const pathMatch = url.match(/o\/(.*?)\?/);
                   if (pathMatch) {
                     const storagePath = decodeURIComponent(pathMatch[1]);
-                    const storageRef = ref(storage, storagePath);
+                    const storageRef = ref(actualStorage, storagePath);
                     await deleteObject(storageRef);
                     console.log('[PhotoUploader] ✅ Production storage file deleted:', storagePath);
                   }

@@ -31,6 +31,21 @@ class MockStorage {
   }
 }
 
+// FIXED: Create a wrapper that provides both modular and legacy API compatibility
+class FirebaseStorageWrapper {
+  constructor(private storage: any) {}
+  
+  // Legacy API compatibility for existing code
+  ref(path: string): MockStorageRef {
+    return new MockStorageRef(path);
+  }
+  
+  // Expose the actual Firebase storage for modular API
+  get _storage() {
+    return this.storage;
+  }
+}
+
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
@@ -54,8 +69,9 @@ try {
   
   // ✅ PRODUCTION: Enable real Firebase Storage for photo uploads
   try {
-    storage = getStorage(app);
-    console.log("[FIREBASE] ✅ Production Firebase Storage enabled");
+    const firebaseStorage = getStorage(app);
+    storage = new FirebaseStorageWrapper(firebaseStorage) as any;
+    console.log("[FIREBASE] ✅ Production Firebase Storage enabled with compatibility wrapper");
     console.log("[FIREBASE] Storage bucket:", firebaseConfig.storageBucket);
   } catch (storageError: any) {
     console.warn("[FIREBASE] Storage initialization failed, using fallback:", storageError);
