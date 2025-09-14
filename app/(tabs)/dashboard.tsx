@@ -396,6 +396,20 @@ export default function DashboardScreen() {
             )}
           </View>
 
+          {AI_COPILOT_CHIPS_ENABLED && isDriver ? (
+            <View style={styles.filtersRow}>
+              <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
+                <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
+              </Text>
+              <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
+                <Text style={[styles.sortChipText, { color: theme.colors.white }]} allowFontScaling={false}>Near me</Text>
+              </Text>
+              <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
+                <Text style={styles.sortChipText} allowFontScaling={false}>Lightest</Text>
+              </Text>
+            </View>
+          ) : null}
+
           {isDriver && (
             <View style={styles.describeLoadRow}>
               <VoiceCapture
@@ -425,20 +439,6 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
           )}
-
-          {AI_COPILOT_CHIPS_ENABLED && isDriver ? (
-            <View style={styles.filtersRow}>
-              <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
-                <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
-              </Text>
-              <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
-                <Text style={[styles.sortChipText, { color: theme.colors.white }]} allowFontScaling={false}>Near me</Text>
-              </Text>
-              <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
-                <Text style={styles.sortChipText} allowFontScaling={false}>Lightest</Text>
-              </Text>
-            </View>
-          ) : null}
 
           {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
             <View style={styles.filtersRow}>
