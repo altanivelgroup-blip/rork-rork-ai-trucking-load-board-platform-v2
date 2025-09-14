@@ -1,41 +1,87 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
-import { Bell, Mail, MessageSquare, ArrowLeft, CheckCircle } from 'lucide-react-native';
+import { Bell, Mail, MessageSquare, ArrowLeft, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
+import { trpcClient } from '@/lib/trpc';
 
 export default function NotificationsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated } = useAuth();
-  const { settings, isLoading, error, updateChannel, updateCategory } = useNotifications();
+  const { isAuthenticated, userId } = useAuth();
+  const { settings, isLoading, error, updateChannel, updateCategory, refreshSettings } = useNotifications();
   const toast = useToast();
+  const [offlineMode, setOfflineMode] = useState<boolean>(false);
+  const [testingConnection, setTestingConnection] = useState<boolean>(false);
+
+  console.log('[NotificationsScreen] Render - isAuthenticated:', isAuthenticated, 'userId:', userId, 'isLoading:', isLoading, 'error:', error);
 
   useEffect(() => {
     if (error) {
-      toast.show(error, 'error');
+      console.error('[NotificationsScreen] Error:', error);
+      if (error.includes('Failed to fetch') || error.includes('Network') || error.includes('fetch')) {
+        setOfflineMode(true);
+        toast.show('Working in offline mode - changes will sync when connection is restored', 'warning');
+      } else {
+        toast.show(error, 'error');
+      }
+    } else {
+      setOfflineMode(false);
     }
   }, [error, toast]);
+
+  const testBackendConnection = useCallback(async () => {
+    if (!userId) return;
+    
+    setTestingConnection(true);
+    try {
+      console.log('[NotificationsScreen] Testing backend connection...');
+      const result = await trpcClient.notifications.getSettings.query({ userId });
+      console.log('[NotificationsScreen] Backend test result:', result);
+      
+      if (result.success) {
+        toast.show('Backend connection successful!', 'success');
+        setOfflineMode(false);
+        await refreshSettings();
+      } else {
+        toast.show('Backend returned error: ' + (result.error || 'Unknown error'), 'error');
+      }
+    } catch (err: any) {
+      console.error('[NotificationsScreen] Backend test failed:', err);
+      toast.show('Backend connection failed: ' + err.message, 'error');
+      setOfflineMode(true);
+    } finally {
+      setTestingConnection(false);
+    }
+  }, [userId, toast, refreshSettings]);
 
   const handleChannelToggle = useCallback(async (channel: 'push' | 'email' | 'sms', enabled: boolean) => {
     if (!channel || typeof enabled !== 'boolean') return;
     console.log('[Notifications] Toggle updated - Channel:', channel, 'enabled:', enabled);
-    await updateChannel(channel, enabled);
-    toast.show(`${channel} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    try {
+      await updateChannel(channel, enabled);
+      toast.show(`${channel} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch (err) {
+      console.error('[NotificationsScreen] Error updating channel:', err);
+    }
   }, [updateChannel, toast]);
 
   const handleCategoryToggle = useCallback(async (category: 'loadUpdates' | 'payments' | 'system', enabled: boolean) => {
     if (!category || typeof enabled !== 'boolean') return;
     console.log('[Notifications] Toggle updated - Category:', category, 'enabled:', enabled);
-    await updateCategory(category, enabled);
-    toast.show(`${category} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    try {
+      await updateCategory(category, enabled);
+      toast.show(`${category} notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch (err) {
+      console.error('[NotificationsScreen] Error updating category:', err);
+    }
   }, [updateCategory, toast]);
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !userId) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ title: 'Notifications', headerShown: false }} />
@@ -75,6 +121,23 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>
+          {offlineMode && (
+            <View style={styles.offlineBanner}>
+              <AlertTriangle size={16} color={theme.colors.warning} />
+              <Text style={styles.offlineText}>Offline Mode - Changes will sync when connected</Text>
+              <TouchableOpacity 
+                style={styles.retryButton} 
+                onPress={testBackendConnection}
+                disabled={testingConnection}
+              >
+                <RefreshCw 
+                  size={16} 
+                  color={theme.colors.primary} 
+                  style={testingConnection ? { opacity: 0.5 } : undefined}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
           <Text style={styles.sectionTitle}>Channels</Text>
           <View style={styles.card}>
             <Row 
@@ -207,5 +270,28 @@ const styles = StyleSheet.create({
     color: theme.colors.success,
     marginLeft: theme.spacing.sm,
     fontWeight: '600',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.warning + '20',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.warning + '40',
+  },
+  offlineText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.warning,
+    marginLeft: theme.spacing.sm,
+    fontWeight: '600',
+    flex: 1,
+  },
+  retryButton: {
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.primary + '20',
+    marginLeft: theme.spacing.sm,
   },
 });
