@@ -319,7 +319,18 @@ function formatLocalNowForTZ(tz: string): string {
   }
 }
 
-function TZSelector() {
+function formatDateForTZ(date: Date, tz: string, time: string = '17:00'): string {
+  try {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}T${time}`;
+  } catch {
+    return '';
+  }
+}
+
+function TZSelector({ deliveryDate }: { deliveryDate: Date | null }) {
   const { draft, setField } = usePostLoad();
   const [opened, setOpened] = useState<boolean>(false);
 
@@ -330,18 +341,23 @@ function TZSelector() {
       setField('deliveryTZ', baseTz);
     }
     if (!draft.deliveryDateLocal) {
-      const local = formatLocalNowForTZ(baseTz);
+      // Use delivery date if available, otherwise use current date
+      const dateToUse = deliveryDate || new Date();
+      const local = formatDateForTZ(dateToUse, baseTz, '17:00');
       setField('deliveryDateLocal', local);
     }
-  }, [draft.deliveryTZ, draft.deliveryDateLocal, setField]);
+  }, [draft.deliveryTZ, draft.deliveryDateLocal, deliveryDate, setField]);
 
   const onPick = useCallback((tz: string) => {
     if (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) return;
     setField('deliveryTZ', tz);
-    const local = formatLocalNowForTZ(tz);
+    // Use delivery date if available, otherwise use current date
+    const dateToUse = deliveryDate || new Date();
+    const currentTime = draft.deliveryDateLocal ? draft.deliveryDateLocal.split('T')[1] || '17:00' : '17:00';
+    const local = formatDateForTZ(dateToUse, tz, currentTime);
     setField('deliveryDateLocal', local);
     setOpened(false);
-  }, [setField]);
+  }, [setField, deliveryDate, draft.deliveryDateLocal]);
 
   if (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) {
     return (
@@ -516,12 +532,17 @@ export default function PostLoadStep3() {
               </Pressable>
             </View>
 
-            <TZSelector />
+            <TZSelector deliveryDate={deliveryDate} />
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Delivery Local Date/Time</Text>
               <View style={styles.rowGap8}>
-                <Pressable style={styles.dateField} accessibilityRole="button" onPress={() => setField('deliveryDateLocal', formatLocalNowForTZ(draft.deliveryTZ || getDeviceTZ()))} testID="deliveryLocalNow">
+                <Pressable style={styles.dateField} accessibilityRole="button" onPress={() => {
+                  const dateToUse = deliveryDate || new Date();
+                  const tz = draft.deliveryTZ || getDeviceTZ();
+                  const local = formatDateForTZ(dateToUse, tz, '17:00');
+                  setField('deliveryDateLocal', local);
+                }} testID="deliveryLocalNow">
                   <Text style={styles.dateText}>{draft.deliveryDateLocal || 'YYYY-MM-DDTHH:MM'}</Text>
                 </Pressable>
                 <View style={styles.timeRow}>
@@ -569,7 +590,18 @@ export default function PostLoadStep3() {
         initialTime={tempTime}
         onClose={closeTimePicker}
         onConfirm={(time) => {
-          const currentDate = draft.deliveryDateLocal ? draft.deliveryDateLocal.split('T')[0] : new Date().toISOString().split('T')[0];
+          // Use delivery date if available, otherwise use current date from deliveryDateLocal, otherwise today
+          let currentDate: string;
+          if (deliveryDate) {
+            const year = deliveryDate.getFullYear();
+            const month = String(deliveryDate.getMonth() + 1).padStart(2, '0');
+            const day = String(deliveryDate.getDate()).padStart(2, '0');
+            currentDate = `${year}-${month}-${day}`;
+          } else if (draft.deliveryDateLocal) {
+            currentDate = draft.deliveryDateLocal.split('T')[0];
+          } else {
+            currentDate = new Date().toISOString().split('T')[0];
+          }
           const newDateTime = `${currentDate}T${time}`;
           console.log('[PostLoadStep3] Setting deliveryDateLocal time to:', newDateTime);
           setField('deliveryDateLocal', newDateTime);
