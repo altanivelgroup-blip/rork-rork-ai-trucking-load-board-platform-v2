@@ -44,7 +44,7 @@ export default function TabsLayout() {
         }}
       />
       
-      {/* Loads Tab */}
+      {/* Loads Tab - Dedicated Shipper Navigation */}
       <Tabs.Screen
         name="loads"
         options={{
