@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db, ensureFirebaseAuth, auth } from '@/utils/firebase';
-import { useAuth } from '@/hooks/useAuth';
 
 type NotificationChannels = {
   push: boolean;
@@ -34,22 +33,12 @@ const defaultSettings: NotificationSettings = {
 };
 
 export function useNotificationSettings() {
-  const { userId } = useAuth();
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Load settings from Firestore
   const loadSettings = useCallback(async () => {
-    // Use Firebase Auth UID for Firestore document access
-    const uid = userId;
-    if (!uid) {
-      console.log('No Firebase Auth UID available for notification settings');
-      setSettings(defaultSettings);
-      setIsLoading(false);
-      return;
-    }
-
     try {
       // Ensure Firebase auth is working before accessing Firestore
       const authSuccess = await ensureFirebaseAuth();
@@ -60,16 +49,17 @@ export function useNotificationSettings() {
         return;
       }
 
-      // Double-check that we have an authenticated user
-      if (!auth?.currentUser) {
+      // Use Firebase Auth UID directly for Firestore document access
+      const firebaseUid = auth?.currentUser?.uid;
+      if (!firebaseUid) {
         console.warn('No authenticated Firebase user, using default notification settings');
         setSettings(defaultSettings);
         setIsLoading(false);
         return;
       }
 
-      console.log('Loading notification settings for user:', uid);
-      const docRef = doc(db, 'notificationSettings', uid);
+      console.log('Loading notification settings for Firebase user:', firebaseUid);
+      const docRef = doc(db, 'notificationSettings', firebaseUid);
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
@@ -99,17 +89,16 @@ export function useNotificationSettings() {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   // Save settings to Firestore
   const saveSettings = useCallback(async (newSettings: NotificationSettings) => {
-    // Use Firebase Auth UID for Firestore document access
-    const uid = userId;
-    if (!uid) {
-      console.warn('Cannot save notification settings: no Firebase Auth UID');
+    // Input validation
+    if (!newSettings || typeof newSettings !== 'object') {
+      console.warn('Invalid notification settings provided');
       return false;
     }
-
+    
     setIsSaving(true);
     try {
       // Ensure Firebase auth is working before accessing Firestore
@@ -120,19 +109,20 @@ export function useNotificationSettings() {
         return false;
       }
 
-      // Double-check that we have an authenticated user
-      if (!auth?.currentUser) {
+      // Use Firebase Auth UID directly for Firestore document access
+      const firebaseUid = auth?.currentUser?.uid;
+      if (!firebaseUid) {
         console.warn('No authenticated Firebase user, cannot save notification settings');
         setIsSaving(false);
         return false;
       }
 
-      console.log('Saving notification settings:', newSettings);
-      const docRef = doc(db, 'notificationSettings', uid);
+      console.log('Saving notification settings for Firebase user:', firebaseUid);
+      const docRef = doc(db, 'notificationSettings', firebaseUid);
       await setDoc(docRef, {
         ...newSettings,
         updatedAt: new Date(),
-        userId: uid,
+        userId: firebaseUid,
       });
       
       setSettings(newSettings);
@@ -157,7 +147,7 @@ export function useNotificationSettings() {
     } finally {
       setIsSaving(false);
     }
-  }, [userId]);
+  }, []);
 
   // Update channel setting
   const updateChannel = useCallback(async (channel: keyof NotificationChannels, value: boolean) => {
@@ -193,21 +183,15 @@ export function useNotificationSettings() {
     return success;
   }, [settings, saveSettings]);
 
-  // Load settings when user changes - with delay to ensure auth is ready
+  // Load settings when component mounts - with delay to ensure auth is ready
   useEffect(() => {
-    if (!userId) {
-      setSettings(defaultSettings);
-      setIsLoading(false);
-      return;
-    }
-    
     // Add a small delay to ensure Firebase auth state is properly established
     const timer = setTimeout(() => {
       loadSettings();
-    }, 100);
+    }, 500); // Increased delay to ensure Firebase auth is ready
     
     return () => clearTimeout(timer);
-  }, [loadSettings, userId]);
+  }, [loadSettings]);
 
   return {
     settings,
