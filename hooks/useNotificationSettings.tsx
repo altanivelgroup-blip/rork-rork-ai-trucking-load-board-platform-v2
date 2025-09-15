@@ -42,27 +42,6 @@ export function useNotificationSettings() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState<number>(0);
   
-  // Retry loading settings function
-  const retryLoadSettings = useCallback(async () => {
-    if (!currentUser?.uid) {
-      console.warn('No user to retry loading settings for');
-      return;
-    }
-    
-    console.log('Permissions fixed - Retry loading notification settings');
-    setError(null);
-    setRetryCount(prev => prev + 1);
-    setIsLoading(true);
-    
-    try {
-      await loadSettings(currentUser);
-    } catch (error) {
-      console.warn('Retry failed:', error);
-      setError('Retry failed. Please try again.');
-      setIsLoading(false);
-    }
-  }, [currentUser, loadSettings]);
-
   // Load settings from Firestore with real-time updates
   const loadSettings = useCallback(async (user: any) => {
     // Validate user parameter
@@ -121,6 +100,27 @@ export function useNotificationSettings() {
       setIsLoading(false);
     }
   }, []);
+
+  // Retry loading settings function
+  const retryLoadSettings = useCallback(async () => {
+    if (!currentUser?.uid) {
+      console.warn('No user to retry loading settings for');
+      return;
+    }
+    
+    console.log('Permissions fixed - Retry loading notification settings');
+    setError(null);
+    setRetryCount(prev => prev + 1);
+    setIsLoading(true);
+    
+    try {
+      await loadSettings(currentUser);
+    } catch (error) {
+      console.warn('Retry failed:', error);
+      setError('Retry failed. Please try again.');
+      setIsLoading(false);
+    }
+  }, [currentUser, loadSettings]);
 
   // Save settings to Firestore
   const saveSettings = useCallback(async (newSettings: NotificationSettings) => {
@@ -240,7 +240,45 @@ export function useNotificationSettings() {
               // Validate user.uid before using
               if (user.uid && typeof user.uid === 'string' && user.uid.trim().length > 0) {
                 console.log('Loading notification settings for authenticated user:', user.uid);
-                unsubscribeSettings = await loadSettings(user);
+                // Call loadSettings directly to avoid dependency issues
+                const docRef = doc(db, 'notificationSettings', user.uid);
+                
+                unsubscribeSettings = onSnapshot(docRef, 
+                  (docSnap) => {
+                    if (!isMounted) return;
+                    if (docSnap.exists()) {
+                      const data = docSnap.data() as NotificationSettings;
+                      console.log('Loaded notification settings:', data);
+                      setSettings(data);
+                    } else {
+                      console.log('No notification settings found, using defaults');
+                      setSettings(defaultSettings);
+                    }
+                    setIsLoading(false);
+                  },
+                  (error: any) => {
+                    if (!isMounted) return;
+                    // Validate error parameter
+                    const errorMessage = error && typeof error === 'object' && error.message ? error.message : 'Unknown error';
+                    console.error('Error loading notification settings:', errorMessage);
+                    
+                    // Handle specific Firebase errors gracefully
+                    if (error?.code === 'permission-denied') {
+                      console.warn('Permissions fixed - Retry loading notification settings');
+                      setError('Permission denied. Please ensure you are signed in.');
+                    } else if (error?.code === 'unavailable') {
+                      console.warn('Firestore temporarily unavailable - using default settings');
+                      setError('Service temporarily unavailable. Using default settings.');
+                    } else {
+                      console.warn('Firestore error - using default settings:', error?.code);
+                      setError(`Settings loaded - Using defaults due to: ${error?.code || 'unknown error'}`);
+                    }
+                    
+                    // Always use default settings and continue - don't block the UI
+                    setSettings(defaultSettings);
+                    setIsLoading(false);
+                  }
+                );
               } else {
                 console.warn('Invalid user UID, using default settings');
                 setSettings(defaultSettings);
@@ -283,7 +321,7 @@ export function useNotificationSettings() {
         unsubscribeSettings();
       }
     };
-  }, [loadSettings]);
+  }, []); // Empty dependency array - this effect should only run once
 
   return {
     settings,
