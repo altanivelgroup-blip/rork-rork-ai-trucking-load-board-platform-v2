@@ -251,40 +251,7 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
             
-            {/* Quick Access Buttons */}
-            <View style={styles.quickAccessContainer}>
-              <Text style={styles.quickAccessTitle}>Quick Access (No Login Required)</Text>
-              <View style={styles.quickAccessButtons}>
-                <TouchableOpacity
-                  style={[styles.quickAccessButton, styles.driverQuickAccess]}
-                  onPress={() => {
-                    setSelectedRole('driver');
-                    setEmail('');
-                    setPassword('');
-                    handleLogin();
-                  }}
-                  disabled={isLoading}
-                  testID="quick-driver-access"
-                >
-                  <Truck size={16} color={theme.colors.white} />
-                  <Text style={styles.quickAccessButtonText}>Driver Dashboard</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.quickAccessButton, styles.shipperQuickAccess]}
-                  onPress={() => {
-                    setSelectedRole('shipper');
-                    setEmail('');
-                    setPassword('');
-                    handleLogin();
-                  }}
-                  disabled={isLoading}
-                  testID="quick-shipper-access"
-                >
-                  <Users size={16} color={theme.colors.white} />
-                  <Text style={styles.quickAccessButtonText}>Shipper Dashboard</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+
 
             <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/reset-password')} testID="forgot-password-link">
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
@@ -444,42 +411,5 @@ const styles = StyleSheet.create({
     color: theme.colors.danger,
     fontSize: theme.fontSize.md,
   },
-  quickAccessContainer: {
-    marginTop: theme.spacing.xl,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.lightGray,
-    borderRadius: theme.borderRadius.md,
-  },
-  quickAccessTitle: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600',
-    color: theme.colors.dark,
-    textAlign: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  quickAccessButtons: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  quickAccessButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-    gap: theme.spacing.xs,
-  },
-  driverQuickAccess: {
-    backgroundColor: '#10B981',
-  },
-  shipperQuickAccess: {
-    backgroundColor: '#3B82F6',
-  },
-  quickAccessButtonText: {
-    color: theme.colors.white,
-    fontSize: theme.fontSize.xs,
-    fontWeight: '600',
-  },
+
 });
