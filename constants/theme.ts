@@ -21,6 +21,9 @@ export type ThemeColors = {
   border: string;
   tabBar: string;
   backdrop: string;
+  background: string;
+  text: string;
+  textSecondary: string;
 };
 
 export type Theme = {
@@ -97,6 +100,9 @@ export const lightTheme: Theme = {
     border: '#E5E7EB',
     tabBar: '#ffffff',
     backdrop: 'rgba(0,0,0,0.25)',
+    background: '#f9fafb',
+    text: '#111827',
+    textSecondary: '#6b7280',
   },
 };
 
@@ -125,6 +131,9 @@ export const darkTheme: Theme = {
     border: '#1f2937',
     tabBar: '#0b1220',
     backdrop: 'rgba(0,0,0,0.5)',
+    background: '#0b0f1a',
+    text: '#f9fafb',
+    textSecondary: '#9ca3af',
   },
 };
 
