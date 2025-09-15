@@ -23,7 +23,7 @@ import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
 import { StartupInitializer } from "@/components/StartupInitializer";
 import { RoleBasedRouter } from "@/components/RoleBasedRouter";
-import FirebaseConnectionStatus from "@/components/FirebaseConnectionStatus";
+
 import { theme } from "@/constants/theme";
 
 // Firebase is available but not used for auth in this app
@@ -217,7 +217,6 @@ export default function RootLayout() {
                                     <PostLoadProvider>
                                       <AutoArriveProvider>
                                         <RootLayoutNav />
-                                        <FirebaseConnectionStatus />
                                         <AutoArriveSheet />
                                       </AutoArriveProvider>
                                     </PostLoadProvider>
