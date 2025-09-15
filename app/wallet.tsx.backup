@@ -35,9 +35,6 @@ export default function WalletScreen() {
     getNetEarnings,
   } = useWallet();
   
-  const isShipper = user?.role === 'shipper';
-  console.log('Wallet adjusted - Expenses updated for shipper:', isShipper);
-  
   const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
   const [withdrawalModalVisible, setWithdrawalModalVisible] = useState<boolean>(false);
   const [transactionToDelete, setTransactionToDelete] = useState<{ id: string; description: string } | null>(null);
@@ -101,7 +98,7 @@ export default function WalletScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>{isShipper ? 'Wallet & Expenses' : 'Wallet'}</Text>
+        <Text style={styles.title}>Wallet</Text>
         <Link href="/payment-methods" asChild>
           <TouchableOpacity
             style={styles.pmBtn}
@@ -115,18 +112,18 @@ export default function WalletScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>{isShipper ? 'Available Balance' : 'Net Available Balance'}</Text>
+          <Text style={styles.balanceLabel}>Net Available Balance</Text>
           <Text style={styles.balanceAmount}>
             ${balance.toLocaleString()}
           </Text>
           <Text style={styles.balanceSubtext}>
-            {isShipper ? 'For load posting and platform fees' : 'After fuel costs and platform fees'}
+            After fuel costs and platform fees
           </Text>
           
           <View style={styles.balanceDetails}>
             <View style={styles.balanceItem}>
               <TrendingUp size={16} color={theme.colors.warning} />
-              <Text style={styles.balanceItemLabel}>{isShipper ? 'Pending Charges' : 'Pending'}</Text>
+              <Text style={styles.balanceItemLabel}>Pending</Text>
               <Text style={styles.balanceItemAmount}>
                 ${pendingEarnings.toLocaleString()}
               </Text>
@@ -134,7 +131,7 @@ export default function WalletScreen() {
             
             <View style={styles.balanceItem}>
               <DollarSign size={16} color={theme.colors.success} />
-              <Text style={styles.balanceItemLabel}>{isShipper ? 'Total Spent' : 'Gross Earned'}</Text>
+              <Text style={styles.balanceItemLabel}>Gross Earned</Text>
               <Text style={styles.balanceItemAmount}>
                 ${totalEarnings.toLocaleString()}
               </Text>
@@ -142,7 +139,7 @@ export default function WalletScreen() {
             
             <View style={styles.balanceItem}>
               <Calculator size={16} color={theme.colors.primary} />
-              <Text style={styles.balanceItemLabel}>{isShipper ? 'Available' : 'Net Balance'}</Text>
+              <Text style={styles.balanceItemLabel}>Net Balance</Text>
               <Text style={styles.balanceItemAmount}>
                 ${balance.toLocaleString()}
               </Text>
@@ -150,25 +147,14 @@ export default function WalletScreen() {
           </View>
 
           <View style={styles.actions}>
-            {!isShipper && (
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={() => setWithdrawalModalVisible(true)}
-                disabled={balance <= 0}
-              >
-                <Download size={20} color={theme.colors.white} />
-                <Text style={styles.actionButtonText}>Withdraw</Text>
-              </TouchableOpacity>
-            )}
-            {isShipper && (
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={() => console.log('View Details button pressed')}
-              >
-                <BarChart3 size={20} color={theme.colors.white} />
-                <Text style={styles.actionButtonText}>View Details</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => setWithdrawalModalVisible(true)}
+              disabled={balance <= 0}
+            >
+              <Download size={20} color={theme.colors.white} />
+              <Text style={styles.actionButtonText}>Withdraw</Text>
+            </TouchableOpacity>
             
             <Link href="/payment-methods" asChild>
               <TouchableOpacity style={StyleSheet.flatten([styles.actionButton, styles.secondaryButton])} testID="wallet-add-bank">
@@ -182,31 +168,17 @@ export default function WalletScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{isShipper ? 'Recent Expenses' : 'Recent Transactions'}</Text>
+          <Text style={styles.sectionTitle}>Recent Transactions</Text>
           
           {transactions.slice(0, 10).map((transaction) => (
             <View key={transaction.id} style={styles.transactionCard}>
               <View style={styles.transactionIcon}>
-                {isShipper ? (
-                  transaction.type === 'deposit' ? (
-                    <ArrowDownRight size={20} color={theme.colors.success} />
-                  ) : transaction.type === 'load_posting' ? (
-                    <ArrowUpRight size={20} color={theme.colors.danger} />
-                  ) : transaction.type === 'platform_fee' ? (
-                    <Minus size={20} color={theme.colors.warning} />
-                  ) : transaction.type === 'premium_placement' ? (
-                    <TrendingUp size={20} color={theme.colors.primary} />
-                  ) : (
-                    <Minus size={20} color={theme.colors.warning} />
-                  )
+                {transaction.type === 'earning' ? (
+                  <ArrowDownRight size={20} color={theme.colors.success} />
+                ) : transaction.type === 'withdrawal' ? (
+                  <ArrowUpRight size={20} color={theme.colors.danger} />
                 ) : (
-                  transaction.type === 'earning' ? (
-                    <ArrowDownRight size={20} color={theme.colors.success} />
-                  ) : transaction.type === 'withdrawal' ? (
-                    <ArrowUpRight size={20} color={theme.colors.danger} />
-                  ) : (
-                    <Minus size={20} color={theme.colors.warning} />
-                  )
+                  <Minus size={20} color={theme.colors.warning} />
                 )}
               </View>
               
@@ -252,12 +224,12 @@ export default function WalletScreen() {
                     <Text
                       style={[
                         styles.transactionAmount,
-                        (transaction.type === 'earning' || transaction.type === 'deposit')
+                        transaction.type === 'earning'
                           ? styles.amountPositive
                           : styles.amountNegative,
                       ]}
                     >
-                      {(transaction.type === 'earning' || transaction.type === 'deposit') ? '+' : '-'}${Math.abs(transaction.amount).toLocaleString()}
+                      {transaction.type === 'earning' ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
                     </Text>
                     {transaction.type === 'earning' && transaction.netAmount && (
                       <Text style={styles.netAmount}>

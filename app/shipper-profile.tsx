@@ -295,7 +295,7 @@ export default function ShipperProfileScreen() {
 
         {/* Live Wallet Balance with Enhanced Breakdown */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Wallet & Earnings</Text>
+          <Text style={styles.sectionTitle}>Wallet & Expenses</Text>
           <View style={styles.walletContainer}>
             <View style={styles.walletCard}>
               <View style={styles.walletHeader}>
@@ -305,21 +305,21 @@ export default function ShipperProfileScreen() {
               <Text style={styles.walletBalance}>${balance.toFixed(2)}</Text>
               <View style={styles.walletBreakdown}>
                 <View style={styles.breakdownItem}>
-                  <Text style={styles.breakdownLabel}>Gross Earnings</Text>
+                  <Text style={styles.breakdownLabel}>Total Spent</Text>
                   <Text style={styles.breakdownValue}>${totalEarnings.toFixed(2)}</Text>
                 </View>
                 <View style={styles.breakdownItem}>
-                  <Text style={styles.breakdownLabel}>Platform Fee (5%)</Text>
-                  <Text style={styles.breakdownValueNegative}>-${(totalEarnings * 0.05).toFixed(2)}</Text>
+                  <Text style={styles.breakdownLabel}>Load Posting Fees</Text>
+                  <Text style={styles.breakdownValueNegative}>-${(totalEarnings * 0.6).toFixed(2)}</Text>
                 </View>
                 <View style={styles.breakdownItem}>
-                  <Text style={styles.breakdownLabel}>Net Available</Text>
-                  <Text style={styles.breakdownValuePositive}>${(totalEarnings * 0.95).toFixed(2)}</Text>
+                  <Text style={styles.breakdownLabel}>Platform Fees</Text>
+                  <Text style={styles.breakdownValueNegative}>-${(totalEarnings * 0.4).toFixed(2)}</Text>
                 </View>
                 <View style={styles.breakdownDivider} />
                 <View style={styles.breakdownItem}>
-                  <Text style={styles.breakdownLabel}>Pending Earnings</Text>
-                  <Text style={styles.breakdownValue}>${(totalEarnings * 0.15).toFixed(2)}</Text>
+                  <Text style={styles.breakdownLabel}>Pending Charges</Text>
+                  <Text style={styles.breakdownValue}>${(totalEarnings * 0.1).toFixed(2)}</Text>
                 </View>
               </View>
               <View style={styles.walletActions}>
@@ -478,7 +478,7 @@ export default function ShipperProfileScreen() {
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>${totalEarnings.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Total Revenue</Text>
+              <Text style={styles.statLabel}>Total Expenses</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{(user as any)?.avgRating ?? 4.8}</Text>

@@ -5,7 +5,7 @@ import { useAuth } from './useAuth';
 import { useLoads } from './useLoads';
 import { calculateLoadCostBreakdown, formatNetCurrency, formatEarningsBreakdown } from '@/utils/fuelCostCalculator';
 
-export type TransactionType = 'earning' | 'withdrawal' | 'fee' | 'bonus' | 'fuel_advance' | 'deposit' | 'load_posting' | 'platform_fee' | 'premium_placement';
+export type TransactionType = 'earning' | 'withdrawal' | 'fee' | 'bonus' | 'fuel_advance' | 'deposit';
 
 export interface Transaction {
   id: string;
@@ -92,7 +92,7 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
           setTotalWithdrawn(data.totalWithdrawn || 0);
         } else {
           // Initialize with seed data for demo
-          const seedTransactions = generateSeedTransactions(user.role);
+          const seedTransactions = generateSeedTransactions();
           setTransactions(seedTransactions);
           const seedBalance = calculateBalanceFromTransactions(seedTransactions);
           setBalance(seedBalance.available);
@@ -306,130 +306,60 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
 });
 
 // Helper functions
-function generateSeedTransactions(userRole?: string): Transaction[] {
+function generateSeedTransactions(): Transaction[] {
   const now = new Date();
   const transactions: Transaction[] = [];
   
-  if (userRole === 'shipper') {
-    // Generate shipper expense transactions
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(now.getTime() - (i * 2 * 24 * 60 * 60 * 1000)); // Every 2 days
-      const expenseAmount = 25 + Math.random() * 75; // $25-$100 per load posting
-      
-      transactions.push({
-        id: `expense_${i}`,
-        amount: -Math.round(expenseAmount * 100) / 100,
-        type: 'load_posting',
-        description: `Load posting fee - ${getRandomCity()} to ${getRandomCity()}`,
-        date,
-        status: 'completed',
-        feeAmount: Math.round(expenseAmount * 100) / 100,
-      });
-    }
-    
-    // Add platform fees
-    for (let i = 0; i < 8; i++) {
-      const date = new Date(now.getTime() - (i * 4 * 24 * 60 * 60 * 1000)); // Every 4 days
-      const feeAmount = 15 + Math.random() * 35; // $15-$50
-      
-      transactions.push({
-        id: `platform_fee_${i}`,
-        amount: -Math.round(feeAmount * 100) / 100,
-        type: 'platform_fee',
-        description: `Platform service fee - Load #${1000 + i}`,
-        date,
-        status: 'completed',
-        feeAmount: Math.round(feeAmount * 100) / 100,
-      });
-    }
-    
-    // Add premium placement fees
-    for (let i = 0; i < 5; i++) {
-      const date = new Date(now.getTime() - (i * 7 * 24 * 60 * 60 * 1000)); // Weekly
-      const premiumAmount = 50 + Math.random() * 100; // $50-$150
-      
-      transactions.push({
-        id: `premium_${i}`,
-        amount: -Math.round(premiumAmount * 100) / 100,
-        type: 'premium_placement',
-        description: `Premium load placement - Featured listing`,
-        date,
-        status: 'completed',
-        feeAmount: Math.round(premiumAmount * 100) / 100,
-      });
-    }
-    
-    // Add some deposits (money added to account)
-    transactions.push({
-      id: 'deposit_1',
-      amount: 1000,
-      type: 'deposit',
-      description: 'Account funding - Bank transfer',
-      date: new Date(now.getTime() - (10 * 24 * 60 * 60 * 1000)),
-      status: 'completed',
-    });
+  // Generate some sample transactions for the last 3 months
+  for (let i = 0; i < 15; i++) {
+    const date = new Date(now.getTime() - (i * 3 * 24 * 60 * 60 * 1000)); // Every 3 days
+    const grossAmount = 1200 + Math.random() * 2000; // $1200-$3200
+    const platformFee = Math.round(grossAmount * PLATFORM_FEE_RATE * 100) / 100;
+    const miles = 300 + Math.random() * 500; // 300-800 miles
+    const fuelCost = miles * (3.5 + Math.random() * 1.5) * 0.15; // Rough fuel cost calculation
+    const netAmount = grossAmount - platformFee - fuelCost;
+    const netPerMile = miles > 0 ? netAmount / miles : 0;
     
     transactions.push({
-      id: 'deposit_2',
-      amount: 500,
-      type: 'deposit',
-      description: 'Account funding - Credit card',
-      date: new Date(now.getTime() - (20 * 24 * 60 * 60 * 1000)),
+      id: `seed_${i}`,
+      amount: Math.round(netAmount * 100) / 100, // Use net as main amount
+      grossAmount,
+      type: 'earning',
+      description: `Load ${i + 1} - ${getRandomCity()} to ${getRandomCity()}`,
+      date,
       status: 'completed',
-    });
-    
-  } else {
-    // Generate driver earning transactions (existing logic)
-    for (let i = 0; i < 15; i++) {
-      const date = new Date(now.getTime() - (i * 3 * 24 * 60 * 60 * 1000)); // Every 3 days
-      const grossAmount = 1200 + Math.random() * 2000; // $1200-$3200
-      const platformFee = Math.round(grossAmount * PLATFORM_FEE_RATE * 100) / 100;
-      const miles = 300 + Math.random() * 500; // 300-800 miles
-      const fuelCost = miles * (3.5 + Math.random() * 1.5) * 0.15; // Rough fuel cost calculation
-      const netAmount = grossAmount - platformFee - fuelCost;
-      const netPerMile = miles > 0 ? netAmount / miles : 0;
-      
-      transactions.push({
-        id: `seed_${i}`,
-        amount: Math.round(netAmount * 100) / 100, // Use net as main amount
-        grossAmount,
-        type: 'earning',
-        description: `Load ${i + 1} - ${getRandomCity()} to ${getRandomCity()}`,
-        date,
-        status: 'completed',
-        feeAmount: platformFee,
-        netAmount: Math.round(netAmount * 100) / 100,
-        milesDriven: Math.round(miles),
+      feeAmount: platformFee,
+      netAmount: Math.round(netAmount * 100) / 100,
+      milesDriven: Math.round(miles),
+      fuelCost: Math.round(fuelCost * 100) / 100,
+      costBreakdown: {
+        grossEarnings: grossAmount,
         fuelCost: Math.round(fuelCost * 100) / 100,
-        costBreakdown: {
-          grossEarnings: grossAmount,
-          fuelCost: Math.round(fuelCost * 100) / 100,
-          platformFee,
-          netEarnings: Math.round(netAmount * 100) / 100,
-          netPerMile: Math.round(netPerMile * 100) / 100,
-        },
-      });
-    }
-    
-    // Add some withdrawals
-    transactions.push({
-      id: 'withdrawal_1',
-      amount: -2500,
-      type: 'withdrawal',
-      description: 'Bank Transfer - Chase Checking',
-      date: new Date(now.getTime() - (5 * 24 * 60 * 60 * 1000)),
-      status: 'completed',
-    });
-    
-    transactions.push({
-      id: 'withdrawal_2',
-      amount: -1800,
-      type: 'withdrawal',
-      description: 'Bank Transfer - Chase Checking',
-      date: new Date(now.getTime() - (12 * 24 * 60 * 60 * 1000)),
-      status: 'completed',
+        platformFee,
+        netEarnings: Math.round(netAmount * 100) / 100,
+        netPerMile: Math.round(netPerMile * 100) / 100,
+      },
     });
   }
+  
+  // Add some withdrawals
+  transactions.push({
+    id: 'withdrawal_1',
+    amount: -2500,
+    type: 'withdrawal',
+    description: 'Bank Transfer - Chase Checking',
+    date: new Date(now.getTime() - (5 * 24 * 60 * 60 * 1000)),
+    status: 'completed',
+  });
+  
+  transactions.push({
+    id: 'withdrawal_2',
+    amount: -1800,
+    type: 'withdrawal',
+    description: 'Bank Transfer - Chase Checking',
+    date: new Date(now.getTime() - (12 * 24 * 60 * 60 * 1000)),
+    status: 'completed',
+  });
   
   return transactions.sort((a, b) => b.date.getTime() - a.date.getTime());
 }
@@ -455,19 +385,8 @@ function calculateBalanceFromTransactions(transactions: Transaction[]) {
       } else {
         pending += transaction.amount; // Pending withdrawal
       }
-    } else if (transaction.type === 'fee' || transaction.type === 'load_posting' || transaction.type === 'platform_fee' || transaction.type === 'premium_placement') {
-      if (transaction.status === 'completed') {
-        available += transaction.amount; // Amount is negative for expenses
-        total += Math.abs(transaction.amount); // Track total expenses
-      } else {
-        pending += transaction.amount; // Pending expense
-      }
-    } else if (transaction.type === 'deposit') {
-      if (transaction.status === 'completed') {
-        available += transaction.amount; // Amount is positive for deposits
-      } else {
-        pending += transaction.amount; // Pending deposit
-      }
+    } else if (transaction.type === 'fee') {
+      available += transaction.amount; // Amount is negative
     }
   });
   
