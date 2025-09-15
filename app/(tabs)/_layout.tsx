@@ -34,16 +34,6 @@ export default function TabsLayout() {
         },
       }}
     >
-      {/* Dashboard Tab */}
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-          href: (isDriver || isAdmin) ? '/dashboard' : null,
-        }}
-      />
-      
       {/* Loads Tab - Dedicated Shipper Navigation */}
       <Tabs.Screen
         name="loads"
@@ -51,6 +41,16 @@ export default function TabsLayout() {
           title: isShipper ? 'My Loads' : 'Loads',
           tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
           href: isShipper ? '/shipper-loads' : (isDriver || isAdmin) ? '/loads' : null,
+        }}
+      />
+      
+      {/* Dashboard Tab */}
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+          href: (isDriver || isAdmin) ? '/dashboard' : null,
         }}
       />
       
