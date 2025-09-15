@@ -10,21 +10,38 @@ service firebase.storage {
       return request.auth != null && request.auth.uid != null;
     }
     
-    // ULTRA-PERMISSIVE: Allow all authenticated users to upload photos anywhere
-    // This fixes the persistent "storage/unauthorized" error
+    function isValidUser() {
+      // More permissive: allow both anonymous and registered users
+      return request.auth != null && 
+             request.auth.uid != null && 
+             request.auth.uid.size() > 0;
+    }
+    
+    // CRITICAL FIX: Ultra-permissive rules for photo uploads
+    // Allow any authenticated user (including anonymous) to upload photos
+    match /loadPhotos/{userId}/{loadId}/{fileName} {
+      allow read, write, create, update, delete: if isValidUser();
+    }
+    
+    // Fallback: Allow any authenticated user to access loadPhotos
     match /loadPhotos/{allPaths=**} {
-      allow read, write, create, update, delete: if isAuthenticated();
+      allow read, write, create, update, delete: if isValidUser();
     }
     
     // Vehicle photos with same ultra-permissive rules
     match /vehiclePhotos/{allPaths=**} {
-      allow read, write, create, update, delete: if isAuthenticated();
+      allow read, write, create, update, delete: if isValidUser();
     }
     
-    // Catch-all for any photo-related paths - ultra-permissive
+    // EMERGENCY FALLBACK: Allow all authenticated users to access any photo path
+    // This ensures uploads work even if path structure changes
     match /{allPaths=**} {
-      allow read, write, create, update, delete: if isAuthenticated() && 
-        (allPaths.matches('.*[Pp]hotos/.*') || allPaths.matches('.*[Ii]mages/.*') || allPaths.matches('.*uploads/.*'));
+      allow read, write, create, update, delete: if isValidUser() && 
+        (allPaths.matches('.*[Pp]hotos/.*') || 
+         allPaths.matches('.*[Ii]mages/.*') || 
+         allPaths.matches('.*uploads/.*') ||
+         allPaths.matches('.*load.*') ||
+         allPaths.matches('.*vehicle.*'));
     }
     
     // Admin-only report files

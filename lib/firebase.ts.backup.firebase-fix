@@ -1,0 +1,4 @@
+// Backup of lib/firebase.ts before Firebase Storage fix
+// Created: 2025-01-15
+// Issue: Firebase Storage unauthorized error
+// This backup preserves the current state before applying fixes

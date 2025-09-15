@@ -233,9 +233,27 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
           console.log('[PhotoUploader] Upload progress:', Math.round(progress) + '%');
         },
         (error) => {
-          console.error('[PhotoUploader] Upload error:', error);
-          console.error('[PhotoUploader] Error code:', error.code);
-          console.error('[PhotoUploader] Error message:', error.message);
+          console.error('[PhotoUploader] ❌ Upload error:', error);
+          console.error('[PhotoUploader] 🔍 Error code:', error.code);
+          console.error('[PhotoUploader] 📝 Error message:', error.message);
+          console.error('[PhotoUploader] 🔍 Error name:', error.name);
+          console.error('[PhotoUploader] 🔍 Error serverResponse:', error.serverResponse);
+          console.error('[PhotoUploader] 🔍 Error customData:', error.customData);
+          
+          // CRITICAL: Log authentication state during error
+          try {
+            const { auth } = getFirebase();
+            console.error('[PhotoUploader] 🔑 Auth state during error:', {
+              hasCurrentUser: !!auth.currentUser,
+              uid: auth.currentUser?.uid,
+              isAnonymous: auth.currentUser?.isAnonymous,
+              email: auth.currentUser?.email,
+              emailVerified: auth.currentUser?.emailVerified
+            });
+          } catch (authCheckError) {
+            console.error('[PhotoUploader] ⚠️ Could not check auth state:', authCheckError);
+          }
+          
           reject(error);
         },
         async () => {
@@ -506,6 +524,25 @@ export function PhotoUploader({
             console.log('[PhotoUploader] User ID:', auth.currentUser?.uid);
             console.log('[PhotoUploader] User type:', auth.currentUser?.isAnonymous ? 'Anonymous' : 'Registered');
             console.log('[PhotoUploader] Auth token available:', !!auth.currentUser?.accessToken);
+            
+            // CRITICAL: Log auth token details for debugging
+            try {
+              const token = await auth.currentUser?.getIdToken(true);
+              console.log('[PhotoUploader] 🔑 Fresh ID token obtained:', !!token);
+              if (token) {
+                const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+                console.log('[PhotoUploader] 🔑 Token payload:', {
+                  iss: tokenPayload.iss,
+                  aud: tokenPayload.aud,
+                  auth_time: new Date(tokenPayload.auth_time * 1000).toISOString(),
+                  exp: new Date(tokenPayload.exp * 1000).toISOString(),
+                  firebase: tokenPayload.firebase
+                });
+              }
+            } catch (tokenError) {
+              console.warn('[PhotoUploader] ⚠️ Could not decode token:', tokenError);
+            }
+            
             break;
           }
         } catch (authError: any) {
@@ -537,7 +574,9 @@ export function PhotoUploader({
       console.log('[PhotoUploader] User details:', {
         uid: auth.currentUser.uid,
         isAnonymous: auth.currentUser.isAnonymous,
-        providerId: auth.currentUser.providerId
+        providerId: auth.currentUser.providerId,
+        email: auth.currentUser.email,
+        emailVerified: auth.currentUser.emailVerified
       });
       const fileId = uuid.v4() as string;
       console.log('[UPLOAD_START] Processing image before upload...', input);
@@ -557,8 +596,30 @@ export function PhotoUploader({
       const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
       const basePath = `loadPhotos/${uid}/${safeId}`;
       
-      console.log('[PhotoUploader] Upload path:', basePath);
-      console.log('[PhotoUploader] Authenticated user:', uid);
+      console.log('[PhotoUploader] 📁 Upload path:', basePath);
+      console.log('[PhotoUploader] 👤 Authenticated user:', uid);
+      console.log('[PhotoUploader] 🏗️ Entity ID:', entityId);
+      console.log('[PhotoUploader] 🔒 User permissions check...');
+      
+      // CRITICAL: Test storage permissions before upload
+      try {
+        const { getStorage } = await import('firebase/storage');
+        const { getFirebase } = await import('@/utils/firebase');
+        const { app } = getFirebase();
+        const storage = getStorage(app);
+        console.log('[PhotoUploader] 🏪 Storage instance:', {
+          bucket: storage.app.options.storageBucket,
+          projectId: storage.app.options.projectId,
+          appName: storage.app.name
+        });
+        
+        // Test path construction
+        const testRef = ref(storage, basePath + '/test.txt');
+        console.log('[PhotoUploader] 🧪 Test reference created:', testRef.fullPath);
+      } catch (storageError: any) {
+        console.error('[PhotoUploader] ❌ Storage setup failed:', storageError);
+        throw new Error(`Storage initialization failed: ${storageError.message}`);
+      }
       if (qaState.qaSlowNetwork) {
         const delay = random(300, 1200);
         console.log('[QA] Simulating network delay:', delay + 'ms');
