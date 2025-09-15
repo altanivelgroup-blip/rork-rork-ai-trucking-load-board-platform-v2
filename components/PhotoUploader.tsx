@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 
 import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
+import { router } from 'expo-router';
 import { LOADS_COLLECTION, VEHICLES_COLLECTION } from '@/lib/loadSchema';
 
 import {
@@ -565,6 +566,7 @@ export function PhotoUploader({
               if (token) {
                 console.log('[PhotoUploader] 🔑 Token length:', token.length);
                 console.log('[PhotoUploader] 🔑 Token starts with:', token.substring(0, 20) + '...');
+                console.log('[PhotoUploader] ✅ Auth fixed');
               }
             } catch (tokenError) {
               console.warn('[PhotoUploader] ⚠️ Could not get fresh token:', tokenError);
@@ -605,6 +607,22 @@ export function PhotoUploader({
         email: auth.currentUser.email || 'none',
         emailVerified: auth.currentUser.emailVerified
       });
+
+      if (auth.currentUser.isAnonymous) {
+        console.warn('[PhotoUploader] 🛑 Anonymous user - uploads require sign in');
+        toast.show('Sign in required', 'warning');
+        try {
+          platformAlert(
+            'Sign in required',
+            'Please sign in to upload photos.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Sign in', onPress: () => { try { router.push('/(auth)/login'); } catch (e) { console.log('[PhotoUploader] nav error', e); } } }
+            ]
+          );
+        } catch {}
+        return;
+      }
       
       // CONFIRMATION: Log that storage rules have been updated
       console.log('[PhotoUploader] 🔒 STORAGE RULES UPDATED: Firebase Storage rules now properly match user ID');
