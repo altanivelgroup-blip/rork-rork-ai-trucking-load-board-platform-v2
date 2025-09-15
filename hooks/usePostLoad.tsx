@@ -384,16 +384,14 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       const authed = await ensureFirebaseAuth();
       if (!authed) {
         console.error('[PostLoad] Firebase authentication failed - cannot upload photos');
-        console.warn('[PostLoad] Firebase auth not available, falling back to placeholders');
-        return photosLocal.map((_, i) => `https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+        throw new Error('Firebase authentication required for photo uploads. Please check your connection and try again.');
       }
       
       // Verify we have a current user
       const { auth } = getFirebase();
       if (!auth?.currentUser?.uid) {
         console.error('[PostLoad] No authenticated user found for photo upload');
-        console.warn('[PostLoad] No authenticated user, falling back to placeholders');
-        return photosLocal.map((_, i) => `https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+        throw new Error('User authentication required for photo uploads. Please sign in and try again.');
       }
       
       console.log('[PostLoad] ✅ Authentication verified for photo upload - user:', auth.currentUser.uid);
@@ -431,19 +429,19 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             uploadedUrls.push(url);
             console.log(`[PostLoad] ✅ uploaded photo ${i + 1}/${photosLocal.length} to Firebase Storage`);
           } catch (uploadError) {
-            console.warn('[PostLoad] Firebase Storage upload failed, using placeholder:', uploadError);
-            uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+            console.error('[PostLoad] Firebase Storage upload failed:', uploadError);
+            throw uploadError; // Don't use placeholder - let the error bubble up
           }
         } catch (uploadError) {
           console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
-          uploadedUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+          throw uploadError; // Don't use placeholder - let the error bubble up
         }
       }
 
       return uploadedUrls;
     } catch (error) {
       console.error('[PostLoad] uploadPhotosToFirebase error:', error);
-      return photosLocal.map((_, i) => `https://picsum.photos/400/300?random=${Date.now()}-${i}`);
+      throw error; // Don't use placeholder - let the error bubble up
     }
   }, [user?.id]);
 
@@ -456,12 +454,8 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       
     } catch (error) {
       console.error('[PostLoad] uploadPhotos error:', error);
-      // Final fallback to placeholder images
-      const placeholderUrls = draft.photosLocal.map((_, i) => 
-        `https://picsum.photos/400/300?random=${Date.now()}-${i}`
-      );
-      setDraft(prev => ({ ...prev, photoUrls: placeholderUrls }));
-      console.warn('[PostLoad] using all placeholder images due to upload failure');
+      // Don't use placeholder images - let the error be handled by the UI
+      throw error;
     }
   }, [draft.photosLocal, draft.reference, user?.id, uploadPhotosToFirebase]);
 
@@ -587,16 +581,16 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         setField('photoUrls', finalPhotoUrls);
       }
       
-      // Ensure we have at least 5 photos (use placeholders if needed)
-      if (finalPhotoUrls.length < 5) {
-        console.log('[PostLoad] ensuring minimum 5 photos with placeholders');
-        const needed = 5 - finalPhotoUrls.length;
-        for (let i = 0; i < needed; i++) {
-          finalPhotoUrls.push(`https://picsum.photos/400/300?random=${Date.now()}-${finalPhotoUrls.length + i}`);
-        }
+      // Validate we have the required number of photos (no placeholders)
+      if (finalPhotoUrls.length < minRequired) {
+        const errorMsg = isVehicleLoad 
+          ? `Vehicle loads require exactly ${minRequired} photos for protection. Only ${finalPhotoUrls.length} uploaded successfully.`
+          : `At least ${minRequired} photo is required. Only ${finalPhotoUrls.length} uploaded successfully.`;
+        throw new Error(errorMsg);
       }
       
-      console.log('[PostLoad] final photo URLs count:', finalPhotoUrls.length);
+      console.log('[PostLoad] ✅ All photos uploaded successfully - final photo URLs count:', finalPhotoUrls.length);
+      console.log('[PostLoad] ✅ Submitted images saved - Displaying correctly');
       
       // Check Firebase permissions first
       const permissions = await checkFirebasePermissions();
@@ -686,12 +680,24 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             console.warn('[PostLoad] Firebase error, using local storage fallback');
           }
           
+          // For local storage fallback, we still need the photos to be uploaded to Firebase Storage
+        // If Firebase write fails but photos are uploaded, we can still create the local load
+        if (finalPhotoUrls.length >= minRequired) {
           await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, finalContactInfo);
+        } else {
+          throw new Error('Photos must be uploaded before creating load. Please retry photo upload.');
+        }
         }
       } else {
         console.warn('[PostLoad] Firebase write not available:', permissions.error || 'Unknown reason');
         
-        await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, finalContactInfo);
+        // For local storage fallback, we still need the photos to be uploaded to Firebase Storage
+        // If Firebase write fails but photos are uploaded, we can still create the local load
+        if (finalPhotoUrls.length >= minRequired) {
+          await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, finalContactInfo);
+        } else {
+          throw new Error('Photos must be uploaded before creating load. Please retry photo upload.');
+        }
       }
       
       // Reset state after successful posting

@@ -248,10 +248,10 @@ async function uploadWithFallback(
       return await uploadSmart(path, blob, mime, key, updateProgress);
     } catch (err: any) {
       const code = String(err?.code || err?.message || "");
-      console.log('[PhotoUploader] Upload failed, attempting fallback:', code);
-      const fallbackKey = uuid.v4() as string;
-      updateProgress?.(100);
-      return `https://picsum.photos/800/600?random=${fallbackKey}`;
+      console.error('[PhotoUploader] ❌ PRODUCTION upload failed - no fallback to mock images:', code);
+      console.error('[PhotoUploader] Error details:', err);
+      updateProgress?.(0);
+      throw err; // Don't use fallback mock images - let the error bubble up
     }
   } catch (error: any) {
     console.error('[PhotoUploader] Error in uploadWithFallback:', error);

@@ -20,9 +20,8 @@ class MockStorageRef {
   }
   
   async getDownloadURL(): Promise<string> {
-    // Return a mock URL based on the path
-    const randomId = Math.random().toString(36).substring(7);
-    return `https://picsum.photos/800/600?random=${randomId}`;
+    // This should never be called in production - throw error instead of mock
+    throw new Error('MockStorage should not be used in production. Check Firebase Storage configuration.');
   }
 }
 

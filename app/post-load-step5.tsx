@@ -54,9 +54,8 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], o
         const blob = await resp.blob();
         await fileRef.put(blob);
       } catch (e) {
-        console.log('[Upload] fetch failed for uri, using fallback blob:', a.uri, e);
-        const fallbackBlob = new Blob([`photo-${i}`], { type: 'text/plain' });
-        await fileRef.put(fallbackBlob);
+        console.error('[Upload] fetch failed for uri:', a.uri, e);
+        throw new Error(`Failed to fetch image from URI: ${a.uri}`);
       }
     }
     const url = await fileRef.getDownloadURL();
@@ -78,9 +77,8 @@ async function reuploadUrlsToDoc(uid: string, docId: string, urls: string[]) {
       const blob = await resp.blob();
       await fileRef.put(blob);
     } catch (e) {
-      console.log('[Reupload] fetch failed, using fallback blob for', src, e);
-      const fallbackBlob = new Blob([`photo-${i}`], { type: 'text/plain' });
-      await fileRef.put(fallbackBlob);
+      console.error('[Reupload] fetch failed for', src, e);
+      throw new Error(`Failed to fetch image from URL: ${src}`);
     }
     const url = await fileRef.getDownloadURL();
     out.push(url);
