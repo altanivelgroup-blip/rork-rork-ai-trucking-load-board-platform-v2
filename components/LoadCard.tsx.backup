@@ -1,0 +1,5 @@
+import React, { memo, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Load } from '@/types';
+
+// Backup of original LoadCard before navigation flow implementation

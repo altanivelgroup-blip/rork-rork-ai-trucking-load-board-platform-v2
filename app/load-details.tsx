@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import BackhaulPill from '@/components/BackhaulPill';
 import { Driver } from '@/types';
 import { formatCurrency } from '@/utils/fuel';
+import { DriverNavigation } from '@/components/DriverNavigation';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
 import { db } from '@/utils/firebase';
@@ -194,6 +195,17 @@ export default function LoadDetailsScreen() {
       return null;
     }
   }, [(user as Driver)?.fuelProfile?.tankCapacity, (user as Driver)?.fuelProfile?.averageMpg, fuelEstimate?.mpg, distanceDisplayMiles, load?.distance]);
+
+  const handlePickupConfirmed = useCallback(() => {
+    console.log('[LoadDetails] Pickup confirmed - Route loaded');
+    // Update load status or perform any pickup-related actions
+  }, []);
+
+  const handleDeliveryConfirmed = useCallback(() => {
+    console.log('[LoadDetails] Delivery confirmed - Navigation complete');
+    // Navigate back to loads or dashboard after delivery
+    router.push('/(tabs)/loads');
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -403,12 +415,13 @@ export default function LoadDetailsScreen() {
     setIsAccepting(true);
     try {
       await acceptLoad(load.id);
+      console.log('[LoadDetails] Load accepted - Navigating to pickup');
       setFilters({
         showBackhaul: true,
         backhaulCenter: { lat: load.destination.lat, lng: load.destination.lng },
         backhaulRadiusMiles: 50,
       });
-      router.push('/(tabs)/loads');
+      // Don't navigate away - stay on this page to show navigation
     } catch (error) {
       console.error('Failed to accept load:', error);
     } finally {
@@ -837,6 +850,15 @@ export default function LoadDetailsScreen() {
               </View>
               <Text style={styles.aiScoreValue}>{load.aiScore}%</Text>
             </View>
+          )}
+
+          {/* Driver Navigation - Only show for drivers and accepted loads */}
+          {user?.role === 'driver' && load?.status === 'in-transit' && (
+            <DriverNavigation
+              load={load}
+              onPickupConfirmed={handlePickupConfirmed}
+              onDeliveryConfirmed={handleDeliveryConfirmed}
+            />
           )}
         </ScrollView>
 

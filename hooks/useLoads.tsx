@@ -45,6 +45,7 @@ interface LoadsState {
   deleteCompletedLoad: (loadId: string) => Promise<void>;
   lastSyncTime: Date | null;
   syncStatus: 'idle' | 'syncing' | 'error';
+  updateLoadStatus: (loadId: string, status: LoadStatus) => Promise<void>;
 }
 
 export interface LoadsWithToast {
@@ -180,9 +181,31 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       const accepted = acceptedLoads ? JSON.parse(acceptedLoads) : [];
       accepted.push(loadId);
       await AsyncStorage.setItem('acceptedLoads', JSON.stringify(accepted));
-      console.log('[Loads] Load accepted');
+      console.log('[Loads] Load accepted - Navigating to pickup');
     } catch (error) {
       console.error('Failed to accept load:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [online]);
+
+  const updateLoadStatus = useCallback(async (loadId: string, status: LoadStatus) => {
+    setIsLoading(true);
+    try {
+      if (!online) {
+        console.log('[Loads] Offline: status update will sync later');
+      }
+      setLoads(prevLoads => 
+        prevLoads.map(load => 
+          load.id === loadId 
+            ? { ...load, status }
+            : load
+        )
+      );
+      console.log(`[Loads] Load ${loadId} status updated to ${status}`);
+    } catch (error) {
+      console.error('Failed to update load status:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -795,9 +818,10 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       deleteCompletedLoad,
       lastSyncTime,
       syncStatus,
+      updateLoadStatus,
     };
     return result;
-  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad, lastSyncTime, syncStatus]);
+  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad, lastSyncTime, syncStatus, updateLoadStatus]);
 
   return value;
 });
@@ -837,6 +861,7 @@ function getDefaultLoadsState(): LoadsState {
     deleteCompletedLoad: async () => {},
     lastSyncTime: null,
     syncStatus: 'idle',
+    updateLoadStatus: async () => {},
   };
 }
 

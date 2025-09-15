@@ -1,0 +1,7 @@
+import createContextHook from '@nkzw/create-context-hook';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Load, VehicleType } from '@/types';
+import { mockLoads } from '@/mocks/loads';
+
+// Backup of original useLoads before navigation flow implementation
