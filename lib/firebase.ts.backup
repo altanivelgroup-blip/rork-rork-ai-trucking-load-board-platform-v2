@@ -1,0 +1,31 @@
+// BACKUP: Original archiveExpiredLoads function from lib/firebase.ts
+// This backed up the original archiving logic before modifications
+
+export async function archiveExpiredLoads(): Promise<{ scanned: number; archived: number }> {
+  const { db } = getFirebase();
+  const now = Date.now();
+  let archived = 0;
+  let scanned = 0;
+  try {
+    const q = query(
+      collection(db, LOADS_COLLECTION),
+      where('isArchived', '==', false),
+      where('expiresAtMs', '<=', now),
+      orderBy('expiresAtMs', 'asc'),
+      limit(200)
+    );
+    const snap = await getDocs(q as any);
+    scanned = snap.docs.length;
+    if (scanned === 0) return { scanned, archived };
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => {
+      batch.update(d.ref, { isArchived: true, archivedAt: serverTimestamp() });
+      archived += 1;
+    });
+    await batch.commit();
+    return { scanned, archived };
+  } catch (e) {
+    console.log('[ArchiveExpired] error', e);
+    return { scanned, archived };
+  }
+}

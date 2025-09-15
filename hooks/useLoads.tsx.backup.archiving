@@ -1,0 +1,25 @@
+// BACKUP: Original isExpired function from useLoads.tsx
+// This backed up the original archiving logic before modifications
+
+const isExpired = useCallback((l: Load) => {
+  const d = l.deliveryDate instanceof Date ? l.deliveryDate : new Date(l.deliveryDate as unknown as string);
+  const ts = d.getTime();
+  if (isNaN(ts)) return false;
+  const expiresAt = ts + 36 * 60 * 60 * 1000;
+  return Date.now() > expiresAt;
+}, []);
+
+// Original readPersisted function that used isExpired
+const readPersisted = useCallback(async () => {
+  const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+  const persistedArr: any[] = persistedRaw ? JSON.parse(persistedRaw) : [];
+  const revived = persistedArr.map(reviveLoad);
+  const kept = revived.filter(l => !isExpired(l));
+  if (kept.length !== revived.length) {
+    try {
+      await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(kept));
+      console.log(`[Loads] Cleaned ${revived.length - kept.length} expired load(s)`);
+    } catch {}
+  }
+  return kept;
+}, [USER_POSTED_LOADS_KEY, reviveLoad, isExpired]);

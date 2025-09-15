@@ -230,11 +230,26 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   }, []);
 
   const isExpired = useCallback((l: Load) => {
+    // Updated archiving logic: Only consider loads expired if they are completed AND past 7-day window
+    // This prevents premature archiving of loads that are still active
     const d = l.deliveryDate instanceof Date ? l.deliveryDate : new Date(l.deliveryDate as unknown as string);
     const ts = d.getTime();
     if (isNaN(ts)) return false;
-    const expiresAt = ts + 36 * 60 * 60 * 1000;
-    return Date.now() > expiresAt;
+    
+    // Only archive if status is completed or archived AND delivery date is more than 7 days ago
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const isCompletedOrArchived = l.status === 'completed' || l.status === 'archived';
+    const isPastSevenDays = ts < sevenDaysAgo;
+    
+    const shouldExpire = isCompletedOrArchived && isPastSevenDays;
+    
+    if (shouldExpire) {
+      console.log(`[Loads] Load ${l.id} eligible for archiving - status: ${l.status}, delivery: ${d.toISOString()}`);
+    } else {
+      console.log(`[Loads] Load remains visible - ${l.id} status: ${l.status}, delivery: ${d.toISOString()}`);
+    }
+    
+    return shouldExpire;
   }, []);
 
   const readPersisted = useCallback(async () => {

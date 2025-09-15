@@ -165,29 +165,67 @@ export async function testFirebaseConnection() {
   }
 }
 
-// ---- Archive expired loads (deliveryDate + 36h) ----
+// ---- Archive expired loads (only completed loads after 7-day window) ----
 export async function archiveExpiredLoads(): Promise<{ scanned: number; archived: number }> {
   const { db } = getFirebase();
   const now = Date.now();
+  const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000); // 7 days in milliseconds
   let archived = 0;
   let scanned = 0;
+  
+  console.log('[ArchiveExpired] Archiving updated - Starting with new 7-day window logic');
+  
   try {
+    // Query for loads that are not archived and are either completed or explicitly marked for archiving
     const q = query(
       collection(db, LOADS_COLLECTION),
       where('isArchived', '==', false),
-      where('expiresAtMs', '<=', now),
-      orderBy('expiresAtMs', 'asc'),
       limit(200)
     );
     const snap = await getDocs(q as any);
     scanned = snap.docs.length;
+    
+    console.log(`[ArchiveExpired] Scanned ${scanned} loads for archiving eligibility`);
+    
     if (scanned === 0) return { scanned, archived };
+    
     const batch = writeBatch(db);
-    snap.docs.forEach((d) => {
-      batch.update(d.ref, { isArchived: true, archivedAt: serverTimestamp() });
-      archived += 1;
+    
+    snap.docs.forEach((doc) => {
+      const data = doc.data() as any;
+      const status = data?.status;
+      const deliveryDate = data?.deliveryDate?.toDate ? data.deliveryDate.toDate() : new Date(data?.deliveryDate || 0);
+      const deliveryTimestamp = deliveryDate.getTime();
+      
+      // Only archive if:
+      // 1. Status is 'completed' OR explicitly marked as 'archived'
+      // 2. AND delivery date is more than 7 days ago
+      const shouldArchive = (
+        (status === 'completed' || status === 'archived') &&
+        deliveryTimestamp < sevenDaysAgo &&
+        !isNaN(deliveryTimestamp)
+      );
+      
+      if (shouldArchive) {
+        console.log(`[ArchiveExpired] Archiving load ${doc.id} - status: ${status}, delivery: ${deliveryDate.toISOString()}`);
+        batch.update(doc.ref, { 
+          isArchived: true, 
+          archivedAt: serverTimestamp(),
+          archivedReason: 'completed_7day_window'
+        });
+        archived += 1;
+      } else {
+        console.log(`[ArchiveExpired] Load remains visible - ${doc.id} status: ${status}, delivery: ${deliveryDate.toISOString()}`);
+      }
     });
-    await batch.commit();
+    
+    if (archived > 0) {
+      await batch.commit();
+      console.log(`[ArchiveExpired] Successfully archived ${archived} completed loads`);
+    } else {
+      console.log('[ArchiveExpired] No loads eligible for archiving at this time');
+    }
+    
     return { scanned, archived };
   } catch (e) {
     console.log('[ArchiveExpired] error', e);
@@ -201,6 +239,9 @@ export async function purgeArchivedLoads(days: number = 14): Promise<{ scanned: 
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   let purged = 0;
   let scanned = 0;
+  
+  console.log(`[PurgeArchived] Starting purge of archived loads older than ${days} days`);
+  
   try {
     const q = query(
       collection(db, LOADS_COLLECTION),
@@ -210,17 +251,35 @@ export async function purgeArchivedLoads(days: number = 14): Promise<{ scanned: 
     );
     const snap = await getDocs(q as any);
     const toDelete = snap.docs.filter((d) => {
-      const cc = (d.data() as any)?.clientCreatedAt ?? 0;
-      return typeof cc === 'number' && cc < cutoff;
+      const data = d.data() as any;
+      const cc = data?.clientCreatedAt ?? 0;
+      const archivedAt = data?.archivedAt?.toDate ? data.archivedAt.toDate().getTime() : 0;
+      
+      // Use archivedAt if available, otherwise fall back to clientCreatedAt
+      const timestamp = archivedAt || cc;
+      const shouldDelete = typeof timestamp === 'number' && timestamp < cutoff;
+      
+      if (shouldDelete) {
+        console.log(`[PurgeArchived] Marking for deletion: ${d.id}, archived: ${new Date(timestamp).toISOString()}`);
+      }
+      
+      return shouldDelete;
     });
+    
     scanned = toDelete.length;
+    console.log(`[PurgeArchived] Found ${scanned} archived loads eligible for deletion`);
+    
     if (scanned === 0) return { scanned, purged };
+    
     const batch = writeBatch(db);
     toDelete.forEach((d) => {
       batch.delete(d.ref);
       purged += 1;
     });
+    
     await batch.commit();
+    console.log(`[PurgeArchived] Successfully purged ${purged} archived loads`);
+    
     return { scanned, purged };
   } catch (e) {
     console.log('[PurgeArchived] error', e);
@@ -453,6 +512,7 @@ export async function postLoad(args: {
       ...createOnly,
       ...(computeExpires != null ? { expiresAtMs: computeExpires } : {}),
       // Never touch isArchived/archivedAt here; cron-only
+      // Loads remain visible until explicitly completed and 7-day window passes
     } as const;
 
     console.log("[POST_LOAD] Attempting to write to Firestore...");
