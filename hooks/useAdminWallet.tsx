@@ -99,32 +99,54 @@ export const [AdminWalletProvider, useAdminWallet] = createContextHook<AdminWall
     loadAdminWalletData();
   }, [user]);
 
-  // Sync with loads data to calculate delivery fees
+  // Sync with loads data to calculate delivery fees - FIXED: Remove transactions from dependencies to prevent infinite loop
   useEffect(() => {
     if (!user || user.role !== 'admin' || !loads.length) return;
 
+    console.log('[AdminWallet] Update loop fixed - Stable render - Checking for new completed loads');
+    
     const completedLoads = loads.filter(load => load.status === 'delivered');
     
     // Add delivery fee transactions for new completed loads
     completedLoads.forEach(load => {
-      const existingTransaction = transactions.find(t => t.loadId === load.id && t.type === 'delivery_fee');
-      if (!existingTransaction && load.rate) {
-        const feeAmount = Math.round(load.rate * DELIVERY_FEE_RATE * 100) / 100;
-        
-        const newTransaction: AdminFeeTransaction = {
-          id: `delivery_fee_${load.id}`,
-          type: 'delivery_fee',
-          amount: feeAmount,
-          description: `5% delivery fee - ${load.origin?.city || 'Unknown'} to ${load.destination?.city || 'Unknown'}`,
-          date: load.deliveryDate ? new Date(load.deliveryDate) : new Date(),
-          loadId: load.id,
-          status: 'completed',
-        };
+      // Use functional state update to get current transactions without dependency
+      setTransactions(currentTransactions => {
+        const existingTransaction = currentTransactions.find(t => t.loadId === load.id && t.type === 'delivery_fee');
+        if (!existingTransaction && load.rate) {
+          console.log('[AdminWallet] Update loop fixed - Adding new delivery fee for load:', load.id);
+          
+          const feeAmount = Math.round(load.rate * DELIVERY_FEE_RATE * 100) / 100;
+          
+          const newTransaction: AdminFeeTransaction = {
+            id: `delivery_fee_${load.id}`,
+            type: 'delivery_fee',
+            amount: feeAmount,
+            description: `5% delivery fee - ${load.origin?.city || 'Unknown'} to ${load.destination?.city || 'Unknown'}`,
+            date: load.deliveryDate ? new Date(load.deliveryDate) : new Date(),
+            loadId: load.id,
+            status: 'completed',
+          };
 
-        addTransaction(newTransaction);
-      }
+          const updatedTransactions = [...currentTransactions, newTransaction];
+          
+          // Recalculate metrics and persist data
+          const updatedMetrics = calculateMetricsFromTransactions(updatedTransactions, loads);
+          setMetrics(updatedMetrics);
+
+          // Persist to storage asynchronously
+          AsyncStorage.setItem(ADMIN_WALLET_STORAGE_KEY, JSON.stringify({
+            transactions: updatedTransactions,
+            metrics: updatedMetrics,
+          })).catch(error => {
+            console.error('[AdminWallet] Error persisting admin wallet data:', error);
+          });
+          
+          return updatedTransactions;
+        }
+        return currentTransactions;
+      });
     });
-  }, [loads, user, transactions]);
+  }, [loads, user]); // FIXED: Removed transactions from dependencies
 
   const persistAdminWalletData = useCallback(async (data: any) => {
     if (!user || user.role !== 'admin') return;

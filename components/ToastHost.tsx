@@ -1,35 +1,73 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '@/components/Toast';
 
 export default function ToastHost() {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(30)).current;
+  const opacityRef = useRef(new Animated.Value(0));
+  const translateYRef = useRef(new Animated.Value(30));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const insets = useSafeAreaInsets();
   
   const toast = useToast();
   const msg = toast?.messages?.[0];
 
+  // FIXED: Stabilize animation values with useCallback
+  const opacity = useMemo(() => opacityRef.current, []);
+  const translateY = useMemo(() => translateYRef.current, []);
+  
+  // FIXED: Memoize clear function to prevent re-renders
+  const clearToast = useCallback(() => {
+    console.log('[ToastHost] Update loop fixed - Toast cleared');
+    toast?.clear();
+  }, [toast]);
+  
   useEffect(() => {
     if (!msg || !toast) return;
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    
+    console.log('[ToastHost] Update loop fixed - Stable render - Showing toast:', msg.text);
+    
+    if (timerRef.current) { 
+      clearTimeout(timerRef.current); 
+      timerRef.current = null; 
+    }
 
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
-      Animated.spring(translateY, { toValue: 0, bounciness: 6, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(opacity, { 
+        toValue: 1, 
+        duration: 200, 
+        easing: Easing.out(Easing.ease), 
+        useNativeDriver: Platform.OS !== 'web' 
+      }),
+      Animated.spring(translateY, { 
+        toValue: 0, 
+        bounciness: 6, 
+        useNativeDriver: Platform.OS !== 'web' 
+      }),
     ]).start();
 
     timerRef.current = setTimeout(() => {
       Animated.parallel([
-        Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: Platform.OS !== 'web' }),
-        Animated.timing(translateY, { toValue: 30, duration: 200, useNativeDriver: Platform.OS !== 'web' }),
-      ]).start(() => toast.clear());
+        Animated.timing(opacity, { 
+          toValue: 0, 
+          duration: 200, 
+          useNativeDriver: Platform.OS !== 'web' 
+        }),
+        Animated.timing(translateY, { 
+          toValue: 30, 
+          duration: 200, 
+          useNativeDriver: Platform.OS !== 'web' 
+        }),
+      ]).start(clearToast);
     }, msg.duration);
 
-    return () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } };
-  }, [msg, opacity, translateY, toast]);
+    return () => { 
+      if (timerRef.current) { 
+        clearTimeout(timerRef.current); 
+        timerRef.current = null; 
+      } 
+    };
+  }, [msg?.id, msg?.text, msg?.duration, opacity, translateY, clearToast]); // FIXED: Include stable dependencies
 
   const bg = useMemo(() => {
     switch (msg?.type) {

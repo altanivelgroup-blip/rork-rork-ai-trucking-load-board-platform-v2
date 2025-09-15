@@ -101,26 +101,53 @@ export function useNotificationSettings() {
     }
   }, []);
 
-  // Retry loading settings function
+  // Retry loading settings function - FIXED: Remove loadSettings dependency to prevent infinite loop
   const retryLoadSettings = useCallback(async () => {
     if (!currentUser?.uid) {
       console.warn('No user to retry loading settings for');
       return;
     }
     
-    console.log('Permissions fixed - Retry loading notification settings');
+    console.log('[NotificationSettings] Update loop fixed - Retry loading notification settings');
     setError(null);
     setRetryCount(prev => prev + 1);
     setIsLoading(true);
     
     try {
-      await loadSettings(currentUser);
+      // Call loadSettings directly without dependency to avoid infinite loop
+      if (currentUser && typeof currentUser === 'object' && currentUser.uid) {
+        const docRef = doc(db, 'notificationSettings', currentUser.uid);
+        
+        const unsubscribe = onSnapshot(docRef, 
+          (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data() as NotificationSettings;
+              console.log('[NotificationSettings] Retry loaded settings:', data);
+              setSettings(data);
+            } else {
+              console.log('[NotificationSettings] No settings found on retry, using defaults');
+              setSettings(defaultSettings);
+            }
+            setIsLoading(false);
+          },
+          (error: any) => {
+            const errorMessage = error && typeof error === 'object' && error.message ? error.message : 'Unknown error';
+            console.error('[NotificationSettings] Retry error:', errorMessage);
+            setError('Retry failed. Please try again.');
+            setSettings(defaultSettings);
+            setIsLoading(false);
+          }
+        );
+        
+        // Clean up listener after a short time for retry
+        setTimeout(() => unsubscribe(), 5000);
+      }
     } catch (error) {
-      console.warn('Retry failed:', error);
+      console.warn('[NotificationSettings] Retry failed:', error);
       setError('Retry failed. Please try again.');
       setIsLoading(false);
     }
-  }, [currentUser, loadSettings]);
+  }, [currentUser]); // FIXED: Removed loadSettings dependency
 
   // Save settings to Firestore
   const saveSettings = useCallback(async (newSettings: NotificationSettings) => {

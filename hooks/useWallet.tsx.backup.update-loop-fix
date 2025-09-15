@@ -110,12 +110,10 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
     loadWalletData();
   }, [user]);
 
-  // Sync with completed loads - FIXED: Remove transactions from dependencies to prevent infinite loop
+  // Sync with completed loads
   useEffect(() => {
     if (!user || !loads.length) return;
 
-    console.log('[Wallet] Update loop fixed - Stable render - Checking for new completed loads');
-    
     const completedLoads = loads.filter(load => 
       load.status === 'delivered' && 
       load.assignedDriverId === user.id
@@ -123,65 +121,37 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
 
     // Add transactions for new completed loads with enhanced cost breakdown
     completedLoads.forEach(load => {
-      // Use functional state update to get current transactions without dependency
-      setTransactions(currentTransactions => {
-        const existingTransaction = currentTransactions.find(t => t.loadId === load.id);
-        if (!existingTransaction && load.rate) {
-          console.log('[Wallet] Update loop fixed - Adding new transaction for load:', load.id);
-          
-          // Calculate comprehensive cost breakdown including fuel
-          const costBreakdown = calculateLoadCostBreakdown(load, user as any);
-          
-          const newTransaction: Transaction = {
-            id: `load_${load.id}`,
-            amount: costBreakdown.netEarnings, // Use net earnings as the main amount
-            grossAmount: costBreakdown.grossEarnings,
-            type: 'earning',
-            description: `${load.description || 'Load'} - ${load.origin?.city || 'Unknown'} to ${load.destination?.city || 'Unknown'}`,
-            date: load.deliveryDate ? new Date(load.deliveryDate) : new Date(),
-            loadId: load.id,
-            status: 'completed',
-            feeAmount: costBreakdown.platformFee,
-            netAmount: costBreakdown.netEarnings,
-            milesDriven: load.distance || 0,
+      const existingTransaction = transactions.find(t => t.loadId === load.id);
+      if (!existingTransaction && load.rate) {
+        // Calculate comprehensive cost breakdown including fuel
+        const costBreakdown = calculateLoadCostBreakdown(load, user as any);
+        
+        const newTransaction: Transaction = {
+          id: `load_${load.id}`,
+          amount: costBreakdown.netEarnings, // Use net earnings as the main amount
+          grossAmount: costBreakdown.grossEarnings,
+          type: 'earning',
+          description: `${load.description || 'Load'} - ${load.origin?.city || 'Unknown'} to ${load.destination?.city || 'Unknown'}`,
+          date: load.deliveryDate ? new Date(load.deliveryDate) : new Date(),
+          loadId: load.id,
+          status: 'completed',
+          feeAmount: costBreakdown.platformFee,
+          netAmount: costBreakdown.netEarnings,
+          milesDriven: load.distance || 0,
+          fuelCost: costBreakdown.fuelCost,
+          costBreakdown: {
+            grossEarnings: costBreakdown.grossEarnings,
             fuelCost: costBreakdown.fuelCost,
-            costBreakdown: {
-              grossEarnings: costBreakdown.grossEarnings,
-              fuelCost: costBreakdown.fuelCost,
-              platformFee: costBreakdown.platformFee,
-              netEarnings: costBreakdown.netEarnings,
-              netPerMile: costBreakdown.netPerMile,
-            },
-          };
+            platformFee: costBreakdown.platformFee,
+            netEarnings: costBreakdown.netEarnings,
+            netPerMile: costBreakdown.netPerMile,
+          },
+        };
 
-          const updatedTransactions = [...currentTransactions, newTransaction];
-          
-          // Recalculate balances and persist data
-          const balances = calculateBalanceFromTransactions(updatedTransactions);
-          setBalance(balances.available);
-          setPendingEarnings(balances.pending);
-          setTotalEarnings(balances.total);
-          setTotalWithdrawn(balances.withdrawn);
-
-          // Persist to storage asynchronously
-          if (user) {
-            AsyncStorage.setItem(`${WALLET_STORAGE_KEY}_${user.id}`, JSON.stringify({
-              transactions: updatedTransactions,
-              balance: balances.available,
-              pendingEarnings: balances.pending,
-              totalEarnings: balances.total,
-              totalWithdrawn: balances.withdrawn,
-            })).catch(error => {
-              console.error('[Wallet] Error persisting wallet data:', error);
-            });
-          }
-          
-          return updatedTransactions;
-        }
-        return currentTransactions;
-      });
+        addTransaction(newTransaction);
+      }
     });
-  }, [loads, user]); // FIXED: Removed transactions from dependencies
+  }, [loads, user, transactions]);
 
   const persistWalletData = useCallback(async (data: any) => {
     if (!user) return;
