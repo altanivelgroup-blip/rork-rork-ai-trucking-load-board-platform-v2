@@ -206,7 +206,7 @@ async function savePhotoMetadata(photoUrl: string, loadId: string, userId: strin
   }
 }
 
-async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
+async function uploadSmart(path: string, blob: Blob, mime: string, key: string, entityId: string, updateProgress?: (progress: number) => void): Promise<string> {
   console.log('[PhotoUploader] ✅ PRODUCTION upload to path:', path);
   try {
     // PRODUCTION FIXED: Use Firebase Storage modular API directly
@@ -240,16 +240,41 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
           console.error('[PhotoUploader] 🔍 Error serverResponse:', error.serverResponse);
           console.error('[PhotoUploader] 🔍 Error customData:', error.customData);
           
-          // CRITICAL: Log authentication state during error
+          // CRITICAL: Log authentication state and storage path during error
           try {
             const { auth } = getFirebase();
-            console.error('[PhotoUploader] 🔑 Auth state during error:', {
+            const uid = auth.currentUser?.uid;
+            const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
+            const attemptedPath = `loadPhotos/${uid}/${safeId}`;
+            
+            console.error('[PhotoUploader] 🔑 Auth state during storage error:', {
               hasCurrentUser: !!auth.currentUser,
               uid: auth.currentUser?.uid,
               isAnonymous: auth.currentUser?.isAnonymous,
-              email: auth.currentUser?.email,
-              emailVerified: auth.currentUser?.emailVerified
+              email: auth.currentUser?.email || 'none',
+              emailVerified: auth.currentUser?.emailVerified,
+              attemptedStoragePath: attemptedPath,
+              pathUserId: uid,
+              entityId: entityId
             });
+            
+            // Check if path matches user ID (critical for storage rules)
+            if (path && uid) {
+              const pathUserId = path.split('/')[1]; // Extract userId from path
+              const pathMatches = pathUserId === uid;
+              console.error('[PhotoUploader] 🔍 Storage path analysis:', {
+                fullPath: path,
+                extractedUserId: pathUserId,
+                actualUserId: uid,
+                pathMatches: pathMatches,
+                rulesWillAllow: pathMatches && !!auth.currentUser
+              });
+              
+              if (!pathMatches) {
+                console.error('[PhotoUploader] ❌ CRITICAL: Storage path userId does not match authenticated user!');
+                console.error('[PhotoUploader] 🚨 This will cause storage/unauthorized error');
+              }
+            }
           } catch (authCheckError) {
             console.error('[PhotoUploader] ⚠️ Could not check auth state:', authCheckError);
           }
@@ -287,7 +312,7 @@ async function uploadWithFallback(
     const path = `${basePath}/${key}.${ext}`;
 
     try {
-      return await uploadSmart(path, blob, mime, key, updateProgress);
+      return await uploadSmart(path, blob, mime, key, basePath.split('/')[2] || 'unknown', updateProgress);
     } catch (err: any) {
       const code = String(err?.code || err?.message || "");
       console.error('[PhotoUploader] ❌ PRODUCTION upload failed - no fallback to mock images:', code);
@@ -503,17 +528,17 @@ export function PhotoUploader({
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
       // ENHANCED: Robust Firebase authentication with detailed logging
-      console.log('[PhotoUploader] Starting robust authentication process...');
+      console.log('[PhotoUploader] 🔐 Starting Firebase Storage upload authentication...');
       
       // Try authentication with multiple attempts and better error handling
       let authSuccess = false;
       let attempts = 0;
-      const maxAttempts = 5; // Increased attempts
+      const maxAttempts = 3; // Reduced attempts for faster feedback
       let lastError: any = null;
       
       while (!authSuccess && attempts < maxAttempts) {
         attempts++;
-        console.log(`[PhotoUploader] Authentication attempt ${attempts}/${maxAttempts}`);
+        console.log(`[PhotoUploader] 🔄 Authentication attempt ${attempts}/${maxAttempts}`);
         
         try {
           authSuccess = await ensureFirebaseAuth();
@@ -521,45 +546,47 @@ export function PhotoUploader({
           if (authSuccess) {
             const { auth } = getFirebase();
             console.log('[PhotoUploader] ✅ Authentication successful!');
-            console.log('[PhotoUploader] User ID:', auth.currentUser?.uid);
-            console.log('[PhotoUploader] User type:', auth.currentUser?.isAnonymous ? 'Anonymous' : 'Registered');
-            console.log('[PhotoUploader] Auth token available:', !!auth.currentUser?.accessToken);
+            console.log('[PhotoUploader] 👤 User ID:', auth.currentUser?.uid);
+            console.log('[PhotoUploader] 🏷️ User type:', auth.currentUser?.isAnonymous ? 'Anonymous' : 'Registered');
+            console.log('[PhotoUploader] 🎫 Auth token available:', !!auth.currentUser?.accessToken);
             
-            // CRITICAL: Log auth token details for debugging
+            // CRITICAL: Verify storage path matches user ID
+            const uid = auth.currentUser?.uid;
+            const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
+            const expectedPath = `loadPhotos/${uid}/${safeId}`;
+            console.log('[PhotoUploader] 📁 Expected storage path:', expectedPath);
+            console.log('[PhotoUploader] 🔒 Storage rules will check: request.auth.uid == userId');
+            console.log('[PhotoUploader] 🆔 Path userId will be:', uid);
+            
+            // Get fresh ID token for storage access
             try {
               const token = await auth.currentUser?.getIdToken(true);
               console.log('[PhotoUploader] 🔑 Fresh ID token obtained:', !!token);
               if (token) {
-                const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-                console.log('[PhotoUploader] 🔑 Token payload:', {
-                  iss: tokenPayload.iss,
-                  aud: tokenPayload.aud,
-                  auth_time: new Date(tokenPayload.auth_time * 1000).toISOString(),
-                  exp: new Date(tokenPayload.exp * 1000).toISOString(),
-                  firebase: tokenPayload.firebase
-                });
+                console.log('[PhotoUploader] 🔑 Token length:', token.length);
+                console.log('[PhotoUploader] 🔑 Token starts with:', token.substring(0, 20) + '...');
               }
             } catch (tokenError) {
-              console.warn('[PhotoUploader] ⚠️ Could not decode token:', tokenError);
+              console.warn('[PhotoUploader] ⚠️ Could not get fresh token:', tokenError);
             }
             
             break;
           }
         } catch (authError: any) {
           lastError = authError;
-          console.warn(`[PhotoUploader] Auth attempt ${attempts} failed:`, authError.code, authError.message);
+          console.warn(`[PhotoUploader] ❌ Auth attempt ${attempts} failed:`, authError.code, authError.message);
         }
         
         if (!authSuccess && attempts < maxAttempts) {
-          const delay = Math.min(1000 * attempts, 3000); // Progressive delay
-          console.log(`[PhotoUploader] Retrying authentication in ${delay}ms...`);
+          const delay = 1000 * attempts; // 1s, 2s delays
+          console.log(`[PhotoUploader] ⏳ Retrying authentication in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
       
       if (!authSuccess) {
         console.error('[PhotoUploader] ❌ All authentication attempts failed');
-        console.error('[PhotoUploader] Last error:', lastError);
+        console.error('[PhotoUploader] 💥 Last error:', lastError);
         throw new Error(`Authentication failed after ${maxAttempts} attempts. Please check your internet connection and try again.`);
       }
       
@@ -570,14 +597,19 @@ export function PhotoUploader({
         throw new Error('Authentication state inconsistent. Please refresh the page and try again.');
       }
       
-      console.log('[PhotoUploader] ✅ Authentication verified - Ready for upload');
-      console.log('[PhotoUploader] User details:', {
+      console.log('[PhotoUploader] ✅ Authentication verified - Ready for Firebase Storage upload');
+      console.log('[PhotoUploader] 📋 Final user details:', {
         uid: auth.currentUser.uid,
         isAnonymous: auth.currentUser.isAnonymous,
         providerId: auth.currentUser.providerId,
-        email: auth.currentUser.email,
+        email: auth.currentUser.email || 'none',
         emailVerified: auth.currentUser.emailVerified
       });
+      
+      // CONFIRMATION: Log that storage rules have been updated
+      console.log('[PhotoUploader] 🔒 STORAGE RULES UPDATED: Firebase Storage rules now properly match user ID');
+      console.log('[PhotoUploader] 📝 Rule: match /loadPhotos/{userId}/{loadId}/{fileName} { allow read, write: if request.auth != null && request.auth.uid == userId; }');
+      console.log('[PhotoUploader] ✅ This should resolve storage/unauthorized errors');
       const fileId = uuid.v4() as string;
       console.log('[UPLOAD_START] Processing image before upload...', input);
       const photoItem: PhotoItem = {

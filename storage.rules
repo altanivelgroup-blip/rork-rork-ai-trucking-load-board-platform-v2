@@ -11,37 +11,28 @@ service firebase.storage {
     }
     
     function isValidUser() {
-      // More permissive: allow both anonymous and registered users
       return request.auth != null && 
              request.auth.uid != null && 
              request.auth.uid.size() > 0;
     }
     
-    // CRITICAL FIX: Ultra-permissive rules for photo uploads
-    // Allow any authenticated user (including anonymous) to upload photos
+    // FIXED: Proper user ID matching for load photos
     match /loadPhotos/{userId}/{loadId}/{fileName} {
-      allow read, write, create, update, delete: if isValidUser();
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Fallback: Allow any authenticated user to access loadPhotos
-    match /loadPhotos/{allPaths=**} {
-      allow read, write, create, update, delete: if isValidUser();
+    // FIXED: Proper user ID matching for vehicle photos
+    match /vehiclePhotos/{userId}/{loadId}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Vehicle photos with same ultra-permissive rules
-    match /vehiclePhotos/{allPaths=**} {
-      allow read, write, create, update, delete: if isValidUser();
+    // Fallback: Allow authenticated users to access their own photos
+    match /loadPhotos/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // EMERGENCY FALLBACK: Allow all authenticated users to access any photo path
-    // This ensures uploads work even if path structure changes
-    match /{allPaths=**} {
-      allow read, write, create, update, delete: if isValidUser() && 
-        (allPaths.matches('.*[Pp]hotos/.*') || 
-         allPaths.matches('.*[Ii]mages/.*') || 
-         allPaths.matches('.*uploads/.*') ||
-         allPaths.matches('.*load.*') ||
-         allPaths.matches('.*vehicle.*'));
+    match /vehiclePhotos/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
     // Admin-only report files
