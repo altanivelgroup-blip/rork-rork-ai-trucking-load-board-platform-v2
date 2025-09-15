@@ -34,7 +34,17 @@ export default function TabsLayout() {
         },
       }}
     >
-      {/* Loads Tab - Dedicated Shipper Navigation */}
+      {/* Shipper Dashboard Tab (Always visible for shippers) - Position 1 for shippers */}
+      <Tabs.Screen
+        name="shipper"
+        options={{
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+          href: isShipper ? '/shipper' : null,
+        }}
+      />
+      
+      {/* Loads Tab - Dedicated Shipper Navigation - Position 2 for shippers */}
       <Tabs.Screen
         name="loads"
         options={{
@@ -61,16 +71,6 @@ export default function TabsLayout() {
           title: 'Service Finder',
           tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
           href: (isDriver && !isAdmin) ? '/service-finder' : null,
-        }}
-      />
-      
-      {/* Shipper Dashboard Tab (Always visible for shippers) */}
-      <Tabs.Screen
-        name="shipper"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-          href: isShipper ? '/shipper' : null,
         }}
       />
       
