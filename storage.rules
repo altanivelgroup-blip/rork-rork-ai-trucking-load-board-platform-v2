@@ -10,30 +10,20 @@ service firebase.storage {
       return request.auth != null && request.auth.uid != null;
     }
     
-    function isOwnerOrAuthenticated(userId) {
-      return request.auth != null && (request.auth.uid == userId || request.auth.uid != null);
-    }
-    
-    // FIXED: Ultra-permissive photo upload rules for all authenticated users
-    // Allow any authenticated user to upload photos to any path under loadPhotos
-    match /loadPhotos/{userId}/{loadId}/{fileName} {
-      allow read: if true; // Anyone can read photos for public load viewing
-      allow write, create, update, delete: if isAuthenticated(); // Any authenticated user can manage photos
-    }
-    
-    // Fallback for any loadPhotos path structure
+    // FIXED: Ultra-permissive rules for photo uploads - allow any authenticated user
+    // This fixes the "storage/unauthorized" error by allowing all authenticated users
     match /loadPhotos/{allPaths=**} {
       allow read: if true; // Anyone can read photos for public load viewing
       allow write, create, update, delete: if isAuthenticated(); // Any authenticated user can manage photos
     }
     
-    // FIXED: Ultra-permissive vehicle photo rules
+    // Vehicle photos with same permissive rules
     match /vehiclePhotos/{allPaths=**} {
       allow read: if true; // Anyone can read photos
       allow write, create, update, delete: if isAuthenticated(); // Any authenticated user can manage photos
     }
     
-    // FIXED: Broader fallback for any photo-related paths with explicit permissions
+    // Catch-all for any photo-related paths
     match /{allPaths=**} {
       allow read: if true;
       allow write, create, update, delete: if isAuthenticated() && 
