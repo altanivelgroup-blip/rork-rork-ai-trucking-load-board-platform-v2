@@ -81,6 +81,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Auth optimized notification settings: enhanced permissions for user settings
+    match /notificationSettings/{uid} {
+      allow read, write: if isAuthenticatedUser() && request.auth.uid == uid;
+      allow create: if isAuthenticatedUser();
+    }
+
     // Admin-only report analytics collections
     match /reports/{docId} {
       allow read, write: if isAdmin();
