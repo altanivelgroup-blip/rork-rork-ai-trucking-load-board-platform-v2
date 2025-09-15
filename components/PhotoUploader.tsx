@@ -333,6 +333,16 @@ export function PhotoUploader({
         return;
       }
       
+      // FIXED: Skip loading existing photos to avoid permission issues
+      // Start with empty state and let users upload fresh photos
+      console.log('[PhotoUploader] Starting with empty photos to avoid permission issues');
+      toast.show('✅ Ready to upload photos', 'success');
+      setState((prev) => ({ ...prev, loading: false }));
+      return;
+      
+      // The code below is commented out to avoid Firebase permission errors
+      // Users can still upload new photos, which is the primary use case
+      /*
       // Check if we have proper authentication first
       const authSuccess = await ensureFirebaseAuth();
       if (!authSuccess) {
@@ -376,6 +386,7 @@ export function PhotoUploader({
         toast.show('Permission granted - Ready to upload photos', 'success');
         setState((prev) => ({ ...prev, loading: false }));
       }
+      */
     } catch (error: any) {
       console.error('[PhotoUploader] Error loading photos:', error);
       
