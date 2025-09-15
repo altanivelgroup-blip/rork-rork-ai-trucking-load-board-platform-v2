@@ -1,2 +1,408 @@
 import React, { useState } from 'react';
-import {\n  View,\n  Text,\n  StyleSheet,\n  ScrollView,\n  TouchableOpacity,\n  TextInput,\n  Alert,\n  ActivityIndicator,\n} from 'react-native';\nimport { SafeAreaView } from 'react-native-safe-area-context';\nimport { CreditCard, DollarSign, Star, Zap } from 'lucide-react-native';\nimport { theme } from '@/constants/theme';\nimport { usePayments } from '@/hooks/usePayments';\nimport { useAuth } from '@/hooks/useAuth';\n\nexport default function PaymentTestScreen() {\n  const { user } = useAuth();\n  const {\n    isProcessing,\n    transactions,\n    processDeliveryFee,\n    processMembershipUpgrade,\n    processWalletTopUp,\n    getPaymentHistory,\n  } = usePayments();\n\n  const [topUpAmount, setTopUpAmount] = useState<string>('50.00');\n  const [deliveryAmount, setDeliveryAmount] = useState<string>('2500.00');\n\n  const handleDeliveryFeeTest = async () => {\n    try {\n      const amount = parseFloat(deliveryAmount);\n      if (isNaN(amount) || amount <= 0) {\n        Alert.alert('Error', 'Please enter a valid delivery amount');\n        return;\n      }\n\n      await processDeliveryFee('test_load_123', amount);\n      Alert.alert('Success', 'Delivery fee processed successfully!');\n    } catch (error) {\n      Alert.alert('Error', `Payment failed: ${error}`);\n    }\n  };\n\n  const handleMembershipUpgrade = async (type: 'basic' | 'premium') => {\n    try {\n      await processMembershipUpgrade(type);\n      Alert.alert('Success', `${type} membership upgrade processed successfully!`);\n    } catch (error) {\n      Alert.alert('Error', `Payment failed: ${error}`);\n    }\n  };\n\n  const handleWalletTopUp = async () => {\n    try {\n      const amount = parseFloat(topUpAmount);\n      if (isNaN(amount) || amount < 5) {\n        Alert.alert('Error', 'Minimum top-up amount is $5.00');\n        return;\n      }\n\n      await processWalletTopUp(Math.round(amount * 100)); // Convert to cents\n      Alert.alert('Success', 'Wallet top-up processed successfully!');\n    } catch (error) {\n      Alert.alert('Error', `Payment failed: ${error}`);\n    }\n  };\n\n  const handleRefreshHistory = async () => {\n    try {\n      await getPaymentHistory();\n      Alert.alert('Success', 'Payment history refreshed!');\n    } catch (error) {\n      Alert.alert('Error', `Failed to refresh history: ${error}`);\n    }\n  };\n\n  return (\n    <SafeAreaView style={styles.container} edges={['top']}>\n      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>\n        <View style={styles.header}>\n          <Text style={styles.title}>Payment Gateway Test</Text>\n          <Text style={styles.subtitle}>Test Stripe integration with LoadRush</Text>\n          {user && (\n            <Text style={styles.userInfo}>User: {user.email} ({user.role})</Text>\n          )}\n        </View>\n\n        {/* Delivery Fee Test */}\n        <View style={styles.section}>\n          <Text style={styles.sectionTitle}>5% Delivery Fee Test</Text>\n          <Text style={styles.sectionDescription}>\n            Test automatic 5% fee charging on delivery completion\n          </Text>\n          \n          <View style={styles.inputContainer}>\n            <Text style={styles.inputLabel}>Delivery Amount ($)</Text>\n            <TextInput\n              style={styles.input}\n              value={deliveryAmount}\n              onChangeText={setDeliveryAmount}\n              placeholder=\"2500.00\"\n              keyboardType=\"decimal-pad\"\n            />\n          </View>\n          \n          <TouchableOpacity\n            style={[styles.button, styles.primaryButton]}\n            onPress={handleDeliveryFeeTest}\n            disabled={isProcessing}\n          >\n            <DollarSign size={20} color={theme.colors.white} />\n            <Text style={styles.buttonText}>\n              {isProcessing ? 'Processing...' : `Charge 5% Fee ($${(parseFloat(deliveryAmount) * 0.05).toFixed(2)})`}\n            </Text>\n          </TouchableOpacity>\n        </View>\n\n        {/* Membership Upgrades */}\n        <View style={styles.section}>\n          <Text style={styles.sectionTitle}>Membership Upgrades</Text>\n          <Text style={styles.sectionDescription}>\n            Test $49 Basic and $199 Premium membership payments\n          </Text>\n          \n          <View style={styles.buttonRow}>\n            <TouchableOpacity\n              style={[styles.button, styles.secondaryButton, { flex: 1, marginRight: 8 }]}\n              onPress={() => handleMembershipUpgrade('basic')}\n              disabled={isProcessing}\n            >\n              <Star size={20} color={theme.colors.primary} />\n              <Text style={[styles.buttonText, styles.secondaryButtonText]}>\n                Basic $49\n              </Text>\n            </TouchableOpacity>\n            \n            <TouchableOpacity\n              style={[styles.button, styles.primaryButton, { flex: 1, marginLeft: 8 }]}\n              onPress={() => handleMembershipUpgrade('premium')}\n              disabled={isProcessing}\n            >\n              <Zap size={20} color={theme.colors.white} />\n              <Text style={styles.buttonText}>\n                Premium $199\n              </Text>\n            </TouchableOpacity>\n          </View>\n        </View>\n\n        {/* Wallet Top-up */}\n        <View style={styles.section}>\n          <Text style={styles.sectionTitle}>Wallet Top-up</Text>\n          <Text style={styles.sectionDescription}>\n            Test wallet deposits for shipper accounts\n          </Text>\n          \n          <View style={styles.inputContainer}>\n            <Text style={styles.inputLabel}>Top-up Amount ($)</Text>\n            <TextInput\n              style={styles.input}\n              value={topUpAmount}\n              onChangeText={setTopUpAmount}\n              placeholder=\"50.00\"\n              keyboardType=\"decimal-pad\"\n            />\n          </View>\n          \n          <TouchableOpacity\n            style={[styles.button, styles.primaryButton]}\n            onPress={handleWalletTopUp}\n            disabled={isProcessing}\n          >\n            <CreditCard size={20} color={theme.colors.white} />\n            <Text style={styles.buttonText}>\n              {isProcessing ? 'Processing...' : `Top-up $${topUpAmount}`}\n            </Text>\n          </TouchableOpacity>\n        </View>\n\n        {/* Payment History */}\n        <View style={styles.section}>\n          <View style={styles.sectionHeader}>\n            <Text style={styles.sectionTitle}>Payment History</Text>\n            <TouchableOpacity\n              style={styles.refreshButton}\n              onPress={handleRefreshHistory}\n            >\n              <Text style={styles.refreshButtonText}>Refresh</Text>\n            </TouchableOpacity>\n          </View>\n          \n          {transactions.length === 0 ? (\n            <Text style={styles.emptyText}>No transactions yet</Text>\n          ) : (\n            transactions.slice(0, 5).map((transaction) => (\n              <View key={transaction.id} style={styles.transactionCard}>\n                <View style={styles.transactionHeader}>\n                  <Text style={styles.transactionType}>\n                    {transaction.type.replace('_', ' ').toUpperCase()}\n                  </Text>\n                  <Text style={styles.transactionAmount}>\n                    ${(transaction.amount / 100).toFixed(2)}\n                  </Text>\n                </View>\n                <Text style={styles.transactionDescription}>\n                  {transaction.description}\n                </Text>\n                <Text style={styles.transactionDate}>\n                  {transaction.date.toLocaleDateString()} • {transaction.status}\n                </Text>\n              </View>\n            ))\n          )}\n        </View>\n\n        {/* Processing Indicator */}\n        {isProcessing && (\n          <View style={styles.processingOverlay}>\n            <ActivityIndicator size=\"large\" color={theme.colors.primary} />\n            <Text style={styles.processingText}>Processing payment...</Text>\n          </View>\n        )}\n\n        {/* Test Info */}\n        <View style={styles.infoSection}>\n          <Text style={styles.infoTitle}>Test Mode Information</Text>\n          <Text style={styles.infoText}>\n            • All payments are in test mode{\"\\n\"}\n            • Use test card: 4242 4242 4242 4242{\"\\n\"}\n            • Any future date and CVC{\"\\n\"}\n            • Transactions are recorded in Firestore{\"\\n\"}\n            • Admin wallet tracks 5% fees automatically\n          </Text>\n        </View>\n      </ScrollView>\n    </SafeAreaView>\n  );\n}\n\nconst styles = StyleSheet.create({\n  container: {\n    flex: 1,\n    backgroundColor: theme.colors.lightGray,\n  },\n  content: {\n    flex: 1,\n    padding: theme.spacing.md,\n  },\n  header: {\n    marginBottom: theme.spacing.xl,\n  },\n  title: {\n    fontSize: theme.fontSize.xl,\n    fontWeight: '700',\n    color: theme.colors.dark,\n    marginBottom: theme.spacing.xs,\n  },\n  subtitle: {\n    fontSize: theme.fontSize.md,\n    color: theme.colors.gray,\n    marginBottom: theme.spacing.sm,\n  },\n  userInfo: {\n    fontSize: theme.fontSize.sm,\n    color: theme.colors.primary,\n    fontWeight: '600',\n  },\n  section: {\n    backgroundColor: theme.colors.white,\n    borderRadius: theme.borderRadius.lg,\n    padding: theme.spacing.lg,\n    marginBottom: theme.spacing.md,\n  },\n  sectionHeader: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    marginBottom: theme.spacing.sm,\n  },\n  sectionTitle: {\n    fontSize: theme.fontSize.lg,\n    fontWeight: '600',\n    color: theme.colors.dark,\n    marginBottom: theme.spacing.xs,\n  },\n  sectionDescription: {\n    fontSize: theme.fontSize.sm,\n    color: theme.colors.gray,\n    marginBottom: theme.spacing.md,\n  },\n  inputContainer: {\n    marginBottom: theme.spacing.md,\n  },\n  inputLabel: {\n    fontSize: theme.fontSize.sm,\n    fontWeight: '600',\n    color: theme.colors.dark,\n    marginBottom: theme.spacing.xs,\n  },\n  input: {\n    borderWidth: 1,\n    borderColor: theme.colors.lightGray,\n    borderRadius: theme.borderRadius.md,\n    padding: theme.spacing.md,\n    fontSize: theme.fontSize.md,\n    backgroundColor: theme.colors.white,\n  },\n  button: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    justifyContent: 'center',\n    paddingVertical: theme.spacing.md,\n    paddingHorizontal: theme.spacing.lg,\n    borderRadius: theme.borderRadius.md,\n    gap: theme.spacing.sm,\n  },\n  primaryButton: {\n    backgroundColor: theme.colors.primary,\n  },\n  secondaryButton: {\n    backgroundColor: theme.colors.white,\n    borderWidth: 2,\n    borderColor: theme.colors.primary,\n  },\n  buttonText: {\n    fontSize: theme.fontSize.md,\n    fontWeight: '600',\n    color: theme.colors.white,\n  },\n  secondaryButtonText: {\n    color: theme.colors.primary,\n  },\n  buttonRow: {\n    flexDirection: 'row',\n  },\n  refreshButton: {\n    paddingHorizontal: theme.spacing.md,\n    paddingVertical: theme.spacing.sm,\n    backgroundColor: theme.colors.lightGray,\n    borderRadius: theme.borderRadius.sm,\n  },\n  refreshButtonText: {\n    fontSize: theme.fontSize.sm,\n    color: theme.colors.primary,\n    fontWeight: '600',\n  },\n  transactionCard: {\n    borderWidth: 1,\n    borderColor: theme.colors.lightGray,\n    borderRadius: theme.borderRadius.md,\n    padding: theme.spacing.md,\n    marginBottom: theme.spacing.sm,\n  },\n  transactionHeader: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    marginBottom: theme.spacing.xs,\n  },\n  transactionType: {\n    fontSize: theme.fontSize.sm,\n    fontWeight: '600',\n    color: theme.colors.primary,\n  },\n  transactionAmount: {\n    fontSize: theme.fontSize.md,\n    fontWeight: '700',\n    color: theme.colors.success,\n  },\n  transactionDescription: {\n    fontSize: theme.fontSize.sm,\n    color: theme.colors.dark,\n    marginBottom: theme.spacing.xs,\n  },\n  transactionDate: {\n    fontSize: theme.fontSize.xs,\n    color: theme.colors.gray,\n  },\n  emptyText: {\n    fontSize: theme.fontSize.md,\n    color: theme.colors.gray,\n    textAlign: 'center',\n    padding: theme.spacing.xl,\n  },\n  processingOverlay: {\n    position: 'absolute',\n    top: 0,\n    left: 0,\n    right: 0,\n    bottom: 0,\n    backgroundColor: 'rgba(0, 0, 0, 0.5)',\n    justifyContent: 'center',\n    alignItems: 'center',\n    zIndex: 1000,\n  },\n  processingText: {\n    fontSize: theme.fontSize.md,\n    color: theme.colors.white,\n    marginTop: theme.spacing.md,\n    fontWeight: '600',\n  },\n  infoSection: {\n    backgroundColor: theme.colors.lightGray,\n    borderRadius: theme.borderRadius.lg,\n    padding: theme.spacing.lg,\n    marginBottom: theme.spacing.xl,\n  },\n  infoTitle: {\n    fontSize: theme.fontSize.md,\n    fontWeight: '600',\n    color: theme.colors.dark,\n    marginBottom: theme.spacing.sm,\n  },\n  infoText: {\n    fontSize: theme.fontSize.sm,\n    color: theme.colors.gray,\n    lineHeight: 20,\n  },\n});
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { CreditCard, DollarSign, Star, Zap } from 'lucide-react-native';
+import { theme } from '@/constants/theme';
+import { usePayments } from '@/hooks/usePayments';
+import { useAuth } from '@/hooks/useAuth';
+
+export default function PaymentTestScreen() {
+  const { user } = useAuth();
+  const {
+    isProcessing,
+    transactions,
+    processDeliveryFee,
+    processMembershipUpgrade,
+    processWalletTopUp,
+    getPaymentHistory,
+  } = usePayments();
+
+  const [topUpAmount, setTopUpAmount] = useState<string>('50.00');
+  const [deliveryAmount, setDeliveryAmount] = useState<string>('2500.00');
+
+  const handleDeliveryFeeTest = async () => {
+    try {
+      const amount = parseFloat(deliveryAmount);
+      if (isNaN(amount) || amount <= 0) {
+        Alert.alert('Error', 'Please enter a valid delivery amount');
+        return;
+      }
+
+      await processDeliveryFee('test_load_123', amount);
+      Alert.alert('Success', 'Delivery fee processed successfully!');
+    } catch (error) {
+      Alert.alert('Error', `Payment failed: ${error}`);
+    }
+  };
+
+  const handleMembershipUpgrade = async (type: 'basic' | 'premium') => {
+    try {
+      await processMembershipUpgrade(type);
+      Alert.alert('Success', `${type} membership upgrade processed successfully!`);
+    } catch (error) {
+      Alert.alert('Error', `Payment failed: ${error}`);
+    }
+  };
+
+  const handleWalletTopUp = async () => {
+    try {
+      const amount = parseFloat(topUpAmount);
+      if (isNaN(amount) || amount < 5) {
+        Alert.alert('Error', 'Minimum top-up amount is $5.00');
+        return;
+      }
+
+      await processWalletTopUp(Math.round(amount * 100)); // Convert to cents
+      Alert.alert('Success', 'Wallet top-up processed successfully!');
+    } catch (error) {
+      Alert.alert('Error', `Payment failed: ${error}`);
+    }
+  };
+
+  const loadPaymentHistory = async () => {
+    try {
+      await getPaymentHistory();
+      Alert.alert('Success', 'Payment history loaded successfully!');
+    } catch (error) {
+      Alert.alert('Error', `Failed to load payment history: ${error}`);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <CreditCard size={32} color={theme.colors.primary} />
+          <Text style={styles.title}>Payment Gateway Test</Text>
+          <Text style={styles.subtitle}>Test Stripe integration and payment flows</Text>
+        </View>
+
+        {/* Delivery Fee Test */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <DollarSign size={24} color={theme.colors.primary} />
+            <Text style={styles.sectionTitle}>Delivery Fee (5%)</Text>
+          </View>
+          <Text style={styles.sectionDescription}>
+            Test automatic 5% fee deduction on completed deliveries
+          </Text>
+          
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Delivery Amount ($)</Text>
+            <TextInput
+              style={styles.input}
+              value={deliveryAmount}
+              onChangeText={setDeliveryAmount}
+              placeholder="2500.00"
+              keyboardType="decimal-pad"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, isProcessing && styles.buttonDisabled]}
+            onPress={handleDeliveryFeeTest}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <DollarSign size={20} color="#fff" />
+                <Text style={styles.buttonText}>Process 5% Fee</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Membership Upgrades */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Star size={24} color={theme.colors.primary} />
+            <Text style={styles.sectionTitle}>Membership Upgrades</Text>
+          </View>
+          <Text style={styles.sectionDescription}>
+            Test membership upgrade payments ($49 Basic, $199 Premium)
+          </Text>
+
+          <View style={styles.membershipButtons}>
+            <TouchableOpacity
+              style={[styles.membershipButton, styles.basicButton]}
+              onPress={() => handleMembershipUpgrade('basic')}
+              disabled={isProcessing}
+            >
+              <Text style={styles.membershipButtonText}>Basic - $49</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.membershipButton, styles.premiumButton]}
+              onPress={() => handleMembershipUpgrade('premium')}
+              disabled={isProcessing}
+            >
+              <Text style={styles.membershipButtonText}>Premium - $199</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Wallet Top-up */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Zap size={24} color={theme.colors.primary} />
+            <Text style={styles.sectionTitle}>Wallet Top-up</Text>
+          </View>
+          <Text style={styles.sectionDescription}>
+            Test wallet balance top-up functionality
+          </Text>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Top-up Amount ($)</Text>
+            <TextInput
+              style={styles.input}
+              value={topUpAmount}
+              onChangeText={setTopUpAmount}
+              placeholder="50.00"
+              keyboardType="decimal-pad"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, isProcessing && styles.buttonDisabled]}
+            onPress={handleWalletTopUp}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Zap size={20} color="#fff" />
+                <Text style={styles.buttonText}>Top-up Wallet</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Payment History */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Payment History</Text>
+          </View>
+          
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton]}
+            onPress={loadPaymentHistory}
+            disabled={isProcessing}
+          >
+            <Text style={styles.secondaryButtonText}>Load Payment History</Text>
+          </TouchableOpacity>
+
+          {transactions.length > 0 && (
+            <View style={styles.transactionsList}>
+              <Text style={styles.transactionsTitle}>Recent Transactions</Text>
+              {transactions.slice(0, 5).map((transaction, index) => (
+                <View key={index} style={styles.transactionItem}>
+                  <Text style={styles.transactionType}>{transaction.type}</Text>
+                  <Text style={styles.transactionAmount}>
+                    ${(transaction.amount / 100).toFixed(2)}
+                  </Text>
+                  <Text style={styles.transactionStatus}>{transaction.status}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Test Info */}
+        <View style={styles.infoSection}>
+          <Text style={styles.infoTitle}>Test Mode Information</Text>
+          <Text style={styles.infoText}>
+            • All payments are processed in Stripe test mode{'\n'}
+            • Use test card: 4242 4242 4242 4242{'\n'}
+            • Any future date and CVC{'\n'}
+            • No real money will be charged{'\n'}
+            • User: {user?.email || 'Not logged in'}
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  scrollView: {
+    flex: 1,
+    padding: 20,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+    marginTop: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  section: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginLeft: 10,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.text,
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+  },
+  button: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  secondaryButtonText: {
+    color: theme.colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  membershipButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  membershipButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  basicButton: {
+    backgroundColor: '#4CAF50',
+  },
+  premiumButton: {
+    backgroundColor: '#FF9800',
+  },
+  membershipButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  transactionsList: {
+    marginTop: 20,
+  },
+  transactionsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 12,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  transactionType: {
+    fontSize: 14,
+    color: theme.colors.text,
+    flex: 1,
+  },
+  transactionAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    flex: 1,
+    textAlign: 'center',
+  },
+  transactionStatus: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    flex: 1,
+    textAlign: 'right',
+  },
+  infoSection: {
+    backgroundColor: '#f0f8ff',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 10,
+  },
+  infoText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    lineHeight: 20,
+  },
+});
