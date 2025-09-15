@@ -484,51 +484,61 @@ export function PhotoUploader({
 
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
-      // FIXED: Ensure proper Firebase authentication before upload with retry
-      console.log('[PhotoUploader] Ensuring Firebase authentication before upload...');
+      // ENHANCED: Robust Firebase authentication with detailed logging
+      console.log('[PhotoUploader] Starting robust authentication process...');
       
-      // Try authentication with multiple attempts
+      // Try authentication with multiple attempts and better error handling
       let authSuccess = false;
       let attempts = 0;
-      const maxAttempts = 3;
+      const maxAttempts = 5; // Increased attempts
+      let lastError: any = null;
       
       while (!authSuccess && attempts < maxAttempts) {
         attempts++;
         console.log(`[PhotoUploader] Authentication attempt ${attempts}/${maxAttempts}`);
         
-        authSuccess = await ensureFirebaseAuth();
+        try {
+          authSuccess = await ensureFirebaseAuth();
+          
+          if (authSuccess) {
+            const { auth } = getFirebase();
+            console.log('[PhotoUploader] ✅ Authentication successful!');
+            console.log('[PhotoUploader] User ID:', auth.currentUser?.uid);
+            console.log('[PhotoUploader] User type:', auth.currentUser?.isAnonymous ? 'Anonymous' : 'Registered');
+            console.log('[PhotoUploader] Auth token available:', !!auth.currentUser?.accessToken);
+            break;
+          }
+        } catch (authError: any) {
+          lastError = authError;
+          console.warn(`[PhotoUploader] Auth attempt ${attempts} failed:`, authError.code, authError.message);
+        }
         
         if (!authSuccess && attempts < maxAttempts) {
-          console.log('[PhotoUploader] Authentication failed, retrying in 1 second...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          const delay = Math.min(1000 * attempts, 3000); // Progressive delay
+          console.log(`[PhotoUploader] Retrying authentication in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
       
       if (!authSuccess) {
-        console.error('[PhotoUploader] Firebase authentication failed after all attempts');
-        throw new Error('Authentication failed. Please check your internet connection and try again.');
+        console.error('[PhotoUploader] ❌ All authentication attempts failed');
+        console.error('[PhotoUploader] Last error:', lastError);
+        throw new Error(`Authentication failed after ${maxAttempts} attempts. Please check your internet connection and try again.`);
       }
       
-      // Verify we have a current user with additional checks
+      // Double-check authentication state
       const { auth } = getFirebase();
       if (!auth?.currentUser?.uid) {
-        console.error('[PhotoUploader] No authenticated user found after successful auth');
-        // Try one more time to sign in
-        try {
-          const { signInAnonymously } = await import('firebase/auth');
-          const result = await signInAnonymously(auth);
-          if (!result?.user?.uid) {
-            throw new Error('Failed to create user session');
-          }
-          console.log('[PhotoUploader] ✅ Emergency authentication successful:', result.user.uid);
-        } catch (emergencyAuthError) {
-          console.error('[PhotoUploader] Emergency authentication failed:', emergencyAuthError);
-          throw new Error('Unable to authenticate user. Please refresh the page and try again.');
-        }
+        console.error('[PhotoUploader] ❌ No authenticated user found despite successful auth');
+        throw new Error('Authentication state inconsistent. Please refresh the page and try again.');
       }
       
-      console.log('[PhotoUploader] ✅ Authentication verified - user:', auth.currentUser.uid);
-      console.log('[PhotoUploader] User is anonymous:', auth.currentUser.isAnonymous);
+      console.log('[PhotoUploader] ✅ Authentication verified - Ready for upload');
+      console.log('[PhotoUploader] User details:', {
+        uid: auth.currentUser.uid,
+        isAnonymous: auth.currentUser.isAnonymous,
+        providerId: auth.currentUser.providerId
+      });
       const fileId = uuid.v4() as string;
       console.log('[UPLOAD_START] Processing image before upload...', input);
       const photoItem: PhotoItem = {
@@ -609,10 +619,23 @@ export function PhotoUploader({
         let errorMessage = 'Upload failed. Tap Retry.';
         
         if (code.includes('storage/unauthorized') || code.includes('unauthorized')) {
-          errorMessage = 'Permission denied. Firebase rules updated - please retry.';
-          console.warn('[PhotoUploader] Permission denied - Firebase rules updated, should work now');
+          errorMessage = 'Storage permission denied. Retrying with fresh authentication...';
+          console.warn('[PhotoUploader] ❌ Storage unauthorized - attempting re-authentication');
+          
+          // Try to re-authenticate and retry upload once
+          try {
+            console.log('[PhotoUploader] Re-authenticating for storage access...');
+            const { signInAnonymously } = await import('firebase/auth');
+            const { auth } = getFirebase();
+            await signInAnonymously(auth);
+            console.log('[PhotoUploader] ✅ Re-authentication successful, storage should work now');
+            errorMessage = 'Authentication refreshed. Please retry upload.';
+          } catch (reAuthError) {
+            console.error('[PhotoUploader] Re-authentication failed:', reAuthError);
+            errorMessage = 'Storage access denied. Please refresh the page and try again.';
+          }
         } else if (code.includes('unauthenticated') || code.includes('auth')) {
-          errorMessage = 'Authentication error. Please retry upload.';
+          errorMessage = 'Authentication expired. Please retry upload.';
         } else if (code.includes('retry-limit-exceeded')) {
           errorMessage = 'Network is slow — please retry this photo.';
         } else if (code.includes('File too large')) {
