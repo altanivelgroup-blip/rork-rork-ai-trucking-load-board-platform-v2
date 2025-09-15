@@ -115,6 +115,65 @@ export function useNavigation(): UseNavigationReturn {
     return null;
   }, [generateCacheKey]);
 
+  const getDirectRouteFromAPI = useCallback(async (origin: Location, destination: Location, provider: 'mapbox' | 'ors'): Promise<RouteData | null> => {
+    try {
+      if (provider === 'mapbox' && hasMapbox) {
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving-hgv/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?alternatives=false&overview=simplified&geometries=geojson&access_token=${MAPBOX_TOKEN}`;
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Mapbox API failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const route = data.routes?.[0];
+        
+        if (route) {
+          console.log('[useNavigation] Direct Mapbox API call successful - Navigation ready');
+          return {
+            durationSec: route.duration,
+            distanceMeters: route.distance,
+            provider: 'mapbox',
+            cachedAt: Date.now(),
+          };
+        }
+      } else if (provider === 'ors' && hasORS) {
+        const response = await fetch('https://api.openrouteservice.org/v2/directions/driving-hgv', {
+          method: 'POST',
+          headers: {
+            'Authorization': ORS_API_KEY!,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            coordinates: [[origin.lng, origin.lat], [destination.lng, destination.lat]]
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`ORS API failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const summary = data.routes?.[0]?.summary;
+        
+        if (summary) {
+          console.log('[useNavigation] Direct ORS API call successful - Navigation ready');
+          return {
+            durationSec: summary.duration,
+            distanceMeters: summary.distance,
+            provider: 'ors',
+            cachedAt: Date.now(),
+          };
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn('[useNavigation] Direct API call failed:', error);
+      return null;
+    }
+  }, []);
+
   const cacheRoute = useCallback(async (origin: Location, destination: Location, route: RouteData): Promise<void> => {
     try {
       // Validate input parameters
@@ -161,29 +220,37 @@ export function useNavigation(): UseNavigationReturn {
         return null;
       }
 
-      const routeData = await trpcClient.route.eta.query({
-        origin: { lat: origin.lat, lon: origin.lng },
-        destination: { lat: destination.lat, lon: destination.lng },
-        provider,
-        mapboxToken: hasMapbox ? MAPBOX_TOKEN : undefined,
-        orsKey: hasORS ? ORS_API_KEY : undefined,
-        profile: 'driving-hgv',
-      });
+      try {
+        const routeData = await trpcClient.route.eta.query({
+          origin: { lat: origin.lat, lon: origin.lng },
+          destination: { lat: destination.lat, lon: destination.lng },
+          provider,
+          mapboxToken: hasMapbox ? MAPBOX_TOKEN : undefined,
+          orsKey: hasORS ? ORS_API_KEY : undefined,
+          profile: 'driving-hgv',
+        });
 
-      const route: RouteData = {
-        durationSec: routeData.durationSec,
-        distanceMeters: routeData.distanceMeters,
-        provider,
-        cachedAt: Date.now(),
-      };
+        const route: RouteData = {
+          durationSec: routeData.durationSec,
+          distanceMeters: routeData.distanceMeters,
+          provider,
+          cachedAt: Date.now(),
+        };
 
-      console.log('[useNavigation] API route fetched successfully - Navigation ready');
-      return route;
+        console.log('[useNavigation] API route fetched successfully - Navigation ready');
+        return route;
+      } catch {
+        // Handle case where route API is not available on external server
+        console.warn('[useNavigation] Route API not available on external server, using direct API call');
+        
+        // Try direct API call to routing service
+        return await getDirectRouteFromAPI(origin, destination, provider);
+      }
     } catch (error) {
       console.error('[useNavigation] API route fetch failed:', error);
       throw error;
     }
-  }, []);
+  }, [getDirectRouteFromAPI]);
 
   const getRoute = useCallback(async (origin: Location, destination: Location): Promise<RouteData | null> => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
