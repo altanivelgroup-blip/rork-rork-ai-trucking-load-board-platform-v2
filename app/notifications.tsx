@@ -52,7 +52,7 @@ export default function NotificationsScreen() {
                 if (router.canGoBack()) {
                   router.back();
                 } else {
-                  router.replace('/(tabs)');
+                  router.replace('/dashboard');
                 }
               }}
             >
