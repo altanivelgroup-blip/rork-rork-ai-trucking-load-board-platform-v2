@@ -1,10 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Linking } from 'react-native';
-import { MapPin, Navigation, CheckCircle, AlertCircle, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-react-native';
+import { MapPin, Navigation, CheckCircle, AlertCircle } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { Load, Location } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigation } from '@/hooks/useNavigation';
 
 interface DriverNavigationProps {
   load: Load;
@@ -22,9 +21,8 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
   useAuth(); // Hook for potential future use
   const [currentPhase, setCurrentPhase] = useState<NavigationPhase>('to-pickup');
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
-  const { state: navState, getRoute, clearRoute, toggleVoice } = useNavigation();
 
-  console.log('[DriverNavigation] Rendering with phase:', currentPhase, 'Navigation state:', navState.isOffline ? 'offline' : 'online');
+  console.log('[DriverNavigation] Rendering with phase:', currentPhase);
 
   const formatLocation = useCallback((location: Location): string => {
     return `${location.address || ''} ${location.city}, ${location.state} ${location.zipCode}`.trim();
@@ -34,70 +32,25 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
     return currentPhase === 'to-pickup' ? load.origin : load.destination;
   }, [currentPhase, load.origin, load.destination]);
 
-  // Get route data when phase changes
-  useEffect(() => {
-    const currentDestination = getCurrentDestination();
-    if (currentDestination && (currentDestination.lat !== 0 || currentDestination.lng !== 0)) {
-      // Use a mock current location for demo purposes
-      const mockCurrentLocation: Location = {
-        address: '',
-        city: 'Current Location',
-        state: '',
-        zipCode: '',
-        lat: 40.7128,
-        lng: -74.0060,
-      };
-      
-      getRoute(mockCurrentLocation, currentDestination).then(route => {
-        if (route) {
-          console.log('[DriverNavigation] Route loaded:', route.provider, route.durationSec ? `${Math.round(route.durationSec / 60)} min` : 'no ETA');
-        }
-      }).catch(error => {
-        console.warn('[DriverNavigation] Route loading failed:', error);
-      });
-    }
-  }, [currentPhase, getRoute, getCurrentDestination]);
-
-  const openInAppMap = useCallback(async (destination: Location) => {
+  const openInAppMap = useCallback((destination: Location) => {
     if (!destination?.city?.trim()) {
       console.warn('[DriverNavigation] Invalid destination provided');
       return;
     }
     
-    console.log('[DriverNavigation] Starting enhanced navigation to:', destination.city);
+    console.log('[DriverNavigation] Opening in-app map to:', destination.city);
     setIsNavigating(true);
     
-    try {
-      // First, try to get route data for enhanced navigation
-      const mockCurrentLocation: Location = {
-        address: '',
-        city: 'Current Location', 
-        state: '',
-        zipCode: '',
-        lat: 40.7128,
-        lng: -74.0060,
-      };
-      
-      const route = await getRoute(mockCurrentLocation, destination);
-      
-      if (route && route.provider !== 'fallback') {
-        const duration = route.durationSec ? Math.round(route.durationSec / 60) : null;
-        const distance = route.distanceMeters ? (route.distanceMeters / 1000).toFixed(1) : null;
-        
-        console.log(`[DriverNavigation] Enhanced route ready - ${duration ? `${duration} min` : 'no ETA'}, ${distance ? `${distance} km` : 'no distance'} - Navigation ready`);
-        
-        if (navState.voiceEnabled) {
-          console.log('[DriverNavigation] Voice guidance enabled for turn-by-turn directions');
-        }
-      } else {
-        console.log('[DriverNavigation] Using basic navigation - Offline route cached');
-      }
-    } catch (error) {
-      console.warn('[DriverNavigation] Enhanced navigation failed, using fallback:', error);
+    // For now, we'll use external navigation but log that we're keeping it in-app
+    if (!destination?.address && !destination?.city) {
+      console.warn('[DriverNavigation] Destination missing required fields');
+      return;
     }
     
-    // Always provide external navigation as backup
     const address = formatLocation(destination);
+    if (address.length > 200) {
+      console.warn('[DriverNavigation] Address too long, truncating');
+    }
     const encodedAddress = encodeURIComponent(address);
     
     if (Platform.OS === 'ios') {
@@ -106,20 +59,23 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
         if (supported) {
           Linking.openURL(url);
         } else {
+          // Fallback to Google Maps web
           Linking.openURL(`https://maps.google.com/maps?daddr=${encodedAddress}`);
         }
       });
     } else {
+      // Android - try Google Maps app first
       const googleMapsUrl = `google.navigation:q=${encodedAddress}`;
       Linking.canOpenURL(googleMapsUrl).then(supported => {
         if (supported) {
           Linking.openURL(googleMapsUrl);
         } else {
+          // Fallback to web
           Linking.openURL(`https://maps.google.com/maps?daddr=${encodedAddress}`);
         }
       });
     }
-  }, [formatLocation, getRoute, navState.voiceEnabled]);
+  }, [formatLocation]);
 
   const handleNavigateToDestination = useCallback(() => {
     const destination = getCurrentDestination();
@@ -131,22 +87,20 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
     console.log('[DriverNavigation] Pickup confirmed - switching to delivery route');
     setCurrentPhase('to-delivery');
     setIsNavigating(false);
-    clearRoute(); // Clear previous route
     onPickupConfirmed();
     
     // Auto-navigate to delivery after pickup confirmation
     setTimeout(() => {
       openInAppMap(load.destination);
     }, 1000);
-  }, [onPickupConfirmed, openInAppMap, load.destination, clearRoute]);
+  }, [onPickupConfirmed, openInAppMap, load.destination]);
 
   const handleDeliveryConfirmed = useCallback(() => {
     console.log('[DriverNavigation] Delivery confirmed - navigation complete');
     setCurrentPhase('completed');
     setIsNavigating(false);
-    clearRoute(); // Clear route data
     onDeliveryConfirmed();
-  }, [onDeliveryConfirmed, clearRoute]);
+  }, [onDeliveryConfirmed]);
 
   const currentDestination = getCurrentDestination();
   const isPickupPhase = currentPhase === 'to-pickup';
@@ -186,55 +140,15 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
           </Text>
         </View>
 
-        {/* Route Information */}
-        {navState.currentRoute && (
-          <View style={styles.routeInfo}>
-            <View style={styles.routeHeader}>
-              <Text style={styles.routeTitle}>Route Information</Text>
-              <View style={styles.routeStatus}>
-                {navState.isOffline ? (
-                  <WifiOff size={16} color={theme.colors.warning} />
-                ) : (
-                  <Wifi size={16} color={theme.colors.success} />
-                )}
-                <Text style={[styles.routeStatusText, { color: navState.isOffline ? theme.colors.warning : theme.colors.success }]}>
-                  {navState.isOffline ? 'Offline' : 'Online'}
-                </Text>
-              </View>
-            </View>
-            
-            {navState.currentRoute.durationSec && (
-              <Text style={styles.routeDetail}>
-                ETA: {Math.round(navState.currentRoute.durationSec / 60)} minutes
-              </Text>
-            )}
-            
-            {navState.currentRoute.distanceMeters && (
-              <Text style={styles.routeDetail}>
-                Distance: {(navState.currentRoute.distanceMeters / 1000).toFixed(1)} km
-              </Text>
-            )}
-            
-            <Text style={styles.routeProvider}>
-              Provider: {navState.currentRoute.provider === 'fallback' ? 'Basic Navigation' : navState.currentRoute.provider.toUpperCase()}
-            </Text>
-            
-            {navState.error && (
-              <Text style={styles.routeError}>{navState.error}</Text>
-            )}
-          </View>
-        )}
-
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.navigateButton, navState.isLoading && styles.buttonDisabled]}
+            style={styles.navigateButton}
             onPress={handleNavigateToDestination}
-            disabled={navState.isLoading}
             testID={`navigate-to-${isPickupPhase ? 'pickup' : 'delivery'}`}
           >
             <Navigation size={20} color={theme.colors.white} />
             <Text style={styles.navigateButtonText}>
-              {navState.isLoading ? 'Loading Route...' : isNavigating ? 'Navigating...' : `Navigate to ${isPickupPhase ? 'Pickup' : 'Delivery'}`}
+              {isNavigating ? 'Navigating...' : `Navigate to ${isPickupPhase ? 'Pickup' : 'Delivery'}`}
             </Text>
           </TouchableOpacity>
 
@@ -250,26 +164,12 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Voice Control */}
-        <TouchableOpacity style={styles.voiceToggle} onPress={toggleVoice}>
-          {navState.voiceEnabled ? (
-            <Volume2 size={20} color={theme.colors.primary} />
-          ) : (
-            <VolumeX size={20} color={theme.colors.gray} />
-          )}
-          <Text style={[styles.voiceToggleText, { color: navState.voiceEnabled ? theme.colors.primary : theme.colors.gray }]}>
-            Voice Guidance {navState.voiceEnabled ? 'On' : 'Off'}
-          </Text>
-        </TouchableOpacity>
-
         <View style={styles.statusMessage}>
           <AlertCircle size={16} color={theme.colors.gray} />
           <Text style={styles.statusText}>
-            {navState.isOffline 
-              ? 'Offline mode - using cached routes when available'
-              : isPickupPhase 
-                ? 'Tap "Navigate to Pickup" for real-time route guidance'
-                : 'Tap "Navigate to Delivery" for delivery route with live updates'
+            {isPickupPhase 
+              ? 'Tap "Navigate to Pickup" to start route guidance'
+              : 'Tap "Navigate to Delivery" for delivery route'
             }
           </Text>
         </View>
@@ -389,68 +289,5 @@ const styles = StyleSheet.create({
   completedSubtitle: {
     fontSize: theme.fontSize.md,
     color: theme.colors.gray,
-  },
-  routeInfo: {
-    backgroundColor: theme.colors.lightGray,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.primary,
-  },
-  routeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  routeTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: theme.colors.dark,
-  },
-  routeStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  routeStatusText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '500',
-  },
-  routeDetail: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.xs,
-  },
-  routeProvider: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.gray,
-    fontStyle: 'italic',
-  },
-  routeError: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.warning,
-    marginTop: theme.spacing.xs,
-    fontStyle: 'italic',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  voiceToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.lightGray,
-    marginBottom: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  voiceToggleText: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '500',
   },
 });

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Navigation, MapPin } from 'lucide-react-native';
+import { ArrowLeft, MapPin } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoads } from '@/hooks/useLoads';
@@ -12,9 +13,10 @@ export default function NavigationTestScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { updateLoadStatus } = useLoads();
+  const insets = useSafeAreaInsets();
   const [testLoad, setTestLoad] = useState(() => ({
     ...mockLoads[0],
-    status: 'in-transit' as const,
+    status: 'in-transit' as 'in-transit' | 'delivered',
     assignedDriverId: user?.id || '1',
   }));
 
@@ -25,16 +27,16 @@ export default function NavigationTestScreen() {
 
   const handleDeliveryConfirmed = () => {
     console.log('[NavigationTest] Delivery confirmed - load completed');
-    setTestLoad(prev => ({ ...prev, status: 'delivered' as const }));
+    setTestLoad(prev => ({ ...prev, status: 'delivered' as 'in-transit' | 'delivered' }));
     updateLoadStatus(testLoad.id, 'delivered');
   };
 
   const resetTest = () => {
-    setTestLoad(prev => ({ ...prev, status: 'in-transit' as const }));
+    setTestLoad(prev => ({ ...prev, status: 'in-transit' as 'in-transit' | 'delivered' }));
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={theme.colors.dark} />
@@ -46,12 +48,14 @@ export default function NavigationTestScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.infoCard}>
           <MapPin size={20} color={theme.colors.primary} />
-          <Text style={styles.infoTitle}>Driver Navigation Flow Test</Text>
+          <Text style={styles.infoTitle}>Enhanced Driver Navigation Test</Text>
           <Text style={styles.infoText}>
-            This demonstrates the basic driver navigation flow:
-            {'\n'}• Accept load → Auto-navigate to pickup
-            {'\n'}• Confirm pickup → Switch to delivery route
-            {'\n'}• Confirm delivery → Complete navigation
+            This demonstrates the enhanced driver navigation flow:
+            {'\n'}• Real-time API integration (Mapbox/OpenRouteService)
+            {'\n'}• Offline route caching for no-internet scenarios
+            {'\n'}• Voice guidance controls
+            {'\n'}• Auto-navigate: pickup → delivery → completion
+            {'\n'}• Route information with ETA and distance
           </Text>
         </View>
 
@@ -92,14 +96,15 @@ export default function NavigationTestScreen() {
         )}
 
         <View style={styles.instructionsCard}>
-          <Text style={styles.instructionsTitle}>Testing Instructions</Text>
+          <Text style={styles.instructionsTitle}>Enhanced Testing Instructions</Text>
           <Text style={styles.instructionsText}>
             1. Ensure you&apos;re logged in as a driver
-            {'\n'}2. The test load above should show navigation controls
-            {'\n'}3. Tap &quot;Navigate to Pickup&quot; to test route guidance
-            {'\n'}4. Tap &quot;Confirm Pickup&quot; to switch to delivery route
-            {'\n'}5. Tap &quot;Navigate to Delivery&quot; for delivery guidance
-            {'\n'}6. Tap &quot;Confirm Delivery&quot; to complete the flow
+            {'\n'}2. Watch for route information loading automatically
+            {'\n'}3. Test online: See real-time ETA and distance data
+            {'\n'}4. Test offline: Routes cached for offline use
+            {'\n'}5. Toggle voice guidance on/off
+            {'\n'}6. Navigate: pickup → delivery → completion
+            {'\n'}7. Check console for detailed navigation logs
           </Text>
         </View>
       </ScrollView>
