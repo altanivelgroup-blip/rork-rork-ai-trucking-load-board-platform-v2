@@ -1,21 +1,19 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Switch } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import { useLoads } from '@/hooks/useLoads';
+import { useNotificationSettings } from '@/hooks/useNotificationSettings';
+import { useToast } from '@/components/Toast';
 import { 
   Building2, 
-  Mail, 
-  Phone, 
-  MapPin, 
   Shield, 
   Crown,
   Save,
   Edit3,
-  FileText,
   Truck,
   BarChart3,
   Settings,
@@ -23,14 +21,17 @@ import {
   Package,
   TrendingUp,
   ArrowLeft,
-  Home
+  Bell,
+  Twitch as SwitchIcon
 } from 'lucide-react-native';
 
 export default function ShipperProfileScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { user, updateProfile } = useAuth();
-  const { balance, totalEarnings, transactions } = useWallet();
+  const { balance, totalEarnings } = useWallet();
   const { loads } = useLoads();
+  const { settings, updateChannel, updateCategory } = useNotificationSettings();
   const insets = useSafeAreaInsets();
   const isShipper = user?.role === 'shipper';
   
@@ -84,20 +85,28 @@ export default function ShipperProfileScreen() {
 
   const quickActions = [
     {
-      id: 'settings',
-      title: 'Settings',
-      subtitle: 'App preferences & privacy',
+      id: 'ai-tools',
+      title: 'AI Tools',
+      subtitle: 'Listing Assistant & MatchMaker',
       icon: Settings,
-      route: '/settings',
-      color: theme.colors.primary
+      route: '/ai-tools',
+      color: theme.colors.secondary
     },
     {
-      id: 'notifications',
-      title: 'Notifications',
-      subtitle: 'Manage alerts & updates',
-      icon: Shield,
-      route: '/notifications',
+      id: 'increase-revenue',
+      title: 'Increase Revenue',
+      subtitle: 'Market insights & pricing',
+      icon: TrendingUp,
+      route: '/increase-revenue',
       color: theme.colors.success
+    },
+    {
+      id: 'advance-security',
+      title: 'Advanced Security',
+      subtitle: 'Protect loads & documents',
+      icon: Shield,
+      route: '/advance-security',
+      color: theme.colors.warning
     },
     {
       id: 'membership',
@@ -105,15 +114,7 @@ export default function ShipperProfileScreen() {
       subtitle: 'Upgrade your plan',
       icon: Crown,
       route: '/shipper-membership',
-      color: theme.colors.warning
-    },
-    {
-      id: 'documents',
-      title: 'Documents',
-      subtitle: 'Certificates & permits',
-      icon: FileText,
-      route: '/documents',
-      color: theme.colors.secondary
+      color: theme.colors.primary
     }
   ];
 
@@ -276,7 +277,11 @@ export default function ShipperProfileScreen() {
               <TouchableOpacity
                 key={action.id}
                 style={styles.actionCard}
-                onPress={() => router.push(action.route as any)}
+                onPress={() => {
+                  console.log('Profile enhanced - Feature activated:', action.title);
+                  router.push(action.route as any);
+                }}
+                testID={`quick-action-${action.id}`}
               >
                 <View style={[styles.actionIcon, { backgroundColor: `${action.color}20` }]}>
                   <action.icon size={20} color={action.color} />
@@ -387,6 +392,74 @@ export default function ShipperProfileScreen() {
               >
                 <Text style={[styles.viewLoadsButtonText, styles.viewLoadsButtonTextSecondary]}>Post New Load</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Notification Settings */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Notification Settings</Text>
+            <TouchableOpacity 
+              onPress={() => router.push('/notifications')}
+              style={styles.viewAllButton}
+            >
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.notificationContainer}>
+            <View style={styles.notificationCard}>
+              <View style={styles.notificationRow}>
+                <View style={styles.notificationLeft}>
+                  <Bell size={20} color={theme.colors.primary} />
+                  <Text style={styles.notificationTitle}>Push Notifications</Text>
+                </View>
+                <Switch
+                  value={settings.channels.push}
+                  onValueChange={async (value) => {
+                    const success = await updateChannel('push', value);
+                    if (success) {
+                      toast.show(`Toggle updated - Push alerts ${value ? 'enabled' : 'disabled'}`, 'success');
+                    }
+                  }}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                  testID="profile-push-toggle"
+                />
+              </View>
+              <View style={styles.notificationRow}>
+                <View style={styles.notificationLeft}>
+                  <Package size={20} color={theme.colors.success} />
+                  <Text style={styles.notificationTitle}>Load Updates</Text>
+                </View>
+                <Switch
+                  value={settings.categories.loadUpdates}
+                  onValueChange={async (value) => {
+                    const success = await updateCategory('loadUpdates', value);
+                    if (success) {
+                      toast.show(`Toggle updated - Load alerts ${value ? 'enabled' : 'disabled'}`, 'success');
+                    }
+                  }}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.success }}
+                  testID="profile-loads-toggle"
+                />
+              </View>
+              <View style={styles.notificationRow}>
+                <View style={styles.notificationLeft}>
+                  <DollarSign size={20} color={theme.colors.warning} />
+                  <Text style={styles.notificationTitle}>Payment Alerts</Text>
+                </View>
+                <Switch
+                  value={settings.categories.payments}
+                  onValueChange={async (value) => {
+                    const success = await updateCategory('payments', value);
+                    if (success) {
+                      toast.show(`Toggle updated - Payment alerts ${value ? 'enabled' : 'disabled'}`, 'success');
+                    }
+                  }}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.warning }}
+                  testID="profile-payments-toggle"
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -795,5 +868,48 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '600',
     color: theme.colors.white,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  viewAllButton: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  viewAllText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  notificationContainer: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  notificationCard: {
+    padding: theme.spacing.lg,
+  },
+  notificationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+  },
+  notificationLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  notificationTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
   },
 });

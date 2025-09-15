@@ -1,17 +1,44 @@
 import React, { useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
-import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { theme } from '@/constants/theme';
 import { Bell, Mail, MessageSquare, ArrowLeft } from 'lucide-react-native';
+import { useNotificationSettings } from '@/hooks/useNotificationSettings';
+import { useToast } from '@/components/Toast';
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const [pushEnabled, setPushEnabled] = useState<boolean>(true);
-  const [emailEnabled, setEmailEnabled] = useState<boolean>(true);
-  const [smsEnabled, setSmsEnabled] = useState<boolean>(false);
-  const [loadUpdatesEnabled, setLoadUpdatesEnabled] = useState<boolean>(true);
-  const [paymentsEnabled, setPaymentsEnabled] = useState<boolean>(true);
-  const [systemEnabled, setSystemEnabled] = useState<boolean>(true);
+  const toast = useToast();
+  const { settings, isLoading, isSaving, updateChannel, updateCategory } = useNotificationSettings();
+  
+  const handleChannelToggle = async (channel: 'push' | 'email' | 'sms', value: boolean) => {
+    const success = await updateChannel(channel, value);
+    if (success) {
+      toast.show(`Toggle updated - ${channel.charAt(0).toUpperCase() + channel.slice(1)} alerts ${value ? 'enabled' : 'disabled'}`, 'success');
+    } else {
+      toast.show('Failed to update notification settings', 'error');
+    }
+  };
+  
+  const handleCategoryToggle = async (category: 'loadUpdates' | 'payments' | 'system', value: boolean) => {
+    const success = await updateCategory(category, value);
+    if (success) {
+      const categoryName = category === 'loadUpdates' ? 'Load Updates' : category === 'payments' ? 'Payments' : 'System';
+      toast.show(`Toggle updated - ${categoryName} alerts ${value ? 'enabled' : 'disabled'}`, 'success');
+    } else {
+      toast.show('Failed to update notification settings', 'error');
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Stack.Screen options={{ title: 'Notifications' }} />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Loading notification settings...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container} testID="notifications-screen">
@@ -37,16 +64,61 @@ export default function NotificationsScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.sectionTitle}>Channels</Text>
         <View style={styles.card}>
-          <Row icon={<Bell size={18} color={theme.colors.primary} />} title="Push Notifications" subtitle="Receive alerts on your device" value={pushEnabled} onChange={setPushEnabled} testID="notif-push" />
-          <Row icon={<Mail size={18} color={theme.colors.primary} />} title="Email" subtitle="Get emails about important updates" value={emailEnabled} onChange={setEmailEnabled} testID="notif-email" />
-          <Row icon={<MessageSquare size={18} color={theme.colors.primary} />} title="SMS" subtitle="Texts for critical events" value={smsEnabled} onChange={setSmsEnabled} testID="notif-sms" />
+          <Row 
+            icon={<Bell size={18} color={theme.colors.primary} />} 
+            title="Push Notifications" 
+            subtitle="Receive alerts on your device" 
+            value={settings.channels.push} 
+            onChange={(value) => handleChannelToggle('push', value)} 
+            testID="notif-push"
+            disabled={isSaving}
+          />
+          <Row 
+            icon={<Mail size={18} color={theme.colors.primary} />} 
+            title="Email" 
+            subtitle="Get emails about important updates" 
+            value={settings.channels.email} 
+            onChange={(value) => handleChannelToggle('email', value)} 
+            testID="notif-email"
+            disabled={isSaving}
+          />
+          <Row 
+            icon={<MessageSquare size={18} color={theme.colors.primary} />} 
+            title="SMS" 
+            subtitle="Texts for critical events" 
+            value={settings.channels.sms} 
+            onChange={(value) => handleChannelToggle('sms', value)} 
+            testID="notif-sms"
+            disabled={isSaving}
+          />
         </View>
 
         <Text style={styles.sectionTitle}>Categories</Text>
         <View style={styles.card}>
-          <Row title="Load Updates" subtitle="Notifications about load status changes" value={loadUpdatesEnabled} onChange={setLoadUpdatesEnabled} testID="notif-loads" />
-          <Row title="Payments" subtitle="Payment confirmations and updates" value={paymentsEnabled} onChange={setPaymentsEnabled} testID="notif-payments" />
-          <Row title="System" subtitle="App updates and maintenance notices" value={systemEnabled} onChange={setSystemEnabled} testID="notif-system" />
+          <Row 
+            title="Load Updates" 
+            subtitle="Notifications about load status changes" 
+            value={settings.categories.loadUpdates} 
+            onChange={(value) => handleCategoryToggle('loadUpdates', value)} 
+            testID="notif-loads"
+            disabled={isSaving}
+          />
+          <Row 
+            title="Payments" 
+            subtitle="Payment confirmations and updates" 
+            value={settings.categories.payments} 
+            onChange={(value) => handleCategoryToggle('payments', value)} 
+            testID="notif-payments"
+            disabled={isSaving}
+          />
+          <Row 
+            title="System" 
+            subtitle="App updates and maintenance notices" 
+            value={settings.categories.system} 
+            onChange={(value) => handleCategoryToggle('system', value)} 
+            testID="notif-system"
+            disabled={isSaving}
+          />
         </View>
       </ScrollView>
     </View>
@@ -70,6 +142,8 @@ function Row({ icon, title, subtitle, value, onChange, testID, disabled }: { ico
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.lightGray },
+  loadingContainer: { justifyContent: 'center', alignItems: 'center', gap: theme.spacing.md },
+  loadingText: { fontSize: theme.fontSize.md, color: theme.colors.gray },
   scroll: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
   backButton: {
     padding: theme.spacing.sm,
