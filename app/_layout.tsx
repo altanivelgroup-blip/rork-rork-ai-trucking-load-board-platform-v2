@@ -8,6 +8,7 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import { AuthProvider } from "@/hooks/useAuth";
 import { PaymentsProvider } from "@/hooks/usePayments";
 import { WalletProvider } from "@/hooks/useWallet";
+import { AdminWalletProvider } from "@/hooks/useAdminWallet";
 import { MaintenanceProvider } from "@/hooks/useMaintenance";
 import { SettingsProvider } from "@/hooks/useSettings";
 import { PostLoadProvider } from "@/hooks/usePostLoad";
@@ -212,16 +213,18 @@ export default function RootLayout() {
                           <SettingsProvider>
                             <PaymentsProvider>
                               <WalletProvider>
-                                <MaintenanceProvider>
-                                  <LoadsProvider>
-                                    <PostLoadProvider>
-                                      <AutoArriveProvider>
-                                        <RootLayoutNav />
-                                        <AutoArriveSheet />
-                                      </AutoArriveProvider>
-                                    </PostLoadProvider>
-                                  </LoadsProvider>
-                                </MaintenanceProvider>
+                                <AdminWalletProvider>
+                                  <MaintenanceProvider>
+                                    <LoadsProvider>
+                                      <PostLoadProvider>
+                                        <AutoArriveProvider>
+                                          <RootLayoutNav />
+                                          <AutoArriveSheet />
+                                        </AutoArriveProvider>
+                                      </PostLoadProvider>
+                                    </LoadsProvider>
+                                  </MaintenanceProvider>
+                                </AdminWalletProvider>
                               </WalletProvider>
                             </PaymentsProvider>
                           </SettingsProvider>

@@ -5,6 +5,7 @@ import { theme } from '@/constants/theme';
 import { Activity, CheckCircle, Database, RefreshCcw, TrendingUp, Shield, Users, Truck, AlertTriangle, DollarSign, Eye, EyeOff, Settings, Clock, MapPin, CreditCard, Zap, ChevronDown, XCircle } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoads } from '@/hooks/useLoads';
+import { useAdminWallet } from '@/hooks/useAdminWallet';
 import { router } from 'expo-router';
 import Svg, { Path, Circle, Text as SvgText, Line, G, Rect } from 'react-native-svg';
 import { testFirebaseConnection } from '@/lib/firebase';
@@ -80,6 +81,7 @@ export default function AdminScreen() {
   const [showPeriodDropdown, setShowPeriodDropdown] = useState<boolean>(false);
   
   const { loads } = useLoads();
+  const { metrics: adminMetrics, transactions: adminTransactions, getDailyTrend, refreshMetrics } = useAdminWallet();
   
   const [stats, setStats] = useState([
     { id: 'activeUsers', label: 'Active Users', value: '142', icon: 'users', trend: '+12%' },
@@ -727,6 +729,94 @@ export default function AdminScreen() {
               ))}
             </View>
 
+            <Text style={styles.sectionTitle}>Admin Wallet - Daily Fee Tracking</Text>
+            <View style={styles.adminWalletSection}>
+              <View style={styles.adminWalletHeader}>
+                <View style={styles.adminWalletIcon}>
+                  <DollarSign color={theme.colors.success} size={24} />
+                </View>
+                <View style={styles.adminWalletContent}>
+                  <Text style={styles.adminWalletTitle}>Daily Earnings from 5% Fees</Text>
+                  <Text style={styles.adminWalletAmount}>${adminMetrics.dailyFeeEarnings.toLocaleString()}</Text>
+                </View>
+                <TouchableOpacity onPress={refreshMetrics} style={styles.refreshWalletBtn}>
+                  <RefreshCcw color={theme.colors.primary} size={16} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.adminMetricsGrid}>
+                <View style={styles.adminMetricCard}>
+                  <Text style={styles.adminMetricValue}>{adminMetrics.dailySignUps}</Text>
+                  <Text style={styles.adminMetricLabel}>New Sign-ups Today</Text>
+                  <Text style={styles.adminMetricSubtext}>${(adminMetrics.dailySignUps * 25).toLocaleString()} generated</Text>
+                </View>
+                <View style={styles.adminMetricCard}>
+                  <Text style={styles.adminMetricValue}>{adminMetrics.dailyCompletedDeliveries}</Text>
+                  <Text style={styles.adminMetricLabel}>Completed Deliveries</Text>
+                  <Text style={styles.adminMetricSubtext}>${(adminMetrics.dailyFeeEarnings - adminMetrics.dailySignUps * 25).toLocaleString()} from fees</Text>
+                </View>
+              </View>
+              
+              <View style={styles.adminTrendsSection}>
+                <Text style={styles.adminTrendsTitle}>7-Day Fee Trend</Text>
+                <View style={styles.adminTrendsList}>
+                  {getDailyTrend().map((trend, index) => (
+                    <View key={index} style={styles.adminTrendItem}>
+                      <View style={styles.adminTrendDay}>
+                        <Text style={styles.adminTrendDayText}>{index === 6 ? 'Today' : `${7-index}d ago`}</Text>
+                      </View>
+                      <View style={styles.adminTrendMetrics}>
+                        <Text style={styles.adminTrendSignups}>{trend.signUps} signups</Text>
+                        <Text style={styles.adminTrendDeliveries}>{trend.deliveries} deliveries</Text>
+                        <Text style={styles.adminTrendFees}>${trend.fees.toFixed(0)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+              
+              <View style={styles.adminSummarySection}>
+                <Text style={styles.adminSummaryTitle}>Monthly Summary</Text>
+                <View style={styles.adminSummaryGrid}>
+                  <View style={styles.adminSummaryCard}>
+                    <Text style={styles.adminSummaryValue}>${adminMetrics.monthlyFeeEarnings.toLocaleString()}</Text>
+                    <Text style={styles.adminSummaryLabel}>Total Monthly Fees</Text>
+                  </View>
+                  <View style={styles.adminSummaryCard}>
+                    <Text style={styles.adminSummaryValue}>{adminMetrics.monthlySignUps}</Text>
+                    <Text style={styles.adminSummaryLabel}>New Members</Text>
+                  </View>
+                  <View style={styles.adminSummaryCard}>
+                    <Text style={styles.adminSummaryValue}>{adminMetrics.monthlyCompletedDeliveries}</Text>
+                    <Text style={styles.adminSummaryLabel}>Deliveries</Text>
+                  </View>
+                  <View style={styles.adminSummaryCard}>
+                    <Text style={styles.adminSummaryValue}>${adminMetrics.totalPlatformFees.toLocaleString()}</Text>
+                    <Text style={styles.adminSummaryLabel}>Total Platform Fees</Text>
+                  </View>
+                </View>
+              </View>
+              
+              <View style={styles.adminRecentSection}>
+                <Text style={styles.adminRecentTitle}>Recent Fee Transactions</Text>
+                {adminTransactions.slice(0, 5).map((transaction) => (
+                  <View key={transaction.id} style={styles.adminTransactionCard}>
+                    <View style={styles.adminTransactionIcon}>
+                      {transaction.type === 'signup_fee' ? 
+                        <Users color={theme.colors.primary} size={16} /> :
+                        <Truck color={theme.colors.success} size={16} />
+                      }
+                    </View>
+                    <View style={styles.adminTransactionContent}>
+                      <Text style={styles.adminTransactionDesc}>{transaction.description}</Text>
+                      <Text style={styles.adminTransactionTime}>{transaction.date.toLocaleTimeString()}</Text>
+                    </View>
+                    <Text style={styles.adminTransactionAmount}>+${transaction.amount.toFixed(2)}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            
             <Text style={styles.sectionTitle}>Live Load Metrics</Text>
             <View style={styles.metricsGrid}>
               <View style={styles.metricCard}>
@@ -1575,4 +1665,46 @@ const styles = StyleSheet.create({
   // Simple Chart Styles
   simpleChartContainer: { backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md, padding: theme.spacing.sm },
   chartTitle: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: 8 },
+  
+  // Admin Wallet Styles
+  adminWalletSection: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border, borderLeftWidth: 4, borderLeftColor: theme.colors.success },
+  adminWalletHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md },
+  adminWalletIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: hexToRgba(theme.colors.success, 0.1), alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.md },
+  adminWalletContent: { flex: 1 },
+  adminWalletTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark },
+  adminWalletAmount: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.success, marginTop: 4 },
+  refreshWalletBtn: { padding: 8, backgroundColor: hexToRgba(theme.colors.primary, 0.1), borderRadius: theme.borderRadius.md },
+  
+  adminMetricsGrid: { flexDirection: 'row', gap: 12, marginBottom: theme.spacing.md },
+  adminMetricCard: { flex: 1, backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md, padding: theme.spacing.sm, alignItems: 'center' },
+  adminMetricValue: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
+  adminMetricLabel: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 4, textAlign: 'center' },
+  adminMetricSubtext: { fontSize: theme.fontSize.xs, color: theme.colors.success, marginTop: 2, textAlign: 'center' },
+  
+  adminTrendsSection: { marginBottom: theme.spacing.md },
+  adminTrendsTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: theme.spacing.sm },
+  adminTrendsList: { gap: 6 },
+  adminTrendItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.sm, padding: theme.spacing.sm },
+  adminTrendDay: { width: 60 },
+  adminTrendDayText: { fontSize: theme.fontSize.xs, color: theme.colors.gray, fontWeight: fontWeight600 },
+  adminTrendMetrics: { flex: 1, flexDirection: 'row', justifyContent: 'space-between' },
+  adminTrendSignups: { fontSize: theme.fontSize.xs, color: theme.colors.primary },
+  adminTrendDeliveries: { fontSize: theme.fontSize.xs, color: theme.colors.secondary },
+  adminTrendFees: { fontSize: theme.fontSize.xs, color: theme.colors.success, fontWeight: fontWeight600 },
+  
+  adminSummarySection: { marginBottom: theme.spacing.md },
+  adminSummaryTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: theme.spacing.sm },
+  adminSummaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  adminSummaryCard: { flex: 1, minWidth: 120, backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.sm, padding: theme.spacing.sm, alignItems: 'center' },
+  adminSummaryValue: { fontSize: theme.fontSize.md, fontWeight: fontWeight700, color: theme.colors.dark },
+  adminSummaryLabel: { fontSize: theme.fontSize.xs, color: theme.colors.gray, marginTop: 2, textAlign: 'center' },
+  
+  adminRecentSection: {},
+  adminRecentTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: theme.spacing.sm },
+  adminTransactionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.sm, padding: theme.spacing.sm, marginBottom: 6 },
+  adminTransactionIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.white, alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.sm },
+  adminTransactionContent: { flex: 1 },
+  adminTransactionDesc: { fontSize: theme.fontSize.sm, color: theme.colors.dark },
+  adminTransactionTime: { fontSize: theme.fontSize.xs, color: theme.colors.gray, marginTop: 2 },
+  adminTransactionAmount: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.success },
 });
