@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db, ensureFirebaseAuth } from '@/utils/firebase';
+import { db, ensureFirebaseAuth, auth } from '@/utils/firebase';
 import { useAuth } from '@/hooks/useAuth';
 
 type NotificationChannels = {
@@ -45,6 +45,7 @@ export function useNotificationSettings() {
     const uid = userId;
     if (!uid) {
       console.log('No Firebase Auth UID available for notification settings');
+      setSettings(defaultSettings);
       setIsLoading(false);
       return;
     }
@@ -54,6 +55,14 @@ export function useNotificationSettings() {
       const authSuccess = await ensureFirebaseAuth();
       if (!authSuccess) {
         console.warn('Firebase auth failed, using default notification settings');
+        setSettings(defaultSettings);
+        setIsLoading(false);
+        return;
+      }
+
+      // Double-check that we have an authenticated user
+      if (!auth?.currentUser) {
+        console.warn('No authenticated Firebase user, using default notification settings');
         setSettings(defaultSettings);
         setIsLoading(false);
         return;
@@ -71,8 +80,21 @@ export function useNotificationSettings() {
         console.log('No notification settings found, using defaults');
         setSettings(defaultSettings);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading notification settings:', error);
+      
+      // Handle specific Firebase errors
+      if (error?.code === 'permission-denied') {
+        console.warn('Permission denied - user may not be properly authenticated');
+        // Try to re-authenticate
+        try {
+          await ensureFirebaseAuth();
+          console.log('Re-authentication successful, using default settings for now');
+        } catch (reAuthError) {
+          console.error('Re-authentication failed:', reAuthError);
+        }
+      }
+      
       setSettings(defaultSettings);
     } finally {
       setIsLoading(false);
@@ -98,6 +120,13 @@ export function useNotificationSettings() {
         return false;
       }
 
+      // Double-check that we have an authenticated user
+      if (!auth?.currentUser) {
+        console.warn('No authenticated Firebase user, cannot save notification settings');
+        setIsSaving(false);
+        return false;
+      }
+
       console.log('Saving notification settings:', newSettings);
       const docRef = doc(db, 'notificationSettings', uid);
       await setDoc(docRef, {
@@ -109,8 +138,21 @@ export function useNotificationSettings() {
       setSettings(newSettings);
       console.log('Profile enhanced - Notification settings saved');
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving notification settings:', error);
+      
+      // Handle specific Firebase errors
+      if (error?.code === 'permission-denied') {
+        console.warn('Permission denied - user may not be properly authenticated');
+        // Try to re-authenticate
+        try {
+          await ensureFirebaseAuth();
+          console.log('Re-authentication successful, but save failed');
+        } catch (reAuthError) {
+          console.error('Re-authentication failed:', reAuthError);
+        }
+      }
+      
       return false;
     } finally {
       setIsSaving(false);
@@ -151,10 +193,21 @@ export function useNotificationSettings() {
     return success;
   }, [settings, saveSettings]);
 
-  // Load settings when user changes
+  // Load settings when user changes - with delay to ensure auth is ready
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    if (!userId) {
+      setSettings(defaultSettings);
+      setIsLoading(false);
+      return;
+    }
+    
+    // Add a small delay to ensure Firebase auth state is properly established
+    const timer = setTimeout(() => {
+      loadSettings();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [loadSettings, userId]);
 
   return {
     settings,
