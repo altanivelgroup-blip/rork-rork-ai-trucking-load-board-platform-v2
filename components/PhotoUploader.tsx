@@ -36,6 +36,8 @@ import {
   updateDoc,
   arrayUnion,
   serverTimestamp,
+  collection,
+  addDoc,
 } from 'firebase/firestore';
 
 import { useToast } from '@/components/Toast';
@@ -180,6 +182,28 @@ async function runNextUpload() {
 function enqueueUpload(job: () => Promise<void>) {
   uploadQueue.push(job);
   runNextUpload();
+}
+
+// Save photo metadata to Firestore after successful upload
+async function savePhotoMetadata(photoUrl: string, loadId: string, userId: string, uploadedBy: 'shipper' | 'driver' = 'shipper'): Promise<void> {
+  try {
+    const { db } = getFirebase();
+    const photosCollection = collection(db, 'photos');
+    
+    const photoMetadata = {
+      photoUrl: photoUrl,
+      loadId: loadId,
+      userId: userId,
+      timestamp: serverTimestamp(),
+      uploadedBy: uploadedBy,
+    };
+    
+    const docRef = await addDoc(photosCollection, photoMetadata);
+    console.log('[PhotoUploader] ✅ Photo metadata saved - Structure created:', docRef.id);
+  } catch (error: any) {
+    console.error('[PhotoUploader] Error saving photo metadata:', error);
+    // Don't throw error - metadata save failure shouldn't block photo upload
+  }
 }
 
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
@@ -528,6 +552,10 @@ export function PhotoUploader({
         );
         console.log('[UPLOAD_DONE]', basePath);
         console.log('[PhotoUploader] ✅ Production photo upload successful - Firebase Storage working correctly');
+        
+        // Save photo metadata to Firestore after successful upload
+        await savePhotoMetadata(url, entityId, uid, 'shipper');
+        
         setState(prev => {
           const updatedPhotos = prev.photos.map(p =>
             p.id === fileId ? { ...p, url, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p

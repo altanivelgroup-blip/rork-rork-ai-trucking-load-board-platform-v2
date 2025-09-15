@@ -101,5 +101,13 @@ service cloud.firestore {
     match /reportAnalytics/{docId} {
       allow read, write: if isAdmin();
     }
+
+    // Photo metadata storage structure - secure access for authenticated users
+    match /photos/{photoId} {
+      allow read: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticatedUser() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+      allow delete: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+    }
   }
 }

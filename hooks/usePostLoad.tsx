@@ -9,6 +9,7 @@ import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/uti
 import { postLoad } from '@/lib/firebase';
 import { isValidIana } from '@/constants/timezones';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { FORCE_DELIVERY_TZ } from '@/utils/env';
 
 export type RateKind = 'flat' | 'per_mile';
@@ -375,6 +376,28 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
     }
   }, [user?.id, user?.name, addLoad]);
 
+  // Save photo metadata to Firestore after successful upload
+  const savePhotoMetadata = useCallback(async (photoUrl: string, loadId: string, userId: string, uploadedBy: 'shipper' | 'driver' = 'shipper'): Promise<void> => {
+    try {
+      const { db } = getFirebase();
+      const photosCollection = collection(db, 'photos');
+      
+      const photoMetadata = {
+        photoUrl: photoUrl,
+        loadId: loadId,
+        userId: userId,
+        timestamp: serverTimestamp(),
+        uploadedBy: uploadedBy,
+      };
+      
+      const docRef = await addDoc(photosCollection, photoMetadata);
+      console.log('[PostLoad] ✅ Photo metadata saved - Structure created:', docRef.id);
+    } catch (error: any) {
+      console.error('[PostLoad] Error saving photo metadata:', error);
+      // Don't throw error - metadata save failure shouldn't block photo upload
+    }
+  }, []);
+
   const uploadPhotosToFirebase = useCallback(async (photosLocal: { uri: string; name?: string; type?: string }[], reference: string): Promise<string[]> => {
     try {
       if (!user?.id || photosLocal.length === 0) return [];
@@ -427,6 +450,10 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             const snap = await uploadBytes(storageRef, blob);
             const url = await getDownloadURL(snap.ref);
             uploadedUrls.push(url);
+            
+            // Save photo metadata to Firestore after successful upload
+            await savePhotoMetadata(url, reference, uid, 'shipper');
+            
             console.log(`[PostLoad] ✅ uploaded photo ${i + 1}/${photosLocal.length} to Firebase Storage`);
           } catch (uploadError) {
             console.error('[PostLoad] Firebase Storage upload failed:', uploadError);
@@ -443,7 +470,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       console.error('[PostLoad] uploadPhotosToFirebase error:', error);
       throw error; // Don't use placeholder - let the error bubble up
     }
-  }, [user?.id]);
+  }, [user?.id, savePhotoMetadata]);
 
   const uploadPhotos = useCallback(async (): Promise<void> => {
     try {
