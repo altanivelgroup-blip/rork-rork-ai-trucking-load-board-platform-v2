@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreditCard, DollarSign, Star, Zap } from 'lucide-react-native';
-import { theme } from '@/constants/theme';
+import { theme, type Theme } from '@/constants/theme';
 import { usePayments } from '@/hooks/usePayments';
 import { useAuth } from '@/hooks/useAuth';
 
