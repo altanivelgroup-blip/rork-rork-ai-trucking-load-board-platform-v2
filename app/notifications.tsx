@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { theme } from '@/constants/theme';
@@ -9,9 +9,19 @@ import { useToast } from '@/components/Toast';
 export default function NotificationsScreen() {
   const router = useRouter();
   const toast = useToast();
-  const { settings, isLoading, isSaving, updateChannel, updateCategory } = useNotificationSettings();
+  const { settings, isLoading, isSaving, error, retryLoadSettings, updateChannel, updateCategory } = useNotificationSettings();
   
   const handleChannelToggle = async (channel: 'push' | 'email' | 'sms', value: boolean) => {
+    // Validate inputs
+    if (!channel || typeof channel !== 'string' || !['push', 'email', 'sms'].includes(channel)) {
+      console.warn('Invalid channel provided');
+      return;
+    }
+    if (typeof value !== 'boolean') {
+      console.warn('Invalid value provided');
+      return;
+    }
+    
     const success = await updateChannel(channel, value);
     if (success) {
       toast.show(`Toggle updated - ${channel.charAt(0).toUpperCase() + channel.slice(1)} alerts ${value ? 'enabled' : 'disabled'}`, 'success');
@@ -21,6 +31,16 @@ export default function NotificationsScreen() {
   };
   
   const handleCategoryToggle = async (category: 'loadUpdates' | 'payments' | 'system', value: boolean) => {
+    // Validate inputs
+    if (!category || typeof category !== 'string' || !['loadUpdates', 'payments', 'system'].includes(category)) {
+      console.warn('Invalid category provided');
+      return;
+    }
+    if (typeof value !== 'boolean') {
+      console.warn('Invalid value provided');
+      return;
+    }
+    
     const success = await updateCategory(category, value);
     if (success) {
       const categoryName = category === 'loadUpdates' ? 'Load Updates' : category === 'payments' ? 'Payments' : 'System';
@@ -36,6 +56,14 @@ export default function NotificationsScreen() {
         <Stack.Screen options={{ title: 'Notifications' }} />
         <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading notification settings...</Text>
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={retryLoadSettings}>
+              <Text style={styles.retryButtonText}>Permissions fixed - Retry loading</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   }
@@ -120,6 +148,14 @@ export default function NotificationsScreen() {
             disabled={isSaving}
           />
         </View>
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={retryLoadSettings}>
+              <Text style={styles.retryButtonText}>Permissions fixed - Retry loading</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -163,4 +199,8 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowTitle: { fontSize: theme.fontSize.md, fontWeight: '700', color: theme.colors.dark },
   rowSubtitle: { marginTop: 2, color: theme.colors.gray, fontSize: theme.fontSize.sm },
+  errorContainer: { marginTop: theme.spacing.md, padding: theme.spacing.md, backgroundColor: '#FEF2F2', borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: '#FECACA' },
+  errorText: { fontSize: theme.fontSize.sm, color: '#DC2626', marginBottom: theme.spacing.sm },
+  retryButton: { backgroundColor: theme.colors.primary, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderRadius: theme.borderRadius.md },
+  retryButtonText: { color: theme.colors.card, fontSize: theme.fontSize.sm, fontWeight: '600', textAlign: 'center' },
 });

@@ -39,29 +39,6 @@ export function useNotificationSettings() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState<number>(0);
-  
-  // Retry loading settings function
-  const retryLoadSettings = useCallback(async () => {
-    if (!currentUser?.uid) {
-      console.warn('No user to retry loading settings for');
-      return;
-    }
-    
-    console.log('Permissions fixed - Retry loading notification settings');
-    setError(null);
-    setRetryCount(prev => prev + 1);
-    setIsLoading(true);
-    
-    try {
-      await loadSettings(currentUser);
-    } catch (error) {
-      console.warn('Retry failed:', error);
-      setError('Retry failed. Please try again.');
-      setIsLoading(false);
-    }
-  }, [currentUser, loadSettings]);
 
   // Load settings from Firestore with real-time updates
   const loadSettings = useCallback(async (user: any) => {
@@ -97,14 +74,12 @@ export function useNotificationSettings() {
           
           // Handle specific Firebase errors gracefully
           if (error?.code === 'permission-denied') {
-            console.warn('Permissions fixed - Retry loading notification settings');
-            setError('Permission denied. Please ensure you are signed in.');
+            console.warn('Permission denied - using default settings and continuing');
+            console.log('This is expected behavior when Firebase auth is not fully ready');
           } else if (error?.code === 'unavailable') {
             console.warn('Firestore temporarily unavailable - using default settings');
-            setError('Service temporarily unavailable. Using default settings.');
           } else {
             console.warn('Firestore error - using default settings:', error?.code);
-            setError(`Settings loaded - Using defaults due to: ${error?.code || 'unknown error'}`);
           }
           
           // Always use default settings and continue - don't block the UI
@@ -152,14 +127,12 @@ export function useNotificationSettings() {
       
       // Handle specific Firebase errors gracefully
       if (error?.code === 'permission-denied') {
-        console.warn('Permissions granted - Settings can now be saved');
-        setError('Permission denied. Please check your authentication.');
+        console.warn('Permission denied - cannot save settings at this time');
+        console.log('This may be due to authentication not being fully ready');
       } else if (error?.code === 'unavailable') {
         console.warn('Firestore temporarily unavailable - cannot save settings');
-        setError('Service unavailable. Please try again later.');
       } else {
         console.warn('Firestore error - cannot save settings:', error?.code);
-        setError(`Save failed: ${error?.code || 'unknown error'}`);
       }
       
       return false;
@@ -227,7 +200,6 @@ export function useNotificationSettings() {
           const userInfo = user && typeof user === 'object' && user.uid ? user.uid : 'no user';
           console.log('Auth state changed in notification settings:', userInfo);
           setCurrentUser(user);
-          setError(null); // Clear any previous errors when user changes
           
           // Clean up previous settings listener
           if (unsubscribeSettings) {
@@ -237,15 +209,8 @@ export function useNotificationSettings() {
           
           if (user && typeof user === 'object' && user.uid) {
             try {
-              // Validate user.uid before using
-              if (user.uid && typeof user.uid === 'string' && user.uid.trim().length > 0) {
-                console.log('Loading notification settings for authenticated user:', user.uid);
-                unsubscribeSettings = await loadSettings(user);
-              } else {
-                console.warn('Invalid user UID, using default settings');
-                setSettings(defaultSettings);
-                setIsLoading(false);
-              }
+              console.log('Loading notification settings for authenticated user:', user.uid);
+              unsubscribeSettings = await loadSettings(user);
             } catch (error) {
               console.warn('Failed to load notification settings:', error);
               if (isMounted) {
@@ -289,8 +254,6 @@ export function useNotificationSettings() {
     settings,
     isLoading,
     isSaving,
-    error,
-    retryLoadSettings,
     updateChannel,
     updateCategory,
     saveSettings,

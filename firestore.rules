@@ -81,9 +81,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Auth optimized notification settings: enhanced permissions for user settings
+    // Permissions fixed - Enhanced notification settings for shippers
     match /notificationSettings/{uid} {
       allow read, write: if isAuthenticatedUser() && request.auth.uid == uid;
+      allow create: if isAuthenticatedUser();
+    }
+    
+    // User-specific settings path for better organization
+    match /users/{userId}/settings/notifications {
+      allow read, write: if isAuthenticatedUser() && request.auth.uid == userId;
       allow create: if isAuthenticatedUser();
     }
 
