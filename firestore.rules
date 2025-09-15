@@ -109,5 +109,18 @@ service cloud.firestore {
       allow update: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
       allow delete: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
     }
+
+    // Payment transactions - secure access for authenticated users
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticatedUser() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+      allow delete: if isAdmin(); // Only admins can delete transactions
+    }
+
+    // Admin wallet transactions for fee tracking
+    match /adminTransactions/{transactionId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

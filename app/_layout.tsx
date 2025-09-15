@@ -24,6 +24,7 @@ import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
 import { StartupInitializer } from "@/components/StartupInitializer";
 import { RoleBasedRouter } from "@/components/RoleBasedRouter";
+import StripeWrapper from "@/components/StripeWrapper";
 
 import { theme } from "@/constants/theme";
 
@@ -210,8 +211,9 @@ export default function RootLayout() {
                     <AuthProvider>
                       <ErrorBoundary safeRoute="/(auth)/login">
                         <RoleBasedRouter>
-                          <SettingsProvider>
-                            <PaymentsProvider>
+                          <StripeWrapper>
+                            <SettingsProvider>
+                              <PaymentsProvider>
                               <WalletProvider>
                                 <AdminWalletProvider>
                                   <MaintenanceProvider>
@@ -226,8 +228,9 @@ export default function RootLayout() {
                                   </MaintenanceProvider>
                                 </AdminWalletProvider>
                               </WalletProvider>
-                            </PaymentsProvider>
-                          </SettingsProvider>
+                              </PaymentsProvider>
+                            </SettingsProvider>
+                          </StripeWrapper>
                         </RoleBasedRouter>
                       </ErrorBoundary>
                     </AuthProvider>

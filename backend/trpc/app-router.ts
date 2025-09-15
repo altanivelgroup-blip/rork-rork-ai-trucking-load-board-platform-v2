@@ -7,6 +7,7 @@ import fuelRouter from "./routes/fuel/router";
 import weatherRouter from "./routes/weather/router";
 import loadsRouter from "./routes/loads/router";
 import { reportAnalyticsRouter } from "./routes/reportAnalytics/router";
+import paymentsRouter from "./routes/payments/router";
 
 
 export const appRouter = createTRPCRouter({
@@ -20,6 +21,7 @@ export const appRouter = createTRPCRouter({
   weather: weatherRouter,
   loads: loadsRouter,
   reportAnalytics: reportAnalyticsRouter,
+  payments: paymentsRouter,
 
 });
 

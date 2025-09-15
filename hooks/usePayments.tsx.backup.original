@@ -1,0 +1,161 @@
+import createContextHook from '@nkzw/create-context-hook';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+export type PaymentMethodType = 'card' | 'bank' | 'fleet';
+
+export interface PaymentMethod {
+  id: string;
+  type: PaymentMethodType;
+  name: string;
+  detail: string;
+  expires?: string;
+  isDefault: boolean;
+  verified: boolean;
+}
+
+export interface PaymentServicesState {
+  quickPay: boolean;
+  fuelAdvance: boolean;
+  invoiceFactoring: boolean;
+  crypto: boolean;
+  autoPay: boolean;
+}
+
+interface PaymentsState {
+  isHydrating: boolean;
+  methods: PaymentMethod[];
+  services: PaymentServicesState;
+  addMethod: (m: PaymentMethod) => Promise<void>;
+  deleteMethod: (id: string) => Promise<void>;
+  setDefault: (id: string) => Promise<void>;
+  updateMethod: (id: string, patch: Partial<PaymentMethod>) => Promise<void>;
+  toggleService: (key: keyof PaymentServicesState, value: boolean) => Promise<void>;
+}
+
+const STORAGE_KEY = 'payments_v1';
+
+const initialServices: PaymentServicesState = {
+  quickPay: true,
+  fuelAdvance: true,
+  invoiceFactoring: false,
+  crypto: false,
+  autoPay: true,
+};
+
+const seedMethods: PaymentMethod[] = [
+  {
+    id: 'm1',
+    type: 'card',
+    name: 'Business Visa',
+    detail: 'Visa ending in 4242',
+    expires: '12/25',
+    isDefault: true,
+    verified: true,
+  },
+  {
+    id: 'm2',
+    type: 'bank',
+    name: 'Chase Business Checking',
+    detail: 'Account ending in 8901',
+    isDefault: false,
+    verified: true,
+  },
+  {
+    id: 'm3',
+    type: 'fleet',
+    name: 'Comdata Fleet Card',
+    detail: 'Fleet card ending in 5678',
+    isDefault: false,
+    verified: true,
+  },
+];
+
+export const [PaymentsProvider, usePayments] = createContextHook<PaymentsState>(() => {
+  const [isHydrating, setIsHydrating] = useState<boolean>(true);
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [services, setServices] = useState<PaymentServicesState>(initialServices);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        console.log('[Payments] hydrate');
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { methods: PaymentMethod[]; services: Partial<PaymentServicesState> };
+          setMethods(Array.isArray(parsed.methods) ? parsed.methods : seedMethods);
+          setServices({ ...initialServices, ...(parsed.services ?? {}) });
+        } else {
+          setMethods(seedMethods);
+          setServices(initialServices);
+        }
+      } catch (e) {
+        console.error('[Payments] hydrate error', e);
+        setMethods(seedMethods);
+        setServices(initialServices);
+      } finally {
+        setIsHydrating(false);
+      }
+    })();
+  }, []);
+
+  const persist = useCallback(async (next: { methods?: PaymentMethod[]; services?: PaymentServicesState }) => {
+    try {
+      const payload = {
+        methods: next.methods ?? methods,
+        services: next.services ?? services,
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      console.log('[Payments] saved');
+    } catch (e) {
+      console.error('[Payments] save error', e);
+    }
+  }, [methods, services]);
+
+  const addMethod = useCallback(async (m: PaymentMethod) => {
+    const updated = [...methods, m];
+    setMethods(updated);
+    await persist({ methods: updated });
+  }, [methods, persist]);
+
+  const deleteMethod = useCallback(async (id: string) => {
+    const updated = methods.filter(m => m.id !== id);
+    // if we deleted default, set first as default
+    if (!updated.some(m => m.isDefault) && updated.length > 0) {
+      updated[0] = { ...updated[0], isDefault: true };
+    }
+    setMethods(updated);
+    await persist({ methods: updated });
+  }, [methods, persist]);
+
+  const setDefault = useCallback(async (id: string) => {
+    const updated = methods.map(m => ({ ...m, isDefault: m.id === id }));
+    setMethods(updated);
+    await persist({ methods: updated });
+  }, [methods, persist]);
+
+  const updateMethod = useCallback(async (id: string, patch: Partial<PaymentMethod>) => {
+    const updated = methods.map(m => m.id === id ? { ...m, ...patch } : m);
+    setMethods(updated);
+    await persist({ methods: updated });
+  }, [methods, persist]);
+
+  const toggleService = useCallback(async (key: keyof PaymentServicesState, value: boolean) => {
+    const next = { ...services, [key]: value };
+    setServices(next);
+    await persist({ services: next });
+  }, [services, persist]);
+
+  const value: PaymentsState = useMemo(() => ({
+    isHydrating,
+    methods,
+    services,
+    addMethod,
+    deleteMethod,
+    setDefault,
+    updateMethod,
+    toggleService,
+  }), [isHydrating, methods, services, addMethod, deleteMethod, setDefault, updateMethod, toggleService]);
+
+  return value;
+});
