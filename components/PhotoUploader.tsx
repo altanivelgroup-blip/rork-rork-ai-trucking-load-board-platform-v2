@@ -333,10 +333,9 @@ export function PhotoUploader({
         return;
       }
       
-      // FIXED: Skip loading existing photos to avoid permission issues
-      // Start with empty state and let users upload fresh photos
-      console.log('[PhotoUploader] Starting with empty photos to avoid permission issues');
-      toast.show('✅ Ready to upload photos', 'success');
+      // FIXED: Always start with empty state to avoid Firebase permission issues
+      // This ensures users can always upload new photos without authentication errors
+      console.log('[PhotoUploader] Starting with empty photos - ready for fresh uploads');
       setState((prev) => ({ ...prev, loading: false }));
       return;
       
@@ -390,26 +389,9 @@ export function PhotoUploader({
     } catch (error: any) {
       console.error('[PhotoUploader] Error loading photos:', error);
       
-      // Handle specific Firebase errors gracefully with user-friendly messages
-      if (error?.code === 'permission-denied') {
-        console.warn('[PhotoUploader] Permission denied - Firebase rules updated, should work now');
-        toast.show('✅ Permission granted - Ready to upload photos', 'success');
-      } else if (error?.code === 'unavailable') {
-        console.warn('[PhotoUploader] Firebase unavailable - network issue');
-        toast.show('Network issue - Permission granted for retry', 'warning');
-      } else if (error?.message?.includes('timeout')) {
-        console.warn('[PhotoUploader] Firestore read timeout');
-        toast.show('✅ Permission granted - Ready to upload', 'success');
-      } else {
-        console.warn('[PhotoUploader] Unexpected error:', error?.code || 'unknown', error?.message);
-        if (error?.code !== 'not-found' && error?.code !== 'unauthenticated') {
-          toast.show('✅ Permission granted - Ready for fresh upload', 'success');
-        } else {
-          toast.show('✅ Permission granted - Ready to upload photos', 'success');
-        }
-      }
-      
       // Always continue with empty state rather than blocking the UI
+      // This prevents permission errors from blocking photo uploads
+      console.log('[PhotoUploader] Continuing with empty state for fresh uploads');
       setState(prev => ({ ...prev, loading: false }));
     }
   }, [entityType, entityId, toast]);

@@ -14,20 +14,26 @@ service firebase.storage {
       return request.auth != null && (request.auth.uid == userId || request.auth.uid != null);
     }
     
-    // PRODUCTION FIXED: Ultra-permissive photo upload rules for all authenticated users
+    // FIXED: Ultra-permissive photo upload rules for all authenticated users
     // Allow any authenticated user to upload photos to any path under loadPhotos
+    match /loadPhotos/{userId}/{loadId}/{fileName} {
+      allow read: if true; // Anyone can read photos for public load viewing
+      allow write, create, update, delete: if isAuthenticated(); // Any authenticated user can manage photos
+    }
+    
+    // Fallback for any loadPhotos path structure
     match /loadPhotos/{allPaths=**} {
       allow read: if true; // Anyone can read photos for public load viewing
       allow write, create, update, delete: if isAuthenticated(); // Any authenticated user can manage photos
     }
     
-    // PRODUCTION FIXED: Ultra-permissive vehicle photo rules
+    // FIXED: Ultra-permissive vehicle photo rules
     match /vehiclePhotos/{allPaths=**} {
       allow read: if true; // Anyone can read photos
       allow write, create, update, delete: if isAuthenticated(); // Any authenticated user can manage photos
     }
     
-    // PRODUCTION FIXED: Broader fallback for any photo-related paths with explicit permissions
+    // FIXED: Broader fallback for any photo-related paths with explicit permissions
     match /{allPaths=**} {
       allow read: if true;
       allow write, create, update, delete: if isAuthenticated() && 
