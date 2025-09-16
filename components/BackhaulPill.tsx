@@ -266,82 +266,118 @@ Output schema:
         }
       ];
 
-      // Add timeout and better error handling
+      // Improved timeout and error handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-      let response;
+      let timeoutId: NodeJS.Timeout | null = null;
+      
       try {
-        response = await fetch('https://toolkit.rork.com/text/llm/', {
+        // Set timeout with proper cleanup
+        timeoutId = setTimeout(() => {
+          console.log('[BackhaulPill] Request timeout - aborting');
+          controller.abort();
+        }, 15000); // Increased to 15 seconds
+
+        const response = await fetch('https://toolkit.rork.com/text/llm/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages }),
           signal: controller.signal,
         });
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        console.error('[BackhaulPill] Network fetch failed:', fetchError);
-        throw new Error('Network connection failed');
-      }
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        console.error('[BackhaulPill] API error response:', response.status, response.statusText);
-        throw new Error(`API responded with status: ${response.status}`);
-      }
-
-      const data = await response.json() as { completion?: string };
-      const rawCompletion = (data?.completion ?? '').trim();
-      
-      // Extract and clean JSON from the completion
-      const jsonStart = rawCompletion.indexOf('{');
-      const jsonEnd = rawCompletion.lastIndexOf('}');
-      
-      if (jsonStart >= 0 && jsonEnd > jsonStart) {
-        let jsonStr = rawCompletion.slice(jsonStart, jsonEnd + 1);
         
-        try {
-          // Clean common JSON issues
-          jsonStr = jsonStr
-            .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Add quotes to unquoted keys
-            .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
-            .replace(/\\n/g, '\\\\n') // Escape newlines properly
-            .replace(/\\t/g, '\\\\t') // Escape tabs properly
-            .replace(/([^\\])\\([^"\\nrtbf/])/g, '$1\\\\$2'); // Escape unescaped backslashes
-          
-          console.log('[BackhaulPill] Attempting to parse JSON:', jsonStr.substring(0, 200) + '...');
-          const parsed = JSON.parse(jsonStr);
-          
-          if (parsed?.suggestions && Array.isArray(parsed.suggestions)) {
-            const suggestions = parsed.suggestions.map((suggestion: any, index: number) => ({
-              ...suggestion,
-              id: suggestion.id || `ai-backhaul-${Date.now()}-${index}`,
-              aiScore: Math.min(Math.max(suggestion.aiScore || 85, 70), 98), // Ensure realistic AI scores
-            }));
-            
-            console.log('[BackhaulPill] Generated', suggestions.length, 'AI suggestions');
-            setAiSuggestions(suggestions);
-          } else {
-            console.warn('[BackhaulPill] Invalid suggestions format in parsed JSON:', parsed);
-          }
-        } catch (parseError) {
-          console.error('[BackhaulPill] JSON parse error:', parseError);
-          console.error('[BackhaulPill] Raw JSON string:', jsonStr);
-          // Try to extract suggestions manually as fallback
-          try {
-            const fallbackSuggestions = extractSuggestionsManually(rawCompletion);
-            if (fallbackSuggestions.length > 0) {
-              console.log('[BackhaulPill] Using fallback extraction, found', fallbackSuggestions.length, 'suggestions');
-              setAiSuggestions(fallbackSuggestions);
-            }
-          } catch (fallbackError) {
-            console.error('[BackhaulPill] Fallback extraction also failed:', fallbackError);
-          }
+        // Clear timeout on successful response
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
         }
-      } else {
-        console.warn('[BackhaulPill] No valid JSON structure found in completion');
+        
+        if (!response.ok) {
+          console.error('[BackhaulPill] API error response:', response.status, response.statusText);
+          throw new Error(`API responded with status: ${response.status}`);
+        }
+        
+        const data = await response.json() as { completion?: string };
+        const rawCompletion = (data?.completion ?? '').trim();
+        
+        // Process the AI response
+        const processResponse = (rawCompletion: string) => {
+          // Extract and clean JSON from the completion
+          const jsonStart = rawCompletion.indexOf('{');
+          const jsonEnd = rawCompletion.lastIndexOf('}');
+          
+          if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            let jsonStr = rawCompletion.slice(jsonStart, jsonEnd + 1);
+            
+            try {
+              // Clean common JSON issues
+              jsonStr = jsonStr
+                .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Add quotes to unquoted keys
+                .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
+                .replace(/\\n/g, '\\\\n') // Escape newlines properly
+                .replace(/\\t/g, '\\\\t') // Escape tabs properly
+                .replace(/([^\\])\\([^"\\nrtbf/])/g, '$1\\\\$2'); // Escape unescaped backslashes
+              
+              console.log('[BackhaulPill] Attempting to parse JSON:', jsonStr.substring(0, 200) + '...');
+              const parsed = JSON.parse(jsonStr);
+              
+              if (parsed?.suggestions && Array.isArray(parsed.suggestions)) {
+                const suggestions = parsed.suggestions.map((suggestion: any, index: number) => ({
+                  ...suggestion,
+                  id: suggestion.id || `ai-backhaul-${Date.now()}-${index}`,
+                  aiScore: Math.min(Math.max(suggestion.aiScore || 85, 70), 98), // Ensure realistic AI scores
+                }));
+                
+                console.log('[BackhaulPill] Generated', suggestions.length, 'AI suggestions');
+                setAiSuggestions(suggestions);
+                return true;
+              } else {
+                console.warn('[BackhaulPill] Invalid suggestions format in parsed JSON:', parsed);
+                return false;
+              }
+            } catch (parseError) {
+              console.error('[BackhaulPill] JSON parse error:', parseError);
+              console.error('[BackhaulPill] Raw JSON string:', jsonStr);
+              // Try to extract suggestions manually as fallback
+              try {
+                const fallbackSuggestions = extractSuggestionsManually(rawCompletion);
+                if (fallbackSuggestions.length > 0) {
+                  console.log('[BackhaulPill] Using fallback extraction, found', fallbackSuggestions.length, 'suggestions');
+                  setAiSuggestions(fallbackSuggestions);
+                  return true;
+                }
+              } catch (fallbackError) {
+                console.error('[BackhaulPill] Fallback extraction also failed:', fallbackError);
+              }
+              return false;
+            }
+          } else {
+            console.warn('[BackhaulPill] No valid JSON structure found in completion');
+            return false;
+          }
+        };
+        
+        // Process the response
+        processResponse(rawCompletion);
+        
+      } catch (fetchError: any) {
+        // Clear timeout on error
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        
+        // Handle different error types
+        if (fetchError.name === 'AbortError') {
+          console.log('[BackhaulPill] Request was aborted (likely timeout)');
+          throw new Error('Request timeout - please try again');
+        } else if (fetchError.message?.includes('fetch')) {
+          console.error('[BackhaulPill] Network fetch failed:', fetchError);
+          throw new Error('Network connection failed');
+        } else {
+          console.error('[BackhaulPill] Unexpected fetch error:', fetchError);
+          throw fetchError;
+        }
       }
+
     } catch (error) {
       console.error('[BackhaulPill] AI generation failed:', error);
       
