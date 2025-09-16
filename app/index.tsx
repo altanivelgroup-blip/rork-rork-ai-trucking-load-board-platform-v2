@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
-  console.log('[IndexScreen] CLEAN START - Simple navigation without hooks');
+  console.log('[IndexScreen] EMERGENCY FIX - Direct navigation to login');
   
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -19,43 +19,38 @@ export default function IndexScreen() {
     hasNavigated
   });
 
+  // EMERGENCY FIX: Force navigation to login immediately
   useEffect(() => {
-    if (isLoading) {
-      console.log('[IndexScreen] Still loading auth...');
-      return;
-    }
+    if (hasNavigated) return;
     
-    if (hasNavigated) {
-      console.log('[IndexScreen] Already navigated, skipping...');
-      return;
-    }
-
-    console.log('[IndexScreen] Ready to navigate...');
+    console.log('[IndexScreen] EMERGENCY FIX - Forcing navigation to login');
+    setHasNavigated(true);
     
-    // Simple navigation with minimal delay
+    // Navigate immediately to login - no waiting
     const timer = setTimeout(() => {
       try {
-        setHasNavigated(true);
-        if (isAuthenticated && user) {
-          const targetRoute = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
-          console.log('[IndexScreen] Authenticated, going to:', targetRoute);
-          router.replace(targetRoute);
-        } else {
-          console.log('[IndexScreen] Not authenticated, going to login');
-          router.replace('/(auth)/login');
-        }
+        console.log('[IndexScreen] EMERGENCY FIX - Navigating to login now');
+        router.replace('/(auth)/login');
       } catch (error) {
-        console.error('[IndexScreen] Navigation error:', error);
-        setHasNavigated(false);
-        // Simple fallback
+        console.error('[IndexScreen] EMERGENCY FIX - Navigation failed:', error);
+        // Try again
         setTimeout(() => {
-          router.replace('/(auth)/login');
-        }, 500);
+          router.push('/(auth)/login');
+        }, 100);
       }
-    }, 100);
+    }, 50);
 
     return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, user?.role, user, router, hasNavigated]);
+  }, [router, hasNavigated]);
+
+  // Secondary effect for authenticated users
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !user) return;
+    
+    console.log('[IndexScreen] User is authenticated, redirecting to dashboard');
+    const targetRoute = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
+    router.replace(targetRoute);
+  }, [isLoading, isAuthenticated, user, router]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
