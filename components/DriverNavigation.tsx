@@ -27,7 +27,8 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
   const [showFuelSelector, setShowFuelSelector] = useState<boolean>(false);
   const { state: navState, getRoute, clearRoute, toggleVoice, retryRoute } = useNavigation();
-  const { resetFuelMonitor } = useFuelMonitor();
+  const fuelMonitor = useFuelMonitor();
+  const { resetFuelMonitor = () => {} } = fuelMonitor || {};
   const { fuelLevel, isLowFuel, fuelColor } = useFuelDisplay();
 
   console.log('[DriverNavigation] Rendering with phase:', currentPhase, 'Navigation state:', navState.isOffline ? 'offline' : 'online');
