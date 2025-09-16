@@ -17,41 +17,27 @@ export function StartupInitializer({ children }: StartupInitializerProps) {
   useEffect(() => {
     let isMounted = true;
 
-    async function performStartupInit() {
-      try {
-        console.log('[StartupInitializer] LOADING FIX - Starting enhanced initialization...');
-        
-        // STEP 3: Enhanced initialization with timeout protection
-        console.log('[StartupInitializer] LOADING FIX - Skipping Firebase init to prevent hanging');
-        
-        // Minimal delay for smooth UX
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        console.log('[StartupInitializer] LOADING FIX - App initialization completed');
-        
-        if (isMounted) {
-          setIsInitializing(false);
-        }
-      } catch (error: any) {
-        console.warn('[StartupInitializer] LOADING FIX - Init error, proceeding anyway:', error);
-        
-        // Always proceed to avoid blocking the app
-        if (isMounted) {
-          setIsInitializing(false);
-        }
+    console.log('[StartupInitializer] LOADING FIX - EMERGENCY MODE - Immediate completion');
+    
+    // EMERGENCY FIX: Skip all initialization and complete immediately
+    const immediateComplete = () => {
+      if (isMounted) {
+        console.log('[StartupInitializer] LOADING FIX - EMERGENCY - Completing initialization immediately');
+        setIsInitializing(false);
       }
-    }
-
-    // STEP 3: Force completion after 2 seconds maximum
+    };
+    
+    // Complete immediately
+    immediateComplete();
+    
+    // Backup timeout in case something goes wrong
     timeoutRef.current = setTimeout(() => {
       if (isMounted && isInitializing) {
-        console.log('[StartupInitializer] LOADING FIX - Initialization timeout, forcing completion');
+        console.log('[StartupInitializer] LOADING FIX - EMERGENCY TIMEOUT - Forcing completion');
         setShowTimeout(true);
         setIsInitializing(false);
       }
-    }, 2000);
-
-    performStartupInit();
+    }, 500);
 
     return () => {
       isMounted = false;

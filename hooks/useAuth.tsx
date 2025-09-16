@@ -36,106 +36,57 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   
   console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // STEP 3: Enhanced initialization with timeout protection
+  // EMERGENCY FIX: Immediate initialization to prevent hanging
   useEffect(() => {
-    console.log('[auth] LOADING FIX - Enhanced initialization with timeout protection');
+    console.log('[auth] LOADING FIX - EMERGENCY MODE - Immediate initialization');
     
-    let initTimeout: NodeJS.Timeout;
     let mounted = true;
     
-    const performInit = async () => {
+    const emergencyInit = async () => {
       try {
-        // Check for cached user data first
+        // Quick check for cached user data
         const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
         if (cached && mounted) {
           try {
             const cachedUser = JSON.parse(cached);
-            console.log('[auth] LOADING FIX - Found cached user, restoring session');
+            console.log('[auth] LOADING FIX - EMERGENCY - Found cached user, restoring session');
             setUser(cachedUser);
             setUserId(cachedUser.id);
             setIsAnonymous(cachedUser.email === 'guest@example.com');
             setHasSignedInThisSession(true);
           } catch (parseError) {
-            console.warn('[auth] LOADING FIX - Cached data corrupted, clearing');
+            console.warn('[auth] LOADING FIX - EMERGENCY - Cached data corrupted, clearing');
             await AsyncStorage.removeItem(USER_STORAGE_KEY);
           }
         }
-        
-        if (mounted) {
-          setIsInitialized(true);
-          setIsLoading(false);
-          console.log('[auth] LOADING FIX - Auth initialization complete');
-        }
       } catch (error) {
-        console.warn('[auth] LOADING FIX - Init error, proceeding anyway:', error);
-        if (mounted) {
-          setIsInitialized(true);
-          setIsLoading(false);
-        }
+        console.warn('[auth] LOADING FIX - EMERGENCY - Init error, proceeding anyway:', error);
       }
-    };
-    
-    // Force completion after 3 seconds maximum
-    initTimeout = setTimeout(() => {
-      if (mounted && isLoading) {
-        console.log('[auth] LOADING FIX - Auth init timeout, forcing completion');
+      
+      if (mounted) {
+        console.log('[auth] LOADING FIX - EMERGENCY - Completing auth initialization immediately');
         setIsInitialized(true);
         setIsLoading(false);
       }
-    }, 3000);
+    };
     
-    performInit();
+    // Complete immediately
+    emergencyInit();
     
     return () => {
       mounted = false;
-      clearTimeout(initTimeout);
     };
   }, []);
 
-  // STEP 3: Enhanced Firebase auth with timeout protection
+  // EMERGENCY FIX: Skip Firebase auth setup to prevent hanging
   useEffect(() => {
     if (!isInitialized) return;
     
-    console.log('[auth] LOADING FIX - Setting up Firebase auth with timeout protection');
-    let authTimeout: NodeJS.Timeout;
-    let mounted = true;
+    console.log('[auth] LOADING FIX - EMERGENCY - Skipping Firebase auth setup to prevent hanging');
     
-    const setupFirebaseAuth = async () => {
-      try {
-        // Try Firebase auth with timeout
-        const authPromise = ensureFirebaseAuth();
-        const timeoutPromise = new Promise((_, reject) => {
-          authTimeout = setTimeout(() => reject(new Error('Firebase auth timeout')), 2000);
-        });
-        
-        const firebaseAuthSuccess = await Promise.race([authPromise, timeoutPromise]);
-        
-        if (mounted) {
-          if (firebaseAuthSuccess) {
-            console.log('[auth] LOADING FIX - Firebase auth successful');
-            setIsFirebaseAuthenticated(true);
-            if (auth?.currentUser?.uid) {
-              setUserId(auth.currentUser.uid);
-            }
-          } else {
-            console.log('[auth] LOADING FIX - Firebase auth failed, continuing in local mode');
-            setIsFirebaseAuthenticated(false);
-          }
-        }
-      } catch (error) {
-        console.warn('[auth] LOADING FIX - Firebase auth error, continuing in local mode:', error);
-        if (mounted) {
-          setIsFirebaseAuthenticated(false);
-        }
-      }
-    };
-    
-    setupFirebaseAuth();
-    
-    return () => {
-      mounted = false;
-      clearTimeout(authTimeout);
-    };
+    // Just set Firebase as not authenticated and continue
+    setIsFirebaseAuthenticated(false);
+    console.log('[auth] LOADING FIX - EMERGENCY - Firebase auth skipped, continuing in local mode');
   }, [isInitialized]);
 
   const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper | Admin> => {

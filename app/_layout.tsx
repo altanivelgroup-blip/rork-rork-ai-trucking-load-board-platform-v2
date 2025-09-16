@@ -201,7 +201,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  console.log("[RootLayout] EMERGENCY FIX - Bypassing RoleBasedRouter to prevent hanging");
+  console.log("[RootLayout] LOADING FIX - Simplified initialization to prevent hanging");
 
   return (
     <GlobalErrorBoundary>
@@ -211,11 +211,13 @@ export default function RootLayout() {
             <trpc.Provider client={trpcClient} queryClient={queryClient}>
               <ToastProvider>
                 <View style={styles.appContainer}>
-                  <AuthProvider>
-                    <ErrorBoundary safeRoute="/(auth)/login">
-                      <RootLayoutNav />
-                    </ErrorBoundary>
-                  </AuthProvider>
+                  <StartupInitializer>
+                    <AuthProvider>
+                      <ErrorBoundary safeRoute="/(auth)/login">
+                        <RootLayoutNav />
+                      </ErrorBoundary>
+                    </AuthProvider>
+                  </StartupInitializer>
                 </View>
                 <ToastHost />
               </ToastProvider>
