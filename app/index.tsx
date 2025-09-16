@@ -18,24 +18,22 @@ export default function IndexScreen() {
     }
     
     if (isAuthenticated && user) {
-      let route = '/(tabs)/dashboard'; // default
-      
-      if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
-        route = '/(tabs)/admin';
-      } else if (user.role === 'shipper') {
-        route = '/(tabs)/shipper';
-      }
-      
-      console.log('[IndexScreen] ✅ FIXED: Navigating authenticated user to:', route, 'for role:', user.role);
+      console.log('[IndexScreen] ✅ FIXED: Navigating authenticated user for role:', user.role);
       
       // Add small delay to ensure navigation state is ready
       setTimeout(() => {
-        router.replace(route);
+        if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
+          router.replace('/(tabs)/admin' as any);
+        } else if (user.role === 'shipper') {
+          router.replace('/(tabs)/shipper' as any);
+        } else {
+          router.replace('/(tabs)/dashboard' as any);
+        }
       }, 100);
     } else {
       console.log('[IndexScreen] ✅ FIXED: No authenticated user, navigating to login');
       setTimeout(() => {
-        router.replace('/(auth)/login');
+        router.replace('/(auth)/login' as any);
       }, 100);
     }
   }, [isLoading, isAuthenticated, user, router]);
