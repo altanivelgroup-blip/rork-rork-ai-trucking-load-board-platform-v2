@@ -9,7 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
-import { FuelKind, VehicleType } from '@/types';
+import { FuelKind, VehicleType, Driver } from '@/types';
 
 
 
@@ -30,7 +30,12 @@ export default function DriverProfileScreen() {
     phone: '',
     company: '',
     
-
+    // Basic Driver Profile Fields
+    truckType: 'truck' as VehicleType,
+    tankSize: '',
+    fuelTypePreference: 'diesel' as 'diesel' | 'gasoline',
+    yearsExperience: '',
+    safetyCertifications: '',
     
     // Vehicle Info
     vehicleMake: '',
@@ -79,7 +84,7 @@ export default function DriverProfileScreen() {
         try {
           setBootstrapping(true);
           const anonEmail = `${userId}@anon.local`;
-          await register(anonEmail, 'temp-password', { email: anonEmail, name: '' });
+          await register(anonEmail, 'temp-password', 'driver', { email: anonEmail, name: '' });
           console.log('[DriverProfile] Bootstrapped local driver profile for uid:', userId);
         } catch (e) {
           console.warn('[DriverProfile] Failed to bootstrap driver profile', e);
@@ -91,44 +96,50 @@ export default function DriverProfileScreen() {
   }, [user, userId, bootstrapping, register]);
 
   useEffect(() => {
-    if (user) {
+    if (user && user.role === 'driver') {
+      const driver = user as Driver;
       setFormData({
         // Personal Info
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        company: user.company || '',
+        name: driver.name || '',
+        email: driver.email || '',
+        phone: driver.phone || '',
+        company: driver.company || '',
         
-
+        // Basic Driver Profile Fields
+        truckType: driver.truckType || 'truck',
+        tankSize: driver.tankSize?.toString() || '',
+        fuelTypePreference: driver.fuelTypePreference || 'diesel',
+        yearsExperience: driver.yearsExperience?.toString() || '',
+        safetyCertifications: driver.safetyCertifications || '',
         
         // Vehicle Info
-        vehicleMake: user.vehicleMake || '',
-        vehicleModel: user.vehicleModel || '',
-        vehicleYear: user.vehicleYear?.toString() || '',
-        fuelType: (user.fuelType === 'gas' ? 'gasoline' : user.fuelType || 'diesel') as 'diesel' | 'gasoline',
-        mpgRated: user.mpgRated?.toString() || '',
-        vin: user.vin || '',
-        plate: user.plate || '',
-        tankGallons: user.tankGallons?.toString() || '50',
-        gvwrLbs: user.gvwrLbs?.toString() || '',
+        vehicleMake: driver.vehicleMake || '',
+        vehicleModel: driver.vehicleModel || '',
+        vehicleYear: driver.vehicleYear?.toString() || '',
+        fuelType: (driver.fuelType === 'gas' ? 'gasoline' : driver.fuelType || 'diesel') as 'diesel' | 'gasoline',
+        mpgRated: driver.mpgRated?.toString() || '',
+        vin: driver.vin || '',
+        plate: driver.plate || '',
+        tankGallons: driver.tankGallons?.toString() || '50',
+        gvwrLbs: driver.gvwrLbs?.toString() || '',
         
         // Trailer Info
-        trailerMake: user.trailerMake || '',
-        trailerModel: user.trailerModel || '',
-        trailerYear: user.trailerYear?.toString() || '',
-        trailerVin: user.trailerVin || '',
-        trailerPlate: user.trailerPlate || '',
-        trailerInsuranceCarrier: user.trailerInsuranceCarrier || '',
-        trailerPolicyNumber: user.trailerPolicyNumber || '',
-        trailerGvwrLbs: user.trailerGvwrLbs?.toString() || '',
-        trailerType: user.trailerType || 'flatbed',
+        trailerMake: driver.trailerMake || '',
+        trailerModel: driver.trailerModel || '',
+        trailerYear: driver.trailerYear?.toString() || '',
+        trailerVin: driver.trailerVin || '',
+        trailerPlate: driver.trailerPlate || '',
+        trailerInsuranceCarrier: driver.trailerInsuranceCarrier || '',
+        trailerPolicyNumber: driver.trailerPolicyNumber || '',
+        trailerGvwrLbs: driver.trailerGvwrLbs?.toString() || '',
+        trailerType: driver.trailerType || 'flatbed',
         
         // Company Info
-        companyName: user.companyName || '',
-        mcNumber: user.mcNumber || '',
-        dotNumber: user.dotNumber || '',
-        insuranceCarrier: user.insuranceCarrier || '',
-        policyNumber: user.policyNumber || '',
+        companyName: driver.companyName || '',
+        mcNumber: driver.mcNumber || '',
+        dotNumber: driver.dotNumber || '',
+        insuranceCarrier: driver.insuranceCarrier || '',
+        policyNumber: driver.policyNumber || '',
       });
     }
   }, [user]);
@@ -200,12 +211,23 @@ export default function DriverProfileScreen() {
     try {
       setSubmitting(true);
       
-
+      // Validation for tank size
+      if (formData.tankSize && parseInt(formData.tankSize) <= 0) {
+        toast.show('Tank size must be greater than 0', 'error');
+        return;
+      }
       
       const updateData = {
         name: formData.name,
         phone: formData.phone,
         company: formData.company,
+        
+        // Basic Driver Profile Fields
+        truckType: formData.truckType,
+        tankSize: formData.tankSize ? parseInt(formData.tankSize) : null,
+        fuelTypePreference: formData.fuelTypePreference,
+        yearsExperience: formData.yearsExperience ? parseInt(formData.yearsExperience) : null,
+        safetyCertifications: formData.safetyCertifications,
 
         vehicleMake: formData.vehicleMake,
         vehicleModel: formData.vehicleModel,
@@ -235,7 +257,8 @@ export default function DriverProfileScreen() {
       };
       
       await updateProfile(updateData);
-      toast.show('Driver profile saved successfully', 'success');
+      console.log('[DriverProfile] Profile updated - Truck info saved');
+      toast.show('Profile updated - Truck info saved', 'success');
     } catch (error) {
       console.error('Profile save error:', error);
       toast.show('Save failed. Please try again.', 'error');
@@ -324,7 +347,119 @@ export default function DriverProfileScreen() {
           </View>
         </View>
 
-
+        {/* Basic Driver Profile */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Truck size={20} color={theme.colors.secondary} />
+            <Text style={styles.sectionTitle}>Driver Profile</Text>
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Truck Type</Text>
+            <View style={styles.segmentedControl}>
+              {['truck', 'box-truck', 'flatbed', 'reefer'].map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.segmentButton,
+                    formData.truckType === type && styles.segmentButtonActive
+                  ]}
+                  onPress={() => updateField('truckType', type)}
+                  testID={`truck-type-${type}`}
+                >
+                  <Text style={[
+                    styles.segmentButtonText,
+                    formData.truckType === type && styles.segmentButtonTextActive
+                  ]}>
+                    {type.replace('-', ' ').toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Tank Size (gallons)</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.tankSize}
+                onChangeText={(text) => {
+                  const numericValue = text.replace(/[^0-9]/g, '');
+                  if (numericValue === '' || (parseInt(numericValue) > 0 && parseInt(numericValue) <= 1000)) {
+                    updateField('tankSize', numericValue);
+                  }
+                }}
+                placeholder="100"
+                keyboardType="numeric"
+                testID="tank-size-input"
+              />
+            </View>
+            <View style={styles.spacer} />
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Fuel Type</Text>
+              <View style={styles.segmentedControl}>
+                <TouchableOpacity
+                  style={[
+                    styles.segmentButton,
+                    formData.fuelTypePreference === 'diesel' && styles.segmentButtonActive
+                  ]}
+                  onPress={() => updateField('fuelTypePreference', 'diesel')}
+                  testID="fuel-type-diesel"
+                >
+                  <Text style={[
+                    styles.segmentButtonText,
+                    formData.fuelTypePreference === 'diesel' && styles.segmentButtonTextActive
+                  ]}>DIESEL</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.segmentButton,
+                    formData.fuelTypePreference === 'gasoline' && styles.segmentButtonActive
+                  ]}
+                  onPress={() => updateField('fuelTypePreference', 'gasoline')}
+                  testID="fuel-type-gasoline"
+                >
+                  <Text style={[
+                    styles.segmentButtonText,
+                    formData.fuelTypePreference === 'gasoline' && styles.segmentButtonTextActive
+                  ]}>GAS</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Years of Experience</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.yearsExperience}
+              onChangeText={(text) => {
+                const numericValue = text.replace(/[^0-9]/g, '');
+                if (numericValue === '' || (parseInt(numericValue) >= 0 && parseInt(numericValue) <= 50)) {
+                  updateField('yearsExperience', numericValue);
+                }
+              }}
+              placeholder="5"
+              keyboardType="numeric"
+              testID="years-experience-input"
+            />
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Safety Certifications</Text>
+            <TextInput
+              style={[styles.input, { height: 80 }]}
+              value={formData.safetyCertifications}
+              onChangeText={(text) => updateField('safetyCertifications', text)}
+              placeholder="CDL Class A, HAZMAT, TWIC, etc."
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              testID="safety-certs-input"
+            />
+          </View>
+        </View>
 
         {/* Vehicle Information */}
         <View style={styles.section}>
@@ -668,7 +803,7 @@ export default function DriverProfileScreen() {
           
           <View style={styles.statusCard}>
             <Text style={styles.statusTitle}>
-              Status: {user?.verificationStatus ? String(user.verificationStatus).toUpperCase() : 'UNVERIFIED'}
+              Status: {(user as Driver)?.verificationStatus ? String((user as Driver).verificationStatus).toUpperCase() : 'UNVERIFIED'}
             </Text>
             <Text style={styles.statusDesc}>
               Upload CDL, COI, and registration to get verified and start accepting loads.

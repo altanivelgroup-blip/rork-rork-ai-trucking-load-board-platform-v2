@@ -408,6 +408,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           trailerType: (updates as any).trailerType ?? (updated as any).trailerType ?? null,
           vehicleSubtype: (updates as any).vehicleSubtype ?? (updated as any).vehicleSubtype ?? null,
           companyName: (updates as any).companyName ?? (updated as any).companyName ?? null,
+          // Basic Driver Profile Fields
+          truckType: (updates as any).truckType ?? (updated as any).truckType ?? null,
+          tankSize: (updates as any).tankSize ?? (updated as any).tankSize ?? null,
+          fuelTypePreference: (updates as any).fuelTypePreference ?? (updated as any).fuelTypePreference ?? null,
+          yearsExperience: (updates as any).yearsExperience ?? (updated as any).yearsExperience ?? null,
+          safetyCertifications: (updates as any).safetyCertifications ?? (updated as any).safetyCertifications ?? null,
           mcNumber: (updates as any).mcNumber ?? (updated as any).mcNumber ?? null,
           dotNumber: (updates as any).dotNumber ?? (updated as any).dotNumber ?? null,
           insuranceCarrier: (updates as any).insuranceCarrier ?? (updated as any).insuranceCarrier ?? null,

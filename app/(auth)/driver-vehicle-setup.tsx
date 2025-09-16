@@ -25,6 +25,12 @@ export default function DriverVehicleSetupScreen() {
         plate: values.plate,
         tankGallons: values.tankGallons ?? null,
         gvwrLbs: values.gvwrLbs ?? null,
+        // Set default basic driver profile fields
+        truckType: 'truck',
+        tankSize: values.tankGallons ?? undefined,
+        fuelTypePreference: values.fuelType === 'gas' ? 'gasoline' : 'diesel',
+        yearsExperience: undefined,
+        safetyCertifications: '',
       });
       toast.show('Vehicle saved', 'success');
       router.replace('/dashboard');

@@ -1,3 +1,6 @@
+// Backup of types/index.ts before adding basic driver profile fields
+// Created: 2025-09-16
+
 export type UserRole = 'driver' | 'shipper' | 'admin';
 
 export type VehicleType = 
@@ -109,12 +112,6 @@ export interface Driver extends User {
   trailerGvwrLbs?: number | null;
   trailerType?: VehicleType;
   vehicleSubtype?: string;
-  // Basic Driver Profile Fields
-  truckType?: VehicleType;
-  tankSize?: number;
-  fuelTypePreference?: 'diesel' | 'gasoline';
-  yearsExperience?: number;
-  safetyCertifications?: string;
 }
 
 export interface Document {
