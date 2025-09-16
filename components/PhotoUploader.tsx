@@ -221,109 +221,125 @@ async function savePhotoMetadata(photoUrl: string, loadId: string, userId: strin
 }
 
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, entityId: string, updateProgress?: (progress: number) => void): Promise<string> {
-  console.log('[PhotoUploader] ✅ PRODUCTION upload to path:', path);
+  console.log('[PhotoUploader] 🔄 Starting upload to path:', path);
+  
   try {
-    // PRODUCTION FIXED: Use Firebase Storage modular API directly
-    const { getStorage } = await import('firebase/storage');
-    const { getFirebase } = await import('@/utils/firebase');
-    const { app } = getFirebase();
-    const storage = getStorage(app);
+    // CRITICAL FIX: Enhanced authentication and network checks
+    const { getFirebase, testFirebaseConnectivity } = await import('@/utils/firebase');
     
-    // CRITICAL FIX: Ensure fresh authentication token before creating storage reference
-    const { auth } = getFirebase();
-    if (auth?.currentUser) {
-      try {
-        const freshToken = await auth.currentUser.getIdToken(true);
-        console.log('[PhotoUploader] ✅ Fresh token obtained for storage upload:', !!freshToken);
-      } catch (tokenError) {
-        console.warn('[PhotoUploader] Could not refresh token, using existing:', tokenError);
+    // Test connectivity first
+    console.log('[PhotoUploader] 🌐 Testing Firebase connectivity...');
+    const connectivityTest = await testFirebaseConnectivity();
+    
+    if (!connectivityTest.connected) {
+      console.error('[PhotoUploader] ❌ Firebase connectivity failed:', connectivityTest.error);
+      throw new Error(`Network connection failed: ${connectivityTest.error || 'Unable to reach Firebase'}`);
+    }
+    
+    console.log('[PhotoUploader] ✅ Firebase connectivity verified');
+    
+    // Get Firebase instances with enhanced error handling
+    const { app, auth } = getFirebase();
+    if (!app) {
+      throw new Error('Firebase app not initialized');
+    }
+    
+    // CRITICAL FIX: Ensure authentication with timeout
+    if (!auth?.currentUser) {
+      console.log('[PhotoUploader] 🔐 No current user, attempting authentication...');
+      const { ensureFirebaseAuth } = await import('@/utils/firebase');
+      const authSuccess = await Promise.race([
+        ensureFirebaseAuth(),
+        new Promise<boolean>((_, reject) => 
+          setTimeout(() => reject(new Error('Authentication timeout')), 10000)
+        )
+      ]);
+      
+      if (!authSuccess || !auth?.currentUser) {
+        throw new Error('Authentication failed. Please refresh and try again.');
       }
     }
     
+    // CRITICAL FIX: Force fresh token before upload
+    console.log('[PhotoUploader] 🔑 Refreshing authentication token...');
+    try {
+      const freshToken = await auth.currentUser.getIdToken(true);
+      console.log('[PhotoUploader] ✅ Fresh token obtained:', !!freshToken);
+    } catch (tokenError) {
+      console.warn('[PhotoUploader] ⚠️ Token refresh failed, continuing:', tokenError);
+    }
+    
+    // Initialize Firebase Storage with error handling
+    const { getStorage } = await import('firebase/storage');
+    let storage;
+    try {
+      storage = getStorage(app);
+      console.log('[PhotoUploader] ✅ Storage initialized for bucket:', storage.app.options.storageBucket);
+    } catch (storageError) {
+      console.error('[PhotoUploader] ❌ Storage initialization failed:', storageError);
+      throw new Error('Firebase Storage initialization failed');
+    }
+    
+    // Create storage reference with validation
     const storageRef = ref(storage, path);
+    console.log('[PhotoUploader] 📁 Storage reference created for path:', path);
     
-    console.log('[PhotoUploader] Creating storage reference for path:', path);
-    console.log('[PhotoUploader] Storage bucket:', storage.app.options.storageBucket);
+    // CRITICAL FIX: Use uploadBytes with timeout instead of resumable upload
+    // This avoids complex state management and network issues
+    console.log('[PhotoUploader] 📤 Starting direct upload...');
     
-    // Use resumable upload with progress tracking
-    const uploadTask = uploadBytesResumable(storageRef, blob, {
+    const uploadPromise = uploadBytes(storageRef, blob, {
       contentType: mime,
     });
     
-    return new Promise((resolve, reject) => {
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          // Track upload progress
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          updateProgress?.(Math.round(progress));
-          console.log('[PhotoUploader] Upload progress:', Math.round(progress) + '%');
-        },
-        (error) => {
-          console.error('[PhotoUploader] ❌ Upload error:', error);
-          console.error('[PhotoUploader] 🔍 Error code:', error.code);
-          console.error('[PhotoUploader] 📝 Error message:', error.message);
-          console.error('[PhotoUploader] 🔍 Error name:', error.name);
-          console.error('[PhotoUploader] 🔍 Error serverResponse:', error.serverResponse);
-          console.error('[PhotoUploader] 🔍 Error customData:', error.customData);
-          
-          // CRITICAL: Log authentication state and storage path during error
-          try {
-            const { auth } = getFirebase();
-            const uid = auth.currentUser?.uid;
-            const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
-            const attemptedPath = `loadPhotos/${uid}/${safeId}`;
-            
-            console.error('[PhotoUploader] 🔑 Auth state during storage error:', {
-              hasCurrentUser: !!auth.currentUser,
-              uid: auth.currentUser?.uid,
-              isAnonymous: auth.currentUser?.isAnonymous,
-              email: auth.currentUser?.email || 'none',
-              emailVerified: auth.currentUser?.emailVerified,
-              attemptedStoragePath: attemptedPath,
-              pathUserId: uid,
-              entityId: entityId
-            });
-            
-            // Check if path matches user ID (critical for storage rules)
-            if (path && uid) {
-              const pathUserId = path.split('/')[1]; // Extract userId from path
-              const pathMatches = pathUserId === uid;
-              console.error('[PhotoUploader] 🔍 Storage path analysis:', {
-                fullPath: path,
-                extractedUserId: pathUserId,
-                actualUserId: uid,
-                pathMatches: pathMatches,
-                rulesWillAllow: pathMatches && !!auth.currentUser
-              });
-              
-              if (!pathMatches) {
-                console.error('[PhotoUploader] ❌ CRITICAL: Storage path userId does not match authenticated user!');
-                console.error('[PhotoUploader] 🚨 This will cause storage/unauthorized error');
-              }
-            }
-          } catch (authCheckError) {
-            console.error('[PhotoUploader] ⚠️ Could not check auth state:', authCheckError);
-          }
-          
-          reject(error);
-        },
-        async () => {
-          // Upload completed successfully
-          try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            console.log('[PhotoUploader] ✅ PRODUCTION upload successful:', downloadURL);
-            console.log('[PhotoUploader] 🎉 STEP 2 SUCCESS: Upload successful - Photo saved');
-            resolve(downloadURL);
-          } catch (urlError) {
-            console.error('[PhotoUploader] Error getting download URL:', urlError);
-            reject(urlError);
-          }
-        }
-      );
-    });
+    // Add timeout to prevent hanging uploads
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Upload timeout - please try again')), 30000)
+    );
+    
+    const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
+    console.log('[PhotoUploader] ✅ Upload completed successfully');
+    
+    // Get download URL with timeout
+    console.log('[PhotoUploader] 🔗 Getting download URL...');
+    const urlPromise = getDownloadURL(uploadResult.ref);
+    const urlTimeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Download URL timeout')), 10000)
+    );
+    
+    const downloadURL = await Promise.race([urlPromise, urlTimeoutPromise]);
+    
+    console.log('[PhotoUploader] ✅ Upload successful - URL obtained');
+    console.log('[PhotoUploader] 🎉 Photo upload completed successfully');
+    
+    // Update progress to 100%
+    updateProgress?.(100);
+    
+    return downloadURL;
+    
   } catch (error: any) {
-    console.error('[PhotoUploader] Upload error in uploadSmart:', error);
-    throw error;
+    console.error('[PhotoUploader] ❌ Upload error in uploadSmart:', error);
+    console.error('[PhotoUploader] Error details:', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack?.substring(0, 200)
+    });
+    
+    // Enhanced error mapping for better user experience
+    let enhancedError = error;
+    if (error?.message?.includes('Failed to fetch')) {
+      enhancedError = new Error('Network connection failed. Please check your internet and try again.');
+      enhancedError.code = 'network-failed';
+    } else if (error?.message?.includes('timeout')) {
+      enhancedError = new Error('Upload timed out. Please try again with a smaller photo.');
+      enhancedError.code = 'upload-timeout';
+    } else if (error?.code === 'storage/unauthorized') {
+      enhancedError = new Error('Upload permission denied. Please refresh and try again.');
+      enhancedError.code = 'auth-failed';
+    }
+    
+    throw enhancedError;
   }
 }
 
