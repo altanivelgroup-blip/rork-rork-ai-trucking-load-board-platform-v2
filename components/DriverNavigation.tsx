@@ -22,7 +22,7 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
   useAuth(); // Hook for potential future use
   const [currentPhase, setCurrentPhase] = useState<NavigationPhase>('to-pickup');
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
-  const { state: navState, getRoute, clearRoute, toggleVoice } = useNavigation();
+  const { state: navState, getRoute, clearRoute, toggleVoice, retryRoute } = useNavigation();
 
   console.log('[DriverNavigation] Rendering with phase:', currentPhase, 'Navigation state:', navState.isOffline ? 'offline' : 'online');
 
@@ -36,26 +36,68 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
 
   // Get route data when phase changes
   useEffect(() => {
-    const currentDestination = getCurrentDestination();
-    if (currentDestination && (currentDestination.lat !== 0 || currentDestination.lng !== 0)) {
-      // Use a mock current location for demo purposes
-      const mockCurrentLocation: Location = {
-        address: '',
-        city: 'Current Location',
-        state: '',
-        zipCode: '',
-        lat: 40.7128,
-        lng: -74.0060,
-      };
-      
-      getRoute(mockCurrentLocation, currentDestination).then(route => {
-        if (route) {
-          console.log('[DriverNavigation] Route loaded:', route.provider, route.durationSec ? `${Math.round(route.durationSec / 60)} min` : 'no ETA');
+    const loadRoute = async () => {
+      const currentDestination = getCurrentDestination();
+      if (currentDestination && (currentDestination.lat !== 0 || currentDestination.lng !== 0)) {
+        try {
+          // Try to get real location first
+          let currentLocation: Location;
+          
+          if (Platform.OS !== 'web') {
+            try {
+              const { requestForegroundPermissionsAsync, getCurrentPositionAsync } = await import('expo-location');
+              const { status } = await requestForegroundPermissionsAsync();
+              if (status === 'granted') {
+                const location = await getCurrentPositionAsync({ accuracy: 6 });
+                currentLocation = {
+                  address: '',
+                  city: 'Current Location',
+                  state: '',
+                  zipCode: '',
+                  lat: location.coords.latitude,
+                  lng: location.coords.longitude,
+                };
+                console.log('[DriverNavigation] Using real location for route calculation');
+              } else {
+                throw new Error('Location permission denied');
+              }
+            } catch (locationError) {
+              console.warn('[DriverNavigation] Failed to get real location, using fallback:', locationError);
+              currentLocation = {
+                address: '',
+                city: 'Current Location (Mock)',
+                state: '',
+                zipCode: '',
+                lat: 40.7128,
+                lng: -74.0060,
+              };
+            }
+          } else {
+            // Web fallback
+            currentLocation = {
+              address: '',
+              city: 'Current Location (Web)',
+              state: '',
+              zipCode: '',
+              lat: 40.7128,
+              lng: -74.0060,
+            };
+          }
+          
+          const route = await getRoute(currentLocation, currentDestination);
+          if (route) {
+            const phaseText = currentPhase === 'to-pickup' ? 'pickup' : 'delivery';
+            const eta = route.durationSec ? `${Math.round(route.durationSec / 60)} min` : 'no ETA';
+            const provider = route.provider === 'fallback' ? 'basic navigation' : route.provider.toUpperCase();
+            console.log(`[DriverNavigation] ${phaseText} route loaded - ${eta} via ${provider}`);
+          }
+        } catch (error) {
+          console.warn('[DriverNavigation] Route loading failed:', error);
         }
-      }).catch(error => {
-        console.warn('[DriverNavigation] Route loading failed:', error);
-      });
-    }
+      }
+    };
+    
+    loadRoute();
   }, [currentPhase, getRoute, getCurrentDestination]);
 
   const openInAppMap = useCallback(async (destination: Location) => {
@@ -64,36 +106,28 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
       return;
     }
     
-    console.log('[DriverNavigation] Starting enhanced navigation to:', destination.city);
+    const phaseText = currentPhase === 'to-pickup' ? 'pickup' : 'delivery';
+    console.log(`[DriverNavigation] Starting navigation to ${phaseText}:`, destination.city);
     setIsNavigating(true);
     
     try {
-      // First, try to get route data for enhanced navigation
-      const mockCurrentLocation: Location = {
-        address: '',
-        city: 'Current Location', 
-        state: '',
-        zipCode: '',
-        lat: 40.7128,
-        lng: -74.0060,
-      };
-      
-      const route = await getRoute(mockCurrentLocation, destination);
-      
-      if (route && route.provider !== 'fallback') {
+      // Enhanced navigation with real location
+      if (navState.currentRoute) {
+        const route = navState.currentRoute;
         const duration = route.durationSec ? Math.round(route.durationSec / 60) : null;
         const distance = route.distanceMeters ? (route.distanceMeters / 1000).toFixed(1) : null;
+        const provider = route.provider === 'fallback' ? 'basic navigation' : route.provider.toUpperCase();
         
-        console.log(`[DriverNavigation] Enhanced route ready - ${duration ? `${duration} min` : 'no ETA'}, ${distance ? `${distance} km` : 'no distance'} - Navigation ready`);
+        console.log(`[DriverNavigation] ${phaseText} navigation ready - ${duration ? `${duration} min` : 'calculating ETA'}, ${distance ? `${distance} km` : 'calculating distance'} via ${provider}`);
         
-        if (navState.voiceEnabled) {
+        if (navState.voiceEnabled && route.provider !== 'fallback') {
           console.log('[DriverNavigation] Voice guidance enabled for turn-by-turn directions');
         }
       } else {
-        console.log('[DriverNavigation] Using basic navigation - Offline route cached');
+        console.log(`[DriverNavigation] ${phaseText} navigation - using external maps app`);
       }
     } catch (error) {
-      console.warn('[DriverNavigation] Enhanced navigation failed, using fallback:', error);
+      console.warn(`[DriverNavigation] ${phaseText} navigation setup failed:`, error);
     }
     
     // Always provide external navigation as backup
@@ -220,7 +254,28 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
             </Text>
             
             {navState.error && (
-              <Text style={styles.routeError}>{navState.error}</Text>
+              <View style={styles.errorContainer}>
+                <Text style={styles.routeError}>{navState.error}</Text>
+                {navState.error.includes('retry') && navState.retryCount < 3 && (
+                  <TouchableOpacity 
+                    style={styles.retryButton} 
+                    onPress={() => {
+                      const currentDestination = getCurrentDestination();
+                      const mockLocation: Location = {
+                        address: '',
+                        city: 'Current Location',
+                        state: '',
+                        zipCode: '',
+                        lat: 40.7128,
+                        lng: -74.0060,
+                      };
+                      retryRoute(mockLocation, currentDestination);
+                    }}
+                  >
+                    <Text style={styles.retryButtonText}>Retry ({navState.retryCount}/3)</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
           </View>
         )}
@@ -267,9 +322,11 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
           <Text style={styles.statusText}>
             {navState.isOffline 
               ? 'Offline mode - using cached routes when available'
-              : isPickupPhase 
-                ? 'Tap "Navigate to Pickup" for real-time route guidance'
-                : 'Tap "Navigate to Delivery" for delivery route with live updates'
+              : navState.currentRoute?.provider === 'fallback'
+                ? 'Basic navigation mode - external maps will provide directions'
+                : isPickupPhase 
+                  ? 'Enhanced navigation ready - tap to start pickup route'
+                  : 'Enhanced navigation ready - tap to start delivery route'
             }
           </Text>
         </View>
@@ -433,6 +490,22 @@ const styles = StyleSheet.create({
     color: theme.colors.warning,
     marginTop: theme.spacing.xs,
     fontStyle: 'italic',
+  },
+  errorContainer: {
+    marginTop: theme.spacing.xs,
+  },
+  retryButton: {
+    backgroundColor: theme.colors.warning,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  retryButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
   },
   buttonDisabled: {
     opacity: 0.6,

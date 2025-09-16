@@ -20,6 +20,8 @@ interface NavigationState {
   error: string | null;
   isOffline: boolean;
   voiceEnabled: boolean;
+  retryCount: number;
+  lastRetryTime: number | null;
 }
 
 interface UseNavigationReturn {
@@ -29,6 +31,7 @@ interface UseNavigationReturn {
   toggleVoice: () => void;
   getCachedRoute: (origin: Location, destination: Location) => Promise<RouteData | null>;
   cacheRoute: (origin: Location, destination: Location, route: RouteData) => Promise<void>;
+  retryRoute: (origin: Location, destination: Location) => Promise<RouteData | null>;
 }
 
 const CACHE_KEY_PREFIX = 'navigation_route_';
@@ -43,7 +46,10 @@ export function useNavigation(): UseNavigationReturn {
     error: null,
     isOffline: !online,
     voiceEnabled: true,
+    retryCount: 0,
+    lastRetryTime: null,
   });
+  const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
 
   console.log('[useNavigation] Hook initialized - Online:', online);
 
@@ -198,7 +204,7 @@ export function useNavigation(): UseNavigationReturn {
     }
   }, [generateCacheKey]);
 
-  const getRouteFromAPI = useCallback(async (origin: Location, destination: Location): Promise<RouteData | null> => {
+  const getRouteFromAPI = useCallback(async (origin: Location, destination: Location, isRetry: boolean = false): Promise<RouteData | null> => {
     try {
       // Validate input parameters
       if (!origin || typeof origin.lat !== 'number' || typeof origin.lng !== 'number') {
@@ -237,20 +243,118 @@ export function useNavigation(): UseNavigationReturn {
           cachedAt: Date.now(),
         };
 
-        console.log('[useNavigation] API route fetched successfully - Navigation ready');
+        console.log(`[useNavigation] API route fetched successfully${isRetry ? ' (retry)' : ''} - Navigation ready`);
+        // Clear retry count on success
+        setState(prev => ({ ...prev, retryCount: 0, error: null }));
         return route;
-      } catch {
-        // Handle case where route API is not available on external server
-        console.warn('[useNavigation] Route API not available on external server, using direct API call');
+      } catch (apiError) {
+        console.warn(`[useNavigation] Route API failed${isRetry ? ' (retry)' : ''}:`, apiError);
         
         // Try direct API call to routing service
-        return await getDirectRouteFromAPI(origin, destination, provider);
+        const directRoute = await getDirectRouteFromAPI(origin, destination, provider);
+        if (directRoute) {
+          setState(prev => ({ ...prev, retryCount: 0, error: null }));
+          return directRoute;
+        }
+        
+        throw apiError;
       }
     } catch (error) {
       console.error('[useNavigation] API route fetch failed:', error);
       throw error;
     }
   }, [getDirectRouteFromAPI]);
+
+  const getCurrentLocation = useCallback(async (): Promise<Location | null> => {
+    try {
+      // Try to get real location first
+      if (Platform.OS !== 'web') {
+        const { requestForegroundPermissionsAsync, getCurrentPositionAsync } = await import('expo-location');
+        const { status } = await requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await getCurrentPositionAsync({ accuracy: 6 });
+          const realLocation: Location = {
+            address: '',
+            city: 'Current Location',
+            state: '',
+            zipCode: '',
+            lat: location.coords.latitude,
+            lng: location.coords.longitude,
+          };
+          setCurrentLocation(realLocation);
+          console.log('[useNavigation] Real location acquired:', realLocation.lat, realLocation.lng);
+          return realLocation;
+        }
+      }
+    } catch (error) {
+      console.warn('[useNavigation] Failed to get real location, using fallback:', error);
+    }
+    
+    // Fallback to mock location
+    const mockLocation: Location = {
+      address: '',
+      city: 'Current Location (Mock)',
+      state: '',
+      zipCode: '',
+      lat: 40.7128,
+      lng: -74.0060,
+    };
+    setCurrentLocation(mockLocation);
+    return mockLocation;
+  }, []);
+
+  const retryRoute = useCallback(async (origin: Location, destination: Location): Promise<RouteData | null> => {
+    const now = Date.now();
+    const timeSinceLastRetry = state.lastRetryTime ? now - state.lastRetryTime : Infinity;
+    
+    // Rate limit retries: minimum 2 seconds between attempts
+    if (timeSinceLastRetry < 2000) {
+      console.log('[useNavigation] Retry rate limited, please wait');
+      return null;
+    }
+    
+    setState(prev => ({ 
+      ...prev, 
+      isLoading: true, 
+      error: null, 
+      retryCount: prev.retryCount + 1,
+      lastRetryTime: now 
+    }));
+    
+    console.log(`[useNavigation] Retrying route (attempt ${state.retryCount + 1})`);
+    
+    try {
+      if (online) {
+        const apiRoute = await getRouteFromAPI(origin, destination, true);
+        if (apiRoute) {
+          await cacheRoute(origin, destination, apiRoute);
+          setState(prev => ({ 
+            ...prev, 
+            currentRoute: apiRoute, 
+            isLoading: false,
+            error: null 
+          }));
+          return apiRoute;
+        }
+      }
+      
+      // If retry fails, show appropriate message
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false,
+        error: `Retry failed (${prev.retryCount}/${3}). ${online ? 'API unavailable' : 'Still offline'}.`
+      }));
+      return null;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Retry failed';
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: `${errorMessage} (attempt ${prev.retryCount})`
+      }));
+      return null;
+    }
+  }, [online, getRouteFromAPI, cacheRoute, state.retryCount, state.lastRetryTime]);
 
   const getRoute = useCallback(async (origin: Location, destination: Location): Promise<RouteData | null> => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -286,6 +390,10 @@ export function useNavigation(): UseNavigationReturn {
           }
         } catch (apiError) {
           console.warn('[useNavigation] API failed, will use fallback:', apiError);
+          setState(prev => ({ 
+            ...prev, 
+            error: state.retryCount < 3 ? 'Route failed - tap retry for another attempt' : 'Max retries reached - using basic navigation'
+          }));
         }
       }
 
@@ -345,7 +453,8 @@ export function useNavigation(): UseNavigationReturn {
     toggleVoice,
     getCachedRoute,
     cacheRoute,
-  }), [state, getRoute, clearRoute, toggleVoice, getCachedRoute, cacheRoute]);
+    retryRoute,
+  }), [state, getRoute, clearRoute, toggleVoice, getCachedRoute, cacheRoute, retryRoute]);
 
   return memoizedReturn;
 }
