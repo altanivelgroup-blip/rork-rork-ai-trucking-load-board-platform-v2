@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Location } from '@/types';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -226,7 +227,18 @@ export function useNavigation(): UseNavigationReturn {
         return null;
       }
 
+      // Skip tRPC for now and go directly to external APIs
+      console.log('[useNavigation] Using direct API call (tRPC bypassed)...');
+      const directRoute = await getDirectRouteFromAPI(origin, destination, provider);
+      if (directRoute) {
+        console.log('[useNavigation] Direct API call successful');
+        setState(prev => ({ ...prev, retryCount: 0, error: null }));
+        return directRoute;
+      }
+      
+      // If direct API fails, try tRPC as fallback
       try {
+        console.log('[useNavigation] Direct API failed, trying tRPC as fallback...');
         const routeData = await trpcClient.route.eta.query({
           origin: { lat: origin.lat, lon: origin.lng },
           destination: { lat: destination.lat, lon: destination.lng },
@@ -243,21 +255,12 @@ export function useNavigation(): UseNavigationReturn {
           cachedAt: Date.now(),
         };
 
-        console.log(`[useNavigation] API route fetched successfully${isRetry ? ' (retry)' : ''} - Navigation ready`);
-        // Clear retry count on success
+        console.log(`[useNavigation] tRPC fallback successful${isRetry ? ' (retry)' : ''} - Navigation ready`);
         setState(prev => ({ ...prev, retryCount: 0, error: null }));
         return route;
-      } catch (apiError) {
-        console.warn(`[useNavigation] Route API failed${isRetry ? ' (retry)' : ''}:`, apiError);
-        
-        // Try direct API call to routing service
-        const directRoute = await getDirectRouteFromAPI(origin, destination, provider);
-        if (directRoute) {
-          setState(prev => ({ ...prev, retryCount: 0, error: null }));
-          return directRoute;
-        }
-        
-        throw apiError;
+      } catch (trpcError) {
+        console.error(`[useNavigation] tRPC fallback also failed${isRetry ? ' (retry)' : ''}:`, trpcError);
+        throw new Error('Both direct API and tRPC failed');
       }
     } catch (error) {
       console.error('[useNavigation] API route fetch failed:', error);
@@ -389,10 +392,14 @@ export function useNavigation(): UseNavigationReturn {
             return apiRoute;
           }
         } catch (apiError) {
-          console.warn('[useNavigation] API failed, will use fallback:', apiError);
+          console.error('[useNavigation] API failed, will use fallback:', apiError);
+          const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown error';
+          const shortError = errorMessage.includes('Failed to fetch') ? 'Network error' : errorMessage.slice(0, 30);
           setState(prev => ({ 
             ...prev, 
-            error: state.retryCount < 3 ? 'Route failed - tap retry for another attempt' : 'Max retries reached - using basic navigation'
+            error: state.retryCount < 3 
+              ? `${shortError} - tap retry (${state.retryCount + 1}/3)` 
+              : 'Max retries reached - using basic navigation'
           }));
         }
       }
