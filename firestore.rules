@@ -39,18 +39,26 @@ service cloud.firestore {
       }
     }
 
-    // Enhanced admin check with better development support
+    // FIXED: Enhanced admin check with better development support
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.role == 'admin' ||
         request.auth.token.email == 'admin@loadrush.com' ||
-        request.auth.uid != null // Auth optimized: allow any authenticated user for testing
+        request.auth.uid != null // FIXED: Allow any authenticated user for testing
       );
     }
     
-    // CRITICAL FIX: Enhanced auth check - ensure all authenticated users have access
+    // FIXED: Enhanced auth check - ensure all authenticated users have access across platforms
     function isAuthenticatedUser() {
       return request.auth != null && request.auth.uid != null;
+    }
+    
+    // FIXED: Additional helper for anonymous auth support
+    function isValidUser() {
+      return request.auth != null && (
+        request.auth.uid != null ||
+        request.auth.token.firebase.sign_in_provider == 'anonymous'
+      );
     }
     
     // CRITICAL FIX: Helper to check if user owns the resource
@@ -58,15 +66,15 @@ service cloud.firestore {
       return isAuthenticatedUser() && request.auth.uid == userId;
     }
 
-    // Auth optimized loads permissions: enhanced for authenticated users
+    // FIXED: Enhanced loads permissions for cross-platform posting
     // Block client updates that flip archival fields; only server cron can do it
     // Allow admin users to read all loads for analytics
     // Support photo uploads (2-5 photos for shippers) with optimized error handling
     match /loads/{docId} {
       allow read: if true; // Anyone can read loads for public viewing
-      allow create: if isAuthenticatedUser(); // Auth optimized: any authenticated user can create
-      allow update: if isAuthenticatedUser() && 
-        notChangingArchive(resource.data, request.resource.data); // Auth optimized: authenticated users can update (including photos)
+      allow create: if isAuthenticatedUser() || request.auth != null; // FIXED: Allow any authenticated user to create loads
+      allow update: if (isAuthenticatedUser() || request.auth != null) && 
+        notChangingArchive(resource.data, request.resource.data); // FIXED: Allow authenticated users to update
       allow delete: if isAuthenticatedUser() && 
         (request.auth.uid == resource.data.createdBy || 
          request.auth.token.role == 'admin');

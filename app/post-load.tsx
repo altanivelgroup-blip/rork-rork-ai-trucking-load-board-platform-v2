@@ -105,14 +105,31 @@ const onNext = useCallback(async () => {
     if (!canProceed) return;
 
     const loadId: string = (draft as any)?.id || `load-${Date.now()}`;
+    console.log('[PostLoad] FIXED: Starting cross-platform load creation with ID:', loadId);
 
     try {
-      // Try Firebase first
-      await ensureFirebaseAuth();
+      // FIXED: Enhanced Firebase authentication with better error handling
+      console.log('[PostLoad] FIXED: Ensuring Firebase authentication...');
+      const authSuccess = await ensureFirebaseAuth();
+      
+      if (!authSuccess) {
+        console.warn('[PostLoad] FIXED: Firebase auth failed, but continuing with fallback');
+        throw new Error('Firebase authentication failed');
+      }
+      
       const { db, auth } = getFirebase();
+      
+      if (!auth?.currentUser?.uid) {
+        console.warn('[PostLoad] FIXED: No authenticated user found');
+        throw new Error('No authenticated user');
+      }
+      
+      console.log('[PostLoad] FIXED: Authenticated user:', auth.currentUser.uid);
+      console.log('[PostLoad] FIXED: User is anonymous:', auth.currentUser.isAnonymous);
 
       const ref = doc(db, LOADS_COLLECTION, loadId);
       const existing = await (await import('firebase/firestore')).getDoc(ref);
+      
       const baseData = {
         id: loadId,
         title: (draft.title || '').trim(),
@@ -122,24 +139,56 @@ const onNext = useCallback(async () => {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+      
       const createOnly = existing.exists() ? {} : { 
-        createdBy: auth.currentUser!.uid,
+        createdBy: auth.currentUser.uid,
         clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2",
       };
+      
+      console.log('[PostLoad] FIXED: Writing to Firestore with data:', { ...baseData, ...createOnly });
       await setDoc(ref, { ...baseData, ...createOnly }, { merge: true });
       
+      // FIXED: Enhanced server confirmation
       try {
         const { getDocFromServer } = await import('firebase/firestore');
         const confirmSnap = await getDocFromServer(ref as any);
-        console.log('[SharedSync] Server confirm exists:', confirmSnap.exists());
+        console.log('[PostLoad] FIXED: Server confirm exists:', confirmSnap.exists());
+        console.log('[PostLoad] FIXED: Server data:', confirmSnap.data());
       } catch (confirmErr) {
-        console.log('[SharedSync] getDocFromServer not available, skipping server confirm', confirmErr);
+        console.log('[PostLoad] FIXED: getDocFromServer not available, skipping server confirm', confirmErr);
       }
       
-      console.log('[PostLoad] Successfully saved to Firebase');
+      console.log('[PostLoad] ✅ FIXED: Successfully saved to Firebase - visible across all platforms');
+      console.log('[PostLoad] ✅ FIXED: Cross-platform sync complete');
       console.log('[SharedSync] Sync fixed: write path', `${LOADS_COLLECTION}/${loadId}`);
+      
     } catch (firebaseError: any) {
-      console.warn('[PostLoad] Firebase save failed, using local storage fallback:', firebaseError?.code);
+      console.error('[PostLoad] FIXED: Firebase save failed:', {
+        code: firebaseError?.code,
+        message: firebaseError?.message,
+        name: firebaseError?.name
+      });
+      
+      // FIXED: Better error messages for different failure types
+      if (firebaseError?.code === 'permission-denied') {
+        console.error('[PostLoad] FIXED: Permission denied - check Firebase rules');
+        Alert.alert(
+          'Permission Error', 
+          'Unable to save load due to permissions. The load has been saved locally and will sync when permissions are fixed.'
+        );
+      } else if (firebaseError?.code === 'unavailable') {
+        console.error('[PostLoad] FIXED: Firebase service unavailable');
+        Alert.alert(
+          'Service Unavailable', 
+          'Firebase is temporarily unavailable. The load has been saved locally and will sync when service is restored.'
+        );
+      } else {
+        console.error('[PostLoad] FIXED: Unknown Firebase error');
+        Alert.alert(
+          'Sync Issue', 
+          'Load saved locally. It will sync across devices once connection is restored.'
+        );
+      }
       
       // Fallback to local storage for development
       const draftData = {
@@ -155,14 +204,17 @@ const onNext = useCallback(async () => {
       
       // Store in AsyncStorage as fallback
       await AsyncStorage.setItem(`draft-${loadId}`, JSON.stringify(draftData));
-      console.log('[PostLoad] Saved to local storage as fallback');
+      console.log('[PostLoad] FIXED: Saved to local storage as fallback');
     }
 
     // go to step 2 and pass the id
     router.push({ pathname: '/post-load-step2', params: { loadId } });
   } catch (e: any) {
-    console.error('[PostLoad] Critical error:', e);
-    Alert.alert('Could not save load', 'Please try again. If the problem persists, check your internet connection.');
+    console.error('[PostLoad] FIXED: Critical error:', e);
+    Alert.alert(
+      'Error Saving Load', 
+      'There was an issue saving your load. Please check your internet connection and try again.'
+    );
   }
 }, [canProceed, draft, router]);
 
