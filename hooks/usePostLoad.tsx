@@ -440,23 +440,13 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           while (retryCount < maxRetries) {
             try {
-              // Get fresh authentication token before fetch
-              const { auth } = getFirebase();
-              let headers: Record<string, string> = {};
-              
-              if (auth?.currentUser) {
-                try {
-                  const token = await auth.currentUser.getIdToken(true);
-                  headers['Authorization'] = `Bearer ${token}`;
-                  console.log('[PostLoad] Added auth token to fetch request');
-                } catch (tokenError) {
-                  console.warn('[PostLoad] Could not get auth token for fetch:', tokenError);
-                }
-              }
+              // CRITICAL FIX: Don't add auth headers to Firebase Storage URLs
+              // Firebase Storage URLs are public with tokens, adding auth headers causes CORS issues
+              console.log('[PostLoad] Fetching Firebase Storage URL (no auth headers needed):', photo.uri.substring(0, 100) + '...');
               
               response = await fetch(photo.uri, {
                 method: 'GET',
-                headers,
+                // Remove auth headers - Firebase Storage URLs are self-authenticated via tokens
                 // Add timeout to prevent hanging
                 signal: AbortSignal.timeout(30000) // 30 second timeout
               });
@@ -515,8 +505,16 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           // Enhanced error handling with specific error types
           if (uploadError.message?.includes('Failed to fetch')) {
-            console.error('[PostLoad] Network fetch error - this may be due to expired tokens or CORS issues');
-            throw new Error(`Failed to fetch image from URL: ${photo.uri}`);
+            console.error('[PostLoad] Network fetch error - this may be due to CORS or network issues');
+            console.error('[PostLoad] Photo URI causing fetch failure:', photo.uri);
+            
+            // Check if this is a Firebase Storage URL that might have an expired token
+            if (photo.uri.includes('firebasestorage.googleapis.com')) {
+              console.error('[PostLoad] Firebase Storage URL fetch failed - token may be expired');
+              throw new Error(`Firebase Storage access failed. The photo URL may have expired. Please re-upload the photo.`);
+            } else {
+              throw new Error(`Failed to fetch image from URL: ${photo.uri}`);
+            }
           } else if (uploadError.message?.includes('HTTP 403') || uploadError.message?.includes('HTTP 401')) {
             console.error('[PostLoad] Authentication error during image fetch');
             throw new Error(`Authentication failed when accessing image: ${photo.uri}`);

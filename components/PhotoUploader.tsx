@@ -758,6 +758,30 @@ export function PhotoUploader({
             }
           }
           
+          // IMPORTANT: Check if input is already a Firebase Storage URL
+          // If so, we don't need to re-upload it, just use it directly
+          if (typeof input === 'string' && input.includes('firebasestorage.googleapis.com')) {
+            console.log('[PhotoUploader] Input is already a Firebase Storage URL, using directly');
+            setState(prev => {
+              const updatedPhotos = prev.photos.map(p =>
+                p.id === fileId ? { ...p, url: input, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
+              );
+              const newPrimaryPhoto = prev.primaryPhoto || input;
+              setTimeout(() => {
+                updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
+                const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+                onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+              }, 0);
+              return {
+                ...prev,
+                photos: updatedPhotos,
+                primaryPhoto: newPrimaryPhoto,
+              };
+            });
+            toast.show('✅ Photo already uploaded to Firebase Storage!', 'success');
+            return;
+          }
+          
           url = await uploadWithFallback(
             basePath,
             input,
