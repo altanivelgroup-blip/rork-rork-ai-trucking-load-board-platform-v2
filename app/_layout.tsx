@@ -14,6 +14,7 @@ import { SettingsProvider } from "@/hooks/useSettings";
 import { PostLoadProvider } from "@/hooks/usePostLoad";
 import { LoadsProvider } from "@/hooks/useLoads";
 import { AutoArriveProvider } from "@/hooks/useAutoArrive";
+import { ProfileCacheProvider } from "@/hooks/useProfileCache";
 
 
 import HeaderBack from "@/components/HeaderBack";
@@ -192,6 +193,7 @@ function RootLayoutNav() {
       <Stack.Screen name="reports-analytics" options={{ title: "Report Analytics" }} />
       <Stack.Screen name="device-testing" options={{ title: "Device Testing Suite" }} />
       <Stack.Screen name="submission-readiness-check" options={{ title: "Submission Readiness" }} />
+      <Stack.Screen name="profile-cache-test" options={{ title: "Profile Cache Test" }} />
     </Stack>
   );
 }
@@ -209,8 +211,9 @@ export default function RootLayout() {
                 <StartupInitializer>
                   <View style={styles.appContainer}>
                     <AuthProvider>
-                      <ErrorBoundary safeRoute="/(auth)/login">
-                        <RoleBasedRouter>
+                      <ProfileCacheProvider>
+                        <ErrorBoundary safeRoute="/(auth)/login">
+                          <RoleBasedRouter>
                           <StripeWrapper>
                             <SettingsProvider>
                               <PaymentsProvider>
@@ -231,8 +234,9 @@ export default function RootLayout() {
                               </PaymentsProvider>
                             </SettingsProvider>
                           </StripeWrapper>
-                        </RoleBasedRouter>
-                      </ErrorBoundary>
+                          </RoleBasedRouter>
+                        </ErrorBoundary>
+                      </ProfileCacheProvider>
                     </AuthProvider>
                   </View>
                 </StartupInitializer>

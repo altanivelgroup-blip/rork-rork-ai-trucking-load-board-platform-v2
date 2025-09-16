@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
+import { useProfileCache } from '@/hooks/useProfileCache';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType, Driver } from '@/types';
 
@@ -18,9 +19,11 @@ import { FuelKind, VehicleType, Driver } from '@/types';
 export default function DriverProfileScreen() {
   const router = useRouter();
   const { user, updateProfile, register, userId } = useAuth();
+  const { updateCachedProfile, validateExperience } = useProfileCache();
   const toast = useToast();
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [bootstrapping, setBootstrapping] = useState<boolean>(false);
+  const [validatingExperience, setValidatingExperience] = useState<boolean>(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -217,6 +220,20 @@ export default function DriverProfileScreen() {
         return;
       }
       
+      // API validation for years of experience
+      if (formData.yearsExperience) {
+        setValidatingExperience(true);
+        const validation = await validateExperience(parseInt(formData.yearsExperience));
+        setValidatingExperience(false);
+        
+        if (!validation.valid) {
+          toast.show(validation.message, 'error');
+          return;
+        } else if (validation.message) {
+          toast.show(validation.message, 'success');
+        }
+      }
+      
       const updateData = {
         name: formData.name,
         phone: formData.phone,
@@ -256,7 +273,8 @@ export default function DriverProfileScreen() {
         policyNumber: formData.policyNumber,
       };
       
-      await updateProfile(updateData);
+      // Use cached profile update for offline support
+      await updateCachedProfile(updateData);
       console.log('[DriverProfile] Profile updated - Truck info saved');
       toast.show('Profile updated - Truck info saved', 'success');
     } catch (error) {
@@ -264,8 +282,9 @@ export default function DriverProfileScreen() {
       toast.show('Save failed. Please try again.', 'error');
     } finally {
       setSubmitting(false);
+      setValidatingExperience(false);
     }
-  }, [formData, updateProfile, toast, submitting]);
+  }, [formData, updateCachedProfile, validateExperience, toast, submitting]);
 
   const onSubmitForVerification = useCallback(async () => {
     await onSave();
@@ -829,7 +848,7 @@ export default function DriverProfileScreen() {
             testID="save-profile-btn"
           >
             <Text style={styles.saveButtonText}>
-              {submitting ? 'Saving...' : 'Save Profile'}
+              {validatingExperience ? 'Validating...' : submitting ? 'Saving...' : 'Save Profile'}
             </Text>
           </TouchableOpacity>
           

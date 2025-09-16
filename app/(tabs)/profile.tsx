@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -6,6 +6,8 @@ import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import { useLoads } from '@/hooks/useLoads';
+import { useProfileCache } from '@/hooks/useProfileCache';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 import { 
   User, 
@@ -23,7 +25,11 @@ import {
   Wallet,
   Wrench,
   BarChart3,
-  Upload
+  Upload,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  Clock
 } from 'lucide-react-native';
 
 type ProfileOption = {
@@ -41,17 +47,21 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { balance, totalEarnings, isLoading: walletLoading } = useWallet();
   const { loads, isLoading: loadsLoading } = useLoads();
+  const { cachedProfile, isOffline, isSyncing, lastSyncTime, pendingChanges, syncProfile } = useProfileCache();
+  const { online: isOnline } = useOnlineStatus();
   const insets = useSafeAreaInsets();
   const [liveDataRefreshing, setLiveDataRefreshing] = useState<boolean>(false);
   
-  const isDriver = user?.role === 'driver';
-  const isShipper = user?.role === 'shipper';
+  // Use cached profile when offline, fallback to user
+  const activeProfile = isOffline && cachedProfile ? cachedProfile : user;
+  const isDriver = activeProfile?.role === 'driver';
+  const isShipper = activeProfile?.role === 'shipper';
   
   // Calculate live stats for shippers
   const shipperStats = React.useMemo(() => {
-    if (!isShipper || !user) return null;
+    if (!isShipper || !activeProfile) return null;
     
-    const myLoads = loads.filter(load => load.shipperId === user.id);
+    const myLoads = loads.filter(load => load.shipperId === activeProfile.id);
     const activeLoads = myLoads.filter(load => load.status === 'available' || load.status === 'in-transit');
     const completedLoads = myLoads.filter(load => load.status === 'delivered');
     
@@ -61,11 +71,11 @@ export default function ProfileScreen() {
       completedLoads: completedLoads.length,
       totalRevenue: completedLoads.reduce((sum, load) => sum + (load.rate || 0), 0),
     };
-  }, [loads, user, isShipper]);
+  }, [loads, activeProfile, isShipper]);
   
   // Auto-refresh live data periodically
   useEffect(() => {
-    if (!user) return;
+    if (!activeProfile) return;
     
     const refreshInterval = setInterval(() => {
       console.log('[Profile] Auto-refreshing live data...');
@@ -75,7 +85,14 @@ export default function ProfileScreen() {
     }, 30000); // Refresh every 30 seconds
     
     return () => clearInterval(refreshInterval);
-  }, [user]);
+  }, [activeProfile]);
+
+  // Manual sync handler
+  const handleManualSync = useCallback(async () => {
+    if (isOnline && pendingChanges) {
+      await syncProfile();
+    }
+  }, [isOnline, pendingChanges, syncProfile]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -241,8 +258,8 @@ export default function ProfileScreen() {
             <User size={32} color={theme.colors.white} />
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.name || 'User'}</Text>
-            <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
+            <Text style={styles.profileName}>{activeProfile?.name || 'User'}</Text>
+            <Text style={styles.profileEmail}>{activeProfile?.email || 'user@example.com'}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
                 {isDriver ? 'DRIVER' : isShipper ? 'SHIPPER' : 'USER'}
@@ -251,9 +268,50 @@ export default function ProfileScreen() {
                 <ActivityIndicator size="small" color={theme.colors.white} style={styles.refreshIndicator} />
               )}
             </View>
-            {user?.company && (
-              <Text style={styles.profileCompany}>{user.company}</Text>
+            {activeProfile?.company && (
+              <Text style={styles.profileCompany}>{activeProfile.company}</Text>
             )}
+            
+            {/* Offline/Sync Status */}
+            <View style={styles.syncStatus}>
+              {isOffline ? (
+                <View style={styles.offlineIndicator}>
+                  <WifiOff size={12} color={theme.colors.warning} />
+                  <Text style={styles.offlineText}>Offline Mode</Text>
+                </View>
+              ) : (
+                <View style={styles.onlineIndicator}>
+                  <Wifi size={12} color={theme.colors.success} />
+                  <Text style={styles.onlineText}>Online</Text>
+                </View>
+              )}
+              
+              {pendingChanges && (
+                <TouchableOpacity 
+                  style={styles.syncButton} 
+                  onPress={handleManualSync}
+                  disabled={!isOnline || isSyncing}
+                >
+                  {isSyncing ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : (
+                    <RefreshCw size={12} color={theme.colors.primary} />
+                  )}
+                  <Text style={styles.syncButtonText}>
+                    {isSyncing ? 'Syncing...' : 'Sync'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              
+              {lastSyncTime && (
+                <View style={styles.lastSyncIndicator}>
+                  <Clock size={10} color={theme.colors.gray} />
+                  <Text style={styles.lastSyncText}>
+                    {lastSyncTime.toLocaleTimeString()}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
         
@@ -285,13 +343,13 @@ export default function ProfileScreen() {
                   </View>
                   <View style={styles.statCard}>
                     <Text style={styles.statValue}>
-                      {(user as any)?.truckType?.replace('-', ' ').toUpperCase() || 'TRUCK'}
+                      {(activeProfile as any)?.truckType?.replace('-', ' ').toUpperCase() || 'TRUCK'}
                     </Text>
                     <Text style={styles.statLabel}>Truck Type</Text>
                   </View>
                   <View style={styles.statCard}>
                     <Text style={styles.statValue}>
-                      {(user as any)?.yearsExperience || '0'}
+                      {(activeProfile as any)?.yearsExperience || '0'}
                     </Text>
                     <Text style={styles.statLabel}>Years Experience</Text>
                   </View>
@@ -533,5 +591,54 @@ const styles = StyleSheet.create({
   },
   refreshIndicator: {
     marginLeft: 4,
+  },
+  syncStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.xs,
+    gap: theme.spacing.sm,
+  },
+  offlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  offlineText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.warning,
+    fontWeight: '500',
+  },
+  onlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  onlineText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.success,
+    fontWeight: '500',
+  },
+  syncButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lightGray,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+    gap: 4,
+  },
+  syncButtonText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primary,
+    fontWeight: '500',
+  },
+  lastSyncIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  lastSyncText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
   },
 });
