@@ -338,6 +338,38 @@ async function uploadWithFallback(
 
 const THUMBNAIL_SIZE = (screenWidth - 48) / 3;
 
+interface HandleUploadErrorParams {
+  error: any;
+  attempt: number;
+  maxRetries: number;
+  basePath: string;
+  input: AnyImage;
+  onProgress?: (progress: number) => void;
+  resizeOpts?: { maxWidth?: number; maxHeight?: number; baseQuality?: number };
+  toast: ReturnType<typeof useToast>;
+}
+
+async function handleUploadError(params: HandleUploadErrorParams): Promise<string> {
+  const { error, attempt, maxRetries, basePath, input, onProgress, resizeOpts, toast } = params;
+  const code = String(error?.code || error?.message || '');
+  const isUnauthorized = code.includes('storage/unauthorized') || code.includes('unauthorized') || code.includes('unauthenticated');
+  if (isUnauthorized && attempt < maxRetries) {
+    try {
+      toast.show('Retrying upload', 'warning');
+    } catch {}
+    try {
+      const { auth } = getFirebase();
+      if (auth?.currentUser) {
+        await auth.currentUser.getIdToken(true);
+      } else {
+        await ensureFirebaseAuth();
+      }
+    } catch {}
+    return await uploadWithFallback(basePath, input, onProgress, resizeOpts, 1);
+  }
+  throw error;
+}
+
 export function PhotoUploader({
   entityType,
   entityId,
@@ -714,19 +746,44 @@ export function PhotoUploader({
         throw new Error('QA: Random failure simulation');
       }
       try {
-        const url = await uploadWithFallback(
-          basePath,
-          input,
-          (progress) => {
-            setState(prev => ({
-              ...prev,
-              photos: prev.photos.map(p =>
-                p.id === fileId ? { ...p, progress } : p
-              ),
-            }));
-          },
-          presetToOptions(resizePreset)
-        );
+        let url: string;
+        try {
+          url = await uploadWithFallback(
+            basePath,
+            input,
+            (progress) => {
+              setState(prev => ({
+                ...prev,
+                photos: prev.photos.map(p =>
+                  p.id === fileId ? { ...p, progress } : p
+                ),
+              }));
+            },
+            presetToOptions(resizePreset)
+          );
+        } catch (err1: any) {
+          try {
+            url = await handleUploadError({
+              error: err1,
+              attempt: 1,
+              maxRetries: 2,
+              basePath,
+              input,
+              onProgress: (progress) => {
+                setState(prev => ({
+                  ...prev,
+                  photos: prev.photos.map(p =>
+                    p.id === fileId ? { ...p, progress } : p
+                  ),
+                }));
+              },
+              resizeOpts: presetToOptions(resizePreset),
+              toast,
+            });
+          } catch (err2) {
+            throw err2;
+          }
+        }
         console.log('[UPLOAD_DONE]', basePath);
         console.log('[PhotoUploader] ✅ Production photo upload successful - Firebase Storage working correctly');
         
@@ -803,9 +860,17 @@ export function PhotoUploader({
         }));
         toast.show(errorMessage, 'error');
         try {
-          offlineQueueRef.current.push(input);
-          await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
-          console.log('[PhotoUploader] Queued offline photo for later retry. Queue size:', offlineQueueRef.current.length);
+          const { auth } = getFirebase();
+          if (!auth.currentUser || auth.currentUser.isAnonymous) {
+            // Guard: Queue only when not able to upload due to auth/offline; always persist queue
+            offlineQueueRef.current.push(input);
+            await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
+            console.log('[PhotoUploader] Queued offline photo for later retry. Queue size:', offlineQueueRef.current.length);
+          } else {
+            offlineQueueRef.current.push(input);
+            await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
+            console.log('[PhotoUploader] Queued photo for retry. Queue size:', offlineQueueRef.current.length);
+          }
         } catch (qErr) {
           console.warn('[PhotoUploader] Failed to persist offline queue', qErr);
         }
@@ -833,6 +898,8 @@ export function PhotoUploader({
             if (canceled) break;
             await uploadFile(img);
           }
+        } else if (!authed && offlineQueueRef.current.length > 0) {
+          console.log('[PhotoUploader] Queue present but user is anonymous/not signed in. Skipping flush.');
         }
       } catch (e) {
         console.warn('[PhotoUploader] Flush queue failed', e);
