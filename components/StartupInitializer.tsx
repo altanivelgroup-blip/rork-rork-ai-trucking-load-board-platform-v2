@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+import { AlertTriangle } from 'lucide-react-native';
 import { initAuth } from '@/auth/initAuth';
 
 interface StartupInitializerProps {
@@ -8,29 +9,31 @@ interface StartupInitializerProps {
 
 export function StartupInitializer({ children }: StartupInitializerProps) {
   const [isInitializing, setIsInitializing] = useState(true);
+  const [showTimeout, setShowTimeout] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  console.log('[StartupInitializer] Component rendered, isInitializing:', isInitializing);
+  console.log('[StartupInitializer] LOADING FIX - Component rendered, isInitializing:', isInitializing);
 
   useEffect(() => {
     let isMounted = true;
 
     async function performStartupInit() {
       try {
-        console.log('[StartupInitializer] Starting app initialization...');
+        console.log('[StartupInitializer] LOADING FIX - Starting enhanced initialization...');
         
-        // QUICK FIX: Skip Firebase initialization to prevent hanging
-        console.log('[StartupInitializer] Skipping Firebase init to prevent hanging');
+        // STEP 3: Enhanced initialization with timeout protection
+        console.log('[StartupInitializer] LOADING FIX - Skipping Firebase init to prevent hanging');
         
-        // Very minimal delay, then proceed immediately
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Minimal delay for smooth UX
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        console.log('[StartupInitializer] App initialization completed (quick mode)');
+        console.log('[StartupInitializer] LOADING FIX - App initialization completed');
         
         if (isMounted) {
           setIsInitializing(false);
         }
       } catch (error: any) {
-        console.warn('[StartupInitializer] Initialization failed:', error);
+        console.warn('[StartupInitializer] LOADING FIX - Init error, proceeding anyway:', error);
         
         // Always proceed to avoid blocking the app
         if (isMounted) {
@@ -39,20 +42,44 @@ export function StartupInitializer({ children }: StartupInitializerProps) {
       }
     }
 
+    // STEP 3: Force completion after 2 seconds maximum
+    timeoutRef.current = setTimeout(() => {
+      if (isMounted && isInitializing) {
+        console.log('[StartupInitializer] LOADING FIX - Initialization timeout, forcing completion');
+        setShowTimeout(true);
+        setIsInitializing(false);
+      }
+    }, 2000);
+
     performStartupInit();
 
     return () => {
       isMounted = false;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
   }, []);
 
-  // Show minimal loading screen during initialization
+  // STEP 3: Enhanced loading screen with timeout handling
   if (isInitializing) {
-    console.log('[StartupInitializer] Showing loading screen');
+    console.log('[StartupInitializer] LOADING FIX - Showing enhanced loading screen');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0b5fff" />
         <Text style={styles.loadingText}>Loading...</Text>
+        {showTimeout && (
+          <View style={styles.timeoutContainer}>
+            <AlertTriangle color="#f59e0b" size={20} />
+            <Text style={styles.timeoutText}>Taking longer than expected...</Text>
+            <TouchableOpacity 
+              style={styles.forceButton}
+              onPress={() => setIsInitializing(false)}
+            >
+              <Text style={styles.forceButtonText}>Continue Anyway</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   }
@@ -74,5 +101,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666666',
     fontWeight: '500',
+  },
+  timeoutContainer: {
+    marginTop: 32,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  timeoutText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#f59e0b',
+    textAlign: 'center',
+  },
+  forceButton: {
+    marginTop: 16,
+    backgroundColor: '#0b5fff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  forceButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

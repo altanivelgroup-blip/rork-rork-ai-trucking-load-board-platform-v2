@@ -36,27 +36,107 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   
   console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // EMERGENCY FIX: Immediate initialization to prevent hanging
+  // STEP 3: Enhanced initialization with timeout protection
   useEffect(() => {
-    console.log('[auth] EMERGENCY FIX - Immediate initialization');
-    setIsInitialized(true);
-    setIsLoading(false);
-    console.log('[auth] EMERGENCY FIX - Auth ready immediately');
-  }, []);
-
-  // QUICK FIX: Disable Firebase auth setup to prevent hanging
-  useEffect(() => {
-    console.log('[auth] Firebase auth setup disabled to prevent hanging');
-    console.log('[auth] App will work in local-only mode');
+    console.log('[auth] LOADING FIX - Enhanced initialization with timeout protection');
     
-    // Set some default values to prevent issues
-    setIsFirebaseAuthenticated(false);
-    setUserId(null);
+    let initTimeout: NodeJS.Timeout;
+    let mounted = true;
+    
+    const performInit = async () => {
+      try {
+        // Check for cached user data first
+        const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
+        if (cached && mounted) {
+          try {
+            const cachedUser = JSON.parse(cached);
+            console.log('[auth] LOADING FIX - Found cached user, restoring session');
+            setUser(cachedUser);
+            setUserId(cachedUser.id);
+            setIsAnonymous(cachedUser.email === 'guest@example.com');
+            setHasSignedInThisSession(true);
+          } catch (parseError) {
+            console.warn('[auth] LOADING FIX - Cached data corrupted, clearing');
+            await AsyncStorage.removeItem(USER_STORAGE_KEY);
+          }
+        }
+        
+        if (mounted) {
+          setIsInitialized(true);
+          setIsLoading(false);
+          console.log('[auth] LOADING FIX - Auth initialization complete');
+        }
+      } catch (error) {
+        console.warn('[auth] LOADING FIX - Init error, proceeding anyway:', error);
+        if (mounted) {
+          setIsInitialized(true);
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    // Force completion after 3 seconds maximum
+    initTimeout = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.log('[auth] LOADING FIX - Auth init timeout, forcing completion');
+        setIsInitialized(true);
+        setIsLoading(false);
+      }
+    }, 3000);
+    
+    performInit();
     
     return () => {
-      // Cleanup if needed
+      mounted = false;
+      clearTimeout(initTimeout);
     };
-  }, [isInitialized, user]);
+  }, []);
+
+  // STEP 3: Enhanced Firebase auth with timeout protection
+  useEffect(() => {
+    if (!isInitialized) return;
+    
+    console.log('[auth] LOADING FIX - Setting up Firebase auth with timeout protection');
+    let authTimeout: NodeJS.Timeout;
+    let mounted = true;
+    
+    const setupFirebaseAuth = async () => {
+      try {
+        // Try Firebase auth with timeout
+        const authPromise = ensureFirebaseAuth();
+        const timeoutPromise = new Promise((_, reject) => {
+          authTimeout = setTimeout(() => reject(new Error('Firebase auth timeout')), 2000);
+        });
+        
+        const firebaseAuthSuccess = await Promise.race([authPromise, timeoutPromise]);
+        
+        if (mounted) {
+          if (firebaseAuthSuccess) {
+            console.log('[auth] LOADING FIX - Firebase auth successful');
+            setIsFirebaseAuthenticated(true);
+            if (auth?.currentUser?.uid) {
+              setUserId(auth.currentUser.uid);
+            }
+          } else {
+            console.log('[auth] LOADING FIX - Firebase auth failed, continuing in local mode');
+            setIsFirebaseAuthenticated(false);
+          }
+        }
+      } catch (error) {
+        console.warn('[auth] LOADING FIX - Firebase auth error, continuing in local mode:', error);
+        if (mounted) {
+          setIsFirebaseAuthenticated(false);
+        }
+      }
+    };
+    
+    setupFirebaseAuth();
+    
+    return () => {
+      mounted = false;
+      clearTimeout(authTimeout);
+    };
+  }, [isInitialized]);
 
   const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper | Admin> => {
     await ensureFirebaseAuth();
@@ -188,7 +268,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
       
       console.log('[auth] ✅ Auth optimized - Login successful as', finalRole);
-      console.log('[auth] ✅ Auth optimized - Sign in successful');
+      console.log('[auth] LOADING FIX - Loading complete - Advancing to startup');
     } catch (error: any) {
       console.error('[auth] ❌ Auth optimization - Login failed:', error?.message || error);
       throw error;
