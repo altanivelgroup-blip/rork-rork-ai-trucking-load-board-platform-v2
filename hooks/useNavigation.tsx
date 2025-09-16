@@ -227,19 +227,27 @@ export function useNavigation(): UseNavigationReturn {
         return null;
       }
 
-      // Skip tRPC for now and go directly to external APIs
-      console.log('[useNavigation] Using direct API call (tRPC bypassed)...');
-      const directRoute = await getDirectRouteFromAPI(origin, destination, provider);
-      if (directRoute) {
-        console.log('[useNavigation] Direct API call successful');
-        setState(prev => ({ ...prev, retryCount: 0, error: null }));
-        return directRoute;
+      // Try direct API call first
+      console.log('[useNavigation] Trying direct API call...');
+      try {
+        const directRoute = await getDirectRouteFromAPI(origin, destination, provider);
+        if (directRoute) {
+          console.log('[useNavigation] Direct API call successful');
+          setState(prev => ({ ...prev, retryCount: 0, error: null }));
+          return directRoute;
+        }
+      } catch (directError) {
+        console.warn('[useNavigation] Direct API failed:', directError);
       }
       
-      // If direct API fails, try tRPC as fallback
+      // If direct API fails, try tRPC as fallback (with timeout)
+      console.log('[useNavigation] Direct API failed, trying tRPC as fallback...');
       try {
-        console.log('[useNavigation] Direct API failed, trying tRPC as fallback...');
-        const routeData = await trpcClient.route.eta.query({
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('tRPC timeout after 10 seconds')), 10000);
+        });
+        
+        const routePromise = trpcClient.route.eta.query({
           origin: { lat: origin.lat, lon: origin.lng },
           destination: { lat: destination.lat, lon: destination.lng },
           provider,
@@ -247,6 +255,8 @@ export function useNavigation(): UseNavigationReturn {
           orsKey: hasORS ? ORS_API_KEY : undefined,
           profile: 'driving-hgv',
         });
+
+        const routeData = await Promise.race([routePromise, timeoutPromise]);
 
         const route: RouteData = {
           durationSec: routeData.durationSec,
@@ -259,12 +269,13 @@ export function useNavigation(): UseNavigationReturn {
         setState(prev => ({ ...prev, retryCount: 0, error: null }));
         return route;
       } catch (trpcError) {
-        console.error(`[useNavigation] tRPC fallback also failed${isRetry ? ' (retry)' : ''}:`, trpcError);
-        throw new Error('Both direct API and tRPC failed');
+        console.warn(`[useNavigation] tRPC fallback also failed${isRetry ? ' (retry)' : ''}:`, trpcError);
+        // Don't throw here, return null to allow fallback route
+        return null;
       }
     } catch (error) {
-      console.error('[useNavigation] API route fetch failed:', error);
-      throw error;
+      console.warn('[useNavigation] API route fetch failed:', error);
+      return null; // Return null instead of throwing to allow fallback
     }
   }, [getDirectRouteFromAPI]);
 
@@ -326,37 +337,27 @@ export function useNavigation(): UseNavigationReturn {
     
     console.log(`[useNavigation] Retrying route (attempt ${state.retryCount + 1})`);
     
-    try {
-      if (online) {
-        const apiRoute = await getRouteFromAPI(origin, destination, true);
-        if (apiRoute) {
-          await cacheRoute(origin, destination, apiRoute);
-          setState(prev => ({ 
-            ...prev, 
-            currentRoute: apiRoute, 
-            isLoading: false,
-            error: null 
-          }));
-          return apiRoute;
-        }
+    if (online) {
+      const apiRoute = await getRouteFromAPI(origin, destination, true);
+      if (apiRoute) {
+        await cacheRoute(origin, destination, apiRoute);
+        setState(prev => ({ 
+          ...prev, 
+          currentRoute: apiRoute, 
+          isLoading: false,
+          error: null 
+        }));
+        return apiRoute;
       }
-      
-      // If retry fails, show appropriate message
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false,
-        error: `Retry failed (${prev.retryCount}/${3}). ${online ? 'API unavailable' : 'Still offline'}.`
-      }));
-      return null;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Retry failed';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: `${errorMessage} (attempt ${prev.retryCount})`
-      }));
-      return null;
     }
+    
+    // If retry fails, show appropriate message
+    setState(prev => ({ 
+      ...prev, 
+      isLoading: false,
+      error: `Retry failed (${prev.retryCount}/${3}). ${online ? 'API unavailable' : 'Still offline'}.`
+    }));
+    return null;
   }, [online, getRouteFromAPI, cacheRoute, state.retryCount, state.lastRetryTime]);
 
   const getRoute = useCallback(async (origin: Location, destination: Location): Promise<RouteData | null> => {
@@ -377,28 +378,24 @@ export function useNavigation(): UseNavigationReturn {
 
       // If online, fetch from API
       if (online) {
-        try {
-          const apiRoute = await getRouteFromAPI(origin, destination);
-          if (apiRoute) {
-            // Cache the route for offline use
-            await cacheRoute(origin, destination, apiRoute);
-            
-            setState(prev => ({ 
-              ...prev, 
-              currentRoute: apiRoute, 
-              isLoading: false,
-              error: null 
-            }));
-            return apiRoute;
-          }
-        } catch (apiError) {
-          console.error('[useNavigation] API failed, will use fallback:', apiError);
-          const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown error';
-          const shortError = errorMessage.includes('Failed to fetch') ? 'Network error' : errorMessage.slice(0, 30);
+        const apiRoute = await getRouteFromAPI(origin, destination);
+        if (apiRoute) {
+          // Cache the route for offline use
+          await cacheRoute(origin, destination, apiRoute);
+          
+          setState(prev => ({ 
+            ...prev, 
+            currentRoute: apiRoute, 
+            isLoading: false,
+            error: null 
+          }));
+          return apiRoute;
+        } else {
+          console.warn('[useNavigation] API failed, will use fallback');
           setState(prev => ({ 
             ...prev, 
             error: state.retryCount < 3 
-              ? `${shortError} - tap retry (${state.retryCount + 1}/3)` 
+              ? `Network error - tap retry (${state.retryCount + 1}/3)` 
               : 'Max retries reached - using basic navigation'
           }));
         }
