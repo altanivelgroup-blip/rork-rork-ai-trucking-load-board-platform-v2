@@ -436,18 +436,16 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           let blob: Blob;
           
-          // Check if this is already a Firebase Storage URL
+          // CRITICAL FIX: Block Firebase Storage URLs to prevent fetch failures
           if (photo.uri.includes('firebasestorage.googleapis.com')) {
-            console.log('[PostLoad] ✅ Photo is already uploaded to Firebase Storage, skipping re-upload');
-            // Photo is already uploaded, just add the URL to our list
-            uploadedUrls.push(photo.uri);
-            console.log(`[PostLoad] ✅ Added existing Firebase Storage URL ${i + 1}/${photosLocal.length}`);
-            continue; // Skip to next photo
+            console.log('[PostLoad] ❌ BLOCKED: Cannot process Firebase Storage URL - will cause fetch failure');
+            console.log('[PostLoad] 🔧 SOLUTION: User must upload fresh photo from device');
+            throw new Error('Cannot access Firebase Storage photo. Please upload a fresh photo from your device.');
           }
           
-          // For local URIs (file://, content://, etc.), convert to blob directly
+          // Only process local URIs (file://, content://, ph://)
           if (photo.uri.startsWith('file://') || photo.uri.startsWith('content://') || photo.uri.startsWith('ph://')) {
-            console.log('[PostLoad] Converting local URI to blob:', photo.uri.substring(0, 50) + '...');
+            console.log('[PostLoad] ✅ Processing local URI - safe to upload:', photo.uri.substring(0, 50) + '...');
             
             try {
               // Use fetch for local URIs - this should work without CORS issues
@@ -462,25 +460,10 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
               throw new Error(`Failed to process local image: ${localError.message}`);
             }
           } else {
-            // For other URLs, try fetch with error handling
-            console.log('[PostLoad] Fetching remote URL:', photo.uri.substring(0, 100) + '...');
-            
-            try {
-              const response = await fetch(photo.uri, {
-                method: 'GET',
-                signal: AbortSignal.timeout(15000) // Reduced timeout
-              });
-              
-              if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-              }
-              
-              blob = await response.blob();
-              console.log('[PostLoad] ✅ Remote URL fetched successfully');
-            } catch (fetchError: any) {
-              console.error('[PostLoad] Remote URL fetch failed:', fetchError.message);
-              throw new Error(`Failed to fetch remote image: ${fetchError.message}`);
-            }
+            // CRITICAL FIX: Block all non-local URIs to prevent fetch failures
+            console.log('[PostLoad] ❌ BLOCKED: Non-local URI detected - potential fetch failure');
+            console.log('[PostLoad] 🔧 SOLUTION: User must upload fresh photo from device');
+            throw new Error(`Cannot access photo from ${photo.uri}. Please upload a fresh photo from your device.`);
           }
 
           const extFromType = (photo.type?.split('/')[1] || '').toLowerCase();
