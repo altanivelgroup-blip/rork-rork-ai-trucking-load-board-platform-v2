@@ -36,31 +36,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   
   console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // Load cached user data but don't auto-authenticate - always called, never conditional
+  // QUICK FIX: Simplified initialization to prevent hanging
   useEffect(() => {
     let isMounted = true;
     
-    const loadCachedUser = async () => {
+    const quickInit = async () => {
       try {
-        console.log('[auth] loading cached user...');
-        const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
+        console.log('[auth] Quick initialization mode - skipping complex auth setup');
         
         if (!isMounted) return;
         
-        if (cached) {
-          console.log('[auth] found cached user - but not auto-authenticating');
-          // Don't set the user yet - require explicit sign-in
-          // const cachedUser = JSON.parse(cached);
-          // setUser(cachedUser);
-          // setIsAnonymous(false);
-        } else {
-          console.log('[auth] no cached user found');
-        }
-        
+        // Just set as initialized immediately
         setIsInitialized(true);
         setIsLoading(false);
+        console.log('[auth] Quick init completed');
       } catch (e) {
-        console.error('[auth] error loading cached user:', e);
+        console.error('[auth] error in quick init:', e);
         if (isMounted) {
           setIsInitialized(true);
           setIsLoading(false);
@@ -68,72 +59,25 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
     };
     
-    // Add small delay to prevent race conditions
-    setTimeout(loadCachedUser, 10);
+    // Immediate initialization
+    quickInit();
     
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Enhanced Firebase auth setup with retry logic and user-friendly messages
+  // QUICK FIX: Disable Firebase auth setup to prevent hanging
   useEffect(() => {
-    let isMounted = true;
-    let unsubscribe: (() => void) | undefined;
+    console.log('[auth] Firebase auth setup disabled to prevent hanging');
+    console.log('[auth] App will work in local-only mode');
     
-    const setupFirebaseAuth = async () => {
-      try {
-        console.log('[auth] ✅ Auth optimized - Setting up enhanced Firebase auth...');
-        const authSuccess = await ensureFirebaseAuth();
-        
-        if (!isMounted) return;
-        
-        if (authSuccess) {
-          console.log('[auth] ✅ Auth optimized - Firebase auth setup successful');
-        } else {
-          console.warn('[auth] ⚠️ Auth optimization - Firebase auth setup failed, using fallback');
-        }
-        
-        unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-          if (!isMounted) return;
-          
-          console.log('[auth] ✅ Auth optimized - Firebase auth state changed:', {
-            uid: firebaseUser?.uid,
-            isAnonymous: firebaseUser?.isAnonymous,
-          });
-          
-          if (firebaseUser) {
-            console.log('[auth] ✅ Auth optimized - Sign in successful');
-          }
-          
-          setUserId(firebaseUser?.uid || null);
-          setIsFirebaseAuthenticated(!!firebaseUser);
-          
-          // Only update isAnonymous if we don't have a local user
-          if (!user) {
-            setIsAnonymous(firebaseUser?.isAnonymous ?? true);
-          }
-        });
-      } catch (error: any) {
-        console.warn('[auth] ❌ Auth optimization - Firebase auth setup failed:', error?.message || error);
-        if (isMounted) {
-          setIsFirebaseAuthenticated(false);
-          setUserId(null);
-          console.log('[auth] 💡 Auth optimized - Continuing with local auth only');
-        }
-      }
-    };
-    
-    // Only setup Firebase after initialization is complete
-    if (isInitialized) {
-      setupFirebaseAuth();
-    }
+    // Set some default values to prevent issues
+    setIsFirebaseAuthenticated(false);
+    setUserId(null);
     
     return () => {
-      isMounted = false;
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      // Cleanup if needed
     };
   }, [isInitialized, user]);
 

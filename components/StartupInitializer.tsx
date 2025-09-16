@@ -18,16 +18,13 @@ export function StartupInitializer({ children }: StartupInitializerProps) {
       try {
         console.log('[StartupInitializer] Starting app initialization...');
         
-        // Initialize Firebase auth
-        console.log('[StartupInitializer] Initializing Firebase auth...');
-        initAuth().catch((error) => {
-          console.warn('[StartupInitializer] Firebase init failed, continuing anyway:', error);
-        });
+        // QUICK FIX: Skip Firebase initialization to prevent hanging
+        console.log('[StartupInitializer] Skipping Firebase init to prevent hanging');
         
-        // Minimal delay to prevent flash, then proceed
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Very minimal delay, then proceed immediately
+        await new Promise(resolve => setTimeout(resolve, 50));
         
-        console.log('[StartupInitializer] App initialization completed');
+        console.log('[StartupInitializer] App initialization completed (quick mode)');
         
         if (isMounted) {
           setIsInitializing(false);
