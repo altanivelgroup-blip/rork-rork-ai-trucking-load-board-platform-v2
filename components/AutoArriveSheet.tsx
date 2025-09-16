@@ -10,13 +10,13 @@ interface Props {
 }
 
 function AutoArriveSheetInner(_: Props) {
-  console.log('[AutoArriveSheet] EMERGENCY FIX - Component rendering with safe hook calls');
+  console.log('[AutoArriveSheet] CRASH FIX - Component rendering with safe hook calls');
   
   // Always call hooks in the same order - React requires this
   const autoArriveState = useAutoArrive();
   const loadsState = useLoads();
   
-  console.log('[AutoArriveSheet] EMERGENCY FIX - Hook results:', {
+  console.log('[AutoArriveSheet] CRASH FIX - Hook results:', {
     autoArrive: !!autoArriveState,
     autoArriveType: typeof autoArriveState,
     loads: !!loadsState,
@@ -25,23 +25,21 @@ function AutoArriveSheetInner(_: Props) {
   
   // Early return if hooks failed to initialize
   if (!autoArriveState || typeof autoArriveState !== 'object') {
-    console.warn('[AutoArriveSheet] EMERGENCY FIX - AutoArrive hook not ready, returning null');
+    console.warn('[AutoArriveSheet] CRASH FIX - AutoArrive hook not ready, returning null');
     return null;
   }
   
   if (!loadsState || typeof loadsState !== 'object') {
-    console.warn('[AutoArriveSheet] EMERGENCY FIX - Loads hook not ready, returning null');
+    console.warn('[AutoArriveSheet] CRASH FIX - Loads hook not ready, returning null');
     return null;
   }
   
-  // Safely destructure with fallbacks
-  const { 
-    isSheetOpen = false, 
-    closeSheet = () => {}, 
-    sheetLoadId 
-  } = autoArriveState;
+  // Safely destructure with fallbacks and additional safety checks
+  const isSheetOpen = autoArriveState?.isSheetOpen ?? false;
+  const closeSheet = autoArriveState?.closeSheet ?? (() => {});
+  const sheetLoadId = autoArriveState?.sheetLoadId;
   
-  const { currentLoad } = loadsState || {};
+  const currentLoad = loadsState?.currentLoad;
 
   const visible = isSheetOpen && sheetLoadId && currentLoad && sheetLoadId === currentLoad.id;
   const pickup = currentLoad?.origin;

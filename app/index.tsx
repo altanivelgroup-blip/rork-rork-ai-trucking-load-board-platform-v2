@@ -1,50 +1,67 @@
-import React, { useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { useRouter, useRootNavigationState } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
-  console.log('[IndexScreen] EMERGENCY FIX - Starting without nav state');
+  console.log('[IndexScreen] CRASH FIX - Starting with navigation state check');
   
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isLoading, isAuthenticated, user } = useAuth();
+  const [hasNavigated, setHasNavigated] = useState(false);
+  
+  // Always call hooks in the same order
+  const navState = useRootNavigationState();
 
-  console.log('[IndexScreen] EMERGENCY FIX - Auth state:', {
+  console.log('[IndexScreen] CRASH FIX - State:', {
     isLoading,
     isAuthenticated,
-    userRole: user?.role
+    userRole: user?.role,
+    navReady: !!navState,
+    hasNavigated
   });
 
   useEffect(() => {
     if (isLoading) {
-      console.log('[IndexScreen] EMERGENCY FIX - Auth loading, waiting...');
+      console.log('[IndexScreen] CRASH FIX - Auth loading, waiting...');
+      return;
+    }
+    
+    if (!navState) {
+      console.log('[IndexScreen] CRASH FIX - Navigation state not ready, waiting...');
+      return;
+    }
+    
+    if (hasNavigated) {
+      console.log('[IndexScreen] CRASH FIX - Already navigated, skipping...');
       return;
     }
 
-    console.log('[IndexScreen] EMERGENCY FIX - Auth ready, navigating...');
+    console.log('[IndexScreen] CRASH FIX - Auth and nav ready, navigating...');
     
     // Add small delay to ensure router is ready
     const timer = setTimeout(() => {
       try {
+        setHasNavigated(true);
         if (isAuthenticated && user) {
           const targetRoute = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
-          console.log('[IndexScreen] EMERGENCY FIX - Authenticated, going to:', targetRoute);
+          console.log('[IndexScreen] CRASH FIX - Authenticated, going to:', targetRoute);
           router.replace(targetRoute);
         } else {
-          console.log('[IndexScreen] EMERGENCY FIX - Not authenticated, going to login');
+          console.log('[IndexScreen] CRASH FIX - Not authenticated, going to login');
           router.replace('/(auth)/login');
         }
       } catch (error) {
-        console.error('[IndexScreen] EMERGENCY FIX - Navigation error:', error);
+        console.error('[IndexScreen] CRASH FIX - Navigation error:', error);
         // Fallback to login
         router.replace('/(auth)/login');
       }
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, user?.role, user, router]);
+  }, [isLoading, isAuthenticated, user?.role, user, router, navState, hasNavigated, setHasNavigated]);
 
   // Show loading screen while auth initializes
   console.log('[IndexScreen] EMERGENCY FIX - Showing loading screen');
