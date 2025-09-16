@@ -224,8 +224,8 @@ export default function RootLayout() {
                                     <ProfileCacheProvider>
                                       <ErrorBoundary safeRoute="/(auth)/login">
                                         <RootLayoutNav />
-                                        <AutoArriveSheet />
                                       </ErrorBoundary>
+                                      <AutoArriveSheet />
                                     </ProfileCacheProvider>
                                   </AutoArriveProvider>
                                 </LoadsProvider>
