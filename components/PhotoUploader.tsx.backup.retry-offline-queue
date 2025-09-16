@@ -1,6 +1,10 @@
+// BACKUP of components/PhotoUploader.tsx before retry+offline queue changes
+// Timestamp: 2025-09-15
+
+// ----- START ORIGINAL CONTENT -----
 // components/PhotoUploader.tsx — CLEAN IMPORTS
 import uuid from 'react-native-uuid';
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -45,7 +49,6 @@ import { useToast } from '@/components/Toast';
 import { theme } from '@/constants/theme';
 import { prepareForUpload, isImageMime, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 import { platformAlert } from '@/utils/platformAlert';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -306,8 +309,7 @@ async function uploadWithFallback(
   basePath: string,
   input: any,
   updateProgress?: (progress: number) => void,
-  resizeOpts?: { maxWidth?: number; maxHeight?: number; baseQuality?: number },
-  attempt: number = 1
+  resizeOpts?: { maxWidth?: number; maxHeight?: number; baseQuality?: number }
 ): Promise<string> {
   try {
     const { blob, mime, ext } = await prepareForUpload(input, resizeOpts);
@@ -318,17 +320,10 @@ async function uploadWithFallback(
       return await uploadSmart(path, blob, mime, key, basePath.split('/')[2] || 'unknown', updateProgress);
     } catch (err: any) {
       const code = String(err?.code || err?.message || "");
-      console.error('[PhotoUploader] ❌ Upload failed attempt', attempt, code);
+      console.error('[PhotoUploader] ❌ PRODUCTION upload failed - no fallback to mock images:', code);
+      console.error('[PhotoUploader] Error details:', err);
       updateProgress?.(0);
-      if (attempt < 2) {
-        try {
-          const { auth } = getFirebase();
-          await auth.currentUser?.getIdToken(true);
-        } catch {}
-        console.log('[PhotoUploader] Retrying upload...');
-        throw await uploadWithFallback(basePath, input, updateProgress, resizeOpts, attempt + 1);
-      }
-      throw err;
+      throw err; // Don't use fallback mock images - let the error bubble up
     }
   } catch (error: any) {
     console.error('[PhotoUploader] Error in uploadWithFallback:', error);
@@ -358,7 +353,6 @@ export function PhotoUploader({
     if (entityType === 'load' && loadType === 'vehicle') return 5; // Vehicle loads: exactly 5 photos
     return 3; // Other load types: up to 3 photos
   }, [maxPhotos, entityType, loadType]);
-  const offlineQueueKey = useMemo(() => `photoUploaderQueue:${entityType}:${entityId}`, [entityType, entityId]);
   const [state, setState] = useState<PhotoUploadState>({
     photos: [],
     primaryPhoto: '',
@@ -454,47 +448,6 @@ export function PhotoUploader({
     loadPhotos();
   }, [loadPhotos]);
 
-  useEffect(() => {
-    let canceled = false;
-    const bootstrap = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(offlineQueueKey);
-        const parsed = raw ? (JSON.parse(raw) as AnyImage[]) : [];
-        offlineQueueRef.current = Array.isArray(parsed) ? parsed : [];
-        if (offlineQueueRef.current.length > 0) {
-          console.log('[PhotoUploader] Restored offline queue with', offlineQueueRef.current.length, 'items');
-        }
-      } catch {}
-    };
-    void bootstrap();
-    return () => { canceled = true; };
-  }, [offlineQueueKey]);
-
-  useEffect(() => {
-    let canceled = false;
-    const tryFlush = async () => {
-      try {
-        const { auth } = getFirebase();
-        const authed = !!auth.currentUser && !auth.currentUser.isAnonymous;
-        if (authed && offlineQueueRef.current.length > 0) {
-          console.log('[PhotoUploader] Flushing offline queue of', offlineQueueRef.current.length);
-          const items = [...offlineQueueRef.current];
-          offlineQueueRef.current = [];
-          await AsyncStorage.setItem(offlineQueueKey, JSON.stringify([]));
-          for (const img of items) {
-            if (canceled) break;
-            await uploadFile(img);
-          }
-        }
-      } catch (e) {
-        console.warn('[PhotoUploader] Flush queue failed', e);
-      }
-    };
-    const id = setInterval(tryFlush, 5000);
-    void tryFlush();
-    return () => { canceled = true; clearInterval(id); };
-  }, [offlineQueueKey, uploadFile]);
-
   const validateFile = useCallback((file: { type?: string; size?: number; uri: string }) => {
     if (file.size && file.size > 5 * 1024 * 1024) {
       toast.show('File too large (max 5MB).', 'error');
@@ -508,7 +461,6 @@ export function PhotoUploader({
   }, [toast]);
 
   const writeInFlightRef = React.useRef<boolean>(false);
-  const offlineQueueRef = useRef<AnyImage[]>([]);
   const pendingWriteRef = React.useRef<{ photos: string[]; primaryPhoto: string } | null>(null);
 
   const isRemoteUrl = useCallback((u: string) => {
@@ -768,7 +720,6 @@ export function PhotoUploader({
           };
         });
         toast.show('✅ Photo uploaded to production Firebase Storage!', 'success');
-        console.log('[TEST] Test passed');
       } catch (error: any) {
         console.log('[UPLOAD_FAIL]', basePath, error?.code || 'unknown-error');
         console.error('[PhotoUploader] Upload error:', error);
@@ -781,9 +732,6 @@ export function PhotoUploader({
         
         const code = (error && (error.code || error.message)) || '';
         let errorMessage = 'Upload failed. Tap Retry.';
-        if (code.includes('unauthorized')) {
-          toast.show('Retrying upload', 'warning');
-        }
         
         if (code.includes('storage/unauthorized') || code.includes('unauthorized')) {
           errorMessage = 'Storage permission denied. Retrying with fresh authentication...';
@@ -820,13 +768,6 @@ export function PhotoUploader({
           ),
         }));
         toast.show(errorMessage, 'error');
-        try {
-          offlineQueueRef.current.push(input);
-          await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
-          console.log('[PhotoUploader] Queued offline photo for later retry. Queue size:', offlineQueueRef.current.length);
-        } catch (qErr) {
-          console.warn('[PhotoUploader] Failed to persist offline queue', qErr);
-        }
       }
     } catch (error: any) {
       console.log('[UPLOAD_FAIL]', 'general-error', error?.code || 'unknown-error');
@@ -1291,7 +1232,7 @@ export function PhotoUploader({
         <View style={styles.errorContainer}>
           <AlertCircle color={theme.colors.danger} size={20} />
           <Text style={styles.errorContainerText}>
-            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap &quot;Retry&quot; to try again.
+            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap "Retry" to try again.
           </Text>
         </View>
       )}
@@ -1660,3 +1601,4 @@ export function useCanPublish(entityType: 'load' | 'vehicle', photos: string[], 
   
   return photos.length >= effectiveMinPhotos;
 }
+// ----- END ORIGINAL CONTENT -----
