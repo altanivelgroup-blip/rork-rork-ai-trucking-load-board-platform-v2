@@ -12,7 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, Users, Truck } from 'lucide-react-native';
+import { Mail, Lock, Users, Truck, Settings } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -113,11 +113,17 @@ export default function LoginScreen() {
           // Continue with mock authentication even if Firebase fails
         }
         
-        // Update local auth state with selected role
-        await login(email.trim(), password.trim(), selectedRole);
+        // Check if this is an admin login
+        const isAdminLogin = email.trim() === 'admin@loadrush.com' || selectedRole === 'admin';
+        const finalRole = isAdminLogin ? 'admin' : selectedRole;
         
-        console.log('[login] success, navigating based on role');
-        if (selectedRole === 'shipper') {
+        // Update local auth state with correct role
+        await login(email.trim(), password.trim(), finalRole);
+        
+        console.log('[login] success, navigating based on role:', finalRole);
+        if (finalRole === 'admin') {
+          router.replace('/(tabs)/admin');
+        } else if (finalRole === 'shipper') {
           router.replace('/(tabs)/shipper');
         } else {
           router.replace('/(tabs)/dashboard');
@@ -137,8 +143,10 @@ export default function LoginScreen() {
       // Update local auth state with anonymous user
       await login('guest@example.com', 'guest', selectedRole);
       
-      console.log('[login] anonymous success, navigating based on role');
-      if (selectedRole === 'shipper') {
+      console.log('[login] anonymous success, navigating based on role:', selectedRole);
+      if (selectedRole === 'admin') {
+        router.replace('/(tabs)/admin');
+      } else if (selectedRole === 'shipper') {
         router.replace('/(tabs)/shipper');
       } else {
         router.replace('/(tabs)/dashboard');
@@ -203,6 +211,14 @@ export default function LoginScreen() {
                 >
                   <Users size={20} color={selectedRole === 'shipper' ? theme.colors.white : theme.colors.primary} />
                   <Text style={[styles.roleButtonText, selectedRole === 'shipper' && styles.roleButtonTextActive]}>Shipper</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.roleButton, selectedRole === 'admin' && styles.roleButtonActive]}
+                  onPress={() => setSelectedRole('admin')}
+                  testID="role-admin"
+                >
+                  <Settings size={20} color={selectedRole === 'admin' ? theme.colors.white : theme.colors.primary} />
+                  <Text style={[styles.roleButtonText, selectedRole === 'admin' && styles.roleButtonTextActive]}>Admin</Text>
                 </TouchableOpacity>
               </View>
             </View>

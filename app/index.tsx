@@ -13,7 +13,15 @@ export default function IndexScreen() {
     if (isLoading) return;
     
     if (isAuthenticated && user) {
-      const route = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
+      let route = '/(tabs)/dashboard'; // default
+      
+      if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
+        route = '/(tabs)/admin';
+      } else if (user.role === 'shipper') {
+        route = '/(tabs)/shipper';
+      }
+      
+      console.log('[IndexScreen] Navigating to:', route, 'for user role:', user.role);
       router.replace(route);
     } else {
       router.replace('/(auth)/login');
