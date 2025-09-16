@@ -1,15 +1,34 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo } from 'react';
 import { Platform, StyleSheet, View, Text, TouchableOpacity, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Phone, MessageSquareText, Play } from 'lucide-react-native';
 import { useAutoArrive } from '@/hooks/useAutoArrive';
 import { useLoads } from '@/hooks/useLoads';
 
-interface Props {}
+interface Props {
+  // No props needed for this component
+}
 
 function AutoArriveSheetInner(_: Props) {
-  const { isSheetOpen, closeSheet, sheetLoadId } = useAutoArrive();
-  const { currentLoad } = useLoads();
+  console.log('[AutoArriveSheet] Component rendering');
+  
+  // Always call hooks in the same order
+  const autoArriveState = useAutoArrive();
+  const loadsState = useLoads();
+  
+  console.log('[AutoArriveSheet] Hook results:', {
+    autoArrive: !!autoArriveState,
+    loads: !!loadsState
+  });
+  
+  // Safely destructure with fallbacks
+  const { 
+    isSheetOpen = false, 
+    closeSheet = () => {}, 
+    sheetLoadId 
+  } = autoArriveState || {};
+  
+  const { currentLoad } = loadsState || {};
 
   const visible = isSheetOpen && sheetLoadId && currentLoad && sheetLoadId === currentLoad.id;
   const pickup = currentLoad?.origin;

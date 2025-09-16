@@ -226,6 +226,7 @@ export default function RootLayout() {
                                         <RootLayoutNav />
                                       </ErrorBoundary>
                                     </ProfileCacheProvider>
+                                    <AutoArriveSheet />
                                   </AutoArriveProvider>
                                 </LoadsProvider>
                               </PostLoadProvider>
@@ -237,7 +238,6 @@ export default function RootLayout() {
                   </AuthProvider>
                 </View>
                 <ToastHost />
-                <AutoArriveSheet />
               </ToastProvider>
             </trpc.Provider>
           </QueryClientProvider>

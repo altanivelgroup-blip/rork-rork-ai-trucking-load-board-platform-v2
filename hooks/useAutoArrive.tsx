@@ -31,9 +31,38 @@ function haversineMiles(a: { latitude: number; longitude: number }, b: { latitud
 }
 
 export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveState>(() => {
-  const { user } = useAuth();
-  const { currentLoad } = useLoads();
-  const { startWatching, stopWatching } = useLiveLocation();
+  console.log('[AutoArrive] Provider initializing');
+  
+  let user, currentLoad, startWatching, stopWatching;
+  
+  try {
+    const authResult = useAuth();
+    user = authResult?.user;
+    console.log('[AutoArrive] Auth hook result:', !!authResult);
+  } catch (e) {
+    console.warn('[AutoArrive] useAuth failed:', e);
+    user = null;
+  }
+  
+  try {
+    const loadsResult = useLoads();
+    currentLoad = loadsResult?.currentLoad;
+    console.log('[AutoArrive] Loads hook result:', !!loadsResult);
+  } catch (e) {
+    console.warn('[AutoArrive] useLoads failed:', e);
+    currentLoad = null;
+  }
+  
+  try {
+    const locationResult = useLiveLocation();
+    startWatching = locationResult?.startWatching;
+    stopWatching = locationResult?.stopWatching;
+    console.log('[AutoArrive] Location hook result:', !!locationResult);
+  } catch (e) {
+    console.warn('[AutoArrive] useLiveLocation failed:', e);
+    startWatching = async () => () => {};
+    stopWatching = () => {};
+  }
 
   const [arrivedPickups, setArrivedPickups] = useState<Record<string, boolean>>({});
   const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
@@ -144,11 +173,21 @@ export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveS
     };
   }, [currentLoad, arrivedPickups, startWatching, stopWatching, openSheet, triggerHaptic, persist]);
 
-  return useMemo(() => ({
+  const result = useMemo(() => ({
     arrivedPickups,
     isSheetOpen,
     sheetLoadId,
     openSheet,
     closeSheet,
   }), [arrivedPickups, isSheetOpen, sheetLoadId, openSheet, closeSheet]);
+  
+  console.log('[AutoArrive] Provider returning state:', {
+    hasArrivedPickups: !!result.arrivedPickups,
+    isSheetOpen: result.isSheetOpen,
+    hasSheetLoadId: !!result.sheetLoadId,
+    hasOpenSheet: typeof result.openSheet === 'function',
+    hasCloseSheet: typeof result.closeSheet === 'function'
+  });
+  
+  return result;
 });
