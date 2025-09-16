@@ -42,7 +42,20 @@ export default function LoginScreen() {
 
   const isValidEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
+    const trimmedEmail = email.trim();
+    
+    // Allow guest email for development
+    if (trimmedEmail === 'guest@example.com') {
+      return true;
+    }
+    
+    const isValid = emailRegex.test(trimmedEmail);
+    if (!isValid) {
+      console.log('[login] Invalid email format detected:', trimmedEmail);
+      console.log('[login] Email must contain @ symbol and domain with dot (e.g., user@domain.com)');
+    }
+    
+    return isValid;
   };
 
   const loginOrLink = useCallback(async (email: string, password: string) => {
@@ -101,7 +114,7 @@ export default function LoginScreen() {
         // Validate email format before attempting Firebase auth
         if (!isValidEmail(email.trim())) {
           console.error('[login] Invalid email format:', email);
-          alert('Please enter a valid email address.');
+          alert('Please enter a valid email address.\n\nExample: user@domain.com\n\nMake sure your email contains @ and a domain with a dot.');
           return;
         }
         

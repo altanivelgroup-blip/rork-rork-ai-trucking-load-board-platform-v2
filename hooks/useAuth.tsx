@@ -149,11 +149,27 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       throw error;
     }
     
-    // Enhanced email validation
+    // Enhanced email validation with better error messages
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (email !== 'guest@example.com' && !emailRegex.test(email.trim())) {
-      const error = new Error('Please enter a valid email address.');
-      console.error('[auth] ❌ Auth optimization - Login failed: invalid email format');
+    const trimmedEmail = email.trim();
+    
+    if (trimmedEmail !== 'guest@example.com' && !emailRegex.test(trimmedEmail)) {
+      console.error('[auth] ❌ Invalid email format:', trimmedEmail);
+      console.error('[auth] Email must contain @ symbol and domain with dot (e.g., user@domain.com)');
+      
+      // Provide specific feedback based on common issues
+      let errorMessage = 'Please enter a valid email address.';
+      if (!trimmedEmail.includes('@')) {
+        errorMessage = 'Email must contain @ symbol (e.g., user@domain.com)';
+      } else if (!trimmedEmail.includes('.')) {
+        errorMessage = 'Email domain must contain a dot (e.g., user@domain.com)';
+      } else if (trimmedEmail.endsWith('@')) {
+        errorMessage = 'Email must have a domain after @ (e.g., user@domain.com)';
+      } else if (trimmedEmail.startsWith('@')) {
+        errorMessage = 'Email must have a username before @ (e.g., user@domain.com)';
+      }
+      
+      const error = new Error(errorMessage);
       throw error;
     }
     
