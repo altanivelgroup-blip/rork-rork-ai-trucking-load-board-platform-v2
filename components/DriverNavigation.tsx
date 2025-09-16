@@ -1,10 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Linking } from 'react-native';
-import { MapPin, Navigation, CheckCircle, AlertCircle, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-react-native';
+import { MapPin, Navigation, CheckCircle, AlertCircle, Volume2, VolumeX, Wifi, WifiOff, Fuel } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { Load, Location } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigation } from '@/hooks/useNavigation';
+import { FuelSelector } from '@/components/FuelSelector';
+import { FuelAlert } from '@/components/FuelAlert';
+import { useFuelMonitor, useFuelDisplay } from '@/hooks/useFuelMonitor';
 
 interface DriverNavigationProps {
   load: Load;
@@ -22,7 +25,10 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
   useAuth(); // Hook for potential future use
   const [currentPhase, setCurrentPhase] = useState<NavigationPhase>('to-pickup');
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
+  const [showFuelSelector, setShowFuelSelector] = useState<boolean>(false);
   const { state: navState, getRoute, clearRoute, toggleVoice, retryRoute } = useNavigation();
+  const { resetFuelMonitor } = useFuelMonitor();
+  const { fuelLevel, isLowFuel, fuelColor } = useFuelDisplay();
 
   console.log('[DriverNavigation] Rendering with phase:', currentPhase, 'Navigation state:', navState.isOffline ? 'offline' : 'online');
 
@@ -162,7 +168,12 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
   }, [getCurrentDestination, openInAppMap]);
 
   const handlePickupConfirmed = useCallback(() => {
-    console.log('[DriverNavigation] Pickup confirmed - switching to delivery route');
+    console.log('[DriverNavigation] Pickup confirmed - showing fuel selector');
+    setShowFuelSelector(true);
+  }, []);
+
+  const handleFuelConfirmed = useCallback((fuelLevel: number) => {
+    console.log('[DriverNavigation] Fuel level confirmed:', fuelLevel + '% - switching to delivery route');
     setCurrentPhase('to-delivery');
     setIsNavigating(false);
     clearRoute(); // Clear previous route
@@ -201,6 +212,9 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
 
   return (
     <View style={styles.container}>
+      {/* Fuel Alert - shows when fuel is low */}
+      <FuelAlert />
+      
       <View style={styles.navigationCard}>
         <View style={styles.phaseHeader}>
           <View style={[styles.phaseIndicator, { backgroundColor: isPickupPhase ? theme.colors.warning : theme.colors.success }]}>
@@ -330,7 +344,42 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
             }
           </Text>
         </View>
+        
+        {/* Fuel Level Display - show during delivery phase */}
+        {!isPickupPhase && (
+          <View style={styles.fuelDisplay}>
+            <View style={styles.fuelHeader}>
+              <Fuel size={16} color={fuelColor} />
+              <Text style={styles.fuelTitle}>Fuel Level</Text>
+            </View>
+            <View style={styles.fuelIndicator}>
+              <View style={styles.fuelTrack}>
+                <View
+                  style={[
+                    styles.fuelBar,
+                    {
+                      width: `${fuelLevel}%`,
+                      backgroundColor: fuelColor,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.fuelText, { color: fuelColor }]}>{fuelLevel}%</Text>
+            </View>
+            {isLowFuel && (
+              <Text style={styles.fuelWarning}>Low fuel - Consider refueling</Text>
+            )}
+          </View>
+        )}
       </View>
+      
+      {/* Fuel Selector Modal */}
+      <FuelSelector
+        visible={showFuelSelector}
+        onClose={() => setShowFuelSelector(false)}
+        onConfirm={handleFuelConfirmed}
+        loadId={load.id}
+      />
     </View>
   );
 };
@@ -525,5 +574,55 @@ const styles = StyleSheet.create({
   voiceToggleText: {
     fontSize: theme.fontSize.sm,
     fontWeight: '500',
+  },
+  fuelDisplay: {
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+  },
+  fuelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  fuelTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  fuelIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  fuelTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: 4,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  fuelBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  fuelText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  fuelWarning: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.warning,
+    marginTop: theme.spacing.xs,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });

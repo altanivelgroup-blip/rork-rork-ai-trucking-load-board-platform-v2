@@ -163,6 +163,21 @@ export interface Load {
   isBackhaul?: boolean;
   aiScore?: number; // AI matching score
   bulkImportId?: string; // Bulk import session ID
+  fuelData?: {
+    startingFuel: number; // Fuel level at pickup (0-100%)
+    currentFuel?: number; // Current fuel level (0-100%)
+    lowFuelAlerted?: boolean; // Whether low fuel alert was shown
+    fuelStops?: FuelStop[];
+  };
+}
+
+export interface FuelStop {
+  id: string;
+  location: Location;
+  timestamp: Date;
+  gallons: number;
+  pricePerGallon: number;
+  totalCost: number;
 }
 
 export interface Location {
