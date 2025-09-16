@@ -10,13 +10,13 @@ interface Props {
 }
 
 function AutoArriveSheetInner(_: Props) {
-  console.log('[AutoArriveSheet] Component rendering with safe hook calls');
+  console.log('[AutoArriveSheet] EMERGENCY FIX - Component rendering with safe hook calls');
   
   // Always call hooks in the same order - React requires this
   const autoArriveState = useAutoArrive();
   const loadsState = useLoads();
   
-  console.log('[AutoArriveSheet] Hook results:', {
+  console.log('[AutoArriveSheet] EMERGENCY FIX - Hook results:', {
     autoArrive: !!autoArriveState,
     autoArriveType: typeof autoArriveState,
     loads: !!loadsState,
@@ -25,12 +25,12 @@ function AutoArriveSheetInner(_: Props) {
   
   // Early return if hooks failed to initialize
   if (!autoArriveState || typeof autoArriveState !== 'object') {
-    console.warn('[AutoArriveSheet] AutoArrive hook not ready, returning null');
+    console.warn('[AutoArriveSheet] EMERGENCY FIX - AutoArrive hook not ready, returning null');
     return null;
   }
   
   if (!loadsState || typeof loadsState !== 'object') {
-    console.warn('[AutoArriveSheet] Loads hook not ready, returning null');
+    console.warn('[AutoArriveSheet] EMERGENCY FIX - Loads hook not ready, returning null');
     return null;
   }
   

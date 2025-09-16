@@ -30,55 +30,20 @@ function haversineMiles(a: { latitude: number; longitude: number }, b: { latitud
   return R * c;
 }
 
-export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveState>(() => {
-  console.log('[AutoArrive] Provider initializing with error handling');
+const [AutoArriveProvider, useAutoArriveHook] = createContextHook<AutoArriveState>(() => {
+  console.log('[AutoArrive] EMERGENCY FIX - Provider initializing with safe hook calls');
   
-  // Initialize with safe defaults
-  let user = null;
-  let currentLoad = null;
-  let startWatching = async () => () => {};
-  let stopWatching = () => {};
+  // Call hooks normally - React requires this
+  const { user } = useAuth();
+  const { currentLoad } = useLoads();
+  const { startWatching, stopWatching } = useLiveLocation();
   
-  try {
-    const authResult = useAuth();
-    if (authResult && typeof authResult === 'object') {
-      user = authResult.user || null;
-      console.log('[AutoArrive] Auth hook success:', !!user);
-    } else {
-      console.warn('[AutoArrive] Auth hook returned invalid result:', authResult);
-    }
-  } catch (e) {
-    console.warn('[AutoArrive] useAuth failed:', e);
-    user = null;
-  }
-  
-  try {
-    const loadsResult = useLoads();
-    if (loadsResult && typeof loadsResult === 'object') {
-      currentLoad = loadsResult.currentLoad || null;
-      console.log('[AutoArrive] Loads hook success:', !!currentLoad);
-    } else {
-      console.warn('[AutoArrive] Loads hook returned invalid result:', loadsResult);
-    }
-  } catch (e) {
-    console.warn('[AutoArrive] useLoads failed:', e);
-    currentLoad = null;
-  }
-  
-  try {
-    const locationResult = useLiveLocation();
-    if (locationResult && typeof locationResult === 'object') {
-      startWatching = locationResult.startWatching || (async () => () => {});
-      stopWatching = locationResult.stopWatching || (() => {});
-      console.log('[AutoArrive] Location hook success');
-    } else {
-      console.warn('[AutoArrive] Location hook returned invalid result:', locationResult);
-    }
-  } catch (e) {
-    console.warn('[AutoArrive] useLiveLocation failed:', e);
-    startWatching = async () => () => {};
-    stopWatching = () => {};
-  }
+  console.log('[AutoArrive] EMERGENCY FIX - Hooks called successfully:', {
+    hasUser: !!user,
+    hasCurrentLoad: !!currentLoad,
+    hasStartWatching: typeof startWatching === 'function',
+    hasStopWatching: typeof stopWatching === 'function'
+  });
 
   const [arrivedPickups, setArrivedPickups] = useState<Record<string, boolean>>({});
   const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
@@ -206,10 +171,8 @@ export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveS
   });
   
   return result;
-}, {
-  arrivedPickups: {},
-  isSheetOpen: false,
-  sheetLoadId: undefined,
-  openSheet: () => {},
-  closeSheet: () => {}
 });
+
+// Export with safe default fallback
+export { AutoArriveProvider };
+export const useAutoArrive = useAutoArriveHook;

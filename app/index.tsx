@@ -1,72 +1,59 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
-  console.log('[IndexScreen] NAVIGATION FIX - Starting with safe navigation');
+  console.log('[IndexScreen] EMERGENCY FIX - Simple redirect without navigation state checks');
   
   const router = useRouter();
   const { isLoading, isAuthenticated, user } = useAuth();
-  const [navigationReady, setNavigationReady] = useState(false);
 
-  console.log('[IndexScreen] NAVIGATION FIX - State:', {
-    navigationReady,
+  console.log('[IndexScreen] EMERGENCY FIX - Auth state:', {
     isLoading,
     isAuthenticated,
     userRole: user?.role
   });
 
-  // Use a timeout to ensure navigation is ready
   useEffect(() => {
-    const timer = setTimeout(() => {
-      console.log('[IndexScreen] NAVIGATION FIX - Navigation ready timeout reached');
-      setNavigationReady(true);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    console.log('[IndexScreen] NAVIGATION FIX - Navigation effect triggered');
+    console.log('[IndexScreen] EMERGENCY FIX - Navigation effect triggered');
     
-    // Wait for navigation to be ready
-    if (!navigationReady) {
-      console.log('[IndexScreen] NAVIGATION FIX - Navigation not ready, waiting...');
-      return;
-    }
-
     // Wait for auth to initialize
     if (isLoading) {
-      console.log('[IndexScreen] NAVIGATION FIX - Auth still loading, waiting...');
+      console.log('[IndexScreen] EMERGENCY FIX - Auth still loading, waiting...');
       return;
     }
 
-    console.log('[IndexScreen] NAVIGATION FIX - Ready to navigate, auth state:', { isAuthenticated, userRole: user?.role });
+    console.log('[IndexScreen] EMERGENCY FIX - Ready to navigate, auth state:', { isAuthenticated, userRole: user?.role });
     
-    try {
-      if (isAuthenticated && user) {
-        const targetRoute = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
-        console.log('[IndexScreen] NAVIGATION FIX - Redirecting authenticated user to:', targetRoute);
-        router.replace(targetRoute);
-      } else {
-        console.log('[IndexScreen] NAVIGATION FIX - Redirecting to login');
-        router.replace('/(auth)/login');
-      }
-    } catch (error) {
-      console.error('[IndexScreen] NAVIGATION FIX - Navigation error:', error);
-      // Fallback to login on any navigation error
+    // Simple timeout to ensure router is ready
+    const timer = setTimeout(() => {
       try {
-        router.replace('/(auth)/login');
-      } catch (fallbackError) {
-        console.error('[IndexScreen] NAVIGATION FIX - Fallback navigation also failed:', fallbackError);
+        if (isAuthenticated && user) {
+          const targetRoute = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
+          console.log('[IndexScreen] EMERGENCY FIX - Redirecting authenticated user to:', targetRoute);
+          router.replace(targetRoute);
+        } else {
+          console.log('[IndexScreen] EMERGENCY FIX - Redirecting to login');
+          router.replace('/(auth)/login');
+        }
+      } catch (error) {
+        console.error('[IndexScreen] EMERGENCY FIX - Navigation error:', error);
+        // Fallback to login on any navigation error
+        try {
+          router.replace('/(auth)/login');
+        } catch (fallbackError) {
+          console.error('[IndexScreen] EMERGENCY FIX - Fallback navigation also failed:', fallbackError);
+        }
       }
-    }
-  }, [navigationReady, isLoading, isAuthenticated, user?.role, user, router]);
+    }, 50);
 
-  // Show loading screen while navigation initializes
-  if (!navigationReady || isLoading) {
-    console.log('[IndexScreen] NAVIGATION FIX - Showing loading screen');
+    return () => clearTimeout(timer);
+  }, [isLoading, isAuthenticated, user?.role, user, router]);
+
+  // Show loading screen while auth initializes
+  if (isLoading) {
+    console.log('[IndexScreen] EMERGENCY FIX - Showing loading screen');
     return (
       <View style={styles.container}>
         <Text style={styles.text}>Loading...</Text>
@@ -75,7 +62,7 @@ export default function IndexScreen() {
   }
 
   // Fallback view (should not be reached)
-  console.log('[IndexScreen] NAVIGATION FIX - Showing fallback view');
+  console.log('[IndexScreen] EMERGENCY FIX - Showing fallback view');
   return (
     <View style={styles.container}>
       <Text style={styles.text}>Initializing...</Text>
