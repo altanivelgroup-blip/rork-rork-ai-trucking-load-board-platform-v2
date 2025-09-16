@@ -144,15 +144,25 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
     await ensureFirebaseAuth();
     if (!auth.currentUser?.uid) throw new Error('Please sign in');
 
-    const pickedLocal = draft?.photosLocal ?? draft?.photos ?? [];
+    // FIXED: Check both photoUrls and photosLocal for photo validation
     const pickedFromUploader: string[] = Array.isArray(draft?.photoUrls) ? draft.photoUrls : [];
-    const usingUploader = pickedFromUploader.length >= 5;
-    const picked = usingUploader ? pickedFromUploader : pickedLocal;
+    const pickedLocal = draft?.photosLocal ?? draft?.photos ?? [];
+    const totalPhotoCount = Math.max(pickedFromUploader.length, pickedLocal.length);
+    const picked = pickedFromUploader.length > 0 ? pickedFromUploader : pickedLocal;
+    
     // Check photo requirements based on vehicle type
     const isVehicleLoad = draft?.vehicleType === 'car-hauler';
     const minPhotosRequired = isVehicleLoad ? 5 : 1;
     
-    if ((!Array.isArray(picked) || picked.length < minPhotosRequired)) {
+    console.log('[submitLoadWithPhotos] Photo validation:', {
+      pickedFromUploader: pickedFromUploader.length,
+      pickedLocal: pickedLocal.length,
+      totalPhotoCount,
+      minPhotosRequired,
+      isVehicleLoad
+    });
+    
+    if (totalPhotoCount < minPhotosRequired) {
       const errorMsg = isVehicleLoad 
         ? 'Vehicle loads require at least 5 photos for protection.'
         : 'Please add at least 1 photo.';
@@ -189,7 +199,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       const docRef = await addDoc(collection(db, 'loads'), base);
       console.log('[PostLoad] created id:', docRef.id);
 
-      const urls = usingUploader
+      const urls = pickedFromUploader.length > 0
         ? await reuploadUrlsToDoc(uid, docRef.id, pickedFromUploader)
         : await uploadPhotosForLoad(uid, docRef.id, picked as any[]);
       console.log('[PostLoad] uploaded urls:', urls.length);
@@ -237,7 +247,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
       if (fireErr?.code === 'permission-denied' || fireErr?.code === 'unavailable' || fireErr?.code === 'unauthenticated') {
         const localId = `local-${Date.now()}`;
-        const urls = usingUploader
+        const urls = pickedFromUploader.length > 0
           ? await reuploadUrlsToDoc(uid, localId, pickedFromUploader)
           : await uploadPhotosForLoad(uid, localId, picked as any[]);
         try {
@@ -318,20 +328,22 @@ export default function PostLoadStep5() {
         return;
       }
       
-      // Validate photos - prioritize photoUrls from PhotoUploader
-      const photoCount = draft.photoUrls?.length || 0;
+      // FIXED: Validate photos - check both photoUrls and photosLocal
+      const photoUrlsCount = draft.photoUrls?.length || 0;
+      const photosLocalCount = draft.photosLocal?.length || 0;
+      const totalPhotoCount = Math.max(photoUrlsCount, photosLocalCount);
       const isVehicleLoad = draft.vehicleType === 'car-hauler';
       const minRequired = isVehicleLoad ? 5 : 1;
       
       console.log('[PostLoadStep5] Photo validation:', { 
-        photoCount, 
-        photoUrls: draft.photoUrls?.length || 0,
-        photosLocal: draft.photosLocal?.length || 0,
+        photoUrlsCount,
+        photosLocalCount,
+        totalPhotoCount,
         isVehicleLoad, 
         minRequired 
       });
       
-      if (photoCount < minRequired) {
+      if (totalPhotoCount < minRequired) {
         const errorMsg = isVehicleLoad 
           ? 'Vehicle loads require at least 5 photos for protection.'
           : 'Please add at least 1 photo.';
@@ -403,15 +415,15 @@ export default function PostLoadStep5() {
               </View>
             )}
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos uploaded: {draft.photoUrls?.length || 0} 
+              Photos ready: {Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0)} 
               {draft.vehicleType === 'car-hauler' ? ' (5 required for vehicle protection)' : ' (1+ recommended)'}
             </Text>
-            {draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5 && uploadsInProgress === 0 && (
+            {draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5 && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Vehicle loads require 5 photos for shipper and driver protection.
               </Text>
             )}
-            {draft.vehicleType !== 'car-hauler' && (draft.photoUrls?.length || 0) < 1 && uploadsInProgress === 0 && (
+            {draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1 && uploadsInProgress === 0 && (
               <Text style={styles.warningText} testID="attachmentsWarning">
                 At least 1 photo is recommended for better load visibility.
               </Text>
@@ -467,23 +479,23 @@ export default function PostLoadStep5() {
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
                  !contact?.trim() ||
-                 (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) ||
-                 (draft.vehicleType !== 'car-hauler' && (draft.photoUrls?.length || 0) < 1) ||
+                 (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
+                 (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
                  draft.isPosting) && styles.postBtnDisabled
               ]} 
               disabled={
                 uploadsInProgress > 0 || 
                 !contact?.trim() ||
-                (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) ||
-                (draft.vehicleType !== 'car-hauler' && (draft.photoUrls?.length || 0) < 1) ||
+                (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
+                (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
                 draft.isPosting
               } 
               accessibilityRole="button" 
               accessibilityState={{ 
                 disabled: uploadsInProgress > 0 || 
                          !contact?.trim() ||
-                         (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) ||
-                         (draft.vehicleType !== 'car-hauler' && (draft.photoUrls?.length || 0) < 1) ||
+                         (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
+                         (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
                          draft.isPosting 
               }} 
               testID="postLoadBtn"
@@ -495,12 +507,12 @@ export default function PostLoadStep5() {
               )}
               <Text style={styles.postBtnText}>
                 {uploadsInProgress > 0 
-                  ? `Uploading photos (${uploadsInProgress}/${(draft.photoUrls?.length || 0) + uploadsInProgress})...` 
+                  ? `Uploading photos (${uploadsInProgress}/${Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) + uploadsInProgress})...` 
                   : draft.isPosting 
                   ? 'Posting...' 
                   : !contact?.trim()
                   ? 'Enter Contact Info'
-                  : (draft.photoUrls?.length || 0) < (draft.vehicleType === 'car-hauler' ? 5 : 1)
+                  : Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < (draft.vehicleType === 'car-hauler' ? 5 : 1)
                   ? 'Add Photos'
                   : 'Post Load'
                 }
