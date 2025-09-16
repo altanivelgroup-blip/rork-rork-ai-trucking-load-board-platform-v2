@@ -36,55 +36,39 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   
   console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // EMERGENCY FIX: Immediate initialization with timeout to prevent hanging
+  // FORCE START ON LOGIN PAGE - Clear any cached auth and start fresh
   useEffect(() => {
-    console.log('[auth] LOADING FIX - EMERGENCY MODE - Immediate initialization with timeout');
+    console.log('[auth] FORCE LOGIN START - Clearing cached auth and starting on login page');
     
     let mounted = true;
     
-    const emergencyInit = async () => {
+    const forceLoginStart = async () => {
       try {
-        // Quick check for cached user data
-        const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
-        if (cached && mounted) {
-          try {
-            const cachedUser = JSON.parse(cached);
-            console.log('[auth] LOADING FIX - EMERGENCY - Found cached user, restoring session');
-            setUser(cachedUser);
-            setUserId(cachedUser.id);
-            setIsAnonymous(cachedUser.email === 'guest@example.com');
-            setHasSignedInThisSession(true);
-          } catch (parseError) {
-            console.warn('[auth] LOADING FIX - EMERGENCY - Cached data corrupted, clearing');
-            await AsyncStorage.removeItem(USER_STORAGE_KEY);
-          }
-        }
+        // Clear any cached user data to force login
+        await AsyncStorage.removeItem(USER_STORAGE_KEY);
+        console.log('[auth] FORCE LOGIN START - Cached auth cleared');
       } catch (error) {
-        console.warn('[auth] LOADING FIX - EMERGENCY - Init error, proceeding anyway:', error);
+        console.warn('[auth] FORCE LOGIN START - Error clearing cache:', error);
       }
       
       if (mounted) {
-        console.log('[auth] LOADING FIX - EMERGENCY - Completing auth initialization immediately');
+        // Set to unauthenticated state to show login page
+        setUser(null);
+        setUserId(null);
+        setIsAnonymous(true);
+        setHasSignedInThisSession(false);
+        setIsFirebaseAuthenticated(false);
         setIsInitialized(true);
         setIsLoading(false);
+        console.log('[auth] FORCE LOGIN START - Auth initialization complete, showing login page');
       }
     };
     
-    // Complete immediately
-    emergencyInit();
-    
-    // Failsafe timeout to force loading completion
-    const failsafeTimer = setTimeout(() => {
-      if (mounted && isLoading) {
-        console.warn('[auth] LOADING FIX - EMERGENCY - Failsafe timeout triggered, forcing loading completion');
-        setIsInitialized(true);
-        setIsLoading(false);
-      }
-    }, 2000);
+    // Execute immediately
+    forceLoginStart();
     
     return () => {
       mounted = false;
-      clearTimeout(failsafeTimer);
     };
   }, []);
 
