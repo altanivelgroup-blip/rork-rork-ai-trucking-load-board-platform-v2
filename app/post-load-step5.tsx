@@ -310,6 +310,7 @@ export default function PostLoadStep5() {
   const handlePostLoad = useCallback(async () => {
     try {
       console.log('[PostLoadStep5] handlePostLoad called with contact:', contact);
+      console.log('[PostLoadStep5] Current draft photoUrls:', draft.photoUrls?.length || 0);
       
       // Validate contact info
       if (!contact?.trim()) {
@@ -317,10 +318,12 @@ export default function PostLoadStep5() {
         return;
       }
       
-      // Validate photos
-      const photoCount = draft.photoUrls?.length || 0;
+      // Validate photos - check both photoUrls and photosLocal for backward compatibility
+      const photoCount = Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0);
       const isVehicleLoad = draft.vehicleType === 'car-hauler';
       const minRequired = isVehicleLoad ? 5 : 1;
+      
+      console.log('[PostLoadStep5] Photo validation:', { photoCount, isVehicleLoad, minRequired });
       
       if (photoCount < minRequired) {
         const errorMsg = isVehicleLoad 
@@ -394,15 +397,15 @@ export default function PostLoadStep5() {
               </View>
             )}
             <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos selected: {(draft.photoUrls?.length || 0)} 
+              Photos selected: {Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0)} 
               {draft.vehicleType === 'car-hauler' ? ' (5 required for vehicle protection)' : ' (1+ recommended)'}
             </Text>
-            {draft.vehicleType === 'car-hauler' && ((draft.photoUrls?.length || 0) < 5) && uploadsInProgress === 0 && (
+            {draft.vehicleType === 'car-hauler' && (Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) && uploadsInProgress === 0 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Vehicle loads require 5 photos for shipper and driver protection.
               </Text>
             )}
-            {draft.vehicleType !== 'car-hauler' && ((draft.photoUrls?.length || 0) < 1) && uploadsInProgress === 0 && (
+            {draft.vehicleType !== 'car-hauler' && (Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) && uploadsInProgress === 0 && (
               <Text style={styles.warningText} testID="attachmentsWarning">
                 At least 1 photo is recommended for better load visibility.
               </Text>
@@ -458,20 +461,23 @@ export default function PostLoadStep5() {
                 styles.postBtn, 
                 (uploadsInProgress > 0 || 
                  !contact?.trim() ||
-                 (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
+                 (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
+                 (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
                  draft.isPosting) && styles.postBtnDisabled
               ]} 
               disabled={
                 uploadsInProgress > 0 || 
                 !contact?.trim() ||
-                (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
+                (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
+                (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
                 draft.isPosting
               } 
               accessibilityRole="button" 
               accessibilityState={{ 
                 disabled: uploadsInProgress > 0 || 
                          !contact?.trim() ||
-                         (draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5) || 
+                         (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
+                         (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
                          draft.isPosting 
               }} 
               testID="postLoadBtn"
@@ -483,11 +489,13 @@ export default function PostLoadStep5() {
               )}
               <Text style={styles.postBtnText}>
                 {uploadsInProgress > 0 
-                  ? `Uploading photos (${uploadsInProgress}/${(draft.photoUrls?.length || draft.photosLocal?.length || 0)})...` 
+                  ? `Uploading photos (${uploadsInProgress}/${Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0)})...` 
                   : draft.isPosting 
                   ? 'Posting...' 
                   : !contact?.trim()
                   ? 'Enter Contact Info'
+                  : Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < (draft.vehicleType === 'car-hauler' ? 5 : 1)
+                  ? 'Add Photos'
                   : 'Post Load'
                 }
               </Text>
