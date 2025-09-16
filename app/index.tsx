@@ -23,17 +23,17 @@ export default function IndexScreen() {
       // Add small delay to ensure navigation state is ready
       setTimeout(() => {
         if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
-          router.replace('/(tabs)/admin' as any);
+          router.replace('/(tabs)/admin');
         } else if (user.role === 'shipper') {
-          router.replace('/(tabs)/shipper' as any);
+          router.replace('/(tabs)/shipper');
         } else {
-          router.replace('/(tabs)/dashboard' as any);
+          router.replace('/(tabs)/dashboard');
         }
       }, 100);
     } else {
       console.log('[IndexScreen] ✅ FIXED: No authenticated user, navigating to login');
       setTimeout(() => {
-        router.replace('/(auth)/login' as any);
+        router.replace('/(auth)/login');
       }, 100);
     }
   }, [isLoading, isAuthenticated, user, router]);
