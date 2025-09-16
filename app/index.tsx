@@ -10,7 +10,12 @@ export default function IndexScreen() {
   const { isLoading, isAuthenticated, user } = useAuth();
 
   useEffect(() => {
-    if (isLoading) return;
+    console.log('[IndexScreen] Auth state:', { isLoading, isAuthenticated, userRole: user?.role });
+    
+    if (isLoading) {
+      console.log('[IndexScreen] Still loading auth state...');
+      return;
+    }
     
     if (isAuthenticated && user) {
       let route = '/(tabs)/dashboard'; // default
@@ -21,10 +26,17 @@ export default function IndexScreen() {
         route = '/(tabs)/shipper';
       }
       
-      console.log('[IndexScreen] Navigating to:', route, 'for user role:', user.role);
-      router.replace(route);
+      console.log('[IndexScreen] ✅ FIXED: Navigating authenticated user to:', route, 'for role:', user.role);
+      
+      // Add small delay to ensure navigation state is ready
+      setTimeout(() => {
+        router.replace(route);
+      }, 100);
     } else {
-      router.replace('/(auth)/login');
+      console.log('[IndexScreen] ✅ FIXED: No authenticated user, navigating to login');
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 100);
     }
   }, [isLoading, isAuthenticated, user, router]);
 
