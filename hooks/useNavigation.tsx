@@ -250,7 +250,7 @@ export function useNavigation(): UseNavigationReturn {
       console.log('[useNavigation] Direct API failed, trying tRPC as fallback...');
       try {
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('tRPC timeout after 5 seconds')), 5000);
+          setTimeout(() => reject(new Error('tRPC timeout after 3 seconds')), 3000); // Reduced timeout
         });
         
         const routePromise = trpcClient.route.eta.query({
@@ -271,11 +271,20 @@ export function useNavigation(): UseNavigationReturn {
           cachedAt: Date.now(),
         };
 
-        console.log(`[useNavigation] tRPC fallback successful${isRetry ? ' (retry)' : ''} - Navigation ready`);
+        console.log(`[useNavigation] ✅ tRPC fallback successful${isRetry ? ' (retry)' : ''} - Navigation ready`);
         setState(prev => ({ ...prev, retryCount: 0, error: null }));
         return route;
-      } catch (trpcError) {
-        console.warn(`[useNavigation] tRPC fallback also failed${isRetry ? ' (retry)' : ''}:`, trpcError);
+      } catch (trpcError: any) {
+        const errorMsg = trpcError?.message || 'Unknown error';
+        console.warn(`[useNavigation] ❌ tRPC fallback also failed${isRetry ? ' (retry)' : ''}:`, errorMsg);
+        
+        // Enhanced error logging for debugging
+        if (errorMsg.includes('Failed to fetch')) {
+          console.error('[useNavigation] Network fetch failed - backend may be down');
+        } else if (errorMsg.includes('timeout')) {
+          console.error('[useNavigation] tRPC timeout - backend is slow or unreachable');
+        }
+        
         // Don't throw here, return null to allow fallback route
         return null;
       }
@@ -397,7 +406,7 @@ export function useNavigation(): UseNavigationReturn {
           }));
           return apiRoute;
         } else {
-          console.warn('[useNavigation] API failed, will use fallback');
+          console.warn('[useNavigation] ❌ API failed, will use fallback:', 'Both direct API and tRPC failed');
           setState(prev => ({ 
             ...prev, 
             error: state.retryCount < 3 
@@ -420,18 +429,18 @@ export function useNavigation(): UseNavigationReturn {
         error: online ? 'API unavailable, using basic navigation' : 'Offline mode - basic navigation only'
       }));
       
-      console.log('[useNavigation] Using fallback route - Basic navigation available');
+      console.log('[useNavigation] ✅ Using fallback route - Basic navigation available');
       return fallbackRoute;
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Navigation failed';
+      console.error('[useNavigation] ❌ Route generation failed:', errorMessage);
       setState(prev => ({ 
         ...prev, 
         isLoading: false, 
-        error: errorMessage,
+        error: `Navigation error: ${errorMessage}`,
         currentRoute: null 
       }));
-      console.error('[useNavigation] Route generation failed:', error);
       return null;
     }
   }, [online, getCachedRoute, getRouteFromAPI, cacheRoute]);

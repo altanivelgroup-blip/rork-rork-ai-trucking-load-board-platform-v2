@@ -224,19 +224,29 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
   console.log('[PhotoUploader] 🔄 Starting upload to path:', path);
   
   try {
-    // CRITICAL FIX: Enhanced authentication and network checks
+    // CRITICAL FIX: Enhanced authentication and network checks with timeout
     const { getFirebase, testFirebaseConnectivity } = await import('@/utils/firebase');
     
-    // Test connectivity first
+    // Test connectivity first with timeout
     console.log('[PhotoUploader] 🌐 Testing Firebase connectivity...');
-    const connectivityTest = await testFirebaseConnectivity();
-    
-    if (!connectivityTest.connected) {
-      console.error('[PhotoUploader] ❌ Firebase connectivity failed:', connectivityTest.error);
-      throw new Error(`Network connection failed: ${connectivityTest.error || 'Unable to reach Firebase'}`);
+    try {
+      const connectivityPromise = testFirebaseConnectivity();
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Connectivity test timeout')), 5000)
+      );
+      
+      const connectivityTest = await Promise.race([connectivityPromise, timeoutPromise]);
+      
+      if (!connectivityTest.connected) {
+        console.error('[PhotoUploader] ❌ Firebase connectivity failed:', connectivityTest.error);
+        throw new Error(`Network connection failed: ${connectivityTest.error || 'Unable to reach Firebase'}`);
+      }
+      
+      console.log('[PhotoUploader] ✅ Firebase connectivity verified');
+    } catch (connectivityError: any) {
+      console.warn('[PhotoUploader] ⚠️ Connectivity test failed, proceeding anyway:', connectivityError.message);
+      // Don't block upload if connectivity test fails - Firebase might still work
     }
-    
-    console.log('[PhotoUploader] ✅ Firebase connectivity verified');
     
     // Get Firebase instances with enhanced error handling
     const { app, auth } = getFirebase();
@@ -284,21 +294,59 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
     const storageRef = ref(storage, path);
     console.log('[PhotoUploader] 📁 Storage reference created for path:', path);
     
-    // CRITICAL FIX: Use uploadBytes with timeout instead of resumable upload
-    // This avoids complex state management and network issues
-    console.log('[PhotoUploader] 📤 Starting direct upload...');
+    // CRITICAL FIX: Use uploadBytes with enhanced timeout and retry logic
+    console.log('[PhotoUploader] 📤 Starting direct upload with enhanced error handling...');
     
-    const uploadPromise = uploadBytes(storageRef, blob, {
-      contentType: mime,
-    });
+    let uploadResult;
+    let retryCount = 0;
+    const maxRetries = 2;
     
-    // Add timeout to prevent hanging uploads
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Upload timeout - please try again')), 30000)
-    );
-    
-    const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
-    console.log('[PhotoUploader] ✅ Upload completed successfully');
+    while (retryCount <= maxRetries) {
+      try {
+        const uploadPromise = uploadBytes(storageRef, blob, {
+          contentType: mime,
+        });
+        
+        // Add timeout to prevent hanging uploads (reduced for faster feedback)
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Upload timeout after 20 seconds')), 20000)
+        );
+        
+        uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
+        console.log('[PhotoUploader] ✅ Upload completed successfully on attempt', retryCount + 1);
+        break; // Success, exit retry loop
+        
+      } catch (uploadError: any) {
+        retryCount++;
+        console.warn(`[PhotoUploader] ⚠️ Upload attempt ${retryCount} failed:`, uploadError.message);
+        
+        if (retryCount > maxRetries) {
+          // Final attempt failed
+          if (uploadError.message?.includes('timeout')) {
+            throw new Error('Upload timed out after multiple attempts. Please try a smaller photo.');
+          } else if (uploadError.message?.includes('Failed to fetch')) {
+            throw new Error('Network connection failed. Please check your internet and try again.');
+          } else {
+            throw uploadError;
+          }
+        }
+        
+        // Wait before retry (exponential backoff)
+        const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 3000);
+        console.log(`[PhotoUploader] 🔄 Retrying upload in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        // Refresh auth token before retry
+        try {
+          if (auth?.currentUser) {
+            await auth.currentUser.getIdToken(true);
+            console.log('[PhotoUploader] 🔑 Auth token refreshed for retry');
+          }
+        } catch (tokenError) {
+          console.warn('[PhotoUploader] ⚠️ Token refresh failed, continuing retry anyway');
+        }
+      }
+    }
     
     // Get download URL with timeout
     console.log('[PhotoUploader] 🔗 Getting download URL...');
@@ -328,15 +376,18 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
     
     // Enhanced error mapping for better user experience
     let enhancedError = error;
-    if (error?.message?.includes('Failed to fetch')) {
-      enhancedError = new Error('Network connection failed. Please check your internet and try again.');
+    if (error?.message?.includes('Failed to fetch') || error?.message?.includes('fetch')) {
+      enhancedError = new Error('Network connection failed. Please check your internet connection and try again.');
       enhancedError.code = 'network-failed';
-    } else if (error?.message?.includes('timeout')) {
-      enhancedError = new Error('Upload timed out. Please try again with a smaller photo.');
+    } else if (error?.message?.includes('timeout') || error?.message?.includes('timed out')) {
+      enhancedError = new Error('Upload timed out. Please try again with a smaller photo or better connection.');
       enhancedError.code = 'upload-timeout';
-    } else if (error?.code === 'storage/unauthorized') {
-      enhancedError = new Error('Upload permission denied. Please refresh and try again.');
+    } else if (error?.code === 'storage/unauthorized' || error?.message?.includes('unauthorized')) {
+      enhancedError = new Error('Upload permission denied. Please refresh the app and try again.');
       enhancedError.code = 'auth-failed';
+    } else if (error?.message?.includes('Network connection failed')) {
+      // Already a network error, don't wrap it
+      enhancedError = error;
     }
     
     throw enhancedError;
@@ -791,9 +842,12 @@ export function PhotoUploader({
           errorMessage = 'Configuration error. Please contact support.';
         } else if (code.includes('network') || code.includes('timeout')) {
           errorMessage = 'Network error. Check connection and retry.';
-        } else if (code.includes('Failed to fetch') || code.includes('TypeError: Failed to fetch')) {
-          errorMessage = 'Upload failed. Please try again or select a different photo.';
-          console.warn('[PhotoUploader] ❌ Upload failed - retrying may help');
+        } else if (code.includes('Failed to fetch') || code.includes('TypeError: Failed to fetch') || code.includes('fetch')) {
+          errorMessage = 'Network error during upload. Please check your connection and try again.';
+          console.warn('[PhotoUploader] ❌ Network fetch failed - check connection');
+        } else if (code.includes('Network connection failed')) {
+          errorMessage = 'Network connection failed. Please check your internet and retry.';
+          console.warn('[PhotoUploader] ❌ Network connection issue detected');
         }
         
         setState(prev => ({

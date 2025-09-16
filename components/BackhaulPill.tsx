@@ -266,16 +266,16 @@ Output schema:
         }
       ];
 
-      // Improved timeout and error handling
+      // Enhanced timeout and error handling with better cleanup
       const controller = new AbortController();
       let timeoutId: NodeJS.Timeout | null = null;
       
       try {
         // Set timeout with proper cleanup
         timeoutId = setTimeout(() => {
-          console.log('[BackhaulPill] Request timeout - aborting');
+          console.log('[BackhaulPill] ❌ Request timeout - aborting after 10 seconds');
           controller.abort();
-        }, 15000); // Increased to 15 seconds
+        }, 10000); // Reduced to 10 seconds for faster fallback
 
         const response = await fetch('https://toolkit.rork.com/text/llm/', {
           method: 'POST',
@@ -365,30 +365,36 @@ Output schema:
           timeoutId = null;
         }
         
-        // Handle different error types
+        // Enhanced error handling with specific error types
         if (fetchError.name === 'AbortError') {
-          console.log('[BackhaulPill] Request was aborted (likely timeout)');
-          throw new Error('Request timeout - please try again');
-        } else if (fetchError.message?.includes('fetch')) {
-          console.error('[BackhaulPill] Network fetch failed:', fetchError);
-          throw new Error('Network connection failed');
+          console.log('[BackhaulPill] ❌ Request was aborted (timeout after 10s)');
+          throw new Error('AI service timeout - using fallback suggestions');
+        } else if (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('fetch')) {
+          console.error('[BackhaulPill] ❌ Network fetch failed:', fetchError.message);
+          throw new Error('Network connection failed - using fallback suggestions');
+        } else if (fetchError.message?.includes('signal is aborted')) {
+          console.error('[BackhaulPill] ❌ Signal aborted:', fetchError.message);
+          throw new Error('Request cancelled - using fallback suggestions');
         } else {
-          console.error('[BackhaulPill] Unexpected fetch error:', fetchError);
-          throw fetchError;
+          console.error('[BackhaulPill] ❌ Unexpected fetch error:', fetchError);
+          throw new Error(`AI service error: ${fetchError.message || 'Unknown error'}`);
         }
       }
 
-    } catch (error) {
-      console.error('[BackhaulPill] AI generation failed:', error);
+    } catch (error: any) {
+      const errorMsg = error?.message || 'Unknown error';
+      console.error('[BackhaulPill] ❌ AI generation failed:', errorMsg);
       
       // Always generate fallback suggestions when AI fails
       try {
+        console.log('[BackhaulPill] ⚙️ Generating fallback suggestions due to AI failure...');
         const fallbackSuggestions = generateFallbackSuggestions(deliveryLocation, user as Driver);
         if (fallbackSuggestions.length > 0) {
-          console.log('[BackhaulPill] Using fallback suggestions:', fallbackSuggestions.length);
+          console.log('[BackhaulPill] ✅ Using', fallbackSuggestions.length, 'fallback suggestions');
           setAiSuggestions(fallbackSuggestions);
         } else {
           // If even fallback fails, create minimal suggestions
+          console.log('[BackhaulPill] ⚙️ Creating minimal suggestions as last resort...');
           const minimalSuggestions = [{
             id: `minimal-${Date.now()}`,
             origin: {
@@ -410,18 +416,19 @@ Output schema:
             ratePerMile: 2.4,
             pickupDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-            description: 'Standard freight - AI unavailable',
+            description: 'Standard freight - AI service unavailable',
             aiScore: 75,
             shipperName: 'Regional Transport',
             distanceFromDelivery: 25,
             priority: 'optimal' as const,
             marketTrend: 'stable' as const
           }];
-          console.log('[BackhaulPill] Using minimal fallback suggestions');
+          console.log('[BackhaulPill] ✅ Using minimal fallback suggestions');
           setAiSuggestions(minimalSuggestions);
         }
       } catch (fallbackError) {
-        console.error('[BackhaulPill] Even fallback generation failed:', fallbackError);
+        console.error('[BackhaulPill] ❌ Even fallback generation failed:', fallbackError);
+        // Set empty array but don't block the UI
         setAiSuggestions([]);
       }
     } finally {
@@ -531,12 +538,12 @@ Output schema:
           <View style={styles.pillText}>
             <Text style={styles.pillTitle}>
               {isGeneratingAI ? 'AI analyzing backhauls...' : 
-               aiSuggestions.length > 0 ? `AI Backhaul (${Math.round(allBackhauls[0]?.distanceFromDelivery || 0)}mi, ${allBackhauls[0]?.rate || 0})` :
+               aiSuggestions.length > 0 ? `Smart Backhaul (${Math.round(allBackhauls[0]?.distanceFromDelivery || 0)}mi, ${allBackhauls[0]?.rate || 0})` :
                `Backhaul near delivery (${Math.round(allBackhauls[0]?.distanceFromDelivery || 0)}mi)`}
             </Text>
             <Text style={styles.pillSubtitle}>
               {isGeneratingAI ? 'Analyzing market trends & driver profile' :
-               aiSuggestions.length > 0 ? `${aiSuggestions.length} AI match${aiSuggestions.length !== 1 ? 'es' : ''} - Accept?` :
+               aiSuggestions.length > 0 ? `${aiSuggestions.length} smart match${aiSuggestions.length !== 1 ? 'es' : ''} found` :
                `${allBackhauls.length} option${allBackhauls.length !== 1 ? 's' : ''} available`}
             </Text>
           </View>
