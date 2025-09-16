@@ -1,54 +1,84 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
-  console.log('[IndexScreen] SIMPLE FIX - Starting with basic navigation');
+  console.log('[IndexScreen] FINAL FIX - Starting with bulletproof navigation');
   
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isLoading, isAuthenticated, user } = useAuth();
+  const [hasNavigated, setHasNavigated] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
-  console.log('[IndexScreen] SIMPLE FIX - Auth state:', {
+  console.log('[IndexScreen] FINAL FIX - State:', {
     isLoading,
     isAuthenticated,
-    userRole: user?.role
+    userRole: user?.role,
+    hasNavigated,
+    isReady
   });
 
+  // Wait for everything to be ready
   useEffect(() => {
-    // Simple timeout to ensure everything is loaded
     const timer = setTimeout(() => {
-      if (isLoading) {
-        console.log('[IndexScreen] SIMPLE FIX - Still loading, waiting...');
-        return;
-      }
+      setIsReady(true);
+      console.log('[IndexScreen] FINAL FIX - Navigation system ready');
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
+  useEffect(() => {
+    if (!isReady || hasNavigated || isLoading) {
+      console.log('[IndexScreen] FINAL FIX - Waiting...', { isReady, hasNavigated, isLoading });
+      return;
+    }
+
+    console.log('[IndexScreen] FINAL FIX - Ready to navigate');
+    
+    const navigate = async () => {
       try {
+        setHasNavigated(true);
+        
+        // Give a small delay to ensure router is completely ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         if (isAuthenticated && user) {
-          console.log('[IndexScreen] SIMPLE FIX - Authenticated, going to dashboard');
+          console.log('[IndexScreen] FINAL FIX - Authenticated user, going to dashboard');
           const route = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
           router.replace(route);
         } else {
-          console.log('[IndexScreen] SIMPLE FIX - Not authenticated, going to login');
+          console.log('[IndexScreen] FINAL FIX - No authenticated user, going to login');
           router.replace('/(auth)/login');
         }
       } catch (error) {
-        console.error('[IndexScreen] SIMPLE FIX - Navigation error, forcing login:', error);
-        router.replace('/(auth)/login');
+        console.error('[IndexScreen] FINAL FIX - Navigation failed:', error);
+        // Reset and try again after a delay
+        setHasNavigated(false);
+        setTimeout(() => {
+          try {
+            router.replace('/(auth)/login');
+          } catch (fallbackError) {
+            console.error('[IndexScreen] FINAL FIX - Fallback navigation also failed:', fallbackError);
+          }
+        }, 2000);
       }
-    }, 500);
+    };
 
-    return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, user, router]);
+    navigate();
+  }, [isReady, hasNavigated, isLoading, isAuthenticated, user, router]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <Text style={styles.text}>LoadRun</Text>
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color="#007AFF" />
-        <Text style={styles.subText}>Loading...</Text>
+        <Text style={styles.subText}>
+          {!isReady ? 'Starting app...' : isLoading ? 'Checking authentication...' : 'Redirecting...'}
+        </Text>
       </View>
     </View>
   );
