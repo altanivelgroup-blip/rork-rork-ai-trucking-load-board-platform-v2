@@ -36,35 +36,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   
   console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // QUICK FIX: Simplified initialization to prevent hanging
+  // EMERGENCY FIX: Immediate initialization to prevent hanging
   useEffect(() => {
-    let isMounted = true;
-    
-    const quickInit = async () => {
-      try {
-        console.log('[auth] Quick initialization mode - skipping complex auth setup');
-        
-        if (!isMounted) return;
-        
-        // Just set as initialized immediately
-        setIsInitialized(true);
-        setIsLoading(false);
-        console.log('[auth] Quick init completed');
-      } catch (e) {
-        console.error('[auth] error in quick init:', e);
-        if (isMounted) {
-          setIsInitialized(true);
-          setIsLoading(false);
-        }
-      }
-    };
-    
-    // Immediate initialization
-    quickInit();
-    
-    return () => {
-      isMounted = false;
-    };
+    console.log('[auth] EMERGENCY FIX - Immediate initialization');
+    setIsInitialized(true);
+    setIsLoading(false);
+    console.log('[auth] EMERGENCY FIX - Auth ready immediately');
   }, []);
 
   // QUICK FIX: Disable Firebase auth setup to prevent hanging

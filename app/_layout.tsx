@@ -199,53 +199,28 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  console.log("[RootLayout] rendering - starting provider chain");
+  console.log("[RootLayout] EMERGENCY FIX - Simplified provider chain");
 
   return (
     <GlobalErrorBoundary>
-      <ErrorBoundary safeRoute="/(auth)/login">
-        <GestureHandlerRootView style={styles.rootContainer}>
-          <QueryClientProvider client={queryClient}>
-            <trpc.Provider client={trpcClient} queryClient={queryClient}>
-              <ToastProvider>
-                <StartupInitializer>
-                  <View style={styles.appContainer}>
-                    <AuthProvider>
-                      <ProfileCacheProvider>
-                        <ErrorBoundary safeRoute="/(auth)/login">
-                          <RoleBasedRouter>
-                          <StripeWrapper>
-                            <SettingsProvider>
-                              <PaymentsProvider>
-                              <WalletProvider>
-                                <AdminWalletProvider>
-                                  <MaintenanceProvider>
-                                    <LoadsProvider>
-                                      <PostLoadProvider>
-                                        <AutoArriveProvider>
-                                          <RootLayoutNav />
-                                          <AutoArriveSheet />
-                                        </AutoArriveProvider>
-                                      </PostLoadProvider>
-                                    </LoadsProvider>
-                                  </MaintenanceProvider>
-                                </AdminWalletProvider>
-                              </WalletProvider>
-                              </PaymentsProvider>
-                            </SettingsProvider>
-                          </StripeWrapper>
-                          </RoleBasedRouter>
-                        </ErrorBoundary>
-                      </ProfileCacheProvider>
-                    </AuthProvider>
-                  </View>
-                </StartupInitializer>
-                <ToastHost />
-              </ToastProvider>
-            </trpc.Provider>
-          </QueryClientProvider>
-        </GestureHandlerRootView>
-      </ErrorBoundary>
+      <GestureHandlerRootView style={styles.rootContainer}>
+        <QueryClientProvider client={queryClient}>
+          <trpc.Provider client={trpcClient} queryClient={queryClient}>
+            <ToastProvider>
+              <View style={styles.appContainer}>
+                <AuthProvider>
+                  <ErrorBoundary safeRoute="/(auth)/login">
+                    <RoleBasedRouter>
+                      <RootLayoutNav />
+                    </RoleBasedRouter>
+                  </ErrorBoundary>
+                </AuthProvider>
+              </View>
+              <ToastHost />
+            </ToastProvider>
+          </trpc.Provider>
+        </QueryClientProvider>
+      </GestureHandlerRootView>
     </GlobalErrorBoundary>
   );
 }
