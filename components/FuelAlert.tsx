@@ -1,30 +1,49 @@
-import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { AlertTriangle, Fuel, X } from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, ActivityIndicator } from 'react-native';
+import { AlertTriangle, Fuel, X, MapPin, Navigation, Star } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useFuelMonitor, useFuelDisplay } from '@/hooks/useFuelMonitor';
 
 interface FuelAlertProps {
   onDismiss?: () => void;
   onFindFuelStops?: () => void;
+  onNavigateToStop?: (stopId: string) => void;
 }
 
 export const FuelAlert: React.FC<FuelAlertProps> = ({
   onDismiss,
   onFindFuelStops,
+  onNavigateToStop,
 }) => {
-  const { isLowFuel, currentLoad } = useFuelMonitor();
+  const { isLowFuel, currentLoad, nearbyFuelStops, isLoadingFuelStops, findNearbyFuelStops, currentLocation } = useFuelMonitor();
   const { fuelLevel, fuelColor } = useFuelDisplay();
+  const [showFuelStops, setShowFuelStops] = useState<boolean>(false);
 
   const handleDismiss = useCallback(() => {
     console.log('[FuelAlert] Alert dismissed');
     onDismiss?.();
   }, [onDismiss]);
 
-  const handleFindFuelStops = useCallback(() => {
+  const handleFindFuelStops = useCallback(async () => {
     console.log('[FuelAlert] Finding fuel stops');
+    
+    if (nearbyFuelStops.length === 0) {
+      await findNearbyFuelStops(currentLocation || undefined);
+    }
+    
+    setShowFuelStops(true);
     onFindFuelStops?.();
-  }, [onFindFuelStops]);
+  }, [onFindFuelStops, findNearbyFuelStops, nearbyFuelStops.length, currentLocation]);
+
+  const handleNavigateToStop = useCallback((stopId: string) => {
+    console.log('[FuelAlert] Navigating to fuel stop:', stopId);
+    setShowFuelStops(false);
+    onNavigateToStop?.(stopId);
+  }, [onNavigateToStop]);
+
+  const handleCloseFuelStops = useCallback(() => {
+    setShowFuelStops(false);
+  }, []);
 
   if (!isLowFuel || !currentLoad) {
     return null;
@@ -74,6 +93,99 @@ export const FuelAlert: React.FC<FuelAlertProps> = ({
           </TouchableOpacity>
         )}
       </View>
+      
+      {/* Fuel Stops Modal */}
+      <Modal
+        visible={showFuelStops}
+        transparent
+        animationType="slide"
+        onRequestClose={handleCloseFuelStops}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleContainer}>
+                <Fuel size={20} color={theme.colors.primary} />
+                <Text style={styles.modalTitle}>Nearby Fuel Stops</Text>
+              </View>
+              <TouchableOpacity style={styles.closeButton} onPress={handleCloseFuelStops}>
+                <X size={20} color={theme.colors.gray} />
+              </TouchableOpacity>
+            </View>
+            
+            {isLoadingFuelStops ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={styles.loadingText}>Finding fuel stops...</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.stopsContainer}>
+                {nearbyFuelStops.map((stop) => (
+                  <TouchableOpacity
+                    key={stop.id}
+                    style={[
+                      styles.stopCard,
+                      stop.isSponsored && styles.sponsoredStop,
+                    ]}
+                    onPress={() => handleNavigateToStop(stop.id)}
+                  >
+                    {stop.isSponsored && (
+                      <View style={styles.sponsoredBadge}>
+                        <Star size={12} color={theme.colors.white} />
+                        <Text style={styles.sponsoredText}>Sponsored</Text>
+                      </View>
+                    )}
+                    
+                    <View style={styles.stopHeader}>
+                      <Text style={styles.stopName}>{stop.name}</Text>
+                      <Text style={styles.stopDistance}>{stop.distance.toFixed(1)} mi</Text>
+                    </View>
+                    
+                    <View style={styles.stopDetails}>
+                      <MapPin size={14} color={theme.colors.gray} />
+                      <Text style={styles.stopAddress}>
+                        {stop.location.address}, {stop.location.city}
+                      </Text>
+                    </View>
+                    
+                    {stop.pricePerGallon && (
+                      <Text style={styles.fuelPrice}>
+                        ${stop.pricePerGallon.toFixed(2)}/gal
+                      </Text>
+                    )}
+                    
+                    <View style={styles.amenitiesContainer}>
+                      {stop.amenities.slice(0, 3).map((amenity) => (
+                        <View key={`${stop.id}-${amenity}`} style={styles.amenityTag}>
+                          <Text style={styles.amenityText}>{amenity}</Text>
+                        </View>
+                      ))}
+                      {stop.amenities.length > 3 && (
+                        <Text style={styles.moreAmenities}>
+                          +{stop.amenities.length - 3} more
+                        </Text>
+                      )}
+                    </View>
+                    
+                    <View style={styles.navigateButton}>
+                      <Navigation size={14} color={theme.colors.primary} />
+                      <Text style={styles.navigateText}>Navigate</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                
+                {nearbyFuelStops.length === 0 && (
+                  <View style={styles.noStopsContainer}>
+                    <Fuel size={32} color={theme.colors.gray} />
+                    <Text style={styles.noStopsText}>No fuel stops found nearby</Text>
+                    <Text style={styles.noStopsSubtext}>Try searching in a different area</Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -172,5 +284,168 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
     color: theme.colors.white,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: theme.colors.white,
+    borderTopLeftRadius: theme.borderRadius.lg,
+    borderTopRightRadius: theme.borderRadius.lg,
+    maxHeight: '80%',
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  modalTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  modalTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
+    color: theme.colors.dark,
+  },
+  closeButton: {
+    padding: theme.spacing.xs,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+  },
+  loadingText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+  },
+  stopsContainer: {
+    flex: 1,
+    padding: theme.spacing.md,
+  },
+  stopCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sponsoredStop: {
+    borderColor: theme.colors.primary,
+    borderWidth: 2,
+  },
+  sponsoredBadge: {
+    position: 'absolute',
+    top: theme.spacing.xs,
+    right: theme.spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+    gap: 2,
+  },
+  sponsoredText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  stopHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  stopName: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    flex: 1,
+  },
+  stopDistance: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+    color: theme.colors.primary,
+  },
+  stopDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+    gap: theme.spacing.xs,
+  },
+  stopAddress: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    flex: 1,
+  },
+  fuelPrice: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.success,
+    marginBottom: theme.spacing.xs,
+  },
+  amenitiesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  amenityTag: {
+    backgroundColor: theme.colors.lightGray,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+  },
+  amenityText: {
+    fontSize: 10,
+    color: theme.colors.gray,
+  },
+  moreAmenities: {
+    fontSize: 10,
+    color: theme.colors.gray,
+    fontStyle: 'italic',
+  },
+  navigateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+  },
+  navigateText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  noStopsContainer: {
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+    gap: theme.spacing.sm,
+  },
+  noStopsText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.gray,
+    textAlign: 'center',
+  },
+  noStopsSubtext: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    textAlign: 'center',
   },
 });

@@ -1,46 +1,25 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
-import { Load, Driver, Location } from '@/types';
+import { Load, Driver } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 import { Platform } from 'react-native';
-import { trpcClient } from '@/lib/trpc';
-
-interface FuelStop {
-  id: string;
-  name: string;
-  brand: string;
-  location: Location;
-  distance: number; // Distance from current location in miles
-  pricePerGallon?: number;
-  amenities: string[];
-  isSponsored?: boolean;
-}
 
 interface FuelMonitorState {
   currentLoad: Load | null;
   fuelLevel: number; // Current fuel level (0-100%)
   isLowFuel: boolean;
   lowFuelThreshold: number; // Percentage threshold for low fuel alert
-  nearbyFuelStops: FuelStop[];
-  isLoadingFuelStops: boolean;
-  currentLocation: Location | null;
   setStartingFuel: (loadId: string, fuelLevel: number) => Promise<void>;
   updateFuelLevel: (fuelLevel: number) => Promise<void>;
   checkLowFuelAlert: () => void;
   resetFuelMonitor: () => void;
-  findNearbyFuelStops: (location?: Location) => Promise<FuelStop[]>;
-  addFuelStop: (fuelStop: FuelStop) => Promise<void>;
-  updateCurrentLocation: (location: Location) => void;
 }
 
 const FUEL_STORAGE_KEY = 'fuel_monitor_data';
-const FUEL_STOPS_CACHE_KEY = 'fuel_stops_cache';
-const LOCATION_CACHE_KEY = 'current_location_cache';
 const LOW_FUEL_THRESHOLD = 25; // 25% = 1/4 tank
-const FUEL_STOPS_CACHE_EXPIRY = 30 * 60 * 1000; // 30 minutes
 
 export const [FuelMonitorProvider, useFuelMonitor] = createContextHook<FuelMonitorState>(() => {
   const { user } = useAuth();
@@ -48,50 +27,27 @@ export const [FuelMonitorProvider, useFuelMonitor] = createContextHook<FuelMonit
   const [fuelLevel, setFuelLevel] = useState<number>(100);
   const [isLowFuel, setIsLowFuel] = useState<boolean>(false);
   const [lowFuelThreshold] = useState<number>(LOW_FUEL_THRESHOLD);
-  const [nearbyFuelStops, setNearbyFuelStops] = useState<FuelStop[]>([]);
-  const [isLoadingFuelStops, setIsLoadingFuelStops] = useState<boolean>(false);
-  const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
 
   console.log('[useFuelMonitor] Hook initialized');
 
-  // Load cached data on mount
+  // Load cached fuel data on mount
   useEffect(() => {
-    const loadCachedData = async () => {
+    const loadFuelData = async () => {
       try {
-        // Load fuel data
-        const fuelCached = await AsyncStorage.getItem(FUEL_STORAGE_KEY);
-        if (fuelCached) {
-          const data = JSON.parse(fuelCached);
+        const cached = await AsyncStorage.getItem(FUEL_STORAGE_KEY);
+        if (cached) {
+          const data = JSON.parse(cached);
           if (data.currentLoad) {
             setCurrentLoad(data.currentLoad);
             setFuelLevel(data.fuelLevel || 100);
             console.log('[useFuelMonitor] Loaded cached fuel data:', data.fuelLevel + '%');
           }
         }
-        
-        // Load location data
-        const locationCached = await AsyncStorage.getItem(LOCATION_CACHE_KEY);
-        if (locationCached) {
-          const location = JSON.parse(locationCached);
-          setCurrentLocation(location);
-          console.log('[useFuelMonitor] Loaded cached location');
-        }
-        
-        // Load fuel stops cache
-        const stopsCached = await AsyncStorage.getItem(FUEL_STOPS_CACHE_KEY);
-        if (stopsCached) {
-          const stopsData = JSON.parse(stopsCached);
-          const isExpired = Date.now() - stopsData.timestamp > FUEL_STOPS_CACHE_EXPIRY;
-          if (!isExpired && stopsData.stops) {
-            setNearbyFuelStops(stopsData.stops);
-            console.log('[useFuelMonitor] Loaded cached fuel stops:', stopsData.stops.length);
-          }
-        }
       } catch (error) {
-        console.warn('[useFuelMonitor] Failed to load cached data:', error);
+        console.warn('[useFuelMonitor] Failed to load cached fuel data:', error);
       }
     };
-    loadCachedData();
+    loadFuelData();
   }, []);
 
   // Cache fuel data whenever it changes
@@ -282,176 +238,15 @@ export const [FuelMonitorProvider, useFuelMonitor] = createContextHook<FuelMonit
     checkLowFuelAlert();
   }, [checkLowFuelAlert]);
 
-  // Update current location and cache it
-  const updateCurrentLocation = useCallback(async (location: Location) => {
-    setCurrentLocation(location);
-    try {
-      await AsyncStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(location));
-      console.log('[useFuelMonitor] Location cached');
-    } catch (error) {
-      console.warn('[useFuelMonitor] Failed to cache location:', error);
-    }
-  }, []);
-
-  // Find nearby fuel stops with navigation integration
-  const findNearbyFuelStops = useCallback(async (location?: Location): Promise<FuelStop[]> => {
-    const searchLocation = location || currentLocation;
-    if (!searchLocation) {
-      console.warn('[useFuelMonitor] No location available for fuel stop search');
-      return [];
-    }
-
-    setIsLoadingFuelStops(true);
-    console.log('[useFuelMonitor] Searching for nearby fuel stops...');
-
-    try {
-      // Mock fuel stops data with sponsored options
-      const mockFuelStops: FuelStop[] = [
-        {
-          id: 'pilot-001',
-          name: 'Pilot Travel Center',
-          brand: 'Pilot',
-          location: {
-            address: '1234 Highway 95',
-            city: 'Truck Stop City',
-            state: 'TX',
-            zipCode: '75001',
-            lat: searchLocation.lat + 0.05,
-            lng: searchLocation.lng + 0.02,
-          },
-          distance: 3.2,
-          pricePerGallon: 3.89,
-          amenities: ['Showers', 'Restaurant', 'WiFi', 'Parking'],
-          isSponsored: true,
-        },
-        {
-          id: 'loves-002',
-          name: "Love's Travel Stop",
-          brand: "Love's",
-          location: {
-            address: '5678 Interstate Dr',
-            city: 'Fuel Town',
-            state: 'TX',
-            zipCode: '75002',
-            lat: searchLocation.lat + 0.08,
-            lng: searchLocation.lng - 0.03,
-          },
-          distance: 5.7,
-          pricePerGallon: 3.92,
-          amenities: ['Showers', 'Store', 'ATM'],
-          isSponsored: false,
-        },
-        {
-          id: 'ta-003',
-          name: 'TravelCenters of America',
-          brand: 'TA',
-          location: {
-            address: '9012 Truck Route',
-            city: 'Rest Stop',
-            state: 'TX',
-            zipCode: '75003',
-            lat: searchLocation.lat - 0.03,
-            lng: searchLocation.lng + 0.07,
-          },
-          distance: 4.1,
-          pricePerGallon: 3.85,
-          amenities: ['Showers', 'Restaurant', 'Laundry', 'Parking'],
-          isSponsored: true,
-        },
-      ];
-
-      // Sort by distance, prioritize sponsored stops
-      const sortedStops = mockFuelStops.sort((a, b) => {
-        if (a.isSponsored && !b.isSponsored) return -1;
-        if (!a.isSponsored && b.isSponsored) return 1;
-        return a.distance - b.distance;
-      });
-
-      setNearbyFuelStops(sortedStops);
-      
-      // Cache the results
-      try {
-        const cacheData = {
-          stops: sortedStops,
-          timestamp: Date.now(),
-          location: searchLocation,
-        };
-        await AsyncStorage.setItem(FUEL_STOPS_CACHE_KEY, JSON.stringify(cacheData));
-        console.log('[useFuelMonitor] Fuel stops cached');
-      } catch (cacheError) {
-        console.warn('[useFuelMonitor] Failed to cache fuel stops:', cacheError);
-      }
-
-      console.log('[useFuelMonitor] Found', sortedStops.length, 'nearby fuel stops');
-      return sortedStops;
-    } catch (error) {
-      console.error('[useFuelMonitor] Failed to find fuel stops:', error);
-      return [];
-    } finally {
-      setIsLoadingFuelStops(false);
-    }
-  }, [currentLocation]);
-
-  // Add a fuel stop to the current load
-  const addFuelStop = useCallback(async (fuelStop: FuelStop) => {
-    if (!currentLoad || !currentLoad.fuelData) {
-      console.warn('[useFuelMonitor] No active load to add fuel stop');
-      return;
-    }
-
-    try {
-      const updatedLoad: Load = {
-        ...currentLoad,
-        fuelData: {
-          ...currentLoad.fuelData,
-          fuelStops: [...(currentLoad.fuelData.fuelStops || []), {
-            id: fuelStop.id,
-            name: fuelStop.name,
-            location: fuelStop.location,
-            timestamp: new Date(),
-            fuelAdded: 0, // Will be updated when fuel is actually added
-          }],
-        },
-      };
-
-      setCurrentLoad(updatedLoad);
-      await cacheFuelData(updatedLoad, fuelLevel);
-
-      // Update Firestore
-      try {
-        if (user?.id) {
-          const loadRef = doc(db, 'loads', currentLoad.id);
-          await updateDoc(loadRef, {
-            'fuelData.fuelStops': updatedLoad.fuelData.fuelStops,
-            updatedAt: new Date(),
-          });
-          console.log('[useFuelMonitor] Fuel stop added and synced');
-        }
-      } catch (firestoreError) {
-        console.warn('[useFuelMonitor] Failed to sync fuel stop to Firestore:', firestoreError);
-      }
-
-      console.log('[useFuelMonitor] Fuel stop added:', fuelStop.name);
-    } catch (error) {
-      console.error('[useFuelMonitor] Failed to add fuel stop:', error);
-    }
-  }, [currentLoad, fuelLevel, user?.id, cacheFuelData]);
-
   const resetFuelMonitor = useCallback(() => {
     console.log('[useFuelMonitor] Resetting fuel monitor');
     setCurrentLoad(null);
     setFuelLevel(100);
     setIsLowFuel(false);
-    setNearbyFuelStops([]);
-    setCurrentLocation(null);
     
     // Clear cached data
-    Promise.all([
-      AsyncStorage.removeItem(FUEL_STORAGE_KEY),
-      AsyncStorage.removeItem(FUEL_STOPS_CACHE_KEY),
-      AsyncStorage.removeItem(LOCATION_CACHE_KEY),
-    ]).catch(error => {
-      console.warn('[useFuelMonitor] Failed to clear cached data:', error);
+    AsyncStorage.removeItem(FUEL_STORAGE_KEY).catch(error => {
+      console.warn('[useFuelMonitor] Failed to clear cached fuel data:', error);
     });
   }, []);
 
@@ -460,16 +255,10 @@ export const [FuelMonitorProvider, useFuelMonitor] = createContextHook<FuelMonit
     fuelLevel,
     isLowFuel,
     lowFuelThreshold,
-    nearbyFuelStops,
-    isLoadingFuelStops,
-    currentLocation,
     setStartingFuel,
     updateFuelLevel,
     checkLowFuelAlert,
     resetFuelMonitor,
-    findNearbyFuelStops,
-    addFuelStop,
-    updateCurrentLocation,
   };
 });
 
