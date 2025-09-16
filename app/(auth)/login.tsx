@@ -122,11 +122,11 @@ export default function LoginScreen() {
         
         console.log('[login] success, navigating based on role:', finalRole);
         if (finalRole === 'admin') {
-          router.replace('/admin' as any);
+          router.replace('/(tabs)/admin');
         } else if (finalRole === 'shipper') {
-          router.replace('/shipper' as any);
+          router.replace('/(tabs)/shipper');
         } else {
-          router.replace('/dashboard' as any);
+          router.replace('/(tabs)/dashboard');
         }
         return;
       }
@@ -145,11 +145,11 @@ export default function LoginScreen() {
       
       console.log('[login] anonymous success, navigating based on role:', selectedRole);
       if (selectedRole === 'admin') {
-        router.replace('/admin' as any);
+        router.replace('/(tabs)/admin');
       } else if (selectedRole === 'shipper') {
-        router.replace('/shipper' as any);
+        router.replace('/(tabs)/shipper');
       } else {
-        router.replace('/dashboard' as any);
+        router.replace('/(tabs)/dashboard');
       }
     } catch (error: any) {
       console.error('[login] failed:', error?.code, error?.message);

@@ -18,22 +18,22 @@ export default function IndexScreen() {
     }
     
     if (isAuthenticated && user) {
-      console.log('[IndexScreen] ✅ FIXED: Navigating authenticated user for role:', user.role);
+      console.log('[IndexScreen] ✅ PERMANENT FIX: Navigating authenticated user for role:', user.role);
       
       // Add small delay to ensure navigation state is ready
       setTimeout(() => {
         if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
-          router.replace('/admin' as any);
+          router.replace('/(tabs)/admin');
         } else if (user.role === 'shipper') {
-          router.replace('/shipper' as any);
+          router.replace('/(tabs)/shipper');
         } else {
-          router.replace('/dashboard' as any);
+          router.replace('/(tabs)/dashboard');
         }
       }, 100);
     } else {
-      console.log('[IndexScreen] ✅ FIXED: No authenticated user, navigating to login');
+      console.log('[IndexScreen] ✅ PERMANENT FIX: No authenticated user, navigating to login');
       setTimeout(() => {
-        router.replace('/login' as any);
+        router.replace('/(auth)/login');
       }, 100);
     }
   }, [isLoading, isAuthenticated, user, router]);
