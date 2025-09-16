@@ -37,18 +37,18 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
   const fuelMonitor = useFuelMonitor();
   const {
     resetFuelMonitor = () => console.log('[DriverNavigation] Fallback resetFuelMonitor called'),
-    currentLoad,
-    fuelLevel: monitorFuelLevel,
-    isLowFuel: monitorIsLowFuel,
-    nearbyFuelStops,
-    isLoadingFuelStops,
-    currentLocation,
-    setStartingFuel,
-    updateFuelLevel,
-    checkLowFuelAlert,
-    findNearbyFuelStops,
-    addFuelStop,
-    updateCurrentLocation,
+    currentLoad = null,
+    fuelLevel: monitorFuelLevel = 100,
+    isLowFuel: monitorIsLowFuel = false,
+    nearbyFuelStops = [],
+    isLoadingFuelStops = false,
+    currentLocation = null,
+    setStartingFuel = async () => {},
+    updateFuelLevel = async () => {},
+    checkLowFuelAlert = () => {},
+    findNearbyFuelStops = async () => [],
+    addFuelStop = async () => {},
+    updateCurrentLocation = () => {},
   } = fuelMonitor || {};
   const fuelDisplay = useFuelDisplay();
   const { fuelLevel = monitorFuelLevel || 100, isLowFuel = monitorIsLowFuel || false, fuelColor = '#10b981' } = fuelDisplay || {};

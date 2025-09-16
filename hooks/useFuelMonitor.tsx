@@ -475,7 +475,8 @@ export const [FuelMonitorProvider, useFuelMonitor] = createContextHook<FuelMonit
 
 // Helper hook for easy fuel level formatting
 export function useFuelDisplay() {
-  const { fuelLevel, isLowFuel } = useFuelMonitor();
+  const fuelMonitor = useFuelMonitor();
+  const { fuelLevel = 100, isLowFuel = false } = fuelMonitor || {};
   
   const getFuelColor = useCallback(() => {
     if (fuelLevel <= 25) return '#ef4444'; // Red
