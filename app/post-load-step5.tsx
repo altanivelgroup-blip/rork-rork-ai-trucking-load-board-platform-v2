@@ -66,22 +66,48 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], o
 }
 
 async function reuploadUrlsToDoc(uid: string, docId: string, urls: string[]) {
+  // ✅ PERMANENT FIX: Skip re-uploading Firebase Storage URLs - they're already uploaded!
+  console.log('[Reupload] ✅ FIXED: Skipping re-upload of Firebase Storage URLs - already uploaded');
+  
+  // Filter out Firebase Storage URLs (already uploaded) and return them as-is
+  const firebaseUrls = urls.filter(url => url.includes('firebasestorage.googleapis.com'));
+  
+  if (firebaseUrls.length === urls.length) {
+    console.log('[Reupload] ✅ All URLs are Firebase Storage URLs - no re-upload needed');
+    return urls; // All URLs are already Firebase Storage URLs
+  }
+  
+  // Only process non-Firebase URLs (local URIs) if any exist
   const out: string[] = [];
   for (let i = 0; i < urls.length; i++) {
     const src = urls[i];
-    const safeName = String(src.split('/').pop() || `photo-${i}.jpg`).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const refPath = `loadPhotos/${uid}/${docId}/${String(i).padStart(2,'0')}-${safeName}`;
-    const fileRef = storage.ref(refPath);
-    try {
-      const resp = await fetch(src);
-      const blob = await resp.blob();
-      await fileRef.put(blob);
-    } catch (e) {
-      console.error('[Reupload] fetch failed for', src, e);
-      throw new Error(`Failed to fetch image from URL: ${src}`);
+    
+    // ✅ PERMANENT FIX: Skip Firebase Storage URLs - they're already uploaded
+    if (src.includes('firebasestorage.googleapis.com')) {
+      console.log('[Reupload] ✅ Skipping Firebase Storage URL - already uploaded:', src.substring(0, 50) + '...');
+      out.push(src);
+      continue;
     }
-    const url = await fileRef.getDownloadURL();
-    out.push(url);
+    
+    // Only process local URIs
+    if (src.startsWith('file://') || src.startsWith('content://') || src.startsWith('ph://')) {
+      const safeName = String(src.split('/').pop() || `photo-${i}.jpg`).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const refPath = `loadPhotos/${uid}/${docId}/${String(i).padStart(2,'0')}-${safeName}`;
+      const fileRef = storage.ref(refPath);
+      try {
+        const resp = await fetch(src);
+        const blob = await resp.blob();
+        await fileRef.put(blob);
+        const url = await fileRef.getDownloadURL();
+        out.push(url);
+      } catch (e) {
+        console.error('[Reupload] fetch failed for local URI:', src, e);
+        throw new Error(`Failed to process local image: ${src}`);
+      }
+    } else {
+      console.error('[Reupload] ❌ BLOCKED: Invalid URL type - cannot process:', src);
+      throw new Error(`Cannot process URL: ${src}. Please upload fresh photos.`);
+    }
   }
   return out;
 }
@@ -199,9 +225,20 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       const docRef = await addDoc(collection(db, 'loads'), base);
       console.log('[PostLoad] created id:', docRef.id);
 
-      const urls = pickedFromUploader.length > 0
-        ? await reuploadUrlsToDoc(uid, docRef.id, pickedFromUploader)
-        : await uploadPhotosForLoad(uid, docRef.id, picked as any[]);
+      // ✅ PERMANENT FIX: Use photoUrls directly if they're Firebase Storage URLs
+      let urls: string[];
+      if (pickedFromUploader.length > 0) {
+        // Check if all URLs are Firebase Storage URLs (already uploaded)
+        const allFirebaseUrls = pickedFromUploader.every(url => url.includes('firebasestorage.googleapis.com'));
+        if (allFirebaseUrls) {
+          console.log('[PostLoad] ✅ All photos are Firebase Storage URLs - using directly');
+          urls = pickedFromUploader; // Use directly - no re-upload needed
+        } else {
+          urls = await reuploadUrlsToDoc(uid, docRef.id, pickedFromUploader);
+        }
+      } else {
+        urls = await uploadPhotosForLoad(uid, docRef.id, picked as any[]);
+      }
       console.log('[PostLoad] uploaded urls:', urls.length);
 
       const loadObj = mapDraftToLoad(docRef.id, uid, draft, urls);
@@ -247,9 +284,20 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
       if (fireErr?.code === 'permission-denied' || fireErr?.code === 'unavailable' || fireErr?.code === 'unauthenticated') {
         const localId = `local-${Date.now()}`;
-        const urls = pickedFromUploader.length > 0
-          ? await reuploadUrlsToDoc(uid, localId, pickedFromUploader)
-          : await uploadPhotosForLoad(uid, localId, picked as any[]);
+        // ✅ PERMANENT FIX: Use photoUrls directly if they're Firebase Storage URLs
+        let urls: string[];
+        if (pickedFromUploader.length > 0) {
+          // Check if all URLs are Firebase Storage URLs (already uploaded)
+          const allFirebaseUrls = pickedFromUploader.every(url => url.includes('firebasestorage.googleapis.com'));
+          if (allFirebaseUrls) {
+            console.log('[PostLoad] ✅ All photos are Firebase Storage URLs - using directly for local fallback');
+            urls = pickedFromUploader; // Use directly - no re-upload needed
+          } else {
+            urls = await reuploadUrlsToDoc(uid, localId, pickedFromUploader);
+          }
+        } else {
+          urls = await uploadPhotosForLoad(uid, localId, picked as any[]);
+        }
         try {
           if (loadsStore?.addLoad) {
             const loadObj = mapDraftToLoad(localId, uid, draft, urls);
