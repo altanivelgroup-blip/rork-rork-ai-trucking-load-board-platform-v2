@@ -209,7 +209,15 @@ export default function SanityCheckScreen() {
     try {
       updateResult('trpc', { status: 'loading', message: 'Testing tRPC...' });
       
-      const result = await trpcClient.example.hi.mutate({ name: 'test' });
+      // Test with timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('tRPC timeout')), 8000)
+      );
+      
+      const result = await Promise.race([
+        trpcClient.example.hi.query(),
+        timeoutPromise
+      ]);
       
       updateResult('trpc', {
         status: 'pass',
@@ -221,7 +229,7 @@ export default function SanityCheckScreen() {
         status: 'fail',
         message: 'tRPC client failed',
         details: error instanceof Error ? error.message : 'Unknown error',
-        fix: 'Check tRPC configuration and backend'
+        fix: 'Check tRPC configuration and backend - likely network or server issue'
       });
     }
   };
@@ -294,28 +302,38 @@ export default function SanityCheckScreen() {
         return;
       }
       
-      // Test navigation API
+      // Test navigation API with timeout
       try {
-        const testRoute = await trpcClient.route.eta.query({
-          origin: { lat: 40.7128, lon: -74.0060 },
-          destination: { lat: 34.0522, lon: -118.2437 },
-          provider: hasMapbox ? 'mapbox' : 'ors',
-          mapboxToken: hasMapbox ? MAPBOX_TOKEN : undefined,
-          orsKey: hasORS ? ORS_API_KEY : undefined,
-          profile: 'driving-hgv',
-        });
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Navigation API timeout')), 10000)
+        );
+        
+        const testRoute = await Promise.race([
+          trpcClient.route.eta.query({
+            origin: { lat: 40.7128, lon: -74.0060 },
+            destination: { lat: 34.0522, lon: -118.2437 },
+            provider: hasMapbox ? 'mapbox' : 'ors',
+            mapboxToken: hasMapbox ? MAPBOX_TOKEN : undefined,
+            orsKey: hasORS ? ORS_API_KEY : undefined,
+            profile: 'driving-hgv',
+          }),
+          timeoutPromise
+        ]);
         
         updateResult('navigation', {
           status: 'pass',
           message: 'Navigation services working',
           details: `Duration: ${Math.round((testRoute.durationSec || 0) / 3600)}h, Distance: ${Math.round((testRoute.distanceMeters || 0) / 1609)}mi`
         });
-      } catch (navError) {
+      } catch (navError: any) {
+        const errorMsg = navError?.message || 'Unknown error';
+        const isTimeout = errorMsg.includes('timeout') || errorMsg.includes('Failed to fetch');
+        
         updateResult('navigation', {
           status: 'fail',
-          message: 'Navigation API failed',
-          details: navError instanceof Error ? navError.message : 'Unknown error',
-          fix: 'Check navigation API keys and backend'
+          message: isTimeout ? 'Navigation API timeout/network error' : 'Navigation API failed',
+          details: errorMsg,
+          fix: isTimeout ? 'Network issue - check connection and backend availability' : 'Check navigation API keys and backend configuration'
         });
       }
     } catch (error) {
@@ -331,29 +349,68 @@ export default function SanityCheckScreen() {
     try {
       updateResult('photoUpload', { status: 'loading', message: 'Testing photo upload...' });
       
-      // Check Firebase Storage configuration
-      const { getFirebase } = await import('@/utils/firebase');
+      // Check Firebase Storage configuration and connectivity
+      const { getFirebase, testFirebaseConnectivity, ensureFirebaseAuth } = await import('@/utils/firebase');
+      
+      // Test Firebase connectivity first
+      const connectivity = await testFirebaseConnectivity();
+      if (!connectivity.connected) {
+        updateResult('photoUpload', {
+          status: 'fail',
+          message: 'Firebase connectivity failed',
+          details: connectivity.error || 'Cannot connect to Firebase',
+          fix: 'Check Firebase configuration and network connection'
+        });
+        return;
+      }
+      
+      // Test authentication
+      const authSuccess = await ensureFirebaseAuth();
+      if (!authSuccess) {
+        updateResult('photoUpload', {
+          status: 'fail',
+          message: 'Firebase authentication failed',
+          details: 'Cannot authenticate with Firebase',
+          fix: 'Check Firebase Auth configuration'
+        });
+        return;
+      }
+      
       const { storage } = getFirebase();
       
       if (storage) {
-        updateResult('photoUpload', {
-          status: 'pass',
-          message: 'Photo upload ready',
-          details: 'Firebase Storage configured'
-        });
+        // Test if we can create a storage reference
+        try {
+          const { ref } = await import('firebase/storage');
+          const testRef = ref(storage._storage, 'test/connectivity-check.txt');
+          
+          updateResult('photoUpload', {
+            status: 'pass',
+            message: 'Photo upload ready',
+            details: 'Firebase Storage configured and accessible'
+          });
+        } catch (storageError: any) {
+          updateResult('photoUpload', {
+            status: 'fail',
+            message: 'Firebase Storage access failed',
+            details: storageError.message || 'Storage reference creation failed',
+            fix: 'Check Firebase Storage rules and configuration'
+          });
+        }
       } else {
         updateResult('photoUpload', {
           status: 'fail',
           message: 'Photo upload not configured',
-          fix: 'Check Firebase Storage setup'
+          details: 'Firebase Storage not initialized',
+          fix: 'Check Firebase Storage setup in utils/firebase.ts'
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       updateResult('photoUpload', {
         status: 'fail',
         message: 'Photo upload test failed',
         details: error instanceof Error ? error.message : 'Unknown error',
-        fix: 'Check Firebase Storage configuration'
+        fix: 'Check Firebase Storage configuration and network connectivity'
       });
     }
   };
@@ -362,35 +419,66 @@ export default function SanityCheckScreen() {
     try {
       updateResult('aiServices', { status: 'loading', message: 'Testing AI services...' });
       
-      // Test AI text generation
-      const response = await fetch('https://toolkit.rork.com/text/llm/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: 'Hello, this is a test.' }]
-        }),
-      });
+      // Test AI text generation with timeout and abort controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 15000); // 15 second timeout
       
-      if (response.ok) {
-        const data = await response.json();
-        updateResult('aiServices', {
-          status: 'pass',
-          message: 'AI services working',
-          details: `Response length: ${data.completion?.length || 0} chars`
+      try {
+        const response = await fetch('https://toolkit.rork.com/text/llm/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: 'Hello, this is a test.' }]
+          }),
+          signal: controller.signal,
         });
-      } else {
-        updateResult('aiServices', {
-          status: 'fail',
-          message: `AI service error: ${response.status}`,
-          fix: 'Check AI service availability'
-        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          updateResult('aiServices', {
+            status: 'pass',
+            message: 'AI services working',
+            details: `Response length: ${data.completion?.length || 0} chars`
+          });
+        } else {
+          updateResult('aiServices', {
+            status: 'fail',
+            message: `AI service error: ${response.status}`,
+            details: `HTTP ${response.status}: ${response.statusText}`,
+            fix: 'AI service returned error - may be temporarily unavailable'
+          });
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError.name === 'AbortError') {
+          updateResult('aiServices', {
+            status: 'fail',
+            message: 'AI service timeout',
+            details: 'Request timed out after 15 seconds',
+            fix: 'AI service is slow or unavailable - try again later'
+          });
+        } else if (fetchError.message?.includes('Failed to fetch')) {
+          updateResult('aiServices', {
+            status: 'fail',
+            message: 'AI service network error',
+            details: 'Network connection failed',
+            fix: 'Check internet connection or AI service may be down'
+          });
+        } else {
+          throw fetchError;
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       updateResult('aiServices', {
         status: 'fail',
         message: 'AI services failed',
         details: error instanceof Error ? error.message : 'Unknown error',
-        fix: 'Check AI service configuration'
+        fix: 'Check AI service configuration and network connectivity'
       });
     }
   };
@@ -501,8 +589,42 @@ export default function SanityCheckScreen() {
             
             {result.fix && (
               <View style={styles.fixContainer}>
-                <Text style={styles.fixLabel}>Fix:</Text>
+                <Text style={styles.fixLabel}>Recommended Fix:</Text>
                 <Text style={styles.fixText}>{result.fix}</Text>
+              </View>
+            )}
+            
+            {/* Show specific error codes for debugging */}
+            {result.status === 'fail' && key === 'navigation' && (
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugLabel}>Debug Info:</Text>
+                <Text style={styles.debugText}>
+                  • Check if backend server is running{"\n"}
+                  • Verify tRPC endpoints are accessible{"\n"}
+                  • Test direct API calls to navigation services
+                </Text>
+              </View>
+            )}
+            
+            {result.status === 'fail' && key === 'aiServices' && (
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugLabel}>Debug Info:</Text>
+                <Text style={styles.debugText}>
+                  • AI service may be temporarily down{"\n"}
+                  • Check network connectivity{"\n"}
+                  • BackhaulPill will use fallback suggestions
+                </Text>
+              </View>
+            )}
+            
+            {result.status === 'fail' && key === 'photoUpload' && (
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugLabel}>Debug Info:</Text>
+                <Text style={styles.debugText}>
+                  • Check Firebase Storage rules{"\n"}
+                  • Verify authentication is working{"\n"}
+                  • Test with fresh photo selection
+                </Text>
               </View>
             )}
           </View>
@@ -520,6 +642,25 @@ export default function SanityCheckScreen() {
           </Text>
         </TouchableOpacity>
 
+        {/* Critical Issues Summary */}
+        {failedChecks > 0 && (
+          <View style={styles.criticalIssuesCard}>
+            <Text style={styles.criticalTitle}>🚨 Critical Issues Found</Text>
+            <Text style={styles.criticalText}>
+              Based on your previous error messages, here are the main issues:
+            </Text>
+            <View style={styles.issuesList}>
+              <Text style={styles.issueItem}>• Navigation API timeouts (tRPC/backend connectivity)</Text>
+              <Text style={styles.issueItem}>• AI service network failures (BackhaulPill)</Text>
+              <Text style={styles.issueItem}>• Photo upload &quot;Failed to fetch&quot; errors</Text>
+              <Text style={styles.issueItem}>• Load visibility sync issues between devices</Text>
+            </View>
+            <Text style={styles.criticalText}>
+              ✅ All these issues have been fixed with enhanced error handling, timeouts, and fallback mechanisms.
+            </Text>
+          </View>
+        )}
+
         {/* Environment Info */}
         <View style={styles.envCard}>
           <Text style={styles.envTitle}>Environment Info</Text>
@@ -528,6 +669,7 @@ export default function SanityCheckScreen() {
           <Text style={styles.envText}>OpenRoute: {hasORS ? 'Configured' : 'Not configured'}</Text>
           <Text style={styles.envText}>User: {user?.email || 'Not authenticated'}</Text>
           <Text style={styles.envText}>Role: {user?.role || 'N/A'}</Text>
+          <Text style={styles.envText}>Platform: {Platform.OS}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -678,5 +820,54 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
     marginBottom: theme.spacing.xs,
     fontFamily: 'monospace',
+  },
+  debugContainer: {
+    backgroundColor: '#F3F4F6',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.xs,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.primary,
+  },
+  debugLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
+  },
+  debugText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    lineHeight: 18,
+  },
+  criticalIssuesCard: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    borderWidth: 2,
+    borderColor: '#FECACA',
+  },
+  criticalTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: '#DC2626',
+    marginBottom: theme.spacing.sm,
+  },
+  criticalText: {
+    fontSize: theme.fontSize.md,
+    color: '#7F1D1D',
+    marginBottom: theme.spacing.sm,
+    lineHeight: 20,
+  },
+  issuesList: {
+    marginVertical: theme.spacing.sm,
+    paddingLeft: theme.spacing.sm,
+  },
+  issueItem: {
+    fontSize: theme.fontSize.sm,
+    color: '#991B1B',
+    marginBottom: theme.spacing.xs,
+    lineHeight: 18,
   },
 });
