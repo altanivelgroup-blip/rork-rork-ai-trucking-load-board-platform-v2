@@ -39,49 +39,38 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   // CRASH FIX: Add initialization state tracking
   const [initError, setInitError] = useState<string | null>(null);
 
-  // SIMPLE FIX: Basic auth initialization
+  // Simple auth initialization
   useEffect(() => {
-    console.log('[auth] SIMPLE FIX - Starting basic auth initialization');
-    
     const initAuth = async () => {
       try {
-        // Check for cached user
         const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
         if (cached) {
           const cachedUser = JSON.parse(cached);
-          console.log('[auth] SIMPLE FIX - Found cached user:', cachedUser.email);
           setUser(cachedUser);
           setUserId(cachedUser.id);
           setIsAnonymous(cachedUser.email === 'guest@example.com');
           setHasSignedInThisSession(true);
-        } else {
-          console.log('[auth] SIMPLE FIX - No cached user found');
         }
       } catch (error) {
-        console.error('[auth] SIMPLE FIX - Error loading cached user:', error);
+        console.error('[auth] Error loading cached user:', error);
       } finally {
         setIsLoading(false);
         setIsInitialized(true);
-        console.log('[auth] SIMPLE FIX - Auth initialization complete');
       }
     };
     
     initAuth();
   }, []);
 
-  // SIMPLE FIX: Basic Firebase setup
+  // Firebase setup
   useEffect(() => {
     if (!isInitialized) return;
-    
-    console.log('[auth] SIMPLE FIX - Setting up Firebase');
     
     const setupFirebase = async () => {
       try {
         const success = await ensureFirebaseAuth();
         setIsFirebaseAuthenticated(success);
-        console.log('[auth] SIMPLE FIX - Firebase setup:', success ? 'OK' : 'FALLBACK');
       } catch (error) {
-        console.warn('[auth] SIMPLE FIX - Firebase setup failed:', error);
         setIsFirebaseAuthenticated(false);
       }
     };

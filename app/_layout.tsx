@@ -20,12 +20,10 @@ import { ProfileCacheProvider } from "@/hooks/useProfileCache";
 
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
-import { StartupInitializer } from "@/components/StartupInitializer";
-import StripeWrapper from "@/components/StripeWrapper";
+
 
 import { theme } from "@/constants/theme";
 
@@ -203,47 +201,43 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  console.log("[RootLayout] CRASH FIX - Enhanced initialization with crash logging");
-
   return (
-    <GlobalErrorBoundary>
-      <GestureHandlerRootView style={styles.rootContainer}>
-        <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
-            <trpc.Provider client={trpcClient} queryClient={queryClient}>
-              <ToastProvider>
-                <View style={styles.appContainer}>
-                  <AuthProvider>
-                    <SettingsProvider>
-                      <PaymentsProvider>
-                        <WalletProvider>
-                          <AdminWalletProvider>
-                            <MaintenanceProvider>
-                              <PostLoadProvider>
-                                <LoadsProvider>
-                                  <AutoArriveProvider>
-                                    <ProfileCacheProvider>
-                                      <ErrorBoundary safeRoute="/(auth)/login">
-                                        <RootLayoutNav />
-                                      </ErrorBoundary>
-                                      <AutoArriveSheet />
-                                    </ProfileCacheProvider>
-                                  </AutoArriveProvider>
-                                </LoadsProvider>
-                              </PostLoadProvider>
-                            </MaintenanceProvider>
-                          </AdminWalletProvider>
-                        </WalletProvider>
-                      </PaymentsProvider>
-                    </SettingsProvider>
-                  </AuthProvider>
-                </View>
-                <ToastHost />
-              </ToastProvider>
-            </trpc.Provider>
-          </QueryClientProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    </GlobalErrorBoundary>
+    <GestureHandlerRootView style={styles.rootContainer}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <trpc.Provider client={trpcClient} queryClient={queryClient}>
+            <ToastProvider>
+              <View style={styles.appContainer}>
+                <AuthProvider>
+                  <SettingsProvider>
+                    <PaymentsProvider>
+                      <WalletProvider>
+                        <AdminWalletProvider>
+                          <MaintenanceProvider>
+                            <PostLoadProvider>
+                              <LoadsProvider>
+                                <AutoArriveProvider>
+                                  <ProfileCacheProvider>
+                                    <ErrorBoundary safeRoute="/(auth)/login">
+                                      <RootLayoutNav />
+                                    </ErrorBoundary>
+                                    <AutoArriveSheet />
+                                  </ProfileCacheProvider>
+                                </AutoArriveProvider>
+                              </LoadsProvider>
+                            </PostLoadProvider>
+                          </MaintenanceProvider>
+                        </AdminWalletProvider>
+                      </WalletProvider>
+                    </PaymentsProvider>
+                  </SettingsProvider>
+                </AuthProvider>
+              </View>
+              <ToastHost />
+            </ToastProvider>
+          </trpc.Provider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
