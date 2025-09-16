@@ -24,22 +24,22 @@ export default function IndexScreen() {
       setTimeout(() => {
         try {
           if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
-            router.replace('/(tabs)/admin' as any);
+            router.replace({ pathname: '/(tabs)/admin' });
           } else if (user.role === 'shipper') {
-            router.replace('/(tabs)/shipper' as any);
+            router.replace({ pathname: '/(tabs)/shipper' });
           } else {
-            router.replace('/(tabs)/dashboard' as any);
+            router.replace({ pathname: '/(tabs)/dashboard' });
           }
         } catch (navError) {
           console.error('[IndexScreen] Navigation error:', navError);
-          router.replace('/(auth)/login' as any);
+          router.replace({ pathname: '/(auth)/login' });
         }
       }, 100);
     } else {
       console.log('[IndexScreen] ✅ PERMANENT FIX: No authenticated user, navigating to login');
       setTimeout(() => {
         try {
-          router.replace('/(auth)/login' as any);
+          router.replace({ pathname: '/(auth)/login' });
         } catch (navError) {
           console.error('[IndexScreen] Navigation to login failed:', navError);
         }

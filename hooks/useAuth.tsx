@@ -49,7 +49,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           setUser(cachedUser);
           setUserId(cachedUser.id);
           setIsAnonymous(cachedUser.email === 'guest@example.com');
-          setHasSignedInThisSession(true);
+          setHasSignedInThisSession(false);
         }
       } catch (error) {
         console.error('[auth] Error loading cached user:', error);
