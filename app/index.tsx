@@ -1,25 +1,23 @@
 import React, { useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useRootNavigationState } from 'expo-router';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 
 export default function IndexScreen() {
   const router = useRouter();
-  
-  console.log('[Index] EMERGENCY LOGIN FIX - Forcing redirect to login page');
-  
+  const navState = useRootNavigationState();
+
   useEffect(() => {
-    // EMERGENCY FIX: Force immediate redirect to login
+    if (!navState?.key) {
+      return;
+    }
     const timer = setTimeout(() => {
-      console.log('[Index] EMERGENCY LOGIN FIX - Executing redirect to login');
       router.replace('/(auth)/login');
-    }, 100);
-    
+    }, 50);
     return () => clearTimeout(timer);
-  }, [router]);
-  
-  // Show loading while redirecting
+  }, [router, navState?.key]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
