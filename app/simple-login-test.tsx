@@ -9,37 +9,55 @@ export default function SimpleLoginTest() {
   const { login, isAuthenticated, user } = useAuth();
   const router = useRouter();
 
-  const testLogin = async () => {
+  const testAdminLogin = async () => {
     setIsLoading(true);
     try {
-      console.log('[SimpleLoginTest] Testing login...');
-      await login('test@example.com', 'password123', 'driver');
-      console.log('[SimpleLoginTest] Login successful!');
-      Alert.alert('Success', 'Login worked! Redirecting to dashboard...');
+      console.log('[SimpleLoginTest] Testing admin login...');
+      await login('admin@loadrush.com', 'admin123', 'admin');
+      console.log('[SimpleLoginTest] Admin login successful!');
+      Alert.alert('Success', 'Admin login worked! Redirecting to admin panel...');
       setTimeout(() => {
-        router.replace('/(tabs)/dashboard');
+        router.replace('/(tabs)/admin' as any);
       }, 1000);
     } catch (error: any) {
-      console.error('[SimpleLoginTest] Login failed:', error);
-      Alert.alert('Error', error.message || 'Login failed');
+      console.error('[SimpleLoginTest] Admin login failed:', error);
+      Alert.alert('Error', error.message || 'Admin login failed');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const testGuestLogin = async () => {
+  const testDriverLogin = async () => {
     setIsLoading(true);
     try {
-      console.log('[SimpleLoginTest] Testing guest login...');
-      await login('guest@example.com', 'guest', 'driver');
-      console.log('[SimpleLoginTest] Guest login successful!');
-      Alert.alert('Success', 'Guest login worked! Redirecting to dashboard...');
+      console.log('[SimpleLoginTest] Testing driver login...');
+      await login('driver@test.com', 'driver123', 'driver');
+      console.log('[SimpleLoginTest] Driver login successful!');
+      Alert.alert('Success', 'Driver login worked! Redirecting to dashboard...');
       setTimeout(() => {
-        router.replace('/(tabs)/dashboard');
+        router.replace('/(tabs)/dashboard' as any);
       }, 1000);
     } catch (error: any) {
-      console.error('[SimpleLoginTest] Guest login failed:', error);
-      Alert.alert('Error', error.message || 'Guest login failed');
+      console.error('[SimpleLoginTest] Driver login failed:', error);
+      Alert.alert('Error', error.message || 'Driver login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const testShipperLogin = async () => {
+    setIsLoading(true);
+    try {
+      console.log('[SimpleLoginTest] Testing shipper login...');
+      await login('shipper@test.com', 'shipper123', 'shipper');
+      console.log('[SimpleLoginTest] Shipper login successful!');
+      Alert.alert('Success', 'Shipper login worked! Redirecting to shipper panel...');
+      setTimeout(() => {
+        router.replace('/(tabs)/shipper' as any);
+      }, 1000);
+    } catch (error: any) {
+      console.error('[SimpleLoginTest] Shipper login failed:', error);
+      Alert.alert('Error', error.message || 'Shipper login failed');
     } finally {
       setIsLoading(false);
     }
@@ -57,22 +75,32 @@ export default function SimpleLoginTest() {
       </View>
 
       <TouchableOpacity 
-        style={[styles.button, isLoading && styles.buttonDisabled]} 
-        onPress={testLogin}
+        style={[styles.button, styles.adminButton, isLoading && styles.buttonDisabled]} 
+        onPress={testAdminLogin}
         disabled={isLoading}
       >
         <Text style={styles.buttonText}>
-          {isLoading ? 'Testing...' : 'Test Regular Login'}
+          {isLoading ? 'Testing...' : 'Test Admin Login'}
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
-        style={[styles.button, styles.guestButton, isLoading && styles.buttonDisabled]} 
-        onPress={testGuestLogin}
+        style={[styles.button, isLoading && styles.buttonDisabled]} 
+        onPress={testDriverLogin}
         disabled={isLoading}
       >
         <Text style={styles.buttonText}>
-          {isLoading ? 'Testing...' : 'Test Guest Login'}
+          {isLoading ? 'Testing...' : 'Test Driver Login'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={[styles.button, styles.shipperButton, isLoading && styles.buttonDisabled]} 
+        onPress={testShipperLogin}
+        disabled={isLoading}
+      >
+        <Text style={styles.buttonText}>
+          {isLoading ? 'Testing...' : 'Test Shipper Login'}
         </Text>
       </TouchableOpacity>
 
@@ -122,7 +150,10 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     alignItems: 'center',
   },
-  guestButton: {
+  adminButton: {
+    backgroundColor: '#FF3B30',
+  },
+  shipperButton: {
     backgroundColor: '#34C759',
   },
   buttonDisabled: {
