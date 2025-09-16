@@ -107,7 +107,14 @@ export default function DashboardScreen() {
   const [nlQuery, setNlQuery] = useState<string>('');
 
   const sortOptionsBase = useMemo<SortOrder[]>(() => ['Best', 'Newest', 'Highest $', 'Lightest'], []);
-  const { sortOrder, setSortOrder, isHydrating, radiusMiles, setRadiusMiles } = useSettings();
+  const settings = useSettings();
+  const { sortOrder, setSortOrder, isHydrating, radiusMiles, setRadiusMiles } = settings || {
+    sortOrder: 'Best' as SortOrder,
+    setSortOrder: () => Promise.resolve(),
+    isHydrating: false,
+    radiusMiles: 50,
+    setRadiusMiles: () => Promise.resolve()
+  };
   const [sort, setSort] = useState<SortOrder>(sortOrder);
 
   const { startWatching, stopWatching, requestPermissionAsync, getForegroundPermissionStatusAsync } = useLiveLocation();

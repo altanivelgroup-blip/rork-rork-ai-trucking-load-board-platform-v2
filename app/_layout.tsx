@@ -196,6 +196,7 @@ function RootLayoutNav() {
       <Stack.Screen name="submission-readiness-check" options={{ title: "Submission Readiness" }} />
       <Stack.Screen name="profile-cache-test" options={{ title: "Profile Cache Test" }} />
       <Stack.Screen name="loading-fix-test" options={{ title: "Loading Fix Test" }} />
+      <Stack.Screen name="startup-test" options={{ title: "Startup Test" }} />
     </Stack>
   );
 }
