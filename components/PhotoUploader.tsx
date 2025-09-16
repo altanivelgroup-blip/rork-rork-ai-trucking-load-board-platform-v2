@@ -554,6 +554,36 @@ export function PhotoUploader({
     processPendingWrites().catch((e) => console.error('[PhotoUploader] processPendingWrites error:', e));
   }, [onChange, state.photos, processPendingWrites]);
 
+  // Helper function to handle anonymous users and path construction
+  const handleAnonymousUser = useCallback((auth: any) => {
+    if (auth.currentUser?.isAnonymous) {
+      console.warn('[PhotoUploader] 🛑 Anonymous user - uploads require sign in');
+      toast.show('Sign in required', 'warning');
+      try {
+        platformAlert(
+          'Sign in required',
+          'Please sign in to upload photos.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Sign in', onPress: () => { try { router.push('/(auth)/login'); } catch (e) { console.log('[PhotoUploader] nav error', e); } } }
+          ]
+        );
+      } catch {}
+      return { shouldReturn: true, path: null };
+    }
+    
+    // Use authenticated user ID for storage path
+    const uid = auth.currentUser.uid;
+    const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
+    const basePath = `loadPhotos/${uid}/${safeId}`;
+    
+    console.log('[PhotoUploader] 📁 Upload path:', basePath);
+    console.log('[PhotoUploader] 👤 Authenticated user:', uid);
+    console.log('[PhotoUploader] 🏗️ Entity ID:', entityId);
+    
+    return { shouldReturn: false, path: basePath };
+  }, [entityId, toast]);
+
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
       // ENHANCED: Robust Firebase authentication with detailed logging
@@ -579,22 +609,14 @@ export function PhotoUploader({
             console.log('[PhotoUploader] 🏷️ User type:', auth.currentUser?.isAnonymous ? 'Anonymous' : 'Registered');
             console.log('[PhotoUploader] 🎫 Auth token available:', !!auth.currentUser?.accessToken);
             
-            // CRITICAL: Verify storage path matches user ID
-            const uid = auth.currentUser?.uid;
-            const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
-            const expectedPath = `loadPhotos/${uid}/${safeId}`;
-            console.log('[PhotoUploader] 📁 Expected storage path:', expectedPath);
-            console.log('[PhotoUploader] 🔒 Storage rules will check: request.auth.uid == userId');
-            console.log('[PhotoUploader] 🆔 Path userId will be:', uid);
-            
-            // Get fresh ID token for storage access
+            // Get fresh ID token for storage access - token refresh before uploads
             try {
               const token = await auth.currentUser?.getIdToken(true);
               console.log('[PhotoUploader] 🔑 Fresh ID token obtained:', !!token);
               if (token) {
                 console.log('[PhotoUploader] 🔑 Token length:', token.length);
                 console.log('[PhotoUploader] 🔑 Token starts with:', token.substring(0, 20) + '...');
-                console.log('[PhotoUploader] ✅ Auth handled');
+                console.log('[PhotoUploader] ✅ Auth fixed');
               }
             } catch (tokenError) {
               console.warn('[PhotoUploader] ⚠️ Could not get fresh token:', tokenError);
@@ -636,19 +658,9 @@ export function PhotoUploader({
         emailVerified: auth.currentUser.emailVerified
       });
 
-      if (auth.currentUser.isAnonymous) {
-        console.warn('[PhotoUploader] 🛑 Anonymous user - uploads require sign in');
-        toast.show('Sign in required', 'warning');
-        try {
-          platformAlert(
-            'Sign in required',
-            'Please sign in to upload photos.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign in', onPress: () => { try { router.push('/(auth)/login'); } catch (e) { console.log('[PhotoUploader] nav error', e); } } }
-            ]
-          );
-        } catch {}
+      // Handle anonymous user and get path
+      const { shouldReturn, path: basePath } = handleAnonymousUser(auth);
+      if (shouldReturn || !basePath) {
         return;
       }
       
@@ -656,6 +668,7 @@ export function PhotoUploader({
       console.log('[PhotoUploader] 🔒 STORAGE RULES UPDATED: Firebase Storage rules now properly match user ID');
       console.log('[PhotoUploader] 📝 Rule: match /loadPhotos/{userId}/{loadId}/{fileName} { allow read, write: if request.auth != null && request.auth.uid == userId; }');
       console.log('[PhotoUploader] ✅ This should resolve storage/unauthorized errors');
+      
       const fileId = uuid.v4() as string;
       console.log('[UPLOAD_START] Processing image before upload...', input);
       const photoItem: PhotoItem = {
@@ -669,14 +682,7 @@ export function PhotoUploader({
         ...prev,
         photos: [...prev.photos, photoItem],
       }));
-      // Use authenticated user ID for storage path
-      const uid = auth.currentUser.uid;
-      const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
-      const basePath = `loadPhotos/${uid}/${safeId}`;
       
-      console.log('[PhotoUploader] 📁 Upload path:', basePath);
-      console.log('[PhotoUploader] 👤 Authenticated user:', uid);
-      console.log('[PhotoUploader] 🏗️ Entity ID:', entityId);
       console.log('[PhotoUploader] 🔒 User permissions check...');
       
       // CRITICAL: Test storage permissions before upload
@@ -725,7 +731,7 @@ export function PhotoUploader({
         console.log('[PhotoUploader] ✅ Production photo upload successful - Firebase Storage working correctly');
         
         // Save photo metadata to Firestore after successful upload
-        await savePhotoMetadata(url, entityId, uid, 'shipper');
+        await savePhotoMetadata(url, entityId, auth.currentUser.uid, 'shipper');
         
         setState(prev => {
           const updatedPhotos = prev.photos.map(p =>
@@ -810,7 +816,7 @@ export function PhotoUploader({
       const errorMessage = mapStorageError(error);
       toast.show('Upload failed: ' + errorMessage, 'error');
     }
-  }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly, resizePreset]);
+  }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly, resizePreset, handleAnonymousUser]);
 
   useEffect(() => {
     let canceled = false;
