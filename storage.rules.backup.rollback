@@ -1,0 +1,58 @@
+// ROLLBACK BACKUP: Current storage.rules before rollback fix
+// Created: 2025-09-16 - Backup before implementing rollback rules
+// Issue: Upload/post crashes due to permission-denied and fetch failures
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Enhanced admin check with diagnostic logging
+    function isAdmin() {
+      return request.auth != null
+        && (request.auth.token.admin == true || request.auth.token.role == 'admin');
+    }
+
+    // Enhanced auth check with diagnostic info
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    // DIAGNOSTIC: Enhanced load photos rule with detailed conditions
+    match /loadPhotos/{userId}/{loadId}/{file=**} {
+      // Allow read for authenticated users and public access for fetch operations
+      allow read: if true; // DIAGNOSTIC: Allow all reads to prevent fetch failures
+      
+      // Allow write with comprehensive conditions
+      allow write: if isAuthenticated() && (
+        request.auth.uid == userId ||  // Owner access
+        isAdmin() ||                   // Admin access
+        true                          // DIAGNOSTIC: Temporary allow all authenticated writes
+      );
+    }
+
+    // DIAGNOSTIC: Enhanced anonymous path - allow all operations for testing
+    match /loadPhotos/anonymous/{loadId}/{file=**} {
+      allow read: if true;  // DIAGNOSTIC: Allow all reads
+      allow write: if isAuthenticated(); // Authenticated writes only
+    }
+    
+    // DIAGNOSTIC: Broadest fallback rule for all load photos
+    match /loadPhotos/{path=**} {
+      allow read: if true;  // DIAGNOSTIC: Allow all reads to prevent fetch failures
+      allow write: if isAuthenticated(); // Authenticated writes only
+    }
+
+    // Vehicle photos with consistent rules
+    match /vehiclePhotos/{userId}/{vehicleId}/{file=**} {
+      allow read: if true;  // DIAGNOSTIC: Allow all reads
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Admin-only report files
+    match /reports/{allPaths=**} { 
+      allow read, write: if isAdmin(); 
+    }
+    
+    match /reportAnalytics/{allPaths=**} { 
+      allow read, write: if isAdmin(); 
+    }
+  }
+}

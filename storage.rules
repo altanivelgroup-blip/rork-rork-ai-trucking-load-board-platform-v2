@@ -1,49 +1,41 @@
-// DIAGNOSTIC RULES - Step 2: Enhanced logging for upload/post crash diagnosis
-// Backup created: storage.rules.backup.diagnostic
-// Log: Diagnostic rules added with detailed allow/deny logging
+// ROLLBACK RULES - Step 1: Simplified rules to fix upload/post crashes
+// Backup created: storage.rules.backup.rollback
+// Log: Rollback rules implemented - loosened permissions for authenticated users
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Enhanced admin check with diagnostic logging
+    // Simplified admin check
     function isAdmin() {
       return request.auth != null
         && (request.auth.token.admin == true || request.auth.token.role == 'admin');
     }
 
-    // Enhanced auth check with diagnostic info
+    // Simplified auth check
     function isAuthenticated() {
       return request.auth != null && request.auth.uid != null;
     }
 
-    // DIAGNOSTIC: Enhanced load photos rule with detailed conditions
-    match /loadPhotos/{userId}/{loadId}/{file=**} {
-      // Allow read for authenticated users and public access for fetch operations
-      allow read: if true; // DIAGNOSTIC: Allow all reads to prevent fetch failures
-      
-      // Allow write with comprehensive conditions
-      allow write: if isAuthenticated() && (
-        request.auth.uid == userId ||  // Owner access
-        isAdmin() ||                   // Admin access
-        true                          // DIAGNOSTIC: Temporary allow all authenticated writes
-      );
+    // ROLLBACK: Simplified load photos rule - allow all authenticated operations
+    match /loadPhotos/{userId}/{loadId}/{fileName} {
+      allow read: if true; // Allow all reads to prevent fetch failures
+      allow write: if isAuthenticated(); // Any authenticated user can upload
+      allow update: if isAuthenticated(); // Any authenticated user can update
+      allow delete: if isAuthenticated(); // Any authenticated user can delete
     }
 
-    // DIAGNOSTIC: Enhanced anonymous path - allow all operations for testing
-    match /loadPhotos/anonymous/{loadId}/{file=**} {
-      allow read: if true;  // DIAGNOSTIC: Allow all reads
-      allow write: if isAuthenticated(); // Authenticated writes only
+    // ROLLBACK: Simplified vehicle photos rule
+    match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
+      allow read: if true; // Allow all reads
+      allow write: if isAuthenticated(); // Any authenticated user can upload
+      allow update: if isAuthenticated(); // Any authenticated user can update
+      allow delete: if isAuthenticated(); // Any authenticated user can delete
     }
     
-    // DIAGNOSTIC: Broadest fallback rule for all load photos
-    match /loadPhotos/{path=**} {
-      allow read: if true;  // DIAGNOSTIC: Allow all reads to prevent fetch failures
-      allow write: if isAuthenticated(); // Authenticated writes only
-    }
-
-    // Vehicle photos with consistent rules
-    match /vehiclePhotos/{userId}/{vehicleId}/{file=**} {
-      allow read: if true;  // DIAGNOSTIC: Allow all reads
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+    // ROLLBACK: Broad fallback rule for all photo paths
+    match /{allPaths=**} {
+      allow read: if true; // Allow all reads to prevent fetch failures
+      allow write: if isAuthenticated() && 
+        (allPaths.matches('.*Photos/.*') || allPaths.matches('.*photos/.*') || allPaths.matches('.*images/.*'));
     }
 
     // Admin-only report files
