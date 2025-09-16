@@ -34,29 +34,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [hasSignedInThisSession, setHasSignedInThisSession] = useState<boolean>(false);
   
-  console.log('[useAuth] CRASH FIX - Hook called with enhanced error handling and consistent hook order');
-  
-  // CRASH FIX: Add initialization state tracking
-  const [initError, setInitError] = useState<string | null>(null);
+  console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // CRASH FIX: Initialize auth with comprehensive error handling
+  // CRITICAL FIX: Initialize auth properly without forcing login page
   useEffect(() => {
-    console.log('[auth] CRASH FIX - Initializing auth system with enhanced error handling...');
+    console.log('[auth] FIXED: Initializing auth system properly...');
     
     let mounted = true;
-    let timeoutId: NodeJS.Timeout;
     
     const initializeAuth = async () => {
       try {
-        console.log('[auth] CRASH FIX - Starting auth initialization');
-        setInitError(null);
-        
         // Try to restore cached user data first
         const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
         if (cached && mounted) {
           try {
             const cachedUser = JSON.parse(cached);
-            console.log('[auth] CRASH FIX - Restored cached user:', cachedUser.email, cachedUser.role);
+            console.log('[auth] FIXED: Restored cached user:', cachedUser.email, cachedUser.role);
             setUser(cachedUser);
             setUserId(cachedUser.id);
             setIsAnonymous(cachedUser.email === 'guest@example.com');
@@ -64,17 +57,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             setIsFirebaseAuthenticated(true);
             setIsInitialized(true);
             setIsLoading(false);
-            console.log('[auth] CRASH FIX - Auth restored from cache - user is authenticated');
+            console.log('[auth] FIXED: Auth restored from cache - user is authenticated');
             return;
           } catch (parseError) {
-            console.warn('[auth] CRASH FIX - Cached data corrupted, starting fresh:', parseError);
-            setInitError('Cached data corrupted');
+            console.warn('[auth] FIXED: Cached data corrupted, starting fresh');
           }
         }
         
         // No cached user, start with unauthenticated state
         if (mounted) {
-          console.log('[auth] CRASH FIX - No cached user, initializing fresh state');
           setUser(null);
           setUserId(null);
           setIsAnonymous(true);
@@ -82,43 +73,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           setIsFirebaseAuthenticated(false);
           setIsInitialized(true);
           setIsLoading(false);
-          console.log('[auth] CRASH FIX - Auth initialized - ready for login');
+          console.log('[auth] FIXED: No cached user - ready for login');
         }
       } catch (error) {
-        console.error('[auth] CRASH FIX - Critical error during auth initialization:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
-        setInitError(errorMessage);
-        
+        console.warn('[auth] FIXED: Error during auth initialization:', error);
         if (mounted) {
-          // Ensure we don't leave the app in a loading state
-          setUser(null);
-          setUserId(null);
-          setIsAnonymous(true);
-          setHasSignedInThisSession(false);
-          setIsFirebaseAuthenticated(false);
           setIsInitialized(true);
           setIsLoading(false);
-          console.log('[auth] CRASH FIX - Auth initialization failed but state recovered');
         }
       }
     };
-    
-    // CRASH FIX: Add timeout to prevent hanging
-    timeoutId = setTimeout(() => {
-      if (mounted && isLoading) {
-        console.warn('[auth] CRASH FIX - Auth initialization timeout, forcing completion');
-        setInitError('Initialization timeout');
-        setIsInitialized(true);
-        setIsLoading(false);
-      }
-    }, 10000); // 10 second timeout
     
     // Execute immediately
     initializeAuth();
     
     return () => {
       mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
     };
   }, []);
 
