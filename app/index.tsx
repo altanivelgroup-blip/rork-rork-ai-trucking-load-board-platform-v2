@@ -11,37 +11,27 @@ export default function IndexScreen() {
   const [showManualNav, setShowManualNav] = useState(false);
 
   useEffect(() => {
-    console.log('[Index] App launched - redirecting to login immediately');
+    console.log('[Index] EMERGENCY FIX - Immediate navigation to login');
     
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let manualNavTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    // Show manual navigation immediately to prevent hanging
+    const immediateTimeout = setTimeout(() => {
+      setShowManualNav(true);
+    }, 1000);
     
-    // Immediately redirect to login as the first screen
-    try {
-      router.replace('/(auth)/login');
-    } catch (error) {
-      console.warn('[Index] Navigation error:', error);
-      // Fallback with minimal delay if immediate navigation fails
-      timeoutId = setTimeout(() => {
-        try {
-          router.replace('/(auth)/login');
-        } catch (secondError) {
-          console.warn('[Index] Second navigation attempt failed:', secondError);
-          // Show manual navigation options after 3 seconds
-          manualNavTimeoutId = setTimeout(() => {
-            setShowManualNav(true);
-          }, 3000);
-        }
-      }, 50);
-    }
+    // Try navigation with delay to prevent race conditions
+    const navigationTimeout = setTimeout(() => {
+      try {
+        console.log('[Index] Attempting navigation to login...');
+        router.replace('/(auth)/login');
+      } catch (error) {
+        console.warn('[Index] Navigation failed, showing manual options:', error);
+        setShowManualNav(true);
+      }
+    }, 100);
     
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (manualNavTimeoutId) {
-        clearTimeout(manualNavTimeoutId);
-      }
+      clearTimeout(immediateTimeout);
+      clearTimeout(navigationTimeout);
     };
   }, [router]);
 

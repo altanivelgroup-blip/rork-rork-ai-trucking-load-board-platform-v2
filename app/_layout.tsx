@@ -199,7 +199,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  console.log("[RootLayout] EMERGENCY FIX - Simplified provider chain");
+  console.log("[RootLayout] EMERGENCY FIX - Bypassing RoleBasedRouter to prevent hanging");
 
   return (
     <GlobalErrorBoundary>
@@ -210,9 +210,7 @@ export default function RootLayout() {
               <View style={styles.appContainer}>
                 <AuthProvider>
                   <ErrorBoundary safeRoute="/(auth)/login">
-                    <RoleBasedRouter>
-                      <RootLayoutNav />
-                    </RoleBasedRouter>
+                    <RootLayoutNav />
                   </ErrorBoundary>
                 </AuthProvider>
               </View>
