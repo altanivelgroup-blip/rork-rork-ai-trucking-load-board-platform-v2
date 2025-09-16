@@ -34,22 +34,21 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
     toggleVoice = () => {}, 
     retryRoute = async () => null 
   } = navigation || {};
+  // Safe fuel monitor hook usage with fallbacks
   const fuelMonitor = useFuelMonitor();
-  const {
-    resetFuelMonitor = () => console.log('[DriverNavigation] Fallback resetFuelMonitor called'),
-    currentLoad = null,
-    fuelLevel: monitorFuelLevel = 100,
-    isLowFuel: monitorIsLowFuel = false,
-    nearbyFuelStops = [],
-    isLoadingFuelStops = false,
-    currentLocation = null,
-    setStartingFuel = async () => {},
-    updateFuelLevel = async () => {},
-    checkLowFuelAlert = () => {},
-    findNearbyFuelStops = async () => [],
-    addFuelStop = async () => {},
-    updateCurrentLocation = () => {},
-  } = fuelMonitor || {};
+  const resetFuelMonitor = fuelMonitor?.resetFuelMonitor || (() => console.log('[DriverNavigation] Fallback resetFuelMonitor called'));
+  const currentLoad = fuelMonitor?.currentLoad || null;
+  const monitorFuelLevel = fuelMonitor?.fuelLevel || 100;
+  const monitorIsLowFuel = fuelMonitor?.isLowFuel || false;
+  const nearbyFuelStops = fuelMonitor?.nearbyFuelStops || [];
+  const isLoadingFuelStops = fuelMonitor?.isLoadingFuelStops || false;
+  const currentLocation = fuelMonitor?.currentLocation || null;
+  const setStartingFuel = fuelMonitor?.setStartingFuel || (async () => {});
+  const updateFuelLevel = fuelMonitor?.updateFuelLevel || (async () => {});
+  const checkLowFuelAlert = fuelMonitor?.checkLowFuelAlert || (() => {});
+  const findNearbyFuelStops = fuelMonitor?.findNearbyFuelStops || (async () => []);
+  const addFuelStop = fuelMonitor?.addFuelStop || (async () => {});
+  const updateCurrentLocation = fuelMonitor?.updateCurrentLocation || (() => {});
   const fuelDisplay = useFuelDisplay();
   const { fuelLevel = monitorFuelLevel || 100, isLowFuel = monitorIsLowFuel || false, fuelColor = '#10b981' } = fuelDisplay || {};
 
