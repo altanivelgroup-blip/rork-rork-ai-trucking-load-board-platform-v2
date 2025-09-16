@@ -526,6 +526,18 @@ export function PhotoUploader({
     return () => { canceled = true; };
   }, [offlineQueueKey]);
 
+  // ✅ PERMANENT FIX: Notify parent component when photos change
+  useEffect(() => {
+    const uploadsInProgress = state.photos.filter(p => p.uploading).length;
+    const completedUrls = state.photos.filter(p => !p.uploading && !p.error).map(p => p.url);
+    console.log('[PhotoUploader] ✅ Photo state changed - notifying parent:', {
+      completedCount: completedUrls.length,
+      uploadsInProgress,
+      primaryPhoto: state.primaryPhoto
+    });
+    onChange?.(completedUrls, state.primaryPhoto, uploadsInProgress);
+  }, [state.photos, state.primaryPhoto, onChange]);
+
 
   const validateFile = useCallback((file: { type?: string; size?: number; uri: string }) => {
     if (file.size && file.size > 5 * 1024 * 1024) {
@@ -725,8 +737,6 @@ export function PhotoUploader({
           const newPrimaryPhoto = prev.primaryPhoto || url;
           setTimeout(() => {
             updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
-            const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
-            onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
           }, 0);
           return {
             ...prev,
@@ -1068,7 +1078,17 @@ export function PhotoUploader({
   }, [state.photos]);
 
   const canPublish = useMemo(() => {
-    return completedPhotos >= effectiveMinPhotos && uploadsInProgress === 0;
+    const hasMinPhotos = completedPhotos >= effectiveMinPhotos;
+    const noUploadsInProgress = uploadsInProgress === 0;
+    console.log('[PhotoUploader] canPublish check:', {
+      completedPhotos,
+      effectiveMinPhotos,
+      hasMinPhotos,
+      uploadsInProgress,
+      noUploadsInProgress,
+      canPublish: hasMinPhotos && noUploadsInProgress
+    });
+    return hasMinPhotos && noUploadsInProgress;
   }, [completedPhotos, uploadsInProgress, effectiveMinPhotos]);
 
   const renderPhotoThumbnail = useCallback((photo: PhotoItem, index: number) => {

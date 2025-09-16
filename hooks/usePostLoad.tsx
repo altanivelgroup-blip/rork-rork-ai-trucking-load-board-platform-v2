@@ -436,11 +436,12 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           
           let blob: Blob;
           
-          // CRITICAL FIX: Block Firebase Storage URLs to prevent fetch failures
+          // ✅ PERMANENT FIX: Handle Firebase Storage URLs by skipping them (already uploaded)
           if (photo.uri.includes('firebasestorage.googleapis.com')) {
-            console.log('[PostLoad] ❌ BLOCKED: Cannot process Firebase Storage URL - will cause fetch failure');
-            console.log('[PostLoad] 🔧 SOLUTION: User must upload fresh photo from device');
-            throw new Error('Cannot access Firebase Storage photo. Please upload a fresh photo from your device.');
+            console.log('[PostLoad] ✅ Firebase Storage URL detected - already uploaded, using existing URL');
+            uploadedUrls.push(photo.uri);
+            console.log(`[PostLoad] ✅ reused existing photo ${i + 1}/${photosLocal.length} from Firebase Storage`);
+            continue; // Skip to next photo
           }
           
           // Only process local URIs (file://, content://, ph://)
