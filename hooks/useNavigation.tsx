@@ -223,14 +223,20 @@ export function useNavigation(): UseNavigationReturn {
       const provider = hasMapbox ? 'mapbox' : hasORS ? 'ors' : null;
       
       if (!provider) {
-        console.warn('[useNavigation] No API keys available for routing');
+        console.warn('[useNavigation] No API keys available for routing - using fallback');
         return null;
       }
 
-      // Try direct API call first
+      // Try direct API call first with shorter timeout
       console.log('[useNavigation] Trying direct API call...');
       try {
-        const directRoute = await getDirectRouteFromAPI(origin, destination, provider);
+        const directRoute = await Promise.race([
+          getDirectRouteFromAPI(origin, destination, provider),
+          new Promise<null>((_, reject) => 
+            setTimeout(() => reject(new Error('Direct API timeout')), 5000)
+          )
+        ]);
+        
         if (directRoute) {
           console.log('[useNavigation] Direct API call successful');
           setState(prev => ({ ...prev, retryCount: 0, error: null }));
@@ -240,11 +246,11 @@ export function useNavigation(): UseNavigationReturn {
         console.warn('[useNavigation] Direct API failed:', directError);
       }
       
-      // If direct API fails, try tRPC as fallback (with timeout)
+      // If direct API fails, try tRPC as fallback (with shorter timeout)
       console.log('[useNavigation] Direct API failed, trying tRPC as fallback...');
       try {
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('tRPC timeout after 10 seconds')), 10000);
+          setTimeout(() => reject(new Error('tRPC timeout after 5 seconds')), 5000);
         });
         
         const routePromise = trpcClient.route.eta.query({
@@ -396,7 +402,7 @@ export function useNavigation(): UseNavigationReturn {
             ...prev, 
             error: state.retryCount < 3 
               ? `Network error - tap retry (${state.retryCount + 1}/3)` 
-              : 'Max retries reached - using basic navigation'
+              : null // Clear error when using fallback
           }));
         }
       }
