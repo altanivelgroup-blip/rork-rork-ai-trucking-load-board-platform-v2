@@ -39,129 +39,54 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   // CRASH FIX: Add initialization state tracking
   const [initError, setInitError] = useState<string | null>(null);
 
-  // CRASH FIX: Initialize auth with comprehensive error handling
+  // SIMPLE FIX: Basic auth initialization
   useEffect(() => {
-    console.log('[auth] CRASH FIX - Initializing auth system with enhanced error handling...');
+    console.log('[auth] SIMPLE FIX - Starting basic auth initialization');
     
-    let mounted = true;
-    let timeoutId: NodeJS.Timeout;
-    
-    const initializeAuth = async () => {
+    const initAuth = async () => {
       try {
-        console.log('[auth] CRASH FIX - Starting auth initialization');
-        setInitError(null);
-        
-        // Try to restore cached user data first
+        // Check for cached user
         const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
-        if (cached && mounted) {
-          try {
-            const cachedUser = JSON.parse(cached);
-            console.log('[auth] CRASH FIX - Restored cached user:', cachedUser.email, cachedUser.role);
-            setUser(cachedUser);
-            setUserId(cachedUser.id);
-            setIsAnonymous(cachedUser.email === 'guest@example.com');
-            setHasSignedInThisSession(true);
-            setIsFirebaseAuthenticated(true);
-            setIsInitialized(true);
-            setIsLoading(false);
-            console.log('[auth] CRASH FIX - Auth restored from cache - user is authenticated');
-            return;
-          } catch (parseError) {
-            console.warn('[auth] CRASH FIX - Cached data corrupted, starting fresh:', parseError);
-            setInitError('Cached data corrupted');
-          }
-        }
-        
-        // No cached user, start with unauthenticated state
-        if (mounted) {
-          console.log('[auth] CRASH FIX - No cached user, initializing fresh state');
-          setUser(null);
-          setUserId(null);
-          setIsAnonymous(true);
-          setHasSignedInThisSession(false);
-          setIsFirebaseAuthenticated(false);
-          setIsInitialized(true);
-          setIsLoading(false);
-          console.log('[auth] CRASH FIX - Auth initialized - ready for login');
+        if (cached) {
+          const cachedUser = JSON.parse(cached);
+          console.log('[auth] SIMPLE FIX - Found cached user:', cachedUser.email);
+          setUser(cachedUser);
+          setUserId(cachedUser.id);
+          setIsAnonymous(cachedUser.email === 'guest@example.com');
+          setHasSignedInThisSession(true);
+        } else {
+          console.log('[auth] SIMPLE FIX - No cached user found');
         }
       } catch (error) {
-        console.error('[auth] CRASH FIX - Critical error during auth initialization:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
-        setInitError(errorMessage);
-        
-        if (mounted) {
-          // Ensure we don't leave the app in a loading state
-          setUser(null);
-          setUserId(null);
-          setIsAnonymous(true);
-          setHasSignedInThisSession(false);
-          setIsFirebaseAuthenticated(false);
-          setIsInitialized(true);
-          setIsLoading(false);
-          console.log('[auth] CRASH FIX - Auth initialization failed but state recovered');
-        }
-      }
-    };
-    
-    // CRASH FIX: Add timeout to prevent hanging
-    timeoutId = setTimeout(() => {
-      if (mounted && isLoading) {
-        console.warn('[auth] CRASH FIX - Auth initialization timeout, forcing completion');
-        setInitError('Initialization timeout');
-        setIsInitialized(true);
+        console.error('[auth] SIMPLE FIX - Error loading cached user:', error);
+      } finally {
         setIsLoading(false);
+        setIsInitialized(true);
+        console.log('[auth] SIMPLE FIX - Auth initialization complete');
       }
-    }, 10000); // 10 second timeout
-    
-    // Execute immediately
-    initializeAuth();
-    
-    return () => {
-      mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
     };
+    
+    initAuth();
   }, []);
 
-  // CRITICAL FIX: Properly initialize Firebase auth without hanging
+  // SIMPLE FIX: Basic Firebase setup
   useEffect(() => {
     if (!isInitialized) return;
     
-    console.log('[auth] FIXED: Setting up Firebase auth properly...');
+    console.log('[auth] SIMPLE FIX - Setting up Firebase');
     
-    let mounted = true;
-    
-    const setupFirebaseAuth = async () => {
+    const setupFirebase = async () => {
       try {
-        // Try to ensure Firebase auth is working
-        const authSuccess = await ensureFirebaseAuth();
-        if (mounted) {
-          setIsFirebaseAuthenticated(authSuccess);
-          console.log('[auth] FIXED: Firebase auth setup complete:', authSuccess ? 'SUCCESS' : 'FALLBACK');
-        }
+        const success = await ensureFirebaseAuth();
+        setIsFirebaseAuthenticated(success);
+        console.log('[auth] SIMPLE FIX - Firebase setup:', success ? 'OK' : 'FALLBACK');
       } catch (error) {
-        console.warn('[auth] FIXED: Firebase auth setup failed, continuing in local mode:', error);
-        if (mounted) {
-          setIsFirebaseAuthenticated(false);
-        }
-      }
-    };
-    
-    // Run Firebase auth setup with timeout
-    const timeoutId = setTimeout(() => {
-      if (mounted) {
-        console.log('[auth] FIXED: Firebase auth setup timeout, continuing in local mode');
+        console.warn('[auth] SIMPLE FIX - Firebase setup failed:', error);
         setIsFirebaseAuthenticated(false);
       }
-    }, 5000);
-    
-    setupFirebaseAuth().finally(() => {
-      clearTimeout(timeoutId);
-    });
-    
-    return () => {
-      mounted = false;
-      clearTimeout(timeoutId);
     };
+    
+    setupFirebase();
   }, [isInitialized]);
 
   const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper | Admin> => {
