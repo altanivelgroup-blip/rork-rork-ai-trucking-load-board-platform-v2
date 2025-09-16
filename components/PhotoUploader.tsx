@@ -618,7 +618,7 @@ export function PhotoUploader({
               if (token) {
                 console.log('[PhotoUploader] 🔑 Token length:', token.length);
                 console.log('[PhotoUploader] 🔑 Token starts with:', token.substring(0, 20) + '...');
-                console.log('[PhotoUploader] ✅ Auth fixed');
+                console.log('[PhotoUploader] ✅ Auth handled');
               }
             } catch (tokenError) {
               console.warn('[PhotoUploader] ⚠️ Could not get fresh token:', tokenError);
