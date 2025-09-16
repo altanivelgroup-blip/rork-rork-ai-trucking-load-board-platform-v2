@@ -5,36 +5,17 @@ service firebase.storage {
       return request.auth != null
         && (request.auth.token.admin == true || request.auth.token.role == 'admin');
     }
-    
-    function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
-    }
-    
-    function isValidUser() {
-      return request.auth != null && 
-             request.auth.uid != null && 
-             request.auth.uid.size() > 0;
-    }
-    
-    // FIXED: Proper user ID matching for load photos
-    match /loadPhotos/{userId}/{loadId}/{fileName} {
+
+    // Part 1A rule fix: restrict access to owner only
+    match /loadPhotos/{userId}/{loadId}/{file=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // FIXED: Proper user ID matching for vehicle photos
-    match /vehiclePhotos/{userId}/{loadId}/{fileName} {
+
+    // Keep vehicle photos consistent
+    match /vehiclePhotos/{userId}/{vehicleId}/{file=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // Fallback: Allow authenticated users to access their own photos
-    match /loadPhotos/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    match /vehiclePhotos/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
+
     // Admin-only report files
     match /reports/{allPaths=**} { allow read, write: if isAdmin(); }
     match /reportAnalytics/{allPaths=**} { allow read, write: if isAdmin(); }

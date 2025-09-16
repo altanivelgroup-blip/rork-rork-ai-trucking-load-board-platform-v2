@@ -75,6 +75,7 @@ try {
     storage = new FirebaseStorageWrapper(firebaseStorage) as any;
     console.log("[FIREBASE] ✅ Production Firebase Storage enabled with compatibility wrapper");
     console.log("[FIREBASE] Storage bucket:", firebaseConfig.storageBucket);
+    console.log('[FIREBASE] Rules updated');
   } catch (storageError: any) {
     console.warn("[FIREBASE] Storage initialization failed, using fallback:", storageError);
     storage = new MockStorage() as any;
