@@ -1,15 +1,17 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert } from 'react-native';
 import { Stack, Link, useRouter } from 'expo-router';
-import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info, Phone, Crown, ArrowLeft } from 'lucide-react-native';
+import { Bell, Mail, MessageSquare, Moon, Volume2, MapPin, RefreshCcw, WifiOff, Trash2, Download, Upload, Shield, CreditCard, HelpCircle, FileText, BookOpen, Info, Phone, Crown, ArrowLeft, LogOut } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useSettings } from '@/hooks/useSettings';
+import { useAuth } from '@/hooks/useAuth';
 
 
 export default function SettingsScreen() {
   console.log('[Settings] Screen rendering');
   const router = useRouter();
   const s = useSettings();
+  const { logout } = useAuth();
   console.log('[Settings] Settings loaded:', !!s);
 
   const Row = useCallback(({ icon, title, subtitle, value, onValueChange, testID }: { icon: React.ReactNode; title: string; subtitle?: string; value?: boolean; onValueChange?: (v: boolean) => void; testID?: string; }) => (
@@ -53,6 +55,24 @@ export default function SettingsScreen() {
   const onImport = async () => {
     const mod = await import('@/utils/dataTransfer');
     await mod.importData();
+  };
+
+  const confirmLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { 
+        text: 'Sign Out', 
+        style: 'destructive', 
+        onPress: async () => {
+          try {
+            await logout();
+            router.replace('/(auth)/login');
+          } catch (error) {
+            console.error('[Settings] Logout failed:', error);
+          }
+        }
+      },
+    ]);
   };
 
   return (
@@ -263,6 +283,17 @@ export default function SettingsScreen() {
 
         <SectionTitle>Advanced</SectionTitle>
         <View style={styles.card}>
+          <TouchableOpacity style={styles.row} onPress={confirmLogout} testID="settings-logout">
+            <View style={styles.rowLeft}>
+              <View style={[styles.iconWrap, { backgroundColor: '#FEF2F2' }]}>
+                <LogOut color={theme.colors.danger} size={20} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowTitle, { color: theme.colors.danger }]}>Sign Out</Text>
+                <Text style={styles.rowSubtitle}>Sign out of your account</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={confirmReset} testID="settings-reset">
             <View style={styles.rowLeft}>
               <View style={[styles.iconWrap, { backgroundColor: '#FEF2F2' }]}>
