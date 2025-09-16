@@ -16,6 +16,7 @@ import { PostLoadProvider } from "@/hooks/usePostLoad";
 import { LoadsProvider } from "@/hooks/useLoads";
 import { AutoArriveProvider } from "@/hooks/useAutoArrive";
 import { ProfileCacheProvider } from "@/hooks/useProfileCache";
+import { FuelMonitorProvider } from "@/hooks/useFuelMonitor";
 
 
 import HeaderBack from "@/components/HeaderBack";
@@ -218,10 +219,12 @@ export default function RootLayout() {
                               <LoadsProvider>
                                 <AutoArriveProvider>
                                   <ProfileCacheProvider>
-                                    <ErrorBoundary safeRoute="/(auth)/login">
-                                      <RootLayoutNav />
-                                    </ErrorBoundary>
-                                    <AutoArriveSheet />
+                                    <FuelMonitorProvider>
+                                      <ErrorBoundary safeRoute="/(auth)/login">
+                                        <RootLayoutNav />
+                                      </ErrorBoundary>
+                                      <AutoArriveSheet />
+                                    </FuelMonitorProvider>
                                   </ProfileCacheProvider>
                                 </AutoArriveProvider>
                               </LoadsProvider>
