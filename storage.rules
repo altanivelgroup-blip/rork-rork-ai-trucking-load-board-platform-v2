@@ -1,37 +1,30 @@
-// ROLLBACK RULES - Step 1: Simplified rules to fix upload/post crashes
-// Backup created: storage.rules.backup.rollback
-// Log: Rollback rules implemented - loosened permissions for authenticated users
+// FIXED STORAGE RULES - Optimized for photo upload functionality
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Simplified admin check
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+    
     function isAdmin() {
       return request.auth != null
         && (request.auth.token.admin == true || request.auth.token.role == 'admin');
     }
 
-    // Simplified auth check
-    function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
-    }
-
-    // ROLLBACK: Simplified load photos rule - allow all authenticated operations
+    // FIXED: Load photos - allow authenticated users to manage their own photos
     match /loadPhotos/{userId}/{loadId}/{fileName} {
-      allow read: if true; // Allow all reads to prevent fetch failures
-      allow write: if isAuthenticated(); // Any authenticated user can upload
-      allow update: if isAuthenticated(); // Any authenticated user can update
-      allow delete: if isAuthenticated(); // Any authenticated user can delete
+      allow read: if true; // Public read access for photo viewing
+      allow write, update, delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ROLLBACK: Simplified vehicle photos rule
+    // FIXED: Vehicle photos - allow authenticated users to manage their own photos
     match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
-      allow read: if true; // Allow all reads
-      allow write: if isAuthenticated(); // Any authenticated user can upload
-      allow update: if isAuthenticated(); // Any authenticated user can update
-      allow delete: if isAuthenticated(); // Any authenticated user can delete
+      allow read: if true; // Public read access for photo viewing
+      allow write, update, delete: if isAuthenticated() && request.auth.uid == userId;
     }
     
-    // ROLLBACK: Broad fallback rule for all photo paths
+    // FIXED: Fallback for any photo-related paths
     match /{allPaths=**} {
       allow read: if true; // Allow all reads to prevent fetch failures
       allow write: if isAuthenticated() && 

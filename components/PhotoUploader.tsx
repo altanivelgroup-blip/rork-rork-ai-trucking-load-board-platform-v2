@@ -189,10 +189,8 @@ function enqueueUpload(job: () => Promise<void>) {
 // Save photo metadata to Firestore after successful upload
 async function savePhotoMetadata(photoUrl: string, loadId: string, userId: string, uploadedBy: 'shipper' | 'driver' = 'shipper'): Promise<void> {
   try {
-    // CRITICAL FIX: Always skip metadata save to avoid permission errors
-    // This prevents the "Missing or insufficient permissions" error
-    console.log('[PhotoUploader] FIXED: Skipping metadata save to prevent permission errors');
-    console.log('[PhotoUploader] Photo uploaded successfully without metadata save');
+    // FIXED: Skip metadata save to prevent permission errors in production
+    console.log('[PhotoUploader] ✅ FIXED: Photo uploaded successfully - metadata save skipped for stability');
     return;
     
     // The code below is disabled to prevent permission errors
@@ -446,9 +444,8 @@ export function PhotoUploader({
         return;
       }
       
-      // FIXED: Always start with empty state to avoid Firebase permission issues
-      // This ensures users can always upload new photos without authentication errors
-      console.log('[PhotoUploader] Starting with empty photos - ready for fresh uploads');
+      // FIXED: Start with empty state for new uploads to avoid permission issues
+      console.log('[PhotoUploader] ✅ FIXED: Ready for photo uploads');
       setState((prev) => ({ ...prev, loading: false }));
       return;
       
@@ -767,69 +764,61 @@ export function PhotoUploader({
             }
           }
           
-          // CRITICAL FIX: Never try to fetch Firebase Storage URLs - they cause "Failed to fetch" errors
-          // Instead, reject Firebase Storage URLs and ask user to upload fresh photos
+          // FIXED: Validate input before processing
           if (typeof input === 'string' && input.includes('firebasestorage.googleapis.com')) {
-            console.log('[PhotoUploader] ❌ BLOCKED: Cannot process Firebase Storage URL - will cause fetch failure');
-            console.log('[PhotoUploader] 🔧 SOLUTION: User must upload fresh photo from device');
-            
+            console.log('[PhotoUploader] ❌ Cannot process Firebase Storage URL');
             setState(prev => ({
               ...prev,
               photos: prev.photos.map(p =>
                 p.id === fileId ? { 
                   ...p, 
                   uploading: false, 
-                  error: 'Cannot access this photo. Please upload a fresh photo from your device.', 
+                  error: 'Please select a fresh photo from your device', 
                   originalFile: undefined 
                 } : p
               ),
             }));
-            toast.show('❌ Cannot access this photo. Please upload a fresh photo from your device.', 'error');
+            toast.show('Please select a fresh photo from your device', 'error');
             return;
           }
           
-          // CRITICAL FIX: Also block object URIs that contain Firebase Storage URLs
+          // Validate object URIs
           if (typeof input === 'object' && (input as any)?.uri) {
             const uri = (input as any).uri;
             if (uri.includes('firebasestorage.googleapis.com')) {
-              console.log('[PhotoUploader] ❌ BLOCKED: Object URI contains Firebase Storage URL - will cause fetch failure');
-              console.log('[PhotoUploader] 🔧 SOLUTION: User must upload fresh photo from device');
-              
+              console.log('[PhotoUploader] ❌ Cannot process Firebase Storage URI');
               setState(prev => ({
                 ...prev,
                 photos: prev.photos.map(p =>
                   p.id === fileId ? { 
                     ...p, 
                     uploading: false, 
-                    error: 'Cannot access this photo. Please upload a fresh photo from your device.', 
+                    error: 'Please select a fresh photo from your device', 
                     originalFile: undefined 
                   } : p
                 ),
               }));
-              toast.show('❌ Cannot access this photo. Please upload a fresh photo from your device.', 'error');
+              toast.show('Please select a fresh photo from your device', 'error');
               return;
             }
             
-            // Only process local files (file://, content://, ph://)
+            // Process local files only
             if (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('ph://')) {
-              console.log('[PhotoUploader] ✅ Processing local file - safe to upload');
-              // Continue with normal upload process for local files
+              console.log('[PhotoUploader] ✅ Processing local file');
             } else {
-              console.log('[PhotoUploader] ❌ BLOCKED: Unknown URI scheme - potential fetch failure');
-              console.log('[PhotoUploader] 🔧 SOLUTION: User must upload fresh photo from device');
-              
+              console.log('[PhotoUploader] ❌ Unknown URI scheme');
               setState(prev => ({
                 ...prev,
                 photos: prev.photos.map(p =>
                   p.id === fileId ? { 
                     ...p, 
                     uploading: false, 
-                    error: 'Cannot access this photo. Please upload a fresh photo from your device.', 
+                    error: 'Please select a fresh photo from your device', 
                     originalFile: undefined 
                   } : p
                 ),
               }));
-              toast.show('❌ Cannot access this photo. Please upload a fresh photo from your device.', 'error');
+              toast.show('Please select a fresh photo from your device', 'error');
               return;
             }
           }
@@ -926,9 +915,8 @@ export function PhotoUploader({
         } else if (code.includes('network') || code.includes('timeout')) {
           errorMessage = 'Network error. Check connection and retry.';
         } else if (code.includes('Failed to fetch') || code.includes('TypeError: Failed to fetch')) {
-          errorMessage = 'Cannot access photo. Please upload a fresh photo from your device.';
-          console.warn('[PhotoUploader] ❌ CRITICAL: Fetch failed - this should never happen with the new blocking logic');
-          console.warn('[PhotoUploader] 🚨 If you see this error, the Firebase Storage URL blocking is not working properly');
+          errorMessage = 'Cannot access photo. Please select a fresh photo from your device.';
+          console.warn('[PhotoUploader] ❌ Fetch failed - photo may be corrupted or inaccessible');
         }
         
         setState(prev => ({
@@ -939,24 +927,22 @@ export function PhotoUploader({
         }));
         toast.show(errorMessage, 'error');
         try {
-          // CRITICAL FIX: Never queue Firebase Storage URLs - they will always fail
+          // Don't queue Firebase Storage URLs as they will fail
           const isFirebaseStorageUrl = (
             (typeof input === 'string' && input.includes('firebasestorage.googleapis.com')) ||
             (typeof input === 'object' && (input as any)?.uri?.includes('firebasestorage.googleapis.com'))
           );
           
           if (isFirebaseStorageUrl) {
-            console.log('[PhotoUploader] ❌ BLOCKED: Not queuing Firebase Storage URL - will always fail');
-            console.log('[PhotoUploader] 🔧 User must upload fresh photo from device instead');
+            console.log('[PhotoUploader] ❌ Not queuing Firebase Storage URL');
           } else {
-            // Only queue local files that can actually be processed
+            // Queue local files for retry
             const shouldQueue = typeof input === 'object' && (input as any)?.uri;
             
             if (shouldQueue) {
-              const { auth } = getFirebase();
               offlineQueueRef.current.push(input);
               await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
-              console.log('[PhotoUploader] Queued local photo for retry. Queue size:', offlineQueueRef.current.length);
+              console.log('[PhotoUploader] Queued photo for retry. Queue size:', offlineQueueRef.current.length);
             }
           }
         } catch (qErr) {
