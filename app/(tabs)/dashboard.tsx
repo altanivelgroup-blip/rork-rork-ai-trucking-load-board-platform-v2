@@ -108,13 +108,13 @@ export default function DashboardScreen() {
 
   const sortOptionsBase = useMemo<SortOrder[]>(() => ['Best', 'Newest', 'Highest $', 'Lightest'], []);
   const settings = useSettings();
-  const { sortOrder, setSortOrder, isHydrating, radiusMiles, setRadiusMiles } = settings || {
-    sortOrder: 'Best' as SortOrder,
-    setSortOrder: () => Promise.resolve(),
-    isHydrating: false,
-    radiusMiles: 50,
-    setRadiusMiles: () => Promise.resolve()
-  };
+  
+  // CRITICAL FIX: Prevent destructuring undefined settings
+  const sortOrder = settings?.sortOrder ?? 'Best' as SortOrder;
+  const setSortOrder = settings?.setSortOrder ?? (() => Promise.resolve());
+  const isHydrating = settings?.isHydrating ?? false;
+  const radiusMiles = settings?.radiusMiles ?? 50;
+  const setRadiusMiles = settings?.setRadiusMiles ?? (() => Promise.resolve());
   const [sort, setSort] = useState<SortOrder>(sortOrder);
 
   const { startWatching, stopWatching, requestPermissionAsync, getForegroundPermissionStatusAsync } = useLiveLocation();
