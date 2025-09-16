@@ -201,7 +201,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  console.log("[RootLayout] EMERGENCY FIX - Bypassing StartupInitializer to prevent hanging");
+  console.log("[RootLayout] EMERGENCY FIX - Using RoleBasedRouter with improved navigation timing");
 
   return (
     <GlobalErrorBoundary>
@@ -213,7 +213,9 @@ export default function RootLayout() {
                 <View style={styles.appContainer}>
                   <AuthProvider>
                     <ErrorBoundary safeRoute="/(auth)/login">
-                      <RootLayoutNav />
+                      <RoleBasedRouter>
+                        <RootLayoutNav />
+                      </RoleBasedRouter>
                     </ErrorBoundary>
                   </AuthProvider>
                 </View>

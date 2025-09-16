@@ -36,9 +36,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   
   console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // EMERGENCY FIX: Immediate initialization to prevent hanging
+  // EMERGENCY FIX: Immediate initialization with timeout to prevent hanging
   useEffect(() => {
-    console.log('[auth] LOADING FIX - EMERGENCY MODE - Immediate initialization');
+    console.log('[auth] LOADING FIX - EMERGENCY MODE - Immediate initialization with timeout');
     
     let mounted = true;
     
@@ -73,8 +73,18 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     // Complete immediately
     emergencyInit();
     
+    // Failsafe timeout to force loading completion
+    const failsafeTimer = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.warn('[auth] LOADING FIX - EMERGENCY - Failsafe timeout triggered, forcing loading completion');
+        setIsInitialized(true);
+        setIsLoading(false);
+      }
+    }, 2000);
+    
     return () => {
       mounted = false;
+      clearTimeout(failsafeTimer);
     };
   }, []);
 
