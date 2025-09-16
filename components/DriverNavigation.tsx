@@ -26,9 +26,17 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
   const [currentPhase, setCurrentPhase] = useState<NavigationPhase>('to-pickup');
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
   const [showFuelSelector, setShowFuelSelector] = useState<boolean>(false);
-  const { state: navState, getRoute, clearRoute, toggleVoice, retryRoute } = useNavigation();
+  const navigation = useNavigation();
+  const { 
+    state: navState = { isLoading: false, currentRoute: null, error: null, isOffline: false, voiceEnabled: false, retryCount: 0, lastRetryTime: null }, 
+    getRoute = async () => null, 
+    clearRoute = () => {}, 
+    toggleVoice = () => {}, 
+    retryRoute = async () => null 
+  } = navigation || {};
+  const fuelMonitor = useFuelMonitor();
   const {
-    resetFuelMonitor,
+    resetFuelMonitor = () => console.log('[DriverNavigation] Fallback resetFuelMonitor called'),
     currentLoad,
     fuelLevel: monitorFuelLevel,
     isLowFuel: monitorIsLowFuel,
@@ -41,9 +49,9 @@ export const DriverNavigation: React.FC<DriverNavigationProps> = ({
     findNearbyFuelStops,
     addFuelStop,
     updateCurrentLocation,
-  } = useFuelMonitor();
+  } = fuelMonitor || {};
   const fuelDisplay = useFuelDisplay();
-  const { fuelLevel = monitorFuelLevel || 100, isLowFuel = monitorIsLowFuel || false, fuelColor = '#10b981' } = fuelDisplay;
+  const { fuelLevel = monitorFuelLevel || 100, isLowFuel = monitorIsLowFuel || false, fuelColor = '#10b981' } = fuelDisplay || {};
 
   console.log('[DriverNavigation] Rendering with phase:', currentPhase, 'Navigation state:', navState.isOffline ? 'offline' : 'online');
 
