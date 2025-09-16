@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import React, { useMemo, useCallback } from "react";
 import { View, StyleSheet } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -204,20 +205,22 @@ export default function RootLayout() {
   return (
     <GlobalErrorBoundary>
       <GestureHandlerRootView style={styles.rootContainer}>
-        <QueryClientProvider client={queryClient}>
-          <trpc.Provider client={trpcClient} queryClient={queryClient}>
-            <ToastProvider>
-              <View style={styles.appContainer}>
-                <AuthProvider>
-                  <ErrorBoundary safeRoute="/(auth)/login">
-                    <RootLayoutNav />
-                  </ErrorBoundary>
-                </AuthProvider>
-              </View>
-              <ToastHost />
-            </ToastProvider>
-          </trpc.Provider>
-        </QueryClientProvider>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <trpc.Provider client={trpcClient} queryClient={queryClient}>
+              <ToastProvider>
+                <View style={styles.appContainer}>
+                  <AuthProvider>
+                    <ErrorBoundary safeRoute="/(auth)/login">
+                      <RootLayoutNav />
+                    </ErrorBoundary>
+                  </AuthProvider>
+                </View>
+                <ToastHost />
+              </ToastProvider>
+            </trpc.Provider>
+          </QueryClientProvider>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     </GlobalErrorBoundary>
   );
