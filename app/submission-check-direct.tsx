@@ -467,9 +467,10 @@ export default function SubmissionCheckDirectScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!isRunning && checks.length === 0) {
+        console.log('🚀 AUTO-RUNNING SUBMISSION CHECK...');
         runSubmissionCheck();
       }
-    }, 1000);
+    }, 500);
     return () => clearTimeout(timer);
   }, [runSubmissionCheck]);
 
