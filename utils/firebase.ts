@@ -379,6 +379,52 @@ export async function ensureFirebaseAuthWithMockUser(): Promise<boolean> {
   }
 }
 
+// Utility function to refresh Firebase Storage URLs with fresh authentication tokens
+export async function refreshFirebaseStorageUrl(originalUrl: string): Promise<string> {
+  try {
+    if (!originalUrl.includes('firebasestorage.googleapis.com')) {
+      return originalUrl; // Not a Firebase Storage URL
+    }
+    
+    // Extract the storage path from the URL
+    const pathMatch = originalUrl.match(/o\/(.*?)\?/);
+    if (!pathMatch) {
+      console.warn('[Firebase] Could not extract path from storage URL:', originalUrl);
+      return originalUrl;
+    }
+    
+    const storagePath = decodeURIComponent(pathMatch[1]);
+    console.log('[Firebase] Refreshing storage URL for path:', storagePath);
+    
+    // Get fresh download URL with current authentication
+    const { getStorage } = await import('firebase/storage');
+    const { getDownloadURL, ref } = await import('firebase/storage');
+    const { app, auth } = getFirebase();
+    
+    // Ensure we have fresh authentication
+    if (auth?.currentUser) {
+      try {
+        await auth.currentUser.getIdToken(true); // Force token refresh
+        console.log('[Firebase] ✅ Token refreshed for storage URL');
+      } catch (tokenError) {
+        console.warn('[Firebase] Could not refresh token for storage URL:', tokenError);
+      }
+    }
+    
+    const storage = getStorage(app);
+    const storageRef = ref(storage, storagePath);
+    const freshUrl = await getDownloadURL(storageRef);
+    
+    console.log('[Firebase] ✅ Storage URL refreshed successfully');
+    return freshUrl;
+    
+  } catch (error: any) {
+    console.error('[Firebase] Failed to refresh storage URL:', error);
+    console.error('[Firebase] Falling back to original URL:', originalUrl);
+    return originalUrl; // Fallback to original URL
+  }
+}
+
 // Check if Firebase operations are likely to work (for development)
 export async function checkFirebasePermissions(): Promise<{ canRead: boolean; canWrite: boolean; error?: string }> {
   try {

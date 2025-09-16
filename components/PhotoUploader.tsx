@@ -222,6 +222,18 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
     const { getFirebase } = await import('@/utils/firebase');
     const { app } = getFirebase();
     const storage = getStorage(app);
+    
+    // CRITICAL FIX: Ensure fresh authentication token before creating storage reference
+    const { auth } = getFirebase();
+    if (auth?.currentUser) {
+      try {
+        const freshToken = await auth.currentUser.getIdToken(true);
+        console.log('[PhotoUploader] ✅ Fresh token obtained for storage upload:', !!freshToken);
+      } catch (tokenError) {
+        console.warn('[PhotoUploader] Could not refresh token, using existing:', tokenError);
+      }
+    }
+    
     const storageRef = ref(storage, path);
     
     console.log('[PhotoUploader] Creating storage reference for path:', path);
@@ -735,6 +747,17 @@ export function PhotoUploader({
       try {
         let url: string;
         try {
+          // CRITICAL FIX: Refresh authentication token before upload to prevent fetch failures
+          const { auth } = getFirebase();
+          if (auth?.currentUser) {
+            try {
+              await auth.currentUser.getIdToken(true); // Force token refresh
+              console.log('[PhotoUploader] ✅ Token refreshed before upload');
+            } catch (tokenError) {
+              console.warn('[PhotoUploader] Token refresh failed, continuing with existing token:', tokenError);
+            }
+          }
+          
           url = await uploadWithFallback(
             basePath,
             input,

@@ -431,8 +431,59 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       for (let i = 0; i < photosLocal.length; i++) {
         const photo = photosLocal[i];
         try {
-          const response = await fetch(photo.uri);
-          const blob = await response.blob();
+          // CRITICAL FIX: Add authentication headers and retry logic for fetch failures
+          console.log('[PostLoad] Fetching photo from URI:', photo.uri);
+          
+          let response: Response;
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          while (retryCount < maxRetries) {
+            try {
+              // Get fresh authentication token before fetch
+              const { auth } = getFirebase();
+              let headers: Record<string, string> = {};
+              
+              if (auth?.currentUser) {
+                try {
+                  const token = await auth.currentUser.getIdToken(true);
+                  headers['Authorization'] = `Bearer ${token}`;
+                  console.log('[PostLoad] Added auth token to fetch request');
+                } catch (tokenError) {
+                  console.warn('[PostLoad] Could not get auth token for fetch:', tokenError);
+                }
+              }
+              
+              response = await fetch(photo.uri, {
+                method: 'GET',
+                headers,
+                // Add timeout to prevent hanging
+                signal: AbortSignal.timeout(30000) // 30 second timeout
+              });
+              
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+              }
+              
+              console.log('[PostLoad] ✅ Photo fetch successful:', response.status);
+              break; // Success, exit retry loop
+              
+            } catch (fetchError: any) {
+              retryCount++;
+              console.error(`[PostLoad] Fetch attempt ${retryCount}/${maxRetries} failed:`, fetchError.message);
+              
+              if (retryCount >= maxRetries) {
+                throw new Error(`Failed to fetch image from URL after ${maxRetries} attempts: ${fetchError.message}`);
+              }
+              
+              // Wait before retry with exponential backoff
+              const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
+              console.log(`[PostLoad] Retrying fetch in ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+          
+          const blob = await response!.blob();
 
           const extFromType = (photo.type?.split('/')[1] || '').toLowerCase();
           const nameExt = (photo.name || '').split('.').pop()?.toLowerCase();
@@ -459,9 +510,22 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             console.error('[PostLoad] Firebase Storage upload failed:', uploadError);
             throw uploadError; // Don't use placeholder - let the error bubble up
           }
-        } catch (uploadError) {
+        } catch (uploadError: any) {
           console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
-          throw uploadError; // Don't use placeholder - let the error bubble up
+          
+          // Enhanced error handling with specific error types
+          if (uploadError.message?.includes('Failed to fetch')) {
+            console.error('[PostLoad] Network fetch error - this may be due to expired tokens or CORS issues');
+            throw new Error(`Failed to fetch image from URL: ${photo.uri}`);
+          } else if (uploadError.message?.includes('HTTP 403') || uploadError.message?.includes('HTTP 401')) {
+            console.error('[PostLoad] Authentication error during image fetch');
+            throw new Error(`Authentication failed when accessing image: ${photo.uri}`);
+          } else if (uploadError.message?.includes('timeout')) {
+            console.error('[PostLoad] Timeout error during image fetch');
+            throw new Error(`Timeout when fetching image: ${photo.uri}`);
+          }
+          
+          throw uploadError; // Re-throw original error if not a known type
         }
       }
 
