@@ -102,17 +102,12 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // DIAGNOSTIC: Enhanced photo metadata storage - allow all authenticated operations
+    // Photo metadata storage structure - secure access for authenticated users
     match /photos/{photoId} {
-      allow read: if isAuthenticatedUser(); // DIAGNOSTIC: Allow all authenticated reads
-      allow create: if isAuthenticatedUser(); // DIAGNOSTIC: Allow all authenticated creates
-      allow update: if isAuthenticatedUser(); // DIAGNOSTIC: Allow all authenticated updates
-      allow delete: if isAuthenticatedUser(); // DIAGNOSTIC: Allow all authenticated deletes
-    }
-    
-    // DIAGNOSTIC: Additional photo metadata paths for comprehensive coverage
-    match /loadPhotos/{userId}/{loadId}/metadata/{photoId} {
-      allow read, write: if isAuthenticatedUser(); // DIAGNOSTIC: Allow all authenticated operations
+      allow read: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticatedUser() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+      allow delete: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
     }
 
     // Payment transactions - secure access for authenticated users

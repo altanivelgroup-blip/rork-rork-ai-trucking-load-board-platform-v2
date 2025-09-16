@@ -1,0 +1,43 @@
+// Rules updated - Anonymous paths added for unauthorized error handling
+// Backup created: storage.rules.backup.anonymous-paths
+// Log: Rules updated
+// CRITICAL FIX: Updated storage rules to prevent photo upload failures
+// Step 1: Enhanced rules to allow authenticated users proper access
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null
+        && (request.auth.token.admin == true || request.auth.token.role == 'admin');
+    }
+
+    // STEP 1 FIX: Enhanced rule - allow owner access, admin access, and authenticated users
+    match /loadPhotos/{userId}/{loadId}/{file=**} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId || 
+        request.auth.token.admin == true ||
+        // Allow authenticated users to write to their own path
+        (request.auth.uid != null && request.auth.uid == userId)
+      );
+    }
+
+    // Enhanced anonymous path for temporary uploads - allow all authenticated users
+    match /loadPhotos/anonymous/{loadId}/{file=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // CRITICAL FIX: Broader fallback for authenticated users
+    match /loadPhotos/{path=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Keep vehicle photos consistent
+    match /vehiclePhotos/{userId}/{vehicleId}/{file=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Admin-only report files
+    match /reports/{allPaths=**} { allow read, write: if isAdmin(); }
+    match /reportAnalytics/{allPaths=**} { allow read, write: if isAdmin(); }
+  }
+}
