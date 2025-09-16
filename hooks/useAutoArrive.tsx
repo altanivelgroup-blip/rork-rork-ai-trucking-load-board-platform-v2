@@ -175,4 +175,30 @@ const [AutoArriveProvider, useAutoArriveHook] = createContextHook<AutoArriveStat
 
 // Export with safe default fallback
 export { AutoArriveProvider };
-export const useAutoArrive = useAutoArriveHook;
+
+// Safe wrapper that provides defaults if hook fails
+export const useAutoArrive = (): AutoArriveState => {
+  try {
+    const result = useAutoArriveHook();
+    if (!result) {
+      console.warn('[useAutoArrive] Hook returned undefined, using fallback');
+      return {
+        arrivedPickups: {},
+        isSheetOpen: false,
+        sheetLoadId: undefined,
+        openSheet: () => console.log('[useAutoArrive] Fallback openSheet called'),
+        closeSheet: () => console.log('[useAutoArrive] Fallback closeSheet called'),
+      };
+    }
+    return result;
+  } catch (error) {
+    console.error('[useAutoArrive] Hook error, using fallback:', error);
+    return {
+      arrivedPickups: {},
+      isSheetOpen: false,
+      sheetLoadId: undefined,
+      openSheet: () => console.log('[useAutoArrive] Error fallback openSheet called'),
+      closeSheet: () => console.log('[useAutoArrive] Error fallback closeSheet called'),
+    };
+  }
+};
