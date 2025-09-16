@@ -381,7 +381,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       user,
       userId,
       isLoading,
-      isAuthenticated: !!user && !isAnonymous && hasSignedInThisSession,
+      isAuthenticated: !!user && hasSignedInThisSession,
       isFirebaseAuthenticated,
       hasSignedInThisSession,
       login,
@@ -390,6 +390,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       logout,
       updateProfile,
     };
+    console.log('[useAuth] Auth state computed:', {
+      hasUser: !!user,
+      userRole: user?.role,
+      isAnonymous,
+      hasSignedInThisSession,
+      isAuthenticated: result.isAuthenticated,
+      isLoading
+    });
     return result;
   }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile]);
 

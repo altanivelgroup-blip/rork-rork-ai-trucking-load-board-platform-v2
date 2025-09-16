@@ -121,12 +121,16 @@ export default function LoginScreen() {
         await login(email.trim(), password.trim(), finalRole);
         
         console.log('[login] success, navigating based on role:', finalRole);
-        if (finalRole === 'admin') {
-          router.replace('/(tabs)/admin');
-        } else if (finalRole === 'shipper') {
-          router.replace('/(tabs)/shipper');
-        } else {
-          router.replace('/(tabs)/dashboard');
+        try {
+          if (finalRole === 'admin') {
+            router.replace('/(tabs)/admin' as any);
+          } else if (finalRole === 'shipper') {
+            router.replace('/(tabs)/shipper' as any);
+          } else {
+            router.replace('/(tabs)/dashboard' as any);
+          }
+        } catch (navError) {
+          console.error('[login] Navigation error after login:', navError);
         }
         return;
       }
@@ -144,12 +148,16 @@ export default function LoginScreen() {
       await login('guest@example.com', 'guest', selectedRole);
       
       console.log('[login] anonymous success, navigating based on role:', selectedRole);
-      if (selectedRole === 'admin') {
-        router.replace('/(tabs)/admin');
-      } else if (selectedRole === 'shipper') {
-        router.replace('/(tabs)/shipper');
-      } else {
-        router.replace('/(tabs)/dashboard');
+      try {
+        if (selectedRole === 'admin') {
+          router.replace('/(tabs)/admin' as any);
+        } else if (selectedRole === 'shipper') {
+          router.replace('/(tabs)/shipper' as any);
+        } else {
+          router.replace('/(tabs)/dashboard' as any);
+        }
+      } catch (navError) {
+        console.error('[login] Navigation error after anonymous login:', navError);
       }
     } catch (error: any) {
       console.error('[login] failed:', error?.code, error?.message);
