@@ -764,61 +764,30 @@ export function PhotoUploader({
             }
           }
           
-          // FIXED: Validate input before processing
-          if (typeof input === 'string' && input.includes('firebasestorage.googleapis.com')) {
-            console.log('[PhotoUploader] ❌ Cannot process Firebase Storage URL');
-            setState(prev => ({
-              ...prev,
-              photos: prev.photos.map(p =>
-                p.id === fileId ? { 
-                  ...p, 
-                  uploading: false, 
-                  error: 'Please select a fresh photo from your device', 
-                  originalFile: undefined 
-                } : p
-              ),
-            }));
-            toast.show('Please select a fresh photo from your device', 'error');
-            return;
-          }
+          // FIXED: Simplified validation - only check for valid local files
+          console.log('[PhotoUploader] ✅ Processing photo upload:', typeof input);
           
-          // Validate object URIs
           if (typeof input === 'object' && (input as any)?.uri) {
             const uri = (input as any).uri;
-            if (uri.includes('firebasestorage.googleapis.com')) {
-              console.log('[PhotoUploader] ❌ Cannot process Firebase Storage URI');
-              setState(prev => ({
-                ...prev,
-                photos: prev.photos.map(p =>
-                  p.id === fileId ? { 
-                    ...p, 
-                    uploading: false, 
-                    error: 'Please select a fresh photo from your device', 
-                    originalFile: undefined 
-                  } : p
-                ),
-              }));
-              toast.show('Please select a fresh photo from your device', 'error');
-              return;
-            }
+            console.log('[PhotoUploader] Processing URI:', uri.substring(0, 50) + '...');
             
-            // Process local files only
-            if (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('ph://')) {
-              console.log('[PhotoUploader] ✅ Processing local file');
+            // Accept all local file URIs from ImagePicker
+            if (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('ph://') || uri.startsWith('blob:')) {
+              console.log('[PhotoUploader] ✅ Valid local file detected');
             } else {
-              console.log('[PhotoUploader] ❌ Unknown URI scheme');
+              console.log('[PhotoUploader] ❌ Invalid URI scheme - must be local file');
               setState(prev => ({
                 ...prev,
                 photos: prev.photos.map(p =>
                   p.id === fileId ? { 
                     ...p, 
                     uploading: false, 
-                    error: 'Please select a fresh photo from your device', 
+                    error: 'Please select a photo from your device gallery or camera', 
                     originalFile: undefined 
                   } : p
                 ),
               }));
-              toast.show('Please select a fresh photo from your device', 'error');
+              toast.show('Please select a photo from your device gallery or camera', 'error');
               return;
             }
           }
@@ -915,8 +884,8 @@ export function PhotoUploader({
         } else if (code.includes('network') || code.includes('timeout')) {
           errorMessage = 'Network error. Check connection and retry.';
         } else if (code.includes('Failed to fetch') || code.includes('TypeError: Failed to fetch')) {
-          errorMessage = 'Cannot access photo. Please select a fresh photo from your device.';
-          console.warn('[PhotoUploader] ❌ Fetch failed - photo may be corrupted or inaccessible');
+          errorMessage = 'Upload failed. Please try again or select a different photo.';
+          console.warn('[PhotoUploader] ❌ Upload failed - retrying may help');
         }
         
         setState(prev => ({
@@ -927,23 +896,13 @@ export function PhotoUploader({
         }));
         toast.show(errorMessage, 'error');
         try {
-          // Don't queue Firebase Storage URLs as they will fail
-          const isFirebaseStorageUrl = (
-            (typeof input === 'string' && input.includes('firebasestorage.googleapis.com')) ||
-            (typeof input === 'object' && (input as any)?.uri?.includes('firebasestorage.googleapis.com'))
-          );
+          // Queue local files for retry
+          const shouldQueue = typeof input === 'object' && (input as any)?.uri;
           
-          if (isFirebaseStorageUrl) {
-            console.log('[PhotoUploader] ❌ Not queuing Firebase Storage URL');
-          } else {
-            // Queue local files for retry
-            const shouldQueue = typeof input === 'object' && (input as any)?.uri;
-            
-            if (shouldQueue) {
-              offlineQueueRef.current.push(input);
-              await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
-              console.log('[PhotoUploader] Queued photo for retry. Queue size:', offlineQueueRef.current.length);
-            }
+          if (shouldQueue) {
+            offlineQueueRef.current.push(input);
+            await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
+            console.log('[PhotoUploader] Queued photo for retry. Queue size:', offlineQueueRef.current.length);
           }
         } catch (qErr) {
           console.warn('[PhotoUploader] Failed to persist offline queue', qErr);
