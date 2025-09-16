@@ -212,11 +212,29 @@ export default function RootLayout() {
               <ToastProvider>
                 <View style={styles.appContainer}>
                   <AuthProvider>
-                    <ErrorBoundary safeRoute="/(auth)/login">
-                      <RoleBasedRouter>
-                        <RootLayoutNav />
-                      </RoleBasedRouter>
-                    </ErrorBoundary>
+                    <SettingsProvider>
+                      <PaymentsProvider>
+                        <WalletProvider>
+                          <AdminWalletProvider>
+                            <MaintenanceProvider>
+                              <PostLoadProvider>
+                                <LoadsProvider>
+                                  <AutoArriveProvider>
+                                    <ProfileCacheProvider>
+                                      <ErrorBoundary safeRoute="/(auth)/login">
+                                        <RoleBasedRouter>
+                                          <RootLayoutNav />
+                                        </RoleBasedRouter>
+                                      </ErrorBoundary>
+                                    </ProfileCacheProvider>
+                                  </AutoArriveProvider>
+                                </LoadsProvider>
+                              </PostLoadProvider>
+                            </MaintenanceProvider>
+                          </AdminWalletProvider>
+                        </WalletProvider>
+                      </PaymentsProvider>
+                    </SettingsProvider>
                   </AuthProvider>
                 </View>
                 <ToastHost />
