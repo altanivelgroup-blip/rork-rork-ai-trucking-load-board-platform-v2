@@ -470,30 +470,6 @@ export function PhotoUploader({
     return () => { canceled = true; };
   }, [offlineQueueKey]);
 
-  useEffect(() => {
-    let canceled = false;
-    const tryFlush = async () => {
-      try {
-        const { auth } = getFirebase();
-        const authed = !!auth.currentUser && !auth.currentUser.isAnonymous;
-        if (authed && offlineQueueRef.current.length > 0) {
-          console.log('[PhotoUploader] Flushing offline queue of', offlineQueueRef.current.length);
-          const items = [...offlineQueueRef.current];
-          offlineQueueRef.current = [];
-          await AsyncStorage.setItem(offlineQueueKey, JSON.stringify([]));
-          for (const img of items) {
-            if (canceled) break;
-            await uploadFile(img);
-          }
-        }
-      } catch (e) {
-        console.warn('[PhotoUploader] Flush queue failed', e);
-      }
-    };
-    const id = setInterval(tryFlush, 5000);
-    void tryFlush();
-    return () => { canceled = true; clearInterval(id); };
-  }, [offlineQueueKey, uploadFile]);
 
   const validateFile = useCallback((file: { type?: string; size?: number; uri: string }) => {
     if (file.size && file.size > 5 * 1024 * 1024) {
@@ -835,6 +811,31 @@ export function PhotoUploader({
       toast.show('Upload failed: ' + errorMessage, 'error');
     }
   }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly, resizePreset]);
+
+  useEffect(() => {
+    let canceled = false;
+    const tryFlush = async () => {
+      try {
+        const { auth } = getFirebase();
+        const authed = !!auth.currentUser && !auth.currentUser.isAnonymous;
+        if (authed && offlineQueueRef.current.length > 0) {
+          console.log('[PhotoUploader] Flushing offline queue of', offlineQueueRef.current.length);
+          const items = [...offlineQueueRef.current];
+          offlineQueueRef.current = [];
+          await AsyncStorage.setItem(offlineQueueKey, JSON.stringify([]));
+          for (const img of items) {
+            if (canceled) break;
+            await uploadFile(img);
+          }
+        }
+      } catch (e) {
+        console.warn('[PhotoUploader] Flush queue failed', e);
+      }
+    };
+    const id = setInterval(tryFlush, 5000);
+    void tryFlush();
+    return () => { canceled = true; clearInterval(id); };
+  }, [offlineQueueKey, uploadFile]);
 
   const handleRetryUpload = useCallback(async (photo: PhotoItem) => {
     if (!photo.originalFile) {
