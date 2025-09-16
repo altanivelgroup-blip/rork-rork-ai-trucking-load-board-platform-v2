@@ -766,10 +766,10 @@ export function PhotoUploader({
             }
           }
           
-          // IMPORTANT: Check if input is already a Firebase Storage URL
+          // PERMANENT FIX: Check if input is already a Firebase Storage URL
           // If so, we don't need to re-upload it, just use it directly
           if (typeof input === 'string' && input.includes('firebasestorage.googleapis.com')) {
-            console.log('[PhotoUploader] Input is already a Firebase Storage URL, using directly');
+            console.log('[PhotoUploader] ✅ Input is already a Firebase Storage URL, using directly without fetch');
             setState(prev => {
               const updatedPhotos = prev.photos.map(p =>
                 p.id === fileId ? { ...p, url: input, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
@@ -786,8 +786,37 @@ export function PhotoUploader({
                 primaryPhoto: newPrimaryPhoto,
               };
             });
-            toast.show('✅ Photo already uploaded to Firebase Storage!', 'success');
+            toast.show('✅ Photo already in Firebase Storage - no upload needed!', 'success');
             return;
+          }
+          
+          // PERMANENT FIX: For local files, upload directly without fetch
+          if (typeof input === 'object' && (input as any)?.uri) {
+            const uri = (input as any).uri;
+            if (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('ph://')) {
+              console.log('[PhotoUploader] ✅ Processing local file directly without problematic fetch');
+              // Continue with normal upload process for local files
+            } else if (uri.includes('firebasestorage.googleapis.com')) {
+              console.log('[PhotoUploader] ✅ Object contains Firebase Storage URL, using directly');
+              setState(prev => {
+                const updatedPhotos = prev.photos.map(p =>
+                  p.id === fileId ? { ...p, url: uri, uploading: false, progress: 100, error: undefined, originalFile: undefined } : p
+                );
+                const newPrimaryPhoto = prev.primaryPhoto || uri;
+                setTimeout(() => {
+                  updateFirestorePhotos(updatedPhotos.map(p => p.url), newPrimaryPhoto);
+                  const uploadsInProgress = updatedPhotos.filter(p => p.uploading).length;
+                  onChange?.(updatedPhotos.map(p => p.url), newPrimaryPhoto, uploadsInProgress);
+                }, 0);
+                return {
+                  ...prev,
+                  photos: updatedPhotos,
+                  primaryPhoto: newPrimaryPhoto,
+                };
+              });
+              toast.show('✅ Photo already in Firebase Storage - no upload needed!', 'success');
+              return;
+            }
           }
           
           url = await uploadWithFallback(
@@ -868,29 +897,8 @@ export function PhotoUploader({
         }
         
         if (code.includes('storage/unauthorized') || code.includes('unauthorized')) {
-          errorMessage = 'Storage permission denied. Retrying with fresh authentication...';
-          console.warn('[PhotoUploader] ❌ Storage unauthorized - attempting re-authentication');
-          
-          // Try to refresh authentication token and retry upload once
-          try {
-            console.log('[PhotoUploader] Refreshing authentication for storage access...');
-            const { auth } = getFirebase();
-            if (auth.currentUser) {
-              // Refresh the ID token
-              await auth.currentUser.getIdToken(true);
-              console.log('[PhotoUploader] ✅ Token refreshed, storage should work now');
-              errorMessage = 'Authentication refreshed. Please retry upload.';
-            } else {
-              // Sign in anonymously if no user
-              const { signInAnonymously } = await import('firebase/auth');
-              await signInAnonymously(auth);
-              console.log('[PhotoUploader] ✅ Anonymous sign-in successful, storage should work now');
-              errorMessage = 'Authentication refreshed. Please retry upload.';
-            }
-          } catch (reAuthError) {
-            console.error('[PhotoUploader] Re-authentication failed:', reAuthError);
-            errorMessage = 'Storage access denied. Please refresh the page and try again.';
-          }
+          errorMessage = 'Storage access denied. Please try uploading a fresh photo.';
+          console.warn('[PhotoUploader] ❌ Storage unauthorized - user should upload fresh photo');
         } else if (code.includes('unauthenticated') || code.includes('auth')) {
           errorMessage = 'Authentication expired. Please retry upload.';
         } else if (code.includes('retry-limit-exceeded')) {
@@ -901,6 +909,9 @@ export function PhotoUploader({
           errorMessage = 'Configuration error. Please contact support.';
         } else if (code.includes('network') || code.includes('timeout')) {
           errorMessage = 'Network error. Check connection and retry.';
+        } else if (code.includes('Failed to fetch') || code.includes('TypeError: Failed to fetch')) {
+          errorMessage = 'Cannot access photo. Please upload a fresh photo from your device.';
+          console.warn('[PhotoUploader] ❌ Fetch failed - likely trying to access expired Firebase Storage URL');
         }
         
         setState(prev => ({
@@ -911,16 +922,23 @@ export function PhotoUploader({
         }));
         toast.show(errorMessage, 'error');
         try {
-          const { auth } = getFirebase();
-          if (!auth.currentUser || auth.currentUser.isAnonymous) {
-            // Guard: Queue only when not able to upload due to auth/offline; always persist queue
-            offlineQueueRef.current.push(input);
-            await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
-            console.log('[PhotoUploader] Queued offline photo for later retry. Queue size:', offlineQueueRef.current.length);
+          // PERMANENT FIX: Only queue local files, not Firebase Storage URLs
+          const shouldQueue = typeof input === 'object' && (input as any)?.uri && 
+            !((input as any).uri as string).includes('firebasestorage.googleapis.com');
+          
+          if (shouldQueue) {
+            const { auth } = getFirebase();
+            if (!auth.currentUser || auth.currentUser.isAnonymous) {
+              offlineQueueRef.current.push(input);
+              await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
+              console.log('[PhotoUploader] Queued local photo for later retry. Queue size:', offlineQueueRef.current.length);
+            } else {
+              offlineQueueRef.current.push(input);
+              await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
+              console.log('[PhotoUploader] Queued local photo for retry. Queue size:', offlineQueueRef.current.length);
+            }
           } else {
-            offlineQueueRef.current.push(input);
-            await AsyncStorage.setItem(offlineQueueKey, JSON.stringify(offlineQueueRef.current));
-            console.log('[PhotoUploader] Queued photo for retry. Queue size:', offlineQueueRef.current.length);
+            console.log('[PhotoUploader] Not queuing Firebase Storage URL - user should upload fresh photo instead');
           }
         } catch (qErr) {
           console.warn('[PhotoUploader] Failed to persist offline queue', qErr);

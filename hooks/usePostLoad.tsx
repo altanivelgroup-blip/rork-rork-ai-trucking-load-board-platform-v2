@@ -431,49 +431,57 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       for (let i = 0; i < photosLocal.length; i++) {
         const photo = photosLocal[i];
         try {
-          // CRITICAL FIX: Add authentication headers and retry logic for fetch failures
-          console.log('[PostLoad] Fetching photo from URI:', photo.uri);
+          // PERMANENT FIX: Skip fetch for Firebase Storage URLs - use direct upload instead
+          console.log('[PostLoad] Processing photo URI:', photo.uri);
           
-          let response: Response;
-          let retryCount = 0;
-          const maxRetries = 3;
+          let blob: Blob;
           
-          while (retryCount < maxRetries) {
+          // Check if this is already a Firebase Storage URL
+          if (photo.uri.includes('firebasestorage.googleapis.com')) {
+            console.log('[PostLoad] ✅ Photo is already uploaded to Firebase Storage, skipping re-upload');
+            // Photo is already uploaded, just add the URL to our list
+            uploadedUrls.push(photo.uri);
+            console.log(`[PostLoad] ✅ Added existing Firebase Storage URL ${i + 1}/${photosLocal.length}`);
+            continue; // Skip to next photo
+          }
+          
+          // For local URIs (file://, content://, etc.), convert to blob directly
+          if (photo.uri.startsWith('file://') || photo.uri.startsWith('content://') || photo.uri.startsWith('ph://')) {
+            console.log('[PostLoad] Converting local URI to blob:', photo.uri.substring(0, 50) + '...');
+            
             try {
-              // CRITICAL FIX: Don't add auth headers to Firebase Storage URLs
-              // Firebase Storage URLs are public with tokens, adding auth headers causes CORS issues
-              console.log('[PostLoad] Fetching Firebase Storage URL (no auth headers needed):', photo.uri.substring(0, 100) + '...');
-              
-              response = await fetch(photo.uri, {
+              // Use fetch for local URIs - this should work without CORS issues
+              const response = await fetch(photo.uri);
+              if (!response.ok) {
+                throw new Error(`Failed to read local file: ${response.status}`);
+              }
+              blob = await response.blob();
+              console.log('[PostLoad] ✅ Local file converted to blob successfully');
+            } catch (localError: any) {
+              console.error('[PostLoad] Failed to convert local URI to blob:', localError);
+              throw new Error(`Failed to process local image: ${localError.message}`);
+            }
+          } else {
+            // For other URLs, try fetch with error handling
+            console.log('[PostLoad] Fetching remote URL:', photo.uri.substring(0, 100) + '...');
+            
+            try {
+              const response = await fetch(photo.uri, {
                 method: 'GET',
-                // Remove auth headers - Firebase Storage URLs are self-authenticated via tokens
-                // Add timeout to prevent hanging
-                signal: AbortSignal.timeout(30000) // 30 second timeout
+                signal: AbortSignal.timeout(15000) // Reduced timeout
               });
               
               if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
               }
               
-              console.log('[PostLoad] ✅ Photo fetch successful:', response.status);
-              break; // Success, exit retry loop
-              
+              blob = await response.blob();
+              console.log('[PostLoad] ✅ Remote URL fetched successfully');
             } catch (fetchError: any) {
-              retryCount++;
-              console.error(`[PostLoad] Fetch attempt ${retryCount}/${maxRetries} failed:`, fetchError.message);
-              
-              if (retryCount >= maxRetries) {
-                throw new Error(`Failed to fetch image from URL after ${maxRetries} attempts: ${fetchError.message}`);
-              }
-              
-              // Wait before retry with exponential backoff
-              const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
-              console.log(`[PostLoad] Retrying fetch in ${delay}ms...`);
-              await new Promise(resolve => setTimeout(resolve, delay));
+              console.error('[PostLoad] Remote URL fetch failed:', fetchError.message);
+              throw new Error(`Failed to fetch remote image: ${fetchError.message}`);
             }
           }
-          
-          const blob = await response!.blob();
 
           const extFromType = (photo.type?.split('/')[1] || '').toLowerCase();
           const nameExt = (photo.name || '').split('.').pop()?.toLowerCase();
@@ -504,26 +512,30 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           console.error(`[PostLoad] failed to upload photo ${i}:`, uploadError);
           
           // Enhanced error handling with specific error types
-          if (uploadError.message?.includes('Failed to fetch')) {
-            console.error('[PostLoad] Network fetch error - this may be due to CORS or network issues');
+          if (uploadError.message?.includes('Failed to fetch') || uploadError.message?.includes('TypeError: Failed to fetch')) {
+            console.error('[PostLoad] Network fetch error - this indicates a fundamental connectivity issue');
             console.error('[PostLoad] Photo URI causing fetch failure:', photo.uri);
             
-            // Check if this is a Firebase Storage URL that might have an expired token
+            // Provide user-friendly error message
             if (photo.uri.includes('firebasestorage.googleapis.com')) {
-              console.error('[PostLoad] Firebase Storage URL fetch failed - token may be expired');
-              throw new Error(`Firebase Storage access failed. The photo URL may have expired. Please re-upload the photo.`);
+              throw new Error(`Cannot access Firebase Storage photo. This may be due to network issues or expired access. Please try uploading a fresh photo.`);
             } else {
-              throw new Error(`Failed to fetch image from URL: ${photo.uri}`);
+              throw new Error(`Cannot access photo from ${photo.uri}. Please check your internet connection and try again.`);
             }
           } else if (uploadError.message?.includes('HTTP 403') || uploadError.message?.includes('HTTP 401')) {
             console.error('[PostLoad] Authentication error during image fetch');
-            throw new Error(`Authentication failed when accessing image: ${photo.uri}`);
-          } else if (uploadError.message?.includes('timeout')) {
+            throw new Error(`Access denied for photo: ${photo.uri}. Please try uploading a fresh photo.`);
+          } else if (uploadError.message?.includes('timeout') || uploadError.message?.includes('AbortError')) {
             console.error('[PostLoad] Timeout error during image fetch');
-            throw new Error(`Timeout when fetching image: ${photo.uri}`);
+            throw new Error(`Photo upload timed out. Please check your connection and try again.`);
+          } else if (uploadError.message?.includes('storage/')) {
+            console.error('[PostLoad] Firebase Storage error:', uploadError.message);
+            throw new Error(`Storage error: ${uploadError.message}. Please try again.`);
           }
           
-          throw uploadError; // Re-throw original error if not a known type
+          // For unknown errors, provide a generic but helpful message
+          console.error('[PostLoad] Unknown upload error:', uploadError);
+          throw new Error(`Photo upload failed: ${uploadError.message || 'Unknown error'}. Please try uploading a fresh photo.`);
         }
       }
 
