@@ -29,11 +29,11 @@ export default function LoadsScreen() {
   const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ visible: boolean; loadId: string | null }>({ visible: false, loadId: null });
   
-  const equipmentTypes = ['Flatbed', 'Reefer', 'Box Truck', 'Car Hauler', 'Enclosed Trailer'];
+  const equipmentTypes = ['Cargo Van', 'Flatbed', 'Reefer', 'Box Truck', 'Car Hauler', 'Enclosed Trailer'];
   const sortingOptions = isDriver 
     ? ['Highest $/mi', 'Near me', 'Lightest', 'New Today', 'AI for Loads']
     : ['Newest First', 'Highest Rate', 'Bulk Imports', 'Active Only'];
-  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string>('Flatbed');
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string>('Cargo Van');
   const [selectedSortOptions, setSelectedSortOptions] = useState<string[]>(
     isDriver ? ['Near me', 'New Today', 'AI for Loads'] : ['Newest First', 'Active Only']
   );
