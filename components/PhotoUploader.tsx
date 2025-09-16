@@ -189,7 +189,13 @@ function enqueueUpload(job: () => Promise<void>) {
 // Save photo metadata to Firestore after successful upload
 async function savePhotoMetadata(photoUrl: string, loadId: string, userId: string, uploadedBy: 'shipper' | 'driver' = 'shipper'): Promise<void> {
   try {
-    const { db } = getFirebase();
+    // Skip metadata save if user is not properly authenticated
+    const { auth, db } = getFirebase();
+    if (!auth?.currentUser || auth.currentUser.isAnonymous) {
+      console.log('[PhotoUploader] Skipping metadata save - user not authenticated or anonymous');
+      return;
+    }
+    
     const photosCollection = collection(db, 'photos');
     
     const photoMetadata = {
@@ -586,35 +592,7 @@ export function PhotoUploader({
     processPendingWrites().catch((e) => console.error('[PhotoUploader] processPendingWrites error:', e));
   }, [onChange, state.photos, processPendingWrites]);
 
-  // Helper function to handle anonymous users and path construction
-  const handleAnonymousUser = useCallback((auth: any) => {
-    if (auth.currentUser?.isAnonymous) {
-      console.warn('[PhotoUploader] 🛑 Anonymous user - uploads require sign in');
-      toast.show('Sign in required', 'warning');
-      try {
-        platformAlert(
-          'Sign in required',
-          'Please sign in to upload photos.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign in', onPress: () => { try { router.push('/(auth)/login'); } catch (e) { console.log('[PhotoUploader] nav error', e); } } }
-          ]
-        );
-      } catch {}
-      return { shouldReturn: true, path: null };
-    }
-    
-    // Use authenticated user ID for storage path
-    const uid = auth.currentUser.uid;
-    const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
-    const basePath = `loadPhotos/${uid}/${safeId}`;
-    
-    console.log('[PhotoUploader] 📁 Upload path:', basePath);
-    console.log('[PhotoUploader] 👤 Authenticated user:', uid);
-    console.log('[PhotoUploader] 🏗️ Entity ID:', entityId);
-    
-    return { shouldReturn: false, path: basePath };
-  }, [entityId, toast]);
+
 
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
@@ -690,10 +668,19 @@ export function PhotoUploader({
         emailVerified: auth.currentUser.emailVerified
       });
 
-      // Handle anonymous user and get path
-      const { shouldReturn, path: basePath } = handleAnonymousUser(auth);
-      if (shouldReturn || !basePath) {
-        return;
+      // Handle anonymous user and get path - FIXED: Allow anonymous uploads with proper path
+      let basePath: string;
+      if (auth.currentUser?.isAnonymous) {
+        console.log('[PhotoUploader] 🔓 Anonymous user detected - using anonymous upload path');
+        const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
+        basePath = `loadPhotos/anonymous/${safeId}`;
+        console.log('[PhotoUploader] 📁 Anonymous upload path:', basePath);
+      } else {
+        // Use authenticated user ID for storage path
+        const uid = auth.currentUser.uid;
+        const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
+        basePath = `loadPhotos/${uid}/${safeId}`;
+        console.log('[PhotoUploader] 📁 Authenticated upload path:', basePath);
       }
       
       // CONFIRMATION: Log that storage rules have been updated
@@ -787,8 +774,12 @@ export function PhotoUploader({
         console.log('[UPLOAD_DONE]', basePath);
         console.log('[PhotoUploader] ✅ Production photo upload successful - Firebase Storage working correctly');
         
-        // Save photo metadata to Firestore after successful upload
-        await savePhotoMetadata(url, entityId, auth.currentUser.uid, 'shipper');
+        // Save photo metadata to Firestore after successful upload (only for authenticated users)
+        if (!auth.currentUser.isAnonymous) {
+          await savePhotoMetadata(url, entityId, auth.currentUser.uid, 'shipper');
+        } else {
+          console.log('[PhotoUploader] Skipping metadata save for anonymous user');
+        }
         
         setState(prev => {
           const updatedPhotos = prev.photos.map(p =>
@@ -828,14 +819,22 @@ export function PhotoUploader({
           errorMessage = 'Storage permission denied. Retrying with fresh authentication...';
           console.warn('[PhotoUploader] ❌ Storage unauthorized - attempting re-authentication');
           
-          // Try to re-authenticate and retry upload once
+          // Try to refresh authentication token and retry upload once
           try {
-            console.log('[PhotoUploader] Re-authenticating for storage access...');
-            const { signInAnonymously } = await import('firebase/auth');
+            console.log('[PhotoUploader] Refreshing authentication for storage access...');
             const { auth } = getFirebase();
-            await signInAnonymously(auth);
-            console.log('[PhotoUploader] ✅ Re-authentication successful, storage should work now');
-            errorMessage = 'Authentication refreshed. Please retry upload.';
+            if (auth.currentUser) {
+              // Refresh the ID token
+              await auth.currentUser.getIdToken(true);
+              console.log('[PhotoUploader] ✅ Token refreshed, storage should work now');
+              errorMessage = 'Authentication refreshed. Please retry upload.';
+            } else {
+              // Sign in anonymously if no user
+              const { signInAnonymously } = await import('firebase/auth');
+              await signInAnonymously(auth);
+              console.log('[PhotoUploader] ✅ Anonymous sign-in successful, storage should work now');
+              errorMessage = 'Authentication refreshed. Please retry upload.';
+            }
           } catch (reAuthError) {
             console.error('[PhotoUploader] Re-authentication failed:', reAuthError);
             errorMessage = 'Storage access denied. Please refresh the page and try again.';
@@ -881,7 +880,7 @@ export function PhotoUploader({
       const errorMessage = mapStorageError(error);
       toast.show('Upload failed: ' + errorMessage, 'error');
     }
-  }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly, resizePreset, handleAnonymousUser]);
+  }, [entityType, entityId, toast, updateFirestorePhotos, onChange, qaState.qaSlowNetwork, qaState.qaFailRandomly, resizePreset]);
 
   useEffect(() => {
     let canceled = false;
