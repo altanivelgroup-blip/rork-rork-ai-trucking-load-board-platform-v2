@@ -25,7 +25,6 @@ import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
 import { StartupInitializer } from "@/components/StartupInitializer";
-import { RoleBasedRouter } from "@/components/RoleBasedRouter";
 import StripeWrapper from "@/components/StripeWrapper";
 
 import { theme } from "@/constants/theme";
@@ -224,9 +223,7 @@ export default function RootLayout() {
                                   <AutoArriveProvider>
                                     <ProfileCacheProvider>
                                       <ErrorBoundary safeRoute="/(auth)/login">
-                                        <RoleBasedRouter>
-                                          <RootLayoutNav />
-                                        </RoleBasedRouter>
+                                        <RootLayoutNav />
                                       </ErrorBoundary>
                                     </ProfileCacheProvider>
                                   </AutoArriveProvider>
