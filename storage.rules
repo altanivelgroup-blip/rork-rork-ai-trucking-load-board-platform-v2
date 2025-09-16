@@ -1,4 +1,4 @@
-// FIXED STORAGE RULES - Optimized for photo upload functionality
+// COMPREHENSIVE STORAGE RULES - Fixed for all authenticated users
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -12,32 +12,48 @@ service firebase.storage {
         && (request.auth.token.admin == true || request.auth.token.role == 'admin');
     }
 
-    // FIXED: Load photos - allow authenticated users to manage their own photos
+    // CRITICAL FIX: Load photos - comprehensive permissions for all authenticated users
     match /loadPhotos/{userId}/{loadId}/{fileName} {
       allow read: if true; // Public read access for photo viewing
-      allow write, update, delete: if isAuthenticated() && request.auth.uid == userId;
+      allow write, create, update, delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // FIXED: Vehicle photos - allow authenticated users to manage their own photos
+    // CRITICAL FIX: Vehicle photos - comprehensive permissions for all authenticated users
     match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
       allow read: if true; // Public read access for photo viewing
-      allow write, update, delete: if isAuthenticated() && request.auth.uid == userId;
+      allow write, create, update, delete: if isAuthenticated() && request.auth.uid == userId;
     }
     
-    // FIXED: Fallback for any photo-related paths
+    // CRITICAL FIX: Generic photo paths for maximum compatibility
+    match /photos/{userId}/{photoId} {
+      allow read: if true; // Public read access
+      allow write, create, update, delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // CRITICAL FIX: User-specific paths with wildcard support
+    match /users/{userId}/photos/{allPaths=**} {
+      allow read: if true; // Public read access
+      allow write, create, update, delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // CRITICAL FIX: Comprehensive fallback for any photo-related paths
     match /{allPaths=**} {
       allow read: if true; // Allow all reads to prevent fetch failures
-      allow write: if isAuthenticated() && 
-        (allPaths.matches('.*Photos/.*') || allPaths.matches('.*photos/.*') || allPaths.matches('.*images/.*'));
+      allow write, create, update, delete: if isAuthenticated() && 
+        (allPaths.matches('.*Photos/.*') || 
+         allPaths.matches('.*photos/.*') || 
+         allPaths.matches('.*images/.*') ||
+         allPaths.matches('.*Pictures/.*') ||
+         allPaths.matches('.*uploads/.*'));
     }
 
     // Admin-only report files
     match /reports/{allPaths=**} { 
-      allow read, write: if isAdmin(); 
+      allow read, write, create, update, delete: if isAdmin(); 
     }
     
     match /reportAnalytics/{allPaths=**} { 
-      allow read, write: if isAdmin(); 
+      allow read, write, create, update, delete: if isAdmin(); 
     }
   }
 }

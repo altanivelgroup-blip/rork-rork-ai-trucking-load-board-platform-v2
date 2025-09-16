@@ -48,9 +48,14 @@ service cloud.firestore {
       );
     }
     
-    // Enhanced auth check for development mode
+    // CRITICAL FIX: Enhanced auth check - ensure all authenticated users have access
     function isAuthenticatedUser() {
       return request.auth != null && request.auth.uid != null;
+    }
+    
+    // CRITICAL FIX: Helper to check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticatedUser() && request.auth.uid == userId;
     }
 
     // Auth optimized loads permissions: enhanced for authenticated users
