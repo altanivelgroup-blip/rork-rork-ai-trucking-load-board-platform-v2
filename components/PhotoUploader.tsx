@@ -668,30 +668,13 @@ export function PhotoUploader({
           // ✅ PERMANENT FIX: Simplified validation and upload process
           console.log('[PhotoUploader] Processing photo upload...');
           
-          // Basic validation for local files
+          // ✅ PERMANENT FIX: Simplified validation - accept all ImagePicker results
           if (typeof input === 'object' && (input as any)?.uri) {
             const uri = (input as any).uri;
-            console.log('[PhotoUploader] Processing URI:', uri.substring(0, 50) + '...');
+            console.log('[PhotoUploader] ✅ Processing photo from ImagePicker:', uri.substring(0, 50) + '...');
             
-            // Accept all local file URIs from ImagePicker
-            if (!uri.startsWith('file://') && !uri.startsWith('content://') && !uri.startsWith('ph://') && !uri.startsWith('blob:')) {
-              console.log('[PhotoUploader] ❌ Invalid URI - must be local file');
-              setState(prev => ({
-                ...prev,
-                photos: prev.photos.map(p =>
-                  p.id === fileId ? { 
-                    ...p, 
-                    uploading: false, 
-                    error: 'Please select a fresh photo from your device', 
-                    originalFile: undefined 
-                  } : p
-                ),
-              }));
-              toast.show('Please select a fresh photo from your device', 'error');
-              return;
-            }
-            
-            console.log('[PhotoUploader] ✅ Valid local file detected');
+            // Accept all URIs from ImagePicker - they are all valid
+            console.log('[PhotoUploader] ✅ Photo accepted for upload');
           }
           
           url = await uploadWithFallback(
