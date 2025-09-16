@@ -31,14 +31,22 @@ function haversineMiles(a: { latitude: number; longitude: number }, b: { latitud
 }
 
 export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveState>(() => {
-  console.log('[AutoArrive] Provider initializing');
+  console.log('[AutoArrive] Provider initializing with error handling');
   
-  let user, currentLoad, startWatching, stopWatching;
+  // Initialize with safe defaults
+  let user = null;
+  let currentLoad = null;
+  let startWatching = async () => () => {};
+  let stopWatching = () => {};
   
   try {
     const authResult = useAuth();
-    user = authResult?.user;
-    console.log('[AutoArrive] Auth hook result:', !!authResult);
+    if (authResult && typeof authResult === 'object') {
+      user = authResult.user || null;
+      console.log('[AutoArrive] Auth hook success:', !!user);
+    } else {
+      console.warn('[AutoArrive] Auth hook returned invalid result:', authResult);
+    }
   } catch (e) {
     console.warn('[AutoArrive] useAuth failed:', e);
     user = null;
@@ -46,8 +54,12 @@ export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveS
   
   try {
     const loadsResult = useLoads();
-    currentLoad = loadsResult?.currentLoad;
-    console.log('[AutoArrive] Loads hook result:', !!loadsResult);
+    if (loadsResult && typeof loadsResult === 'object') {
+      currentLoad = loadsResult.currentLoad || null;
+      console.log('[AutoArrive] Loads hook success:', !!currentLoad);
+    } else {
+      console.warn('[AutoArrive] Loads hook returned invalid result:', loadsResult);
+    }
   } catch (e) {
     console.warn('[AutoArrive] useLoads failed:', e);
     currentLoad = null;
@@ -55,9 +67,13 @@ export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveS
   
   try {
     const locationResult = useLiveLocation();
-    startWatching = locationResult?.startWatching;
-    stopWatching = locationResult?.stopWatching;
-    console.log('[AutoArrive] Location hook result:', !!locationResult);
+    if (locationResult && typeof locationResult === 'object') {
+      startWatching = locationResult.startWatching || (async () => () => {});
+      stopWatching = locationResult.stopWatching || (() => {});
+      console.log('[AutoArrive] Location hook success');
+    } else {
+      console.warn('[AutoArrive] Location hook returned invalid result:', locationResult);
+    }
   } catch (e) {
     console.warn('[AutoArrive] useLiveLocation failed:', e);
     startWatching = async () => () => {};
@@ -190,4 +206,10 @@ export const [AutoArriveProvider, useAutoArrive] = createContextHook<AutoArriveS
   });
   
   return result;
+}, {
+  arrivedPickups: {},
+  isSheetOpen: false,
+  sheetLoadId: undefined,
+  openSheet: () => {},
+  closeSheet: () => {}
 });

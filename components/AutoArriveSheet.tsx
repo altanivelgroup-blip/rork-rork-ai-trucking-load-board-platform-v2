@@ -10,23 +10,36 @@ interface Props {
 }
 
 function AutoArriveSheetInner(_: Props) {
-  console.log('[AutoArriveSheet] Component rendering');
+  console.log('[AutoArriveSheet] Component rendering with safe hook calls');
   
-  // Always call hooks in the same order
+  // Always call hooks in the same order - React requires this
   const autoArriveState = useAutoArrive();
   const loadsState = useLoads();
   
   console.log('[AutoArriveSheet] Hook results:', {
     autoArrive: !!autoArriveState,
-    loads: !!loadsState
+    autoArriveType: typeof autoArriveState,
+    loads: !!loadsState,
+    loadsType: typeof loadsState
   });
+  
+  // Early return if hooks failed to initialize
+  if (!autoArriveState || typeof autoArriveState !== 'object') {
+    console.warn('[AutoArriveSheet] AutoArrive hook not ready, returning null');
+    return null;
+  }
+  
+  if (!loadsState || typeof loadsState !== 'object') {
+    console.warn('[AutoArriveSheet] Loads hook not ready, returning null');
+    return null;
+  }
   
   // Safely destructure with fallbacks
   const { 
     isSheetOpen = false, 
     closeSheet = () => {}, 
     sheetLoadId 
-  } = autoArriveState || {};
+  } = autoArriveState;
   
   const { currentLoad } = loadsState || {};
 

@@ -1,58 +1,72 @@
-import React, { useEffect } from 'react';
-import { useRouter, useRootNavigationState } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
-  console.log('[IndexScreen] CRASH FIX - Starting with enhanced navigation safety');
+  console.log('[IndexScreen] NAVIGATION FIX - Starting with safe navigation');
   
   const router = useRouter();
-  const navState = useRootNavigationState();
   const { isLoading, isAuthenticated, user } = useAuth();
+  const [navigationReady, setNavigationReady] = useState(false);
 
-  console.log('[IndexScreen] CRASH FIX - State:', {
-    navReady: Boolean(navState?.key),
+  console.log('[IndexScreen] NAVIGATION FIX - State:', {
+    navigationReady,
     isLoading,
     isAuthenticated,
     userRole: user?.role
   });
 
+  // Use a timeout to ensure navigation is ready
   useEffect(() => {
-    console.log('[IndexScreen] CRASH FIX - Navigation effect triggered');
+    const timer = setTimeout(() => {
+      console.log('[IndexScreen] NAVIGATION FIX - Navigation ready timeout reached');
+      setNavigationReady(true);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    console.log('[IndexScreen] NAVIGATION FIX - Navigation effect triggered');
     
-    // CRITICAL: Wait for navigation to be ready
-    if (!navState?.key) {
-      console.log('[IndexScreen] CRASH FIX - Navigation not ready, waiting...');
+    // Wait for navigation to be ready
+    if (!navigationReady) {
+      console.log('[IndexScreen] NAVIGATION FIX - Navigation not ready, waiting...');
       return;
     }
 
-    // CRITICAL: Wait for auth to initialize
+    // Wait for auth to initialize
     if (isLoading) {
-      console.log('[IndexScreen] CRASH FIX - Auth still loading, waiting...');
+      console.log('[IndexScreen] NAVIGATION FIX - Auth still loading, waiting...');
       return;
     }
 
-    console.log('[IndexScreen] CRASH FIX - Ready to navigate, auth state:', { isAuthenticated, userRole: user?.role });
+    console.log('[IndexScreen] NAVIGATION FIX - Ready to navigate, auth state:', { isAuthenticated, userRole: user?.role });
     
     try {
       if (isAuthenticated && user) {
         const targetRoute = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
-        console.log('[IndexScreen] CRASH FIX - Redirecting authenticated user to:', targetRoute);
+        console.log('[IndexScreen] NAVIGATION FIX - Redirecting authenticated user to:', targetRoute);
         router.replace(targetRoute);
       } else {
-        console.log('[IndexScreen] CRASH FIX - Redirecting to login');
+        console.log('[IndexScreen] NAVIGATION FIX - Redirecting to login');
         router.replace('/(auth)/login');
       }
     } catch (error) {
-      console.error('[IndexScreen] CRASH FIX - Navigation error:', error);
+      console.error('[IndexScreen] NAVIGATION FIX - Navigation error:', error);
       // Fallback to login on any navigation error
-      router.replace('/(auth)/login');
+      try {
+        router.replace('/(auth)/login');
+      } catch (fallbackError) {
+        console.error('[IndexScreen] NAVIGATION FIX - Fallback navigation also failed:', fallbackError);
+      }
     }
-  }, [navState?.key, isLoading, isAuthenticated, user?.role, user, router]);
+  }, [navigationReady, isLoading, isAuthenticated, user?.role, user, router]);
 
   // Show loading screen while navigation initializes
-  if (!navState?.key || isLoading) {
-    console.log('[IndexScreen] CRASH FIX - Showing loading screen');
+  if (!navigationReady || isLoading) {
+    console.log('[IndexScreen] NAVIGATION FIX - Showing loading screen');
     return (
       <View style={styles.container}>
         <Text style={styles.text}>Loading...</Text>
@@ -61,7 +75,7 @@ export default function IndexScreen() {
   }
 
   // Fallback view (should not be reached)
-  console.log('[IndexScreen] CRASH FIX - Showing fallback view');
+  console.log('[IndexScreen] NAVIGATION FIX - Showing fallback view');
   return (
     <View style={styles.container}>
       <Text style={styles.text}>Initializing...</Text>
