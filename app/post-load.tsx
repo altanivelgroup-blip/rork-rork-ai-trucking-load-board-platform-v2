@@ -128,7 +128,16 @@ const onNext = useCallback(async () => {
       };
       await setDoc(ref, { ...baseData, ...createOnly }, { merge: true });
       
+      try {
+        const { getDocFromServer } = await import('firebase/firestore');
+        const confirmSnap = await getDocFromServer(ref as any);
+        console.log('[SharedSync] Server confirm exists:', confirmSnap.exists());
+      } catch (confirmErr) {
+        console.log('[SharedSync] getDocFromServer not available, skipping server confirm', confirmErr);
+      }
+      
       console.log('[PostLoad] Successfully saved to Firebase');
+      console.log('[SharedSync] Sync fixed: write path', `${LOADS_COLLECTION}/${loadId}`);
     } catch (firebaseError: any) {
       console.warn('[PostLoad] Firebase save failed, using local storage fallback:', firebaseError?.code);
       

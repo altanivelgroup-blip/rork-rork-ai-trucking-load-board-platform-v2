@@ -49,13 +49,14 @@ class FirebaseStorageWrapper {
 }
 
 // Your web app's Firebase configuration
+// SHARED SYNC: Always point to production via env with hard fallback
 const firebaseConfig = {
-  apiKey: "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
-  authDomain: "rork-prod.firebaseapp.com",
-  projectId: "rork-prod",
-  storageBucket: "rork-prod.firebasestorage.app",
-  messagingSenderId: "935855915227",
-  appId: "1:935855915227:web:20c4c517dd32f0e59a4cfe"
+  apiKey: (process.env.EXPO_PUBLIC_FIREBASE_API_KEY as string) ?? "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
+  authDomain: (process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN as string) ?? "rork-prod.firebaseapp.com",
+  projectId: (process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID as string) ?? "rork-prod",
+  storageBucket: (process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET as string) ?? "rork-prod.firebasestorage.app",
+  messagingSenderId: (process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID as string) ?? "935855915227",
+  appId: (process.env.EXPO_PUBLIC_FIREBASE_APP_ID as string) ?? "1:935855915227:web:20c4c517dd32f0e59a4cfe"
 };
 
 // Initialize Firebase with singleton pattern to prevent duplicate initialization
@@ -84,6 +85,11 @@ try {
   console.log("[FIREBASE] Successfully initialized Firebase");
   console.log("[FIREBASE] Project ID:", firebaseConfig.projectId);
   console.log("[FIREBASE] Mode: Production with real Storage");
+  console.log("[FIREBASE] SHARED SYNC: using", {
+    authDomain: firebaseConfig.authDomain,
+    projectId: firebaseConfig.projectId,
+    storageBucket: firebaseConfig.storageBucket,
+  });
 } catch (error: any) {
   console.error("[FIREBASE] Initialization failed:", error);
   // Create mock implementations for development fallback
