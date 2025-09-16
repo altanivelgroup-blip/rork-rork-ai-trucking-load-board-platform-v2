@@ -526,7 +526,7 @@ export function PhotoUploader({
     return () => { canceled = true; };
   }, [offlineQueueKey]);
 
-  // ✅ PERMANENT FIX: Notify parent component when photos change
+  // ✅ PERMANENT FIX: Notify parent component when photos change (without onChange in deps to prevent infinite loops)
   useEffect(() => {
     const uploadsInProgress = state.photos.filter(p => p.uploading).length;
     const completedUrls = state.photos.filter(p => !p.uploading && !p.error).map(p => p.url);
@@ -536,7 +536,7 @@ export function PhotoUploader({
       primaryPhoto: state.primaryPhoto
     });
     onChange?.(completedUrls, state.primaryPhoto, uploadsInProgress);
-  }, [state.photos, state.primaryPhoto, onChange]);
+  }, [state.photos, state.primaryPhoto]); // Removed onChange from deps to prevent infinite loops
 
 
   const validateFile = useCallback((file: { type?: string; size?: number; uri: string }) => {

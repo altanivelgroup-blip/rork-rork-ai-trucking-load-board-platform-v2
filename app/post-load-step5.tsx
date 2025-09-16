@@ -310,12 +310,9 @@ export default function PostLoadStep5() {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
   }, [router]);
 
-  // Update the draft contact field when local contact changes
-  React.useEffect(() => {
-    if (contact !== draft.contact) {
-      setField('contact', contact);
-    }
-  }, [contact, draft.contact, setField]);
+  // ✅ PERMANENT FIX: Remove infinite loop - contact is managed locally in component
+  // The contact field will be passed to submitLoadWithPhotos when needed
+  // No need to sync back to draft state which causes infinite re-renders
 
   const handlePostLoad = useCallback(async () => {
     try {
@@ -434,11 +431,11 @@ export default function PostLoadStep5() {
                 entityType="load"
                 entityId={auth?.currentUser?.uid ? `${auth.currentUser.uid}-${draft.reference}` : draft.reference}
                 loadType={draft.vehicleType === 'car-hauler' ? 'vehicle' : 'other'} // Vehicle loads require 5 photos, others are flexible
-                onChange={(photos: string[], primary: string, inProgress: number) => {
+                onChange={useCallback((photos: string[], primary: string, inProgress: number) => {
                   console.log('[PostLoadStep5] PhotoUploader onChange', { count: photos.length, inProgress, primary });
                   setUploadsInProgress(inProgress);
                   setField('photoUrls', photos);
-                }}
+                }, [setField])}
               />
             </View>
           </View>
