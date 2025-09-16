@@ -379,12 +379,14 @@ export async function ensureFirebaseAuthWithMockUser(): Promise<boolean> {
   }
 }
 
-// Utility function to refresh Firebase Storage URLs with fresh authentication tokens
+// CRITICAL FIX: Utility function to refresh Firebase Storage URLs with fresh authentication tokens
 export async function refreshFirebaseStorageUrl(originalUrl: string): Promise<string> {
   try {
     if (!originalUrl.includes('firebasestorage.googleapis.com')) {
       return originalUrl; // Not a Firebase Storage URL
     }
+    
+    console.log('[Firebase] FIXED: Refreshing expired storage URL...');
     
     // Extract the storage path from the URL
     const pathMatch = originalUrl.match(/o\/(.*?)\?/);
@@ -394,35 +396,73 @@ export async function refreshFirebaseStorageUrl(originalUrl: string): Promise<st
     }
     
     const storagePath = decodeURIComponent(pathMatch[1]);
-    console.log('[Firebase] Refreshing storage URL for path:', storagePath);
+    console.log('[Firebase] FIXED: Refreshing storage URL for path:', storagePath);
+    
+    // CRITICAL: Ensure Firebase auth is working before attempting URL refresh
+    const authSuccess = await ensureFirebaseAuth();
+    if (!authSuccess) {
+      console.warn('[Firebase] FIXED: Auth failed, cannot refresh URL - returning original');
+      return originalUrl;
+    }
     
     // Get fresh download URL with current authentication
     const { getStorage } = await import('firebase/storage');
     const { getDownloadURL, ref } = await import('firebase/storage');
     const { app, auth } = getFirebase();
     
-    // Ensure we have fresh authentication
+    // CRITICAL: Force fresh authentication token before URL refresh
     if (auth?.currentUser) {
       try {
-        await auth.currentUser.getIdToken(true); // Force token refresh
-        console.log('[Firebase] ✅ Token refreshed for storage URL');
+        const freshToken = await auth.currentUser.getIdToken(true); // Force token refresh
+        console.log('[Firebase] FIXED: Fresh token obtained for URL refresh:', !!freshToken);
       } catch (tokenError) {
-        console.warn('[Firebase] Could not refresh token for storage URL:', tokenError);
+        console.warn('[Firebase] FIXED: Could not refresh token, continuing anyway:', tokenError);
       }
+    } else {
+      console.warn('[Firebase] FIXED: No current user for URL refresh');
+      return originalUrl;
     }
     
     const storage = getStorage(app);
     const storageRef = ref(storage, storagePath);
-    const freshUrl = await getDownloadURL(storageRef);
     
-    console.log('[Firebase] ✅ Storage URL refreshed successfully');
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('URL refresh timeout')), 10000)
+    );
+    
+    const freshUrl = await Promise.race([
+      getDownloadURL(storageRef),
+      timeoutPromise
+    ]);
+    
+    console.log('[Firebase] FIXED: Storage URL refreshed successfully');
+    console.log('[Firebase] FIXED: New URL token should resolve fetch failures');
     return freshUrl;
     
   } catch (error: any) {
-    console.error('[Firebase] Failed to refresh storage URL:', error);
-    console.error('[Firebase] Falling back to original URL:', originalUrl);
+    console.error('[Firebase] FIXED: Failed to refresh storage URL:', error);
+    console.error('[Firebase] FIXED: This may cause fetch failures - falling back to original URL');
     return originalUrl; // Fallback to original URL
   }
+}
+
+// CRITICAL FIX: Batch refresh multiple Firebase Storage URLs
+export async function refreshMultipleStorageUrls(urls: string[]): Promise<string[]> {
+  console.log('[Firebase] FIXED: Batch refreshing', urls.length, 'storage URLs...');
+  
+  const refreshPromises = urls.map(async (url) => {
+    try {
+      return await refreshFirebaseStorageUrl(url);
+    } catch (error) {
+      console.warn('[Firebase] FIXED: Failed to refresh URL in batch:', url, error);
+      return url; // Return original on failure
+    }
+  });
+  
+  const refreshedUrls = await Promise.all(refreshPromises);
+  console.log('[Firebase] FIXED: Batch URL refresh complete');
+  return refreshedUrls;
 }
 
 // Check if Firebase operations are likely to work (for development)

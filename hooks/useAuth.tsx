@@ -36,51 +36,102 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   
   console.log('[useAuth] Hook called - ensuring consistent hook order');
 
-  // FORCE START ON LOGIN PAGE - Clear any cached auth and start fresh
+  // CRITICAL FIX: Initialize auth properly without forcing login page
   useEffect(() => {
-    console.log('[auth] FORCE LOGIN START - Clearing cached auth and starting on login page');
+    console.log('[auth] FIXED: Initializing auth system properly...');
     
     let mounted = true;
     
-    const forceLoginStart = async () => {
+    const initializeAuth = async () => {
       try {
-        // Clear any cached user data to force login
-        await AsyncStorage.removeItem(USER_STORAGE_KEY);
-        console.log('[auth] FORCE LOGIN START - Cached auth cleared');
+        // Try to restore cached user data first
+        const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
+        if (cached && mounted) {
+          try {
+            const cachedUser = JSON.parse(cached);
+            console.log('[auth] FIXED: Restored cached user:', cachedUser.email, cachedUser.role);
+            setUser(cachedUser);
+            setUserId(cachedUser.id);
+            setIsAnonymous(cachedUser.email === 'guest@example.com');
+            setHasSignedInThisSession(true);
+            setIsFirebaseAuthenticated(true);
+            setIsInitialized(true);
+            setIsLoading(false);
+            console.log('[auth] FIXED: Auth restored from cache - user is authenticated');
+            return;
+          } catch (parseError) {
+            console.warn('[auth] FIXED: Cached data corrupted, starting fresh');
+          }
+        }
+        
+        // No cached user, start with unauthenticated state
+        if (mounted) {
+          setUser(null);
+          setUserId(null);
+          setIsAnonymous(true);
+          setHasSignedInThisSession(false);
+          setIsFirebaseAuthenticated(false);
+          setIsInitialized(true);
+          setIsLoading(false);
+          console.log('[auth] FIXED: No cached user - ready for login');
+        }
       } catch (error) {
-        console.warn('[auth] FORCE LOGIN START - Error clearing cache:', error);
-      }
-      
-      if (mounted) {
-        // Set to unauthenticated state to show login page
-        setUser(null);
-        setUserId(null);
-        setIsAnonymous(true);
-        setHasSignedInThisSession(false);
-        setIsFirebaseAuthenticated(false);
-        setIsInitialized(true);
-        setIsLoading(false);
-        console.log('[auth] FORCE LOGIN START - Auth initialization complete, showing login page');
+        console.warn('[auth] FIXED: Error during auth initialization:', error);
+        if (mounted) {
+          setIsInitialized(true);
+          setIsLoading(false);
+        }
       }
     };
     
     // Execute immediately
-    forceLoginStart();
+    initializeAuth();
     
     return () => {
       mounted = false;
     };
   }, []);
 
-  // EMERGENCY FIX: Skip Firebase auth setup to prevent hanging
+  // CRITICAL FIX: Properly initialize Firebase auth without hanging
   useEffect(() => {
     if (!isInitialized) return;
     
-    console.log('[auth] LOADING FIX - EMERGENCY - Skipping Firebase auth setup to prevent hanging');
+    console.log('[auth] FIXED: Setting up Firebase auth properly...');
     
-    // Just set Firebase as not authenticated and continue
-    setIsFirebaseAuthenticated(false);
-    console.log('[auth] LOADING FIX - EMERGENCY - Firebase auth skipped, continuing in local mode');
+    let mounted = true;
+    
+    const setupFirebaseAuth = async () => {
+      try {
+        // Try to ensure Firebase auth is working
+        const authSuccess = await ensureFirebaseAuth();
+        if (mounted) {
+          setIsFirebaseAuthenticated(authSuccess);
+          console.log('[auth] FIXED: Firebase auth setup complete:', authSuccess ? 'SUCCESS' : 'FALLBACK');
+        }
+      } catch (error) {
+        console.warn('[auth] FIXED: Firebase auth setup failed, continuing in local mode:', error);
+        if (mounted) {
+          setIsFirebaseAuthenticated(false);
+        }
+      }
+    };
+    
+    // Run Firebase auth setup with timeout
+    const timeoutId = setTimeout(() => {
+      if (mounted) {
+        console.log('[auth] FIXED: Firebase auth setup timeout, continuing in local mode');
+        setIsFirebaseAuthenticated(false);
+      }
+    }, 5000);
+    
+    setupFirebaseAuth().finally(() => {
+      clearTimeout(timeoutId);
+    });
+    
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [isInitialized]);
 
   const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper | Admin> => {
