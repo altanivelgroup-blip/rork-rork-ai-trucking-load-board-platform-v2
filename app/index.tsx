@@ -5,73 +5,57 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function IndexScreen() {
-  console.log('[IndexScreen] NAVIGATION FIX - Starting with safe navigation');
+  console.log('[IndexScreen] CLEAN START - Simple navigation without hooks');
   
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isLoading, isAuthenticated, user } = useAuth();
   const [hasNavigated, setHasNavigated] = useState(false);
-  const [navigationReady, setNavigationReady] = useState(false);
 
-  console.log('[IndexScreen] NAVIGATION FIX - State:', {
+  console.log('[IndexScreen] State:', {
     isLoading,
     isAuthenticated,
     userRole: user?.role,
-    hasNavigated,
-    navigationReady
+    hasNavigated
   });
 
-  // Wait for navigation to be ready
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setNavigationReady(true);
-      console.log('[IndexScreen] NAVIGATION FIX - Navigation ready');
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (isLoading || !navigationReady) {
-      console.log('[IndexScreen] NAVIGATION FIX - Waiting for auth or navigation...', { isLoading, navigationReady });
+    if (isLoading) {
+      console.log('[IndexScreen] Still loading auth...');
       return;
     }
     
     if (hasNavigated) {
-      console.log('[IndexScreen] NAVIGATION FIX - Already navigated, skipping...');
+      console.log('[IndexScreen] Already navigated, skipping...');
       return;
     }
 
-    console.log('[IndexScreen] NAVIGATION FIX - Ready to navigate...');
+    console.log('[IndexScreen] Ready to navigate...');
     
-    // Safe navigation with error handling
+    // Simple navigation with minimal delay
     const timer = setTimeout(() => {
       try {
         setHasNavigated(true);
         if (isAuthenticated && user) {
           const targetRoute = user.role === 'shipper' ? '/(tabs)/shipper' : '/(tabs)/dashboard';
-          console.log('[IndexScreen] NAVIGATION FIX - Authenticated, going to:', targetRoute);
+          console.log('[IndexScreen] Authenticated, going to:', targetRoute);
           router.replace(targetRoute);
         } else {
-          console.log('[IndexScreen] NAVIGATION FIX - Not authenticated, going to login');
+          console.log('[IndexScreen] Not authenticated, going to login');
           router.replace('/(auth)/login');
         }
       } catch (error) {
-        console.error('[IndexScreen] NAVIGATION FIX - Navigation error:', error);
+        console.error('[IndexScreen] Navigation error:', error);
         setHasNavigated(false);
-        // Fallback: try again after a delay
+        // Simple fallback
         setTimeout(() => {
-          try {
-            router.replace('/(auth)/login');
-          } catch (fallbackError) {
-            console.error('[IndexScreen] NAVIGATION FIX - Fallback navigation failed:', fallbackError);
-          }
-        }, 1000);
+          router.replace('/(auth)/login');
+        }, 500);
       }
-    }, 200);
+    }, 100);
 
     return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, user?.role, user, router, hasNavigated, navigationReady]);
+  }, [isLoading, isAuthenticated, user?.role, user, router, hasNavigated]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
