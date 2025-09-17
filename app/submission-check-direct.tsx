@@ -474,6 +474,18 @@ export default function SubmissionCheckDirectScreen() {
     return () => clearTimeout(timer);
   }, [runSubmissionCheck]);
 
+  // Show immediate alert with results
+  useEffect(() => {
+    if (report && !isRunning) {
+      const alertTitle = report.submissionReady ? '🎉 SUBMISSION READY!' : '⚠️ NOT READY FOR SUBMISSION';
+      const alertMessage = report.submissionReady 
+        ? `Score: ${report.overallScore}/100\n\n✅ All critical requirements met\n✅ No submission blockers\n✅ Ready for app store submission!`
+        : `Score: ${report.overallScore}/100\n\n❌ ${report.criticalIssues} critical issues\n⚠️ ${report.warnings.length} warnings\n\nFix critical issues before submission.`;
+      
+      Alert.alert(alertTitle, alertMessage, [{ text: 'Got it!' }]);
+    }
+  }, [report, isRunning]);
+
   const getStatusIcon = (status: SubmissionCheck['status']) => {
     switch (status) {
       case 'pass': return <CheckCircle color="#10b981" size={20} />;
@@ -529,11 +541,28 @@ export default function SubmissionCheckDirectScreen() {
                   : `${report.criticalIssues} critical issues must be resolved before submission.`}
               </Text>
               
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{report.criticalIssues}</Text>
+                  <Text style={styles.statLabel}>Critical Issues</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{report.warnings.length}</Text>
+                  <Text style={styles.statLabel}>Warnings</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: report.submissionReady ? '#10b981' : '#ef4444' }]}>
+                    {report.submissionReady ? 'YES' : 'NO'}
+                  </Text>
+                  <Text style={styles.statLabel}>Submission Ready</Text>
+                </View>
+              </View>
+              
               {report.blockers.length > 0 && (
                 <View style={styles.blockersContainer}>
                   <Text style={styles.blockersTitle}>🚫 Submission Blockers:</Text>
                   {report.blockers.map((blocker, index) => (
-                    <Text key={index} style={styles.blockerItem}>• {blocker.name}</Text>
+                    <Text key={index} style={styles.blockerItem}>• {blocker.name}: {blocker.message}</Text>
                   ))}
                 </View>
               )}
@@ -756,5 +785,27 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: '#92400e',
     fontWeight: '500',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  statLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    marginTop: 2,
   },
 });
