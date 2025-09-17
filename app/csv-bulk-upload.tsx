@@ -1024,7 +1024,7 @@ export default function CSVBulkUploadScreen() {
       }
       setTimeout(() => {
         try {
-          router.replace('/loads');
+          router.replace('/(tabs)/loads');
           console.log('[BULK UPLOAD] ✅ Fixed: Navigated to Loads screen');
         } catch (navErr) {
           console.warn('[BULK UPLOAD] Navigation to Loads failed', navErr);
