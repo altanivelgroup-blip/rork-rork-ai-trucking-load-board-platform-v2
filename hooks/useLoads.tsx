@@ -351,7 +351,36 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         endAudit('firestore-query-ordered', { success: true, docCount: snap.docs.length });
       } catch (e: any) {
         endAudit('firestore-query-ordered', { success: false, error: e?.code || e?.message });
-        if (e?.code === 'failed-precondition') {
+        if (e?.code === 'permission-denied') {
+          console.warn('[Loads] Firestore read permission denied. Attempting anonymous auth and retry...');
+          try {
+            const authedRetry = await ensureFirebaseAuth();
+            if (authedRetry) {
+              const qRetry = query(
+                collection(db, LOADS_COLLECTION),
+                ...baseConstraints,
+                orderBy('clientCreatedAt', 'desc'),
+              );
+              snap = await getDocs(qRetry);
+              endAudit('firestore-query-ordered', { success: true, retried: true, docCount: snap.docs.length });
+            } else {
+              throw e;
+            }
+          } catch (innerPermErr) {
+            console.warn('[Loads] Retry after auth failed; falling back to unordered query if possible', innerPermErr);
+            // Try unordered w/out orderBy as a last resort
+            try {
+              const qUnordered = query(
+                collection(db, LOADS_COLLECTION),
+                ...baseConstraints,
+              );
+              snap = await getDocs(qUnordered);
+              endAudit('firestore-query-unordered-fallback', { success: true, docCount: snap.docs.length, reason: 'permission-denied' });
+            } catch (finalErr) {
+              throw e;
+            }
+          }
+        } else if (e?.code === 'failed-precondition') {
           console.warn('[Loads] Missing Firestore index for ordered query. Falling back without orderBy.');
           startAudit('firestore-query-unordered-fallback');
           const qUnordered = query(
@@ -702,7 +731,55 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
           }
         }, async (err) => {
           try {
-            if ((err as any)?.code === 'failed-precondition') {
+            const code = (err as any)?.code;
+            if (code === 'permission-denied') {
+              console.warn('[Loads] Listener permission denied. Attempting auth then one-time fetch.');
+              try {
+                const authedRetry = await ensureFirebaseAuth();
+                if (authedRetry) {
+                  const fallbackSnap = await getDocs(qUnordered);
+                  const docs = fallbackSnap.docs.map((doc) => {
+                    const d: any = doc.data();
+                    if (d?.isArchived === true) return null;
+                    const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
+                    const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+                    const originCity = d?.origin?.city || d?.originCity || 'Unknown';
+                    const originState = d?.origin?.state || d?.originState || '';
+                    const destCity = d?.destination?.city || d?.destCity || 'Unknown';
+                    const destState = d?.destination?.state || d?.destState || '';
+                    const mapped: Load = {
+                      id: String(doc.id),
+                      shipperId: String(d?.createdBy ?? 'unknown'),
+                      shipperName: '',
+                      origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
+                      destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
+                      distance: Number(d?.distance ?? 0),
+                      weight: Number(d?.weight ?? d?.weightLbs ?? 0),
+                      vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'van',
+                      rate: Number(d?.rate ?? d?.rateTotalUSD ?? 0),
+                      ratePerMile: 0,
+                      pickupDate: pickup,
+                      deliveryDate: delivery,
+                      status: 'available',
+                      description: String(d?.title ?? d?.description ?? ''),
+                      special_requirements: undefined,
+                      isBackhaul: false,
+                      bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
+                    };
+                    return mapped;
+                  }).filter((x): x is Load => x !== null);
+                  const persisted = await readPersisted();
+                  const merged = mergeUniqueById(docs.length ? docs : mockLoads, persisted);
+                  setLoads(merged);
+                  try { await setCache<Load[]>(CACHE_KEY, merged, 5 * 60 * 1000); } catch {}
+                  return;
+                }
+              } catch (authErr) {
+                console.warn('[Loads] Auth retry for listener failed', authErr);
+              }
+            }
+
+            if (code === 'failed-precondition') {
               console.warn('[Loads] Missing Firestore index for listener. Switching to non-ordered one-time fetch.');
               const fallbackSnap = await getDocs(qUnordered);
               const docs = fallbackSnap.docs.map((doc) => {
