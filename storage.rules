@@ -1,10 +1,10 @@
-// PERMANENT FIX: Simplified storage rules for maximum compatibility
+// CROSS-PLATFORM PHOTO SHARING: Universal storage rules for all platforms
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     // Helper function for authentication
     function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
+      return request.auth != null;
     }
     
     function isAdmin() {
@@ -12,33 +12,33 @@ service firebase.storage {
         && (request.auth.token.admin == true || request.auth.token.role == 'admin');
     }
 
-    // ✅ PERMANENT FIX: Load photos - allow all authenticated users
+    // ✅ CROSS-PLATFORM: Load photos accessible across all platforms
     match /loadPhotos/{userId}/{loadId}/{fileName} {
-      allow read: if true; // Public read access
+      allow read: if true; // Public read - photos visible across all platforms
       allow write, create, update, delete: if isAuthenticated();
     }
 
-    // ✅ PERMANENT FIX: Vehicle photos - allow all authenticated users  
+    // ✅ CROSS-PLATFORM: Vehicle photos accessible across all platforms
     match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
-      allow read: if true; // Public read access
+      allow read: if true; // Public read - photos visible across all platforms
       allow write, create, update, delete: if isAuthenticated();
     }
     
-    // ✅ PERMANENT FIX: Generic photo paths - allow all authenticated users
+    // ✅ CROSS-PLATFORM: Generic photo paths accessible across all platforms
     match /photos/{userId}/{photoId} {
-      allow read: if true; // Public read access
+      allow read: if true; // Public read - photos visible across all platforms
       allow write, create, update, delete: if isAuthenticated();
     }
     
-    // ✅ PERMANENT FIX: User-specific paths - allow all authenticated users
+    // ✅ CROSS-PLATFORM: User-specific paths accessible across all platforms
     match /users/{userId}/photos/{allPaths=**} {
-      allow read: if true; // Public read access
+      allow read: if true; // Public read - photos visible across all platforms
       allow write, create, update, delete: if isAuthenticated();
     }
     
-    // ✅ PERMANENT FIX: Comprehensive fallback - allow all photo uploads for authenticated users
+    // ✅ CROSS-PLATFORM: Universal fallback for maximum compatibility
     match /{allPaths=**} {
-      allow read: if true; // Allow all reads
+      allow read: if true; // Public read - all files visible across all platforms
       allow write, create, update, delete: if isAuthenticated();
     }
   }
