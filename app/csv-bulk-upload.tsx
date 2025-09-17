@@ -499,6 +499,10 @@ export default function CSVBulkUploadScreen() {
 
   // Transform parsed row to Firestore document format
   const toFirestoreDoc = useCallback((parsedRow: NormalizedPreviewRow, templateType: TemplateType, bulkImportId: string): any => {
+    const deliveryIso = parsedRow.deliveryDate ?? new Date().toISOString().split('T')[0];
+    const deliveryMs = new Date(`${deliveryIso}T00:00:00Z`).getTime();
+    const expiresAtMs = Number.isFinite(deliveryMs) ? deliveryMs + 7 * 24 * 60 * 60 * 1000 : Date.now() + 7 * 24 * 60 * 60 * 1000;
+
     const baseDoc = {
       status: 'OPEN',
       createdBy: user?.id || 'unknown',
@@ -506,56 +510,52 @@ export default function CSVBulkUploadScreen() {
       bulkImportId,
       isArchived: false,
       clientCreatedAt: Date.now(),
+      expiresAtMs,
+      deliveryDateLocal: `${deliveryIso}T00:00`,
     };
 
     if (templateType === 'simple') {
-      // For simple template, try to parse origin/destination
       const originParsed = parseLocationText(parsedRow.origin || '');
       const destinationParsed = parseLocationText(parsedRow.destination || '');
-      
       return {
         ...baseDoc,
-        title: parsedRow.title, // Already auto-filled in normalizeRowForPreview
+        title: parsedRow.title,
         description: null,
         equipmentType: parsedRow.equipmentType,
         vehicleCount: null,
         origin: originParsed,
         destination: destinationParsed,
-        originCity: parsedRow.origin, // Friendly fallback
-        destCity: parsedRow.destination, // Friendly fallback
-        // FIXED: Use auto-filled dates from normalized row
+        originCity: parsedRow.origin,
+        destCity: parsedRow.destination,
         pickupDate: toTimestampOrNull(parsedRow.pickupDate),
         deliveryDate: toTimestampOrNull(parsedRow.deliveryDate),
         rate: parsedRow.rate,
-        rateTotalUSD: parsedRow.rate, // Legacy compatibility
+        rateTotalUSD: parsedRow.rate,
         contactName: null,
         contactEmail: null,
         contactPhone: null,
         rowHash: parsedRow.rowHash,
       };
     } else {
-      // Standard template - build structured origin/destination from normalized data
       const originParsed = parseLocationText(parsedRow.origin || '');
       const destinationParsed = parseLocationText(parsedRow.destination || '');
-      
       return {
         ...baseDoc,
-        title: parsedRow.title, // Already auto-filled in normalizeRowForPreview
-        description: null, // Could be mapped from original data if available
+        title: parsedRow.title,
+        description: null,
         equipmentType: parsedRow.equipmentType,
-        vehicleCount: null, // Could be mapped from original data if available
+        vehicleCount: null,
         origin: originParsed,
         destination: destinationParsed,
-        originCity: parsedRow.origin, // Friendly fallback
-        destCity: parsedRow.destination, // Friendly fallback
-        // FIXED: Use auto-filled dates from normalized row (already handled in normalizeRowForPreview)
+        originCity: parsedRow.origin,
+        destCity: parsedRow.destination,
         pickupDate: toTimestampOrNull(parsedRow.pickupDate),
         deliveryDate: toTimestampOrNull(parsedRow.deliveryDate),
         rate: parsedRow.rate,
-        rateTotalUSD: parsedRow.rate, // Legacy compatibility
-        contactName: null, // Could be mapped from original data if available
-        contactEmail: null, // Could be mapped from original data if available
-        contactPhone: null, // Could be mapped from original data if available
+        rateTotalUSD: parsedRow.rate,
+        contactName: null,
+        contactEmail: null,
+        contactPhone: null,
         rowHash: parsedRow.rowHash,
       };
     }
@@ -902,6 +902,7 @@ export default function CSVBulkUploadScreen() {
       const BATCH_SIZE = 400;
       let imported = 0;
       let skippedDuplicates = 0;
+      const historyForDevice: any[] = [];
       
       console.log(`[BULK UPLOAD] Processing ${validRows.length} valid rows with bulk ID: ${bulkImportId}`);
       
@@ -924,6 +925,7 @@ export default function CSVBulkUploadScreen() {
             const docData = toFirestoreDoc(row, selectedTemplate, bulkImportId);
             const docRef = doc(db, LOADS_COLLECTION, docId);
             batch.set(docRef, docData);
+            historyForDevice.push({ id: docId, ...docData });
           }
           
           try {
@@ -940,6 +942,39 @@ export default function CSVBulkUploadScreen() {
       }
       
       setLastBulkImportId(bulkImportId);
+
+      // Persist to local history for quick profile access (kept until manual delete)
+      try {
+        const existingLoads = await AsyncStorage.getItem('userPostedLoads');
+        const parsedRaw: any[] = existingLoads ? JSON.parse(existingLoads) : [];
+        const updated = JSON.stringify([...historyForDevice, ...parsedRaw]);
+        await AsyncStorage.setItem('userPostedLoads', updated);
+        console.log(`[BULK UPLOAD] Saved ${historyForDevice.length} loads to local history`);
+      } catch (e) {
+        console.warn('[BULK UPLOAD] Failed to write local history', e);
+      }
+
+      // Sweep and archive any expired loads created by this user (kept in history)
+      try {
+        const now = Date.now();
+        const qMine = query(collection(db, LOADS_COLLECTION), where('createdBy', '==', user?.id || 'unknown'), where('isArchived', '==', false), limit(400));
+        const snapMine = await getDocs(qMine);
+        let toArchive = 0;
+        const batch = writeBatch(db);
+        snapMine.forEach((d) => {
+          const data: any = d.data();
+          if (typeof data?.expiresAtMs === 'number' && data.expiresAtMs <= now) {
+            batch.update(d.ref, { isArchived: true, archivedAt: serverTimestamp() });
+            toArchive += 1;
+          }
+        });
+        if (toArchive > 0) {
+          await batch.commit();
+          console.log(`[BULK UPLOAD] Archived ${toArchive} expired loads (kept in history)`);
+        }
+      } catch (sweepErr) {
+        console.warn('[BULK UPLOAD] Expire sweep skipped', sweepErr);
+      }
       const finalSummary = {
         imported: imported,
         skipped: skippedRows.length + skippedDuplicates,
@@ -966,9 +1001,9 @@ export default function CSVBulkUploadScreen() {
       await loadImportHistory();
       
       console.log(`[BULK UPLOAD] ✅ FIXED: Import completed successfully. Imported ${imported} loads, skipped ${skippedDuplicates} duplicates.`);
-      console.log('[BULK UPLOAD] ✅ FIXED: All loads posted to live board with auto-filled dates/titles');
-      console.log('[BULK UPLOAD] ✅ FIXED: Cross-device visibility enabled per 7-day rule');
-      showToast(`✅ Fixed: Successfully imported ${imported} loads to live board${skippedDuplicates > 0 ? `, skipped ${skippedDuplicates} duplicates` : ''}`, 'success');
+      console.log('[BULK UPLOAD] ✅ FIXED: All loads posted to live board and saved to history');
+      console.log('[BULK UPLOAD] ✅ FIXED: Auto-expire set for 7 days after delivery (board only)');
+      showToast(`✅ Fixed: Imported ${imported} live loads • auto-expire set • history saved`, 'success');
       
       // Store the last bulk import ID for easy access
       try {
