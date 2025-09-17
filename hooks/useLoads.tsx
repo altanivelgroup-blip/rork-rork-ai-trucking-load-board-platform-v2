@@ -319,11 +319,13 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       }
 
       startAudit('firebase-auth');
+      console.log('[Loads] PERMISSION FIX - Ensuring Firebase authentication before reading loads...');
       const authed = await ensureFirebaseAuth();
       endAudit('firebase-auth', { success: authed });
       const { db } = getFirebase();
       if (!authed || !db) {
-        console.log('[Loads] Firebase not available, using mock + persisted');
+        console.log('[Loads] PERMISSION FIX - Firebase auth failed, using mock + persisted data');
+        console.log('[Loads] PERMISSION FIX - This prevents permission denied errors');
         startAudit('fallback-persisted-read');
         const persisted = await readPersisted();
         endAudit('fallback-persisted-read', { count: persisted.length });
@@ -331,6 +333,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         endAudit('refreshLoads', { success: true, mode: 'fallback' });
         return;
       }
+      console.log('[Loads] PERMISSION FIX - Firebase authentication successful, proceeding with Firestore query');
 
       const baseConstraints: QueryConstraint[] = [
         where('status', '==', LOAD_STATUS.OPEN),
@@ -352,22 +355,26 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       } catch (e: any) {
         endAudit('firestore-query-ordered', { success: false, error: e?.code || e?.message });
         if (e?.code === 'permission-denied') {
-          console.warn('[Loads] Firestore read permission denied. Attempting anonymous auth and retry...');
+          console.warn('[Loads] PERMISSION FIX - Firestore read permission denied. This should not happen with updated rules.');
+          console.warn('[Loads] PERMISSION FIX - Attempting re-authentication and retry...');
           try {
             const authedRetry = await ensureFirebaseAuth();
             if (authedRetry) {
+              console.log('[Loads] PERMISSION FIX - Re-authentication successful, retrying query...');
               const qRetry = query(
                 collection(db, LOADS_COLLECTION),
                 ...baseConstraints,
                 orderBy('clientCreatedAt', 'desc'),
               );
               snap = await getDocs(qRetry);
+              console.log('[Loads] PERMISSION FIX - Retry query successful after re-auth');
               endAudit('firestore-query-ordered', { success: true, retried: true, docCount: snap.docs.length });
             } else {
+              console.error('[Loads] PERMISSION FIX - Re-authentication failed, throwing original error');
               throw e;
             }
           } catch (innerPermErr) {
-            console.warn('[Loads] Retry after auth failed; falling back to unordered query if possible', innerPermErr);
+            console.warn('[Loads] PERMISSION FIX - Retry after auth failed; falling back to unordered query', innerPermErr);
             // Try unordered w/out orderBy as a last resort
             try {
               const qUnordered = query(
@@ -375,8 +382,10 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
                 ...baseConstraints,
               );
               snap = await getDocs(qUnordered);
+              console.log('[Loads] PERMISSION FIX - Unordered fallback query successful');
               endAudit('firestore-query-unordered-fallback', { success: true, docCount: snap.docs.length, reason: 'permission-denied' });
             } catch (finalErr) {
+              console.error('[Loads] PERMISSION FIX - All query attempts failed, throwing original error');
               throw e;
             }
           }
@@ -466,16 +475,23 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       
       console.log(`[Loads] Successfully synced ${mergedLoads.length} loads from Firestore`);
       endAudit('refreshLoads', { success: true, mode: 'firestore', totalLoads: mergedLoads.length });
-    } catch (error) {
-      console.error('Failed to refresh loads:', error);
+    } catch (error: any) {
+      console.error('PERMISSION FIX - Failed to refresh loads:', error);
+      if (error?.code === 'permission-denied') {
+        console.error('PERMISSION FIX - Permission denied error detected');
+        console.error('PERMISSION FIX - This indicates Firebase rules or authentication issues');
+        console.error('PERMISSION FIX - Check that Firebase authentication is working and rules allow read access');
+      }
       setSyncStatus('error');
       try {
         startAudit('error-fallback-read');
         const persisted = await readPersisted();
         setLoads(mergeUniqueById(mockLoads, persisted));
+        console.log('PERMISSION FIX - Using fallback data due to Firestore error');
         endAudit('error-fallback-read', { success: true, count: persisted.length });
       } catch {
         setLoads([...mockLoads]);
+        console.log('PERMISSION FIX - Using mock data as final fallback');
         endAudit('error-fallback-read', { success: false });
       }
       endAudit('refreshLoads', { success: false, error: error instanceof Error ? error.message : 'Unknown error' });

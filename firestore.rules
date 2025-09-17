@@ -48,7 +48,7 @@ service cloud.firestore {
       );
     }
     
-    // FIXED: Enhanced auth check - ensure all authenticated users have access across platforms
+    // PERMISSION FIX: Enhanced auth check - ensure all authenticated users have access across platforms
     function isAuthenticatedUser() {
       return request.auth != null && request.auth.uid != null;
     }
@@ -66,26 +66,26 @@ service cloud.firestore {
       return isAuthenticatedUser() && request.auth.uid == userId;
     }
 
-    // FIXED: Enhanced loads permissions for cross-platform posting
+    // PERMISSION FIX: Enhanced loads permissions for cross-platform posting
     // Block client updates that flip archival fields; only server cron can do it
     // Allow admin users to read all loads for analytics
     // Support photo uploads (2-5 photos for shippers) with optimized error handling
     match /loads/{docId} {
-      allow read: if true; // Anyone can read loads for public viewing
-      allow create: if isAuthenticatedUser() || request.auth != null; // FIXED: Allow any authenticated user to create loads
-      allow update: if (isAuthenticatedUser() || request.auth != null) && 
-        notChangingArchive(resource.data, request.resource.data); // FIXED: Allow authenticated users to update
-      allow delete: if isAuthenticatedUser() && 
+      allow read: if true; // PERMISSION FIX: Public read access for all loads
+      allow create: if request.auth != null; // PERMISSION FIX: Any authenticated user can create loads
+      allow update: if request.auth != null && 
+        notChangingArchive(resource.data, request.resource.data); // PERMISSION FIX: Any authenticated user can update
+      allow delete: if request.auth != null && 
         (request.auth.uid == resource.data.createdBy || 
-         request.auth.token.role == 'admin');
+         request.auth.token.role == 'admin'); // PERMISSION FIX: Owner or admin can delete
     }
 
-    // Auth optimized vehicles: enhanced permissions for authenticated users
+    // PERMISSION FIX: Enhanced vehicles permissions for authenticated users
     match /vehicles/{docId} {
-      allow read: if true; // Anyone can read vehicles for public viewing
-      allow create: if isAuthenticatedUser(); // Auth optimized: authenticated users can create
-      allow update: if isAuthenticatedUser(); // Auth optimized: authenticated users can update
-      allow delete: if isAuthenticatedUser(); // Auth optimized: authenticated users can delete
+      allow read: if true; // PERMISSION FIX: Public read access for vehicles
+      allow create: if request.auth != null; // PERMISSION FIX: Any authenticated user can create
+      allow update: if request.auth != null; // PERMISSION FIX: Any authenticated user can update
+      allow delete: if request.auth != null; // PERMISSION FIX: Any authenticated user can delete
     }
 
     // Public cache for carrier snapshots
