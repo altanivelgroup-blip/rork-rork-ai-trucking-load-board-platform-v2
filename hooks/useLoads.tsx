@@ -336,7 +336,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       const baseConstraints: QueryConstraint[] = [
         where('status', '==', LOAD_STATUS.OPEN),
         where('isArchived', '==', false),
-        limit(50),
       ];
       // Lightweight permission probe to avoid noisy errors
       try {
@@ -356,7 +355,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
 
       let snap;
       try {
-        startAudit('firestore-query-ordered', { collection: LOADS_COLLECTION, limit: 50 });
+        startAudit('firestore-query-ordered', { collection: LOADS_COLLECTION });
         const qOrdered = query(
           collection(db, LOADS_COLLECTION),
           ...baseConstraints,
@@ -418,15 +417,14 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
           endAudit('firestore-query-unordered-fallback', { success: true, docCount: snap.docs.length });
         } else if (typeof e?.message === 'string' && e.message === 'QUERY_TIMEOUT_ORDERED') {
           console.warn('[Loads] Ordered query is slow. Retrying with smaller limit and without orderBy');
-          startAudit('firestore-query-smaller-limit', { limit: 25 });
+          startAudit('firestore-query-unordered-timeout-fallback');
           const qSmaller = query(
             collection(db, LOADS_COLLECTION),
             where('status', '==', LOAD_STATUS.OPEN),
             where('isArchived', '==', false),
-            limit(25),
           );
           snap = await getDocs(qSmaller);
-          endAudit('firestore-query-smaller-limit', { success: true, docCount: snap.docs.length });
+          endAudit('firestore-query-unordered-timeout-fallback', { success: true, docCount: snap.docs.length });
         } else {
           throw e;
         }
@@ -735,7 +733,6 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         const baseConstraints: QueryConstraint[] = [
           where('status', '==', LOAD_STATUS.OPEN),
           where('isArchived', '==', false),
-          limit(50),
         ];
         
         const qOrdered = query(
