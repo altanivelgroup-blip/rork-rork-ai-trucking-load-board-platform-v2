@@ -16,7 +16,7 @@ import * as FileSystem from 'expo-file-system';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { parseCSV, CSVRow, buildCanonicalTemplateCSV, buildSimpleTemplateCSV, buildCompleteTemplateCSV } from '@/utils/csv';
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
@@ -184,7 +184,7 @@ export default function CSVImportScreen() {
   const [showReasons, setShowReasons] = useState<boolean>(true);
   const toast = useToast();
 
-  const hasAccess = user?.membershipTier === 'business';
+  const hasAccess = (user?.membershipTier ?? 'basic') !== 'basic';
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     toast.show(message, type);
@@ -461,7 +461,18 @@ export default function CSVImportScreen() {
     }
     try {
       setIsImporting(true);
-      await ensureFirebaseAuth();
+      const authed = await ensureFirebaseAuth();
+      if (!authed || !getFirebase().auth?.currentUser) {
+        console.warn('[CSV Import] Firebase auth not available');
+        showToast('Authentication with Firebase failed. Please retry or open Firebase Sanity Check.', 'error');
+        return;
+      }
+      const perms = await checkFirebasePermissions();
+      if (!perms.canWrite) {
+        console.warn('[CSV Import] Permission check failed:', perms.error);
+        showToast(perms.error ?? 'Missing or insufficient permissions to write to Firestore', 'error');
+        return;
+      }
       const { db } = getFirebase();
       const rowsToImport = processedRows.filter(r => !r.skip && r.parsed);
       let imported = 0;
@@ -478,7 +489,7 @@ export default function CSVImportScreen() {
           vehicleType: p.vehicleType,
           rate: p.rate,
           status: 'OPEN',
-          createdBy: user.id,
+          createdBy: (getFirebase().auth?.currentUser?.uid ?? user.id),
           pickupDate: p.pickupDate,
           deliveryDate: p.deliveryDate,
           deliveryTZ: p.timeZone,
@@ -525,9 +536,14 @@ export default function CSVImportScreen() {
       showToast(`Imported ${imported} loads. Skipped: ${skipped}`);
       setProcessedRows([]);
       router.back();
-    } catch (error) {
+    } catch (error: any) {
+      const code = error?.code ?? '';
       console.error('Import error:', error);
-      showToast('Import failed. Please try again.', 'error');
+      if (code === 'permission-denied') {
+        showToast('Missing or insufficient permissions to write to Firestore. Please ensure you are signed in.', 'error');
+      } else {
+        showToast('Import failed. Please try again.', 'error');
+      }
     } finally {
       setIsImporting(false);
     }
