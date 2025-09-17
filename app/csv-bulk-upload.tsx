@@ -27,6 +27,7 @@ import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp, Timestamp, writeBatch, query, where, collection, getDocs, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import HeaderBack from '@/components/HeaderBack';
+import { useLoads } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
 import { BulkImportSession } from '@/types';
 import DuplicateCheckerModal from '@/components/DuplicateCheckerModal';
@@ -132,6 +133,7 @@ export default function CSVBulkUploadScreen() {
   const [showDuplicateChecker, setShowDuplicateChecker] = useState(false);
   const [duplicateCheckLoads, setDuplicateCheckLoads] = useState<any[]>([]);
   const toast = useToast();
+  const { refreshLoads } = useLoads();
   
   const PAGE_SIZE = 20;
   const MAX_ROWS = 5000;
@@ -1013,9 +1015,21 @@ export default function CSVBulkUploadScreen() {
         console.warn('[BULK UPLOAD] Failed to store last bulk import ID:', error);
       }
       
-      // Force refresh loads to show the newly imported loads
-      console.log('[BULK UPLOAD] Triggering loads refresh...');
-      // Note: The loads will be automatically refreshed by the Firestore listener in useLoads
+      // Force refresh loads to show the newly imported loads, then auto-exit
+      console.log('[BULK UPLOAD] Triggering loads refresh and auto-exit to Loads...');
+      try {
+        await refreshLoads();
+      } catch (e) {
+        console.warn('[BULK UPLOAD] refreshLoads failed, continuing to navigate', e);
+      }
+      setTimeout(() => {
+        try {
+          router.replace('/loads');
+          console.log('[BULK UPLOAD] ✅ Fixed: Navigated to Loads screen');
+        } catch (navErr) {
+          console.warn('[BULK UPLOAD] Navigation to Loads failed', navErr);
+        }
+      }, 150);
       
     } catch (error: any) {
       console.error('Import error:', error);
