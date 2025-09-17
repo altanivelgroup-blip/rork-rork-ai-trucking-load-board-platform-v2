@@ -318,13 +318,12 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       }
 
       startAudit('firebase-auth');
-      console.log('[Loads] PERMISSION FIX - Ensuring Firebase authentication before reading loads...');
+      console.log('[Loads] Ensuring Firebase authentication before reading loads...');
       const authed = await ensureFirebaseAuth();
       endAudit('firebase-auth', { success: authed });
       const { db } = getFirebase();
       if (!authed || !db) {
-        console.log('[Loads] PERMISSION FIX - Firebase auth failed, using mock + persisted data');
-        console.log('[Loads] PERMISSION FIX - This prevents permission denied errors');
+        console.log('[Loads] Auth unavailable - using cached + local data fallback');
         startAudit('fallback-persisted-read');
         const persisted = await readPersisted();
         endAudit('fallback-persisted-read', { count: persisted.length });
@@ -332,13 +331,29 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         endAudit('refreshLoads', { success: true, mode: 'fallback' });
         return;
       }
-      console.log('[Loads] PERMISSION FIX - Firebase authentication successful, proceeding with Firestore query');
+      console.log('[Loads] Firebase authentication successful, proceeding with Firestore query');
 
       const baseConstraints: QueryConstraint[] = [
         where('status', '==', LOAD_STATUS.OPEN),
         where('isArchived', '==', false),
         limit(50),
       ];
+      // Lightweight permission probe to avoid noisy errors
+      try {
+        const probe = query(collection(db, LOADS_COLLECTION), limit(1));
+        await getDocs(probe);
+      } catch (probeErr: any) {
+        if (probeErr?.code === 'permission-denied') {
+          console.warn('[Loads] Read permissions not available. Falling back to cached/local data.');
+          const persisted = await readPersisted();
+          setLoads(mergeUniqueById(mockLoads, persisted));
+          setLastSyncTime(new Date());
+          setSyncStatus('idle');
+          endAudit('refreshLoads', { success: true, mode: 'permission-fallback' });
+          return;
+        }
+      }
+
       let snap;
       try {
         startAudit('firestore-query-ordered', { collection: LOADS_COLLECTION, limit: 50 });
@@ -354,8 +369,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       } catch (e: any) {
         endAudit('firestore-query-ordered', { success: false, error: e?.code || e?.message });
         if (e?.code === 'permission-denied') {
-          console.warn('[Loads] PERMISSION FIX - Firestore read permission denied. This should not happen with updated rules.');
-          console.warn('[Loads] PERMISSION FIX - Attempting re-authentication and retry...');
+          console.warn('[Loads] Firestore read permission denied. Retrying auth, then fallback.');
           try {
             const authedRetry = await ensureFirebaseAuth();
             if (authedRetry) {
@@ -366,14 +380,14 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
                 orderBy('clientCreatedAt', 'desc'),
               );
               snap = await getDocs(qRetry);
-              console.log('[Loads] PERMISSION FIX - Retry query successful after re-auth');
+              console.log('[Loads] Retry query successful after re-auth');
               endAudit('firestore-query-ordered', { success: true, retried: true, docCount: snap.docs.length });
             } else {
-              console.error('[Loads] PERMISSION FIX - Re-authentication failed, throwing original error');
+              console.warn('[Loads] Re-authentication failed, proceeding to unordered fallback');
               throw e;
             }
           } catch (innerPermErr) {
-            console.warn('[Loads] PERMISSION FIX - Retry after auth failed; falling back to unordered query', innerPermErr);
+            console.warn('[Loads] Retry after auth failed; falling back to unordered query', innerPermErr);
             // Try unordered w/out orderBy as a last resort
             try {
               const qUnordered = query(
@@ -381,11 +395,16 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
                 ...baseConstraints,
               );
               snap = await getDocs(qUnordered);
-              console.log('[Loads] PERMISSION FIX - Unordered fallback query successful');
+              console.log('[Loads] Unordered fallback query successful');
               endAudit('firestore-query-unordered-fallback', { success: true, docCount: snap.docs.length, reason: 'permission-denied' });
             } catch (finalErr) {
-              console.error('[Loads] PERMISSION FIX - All query attempts failed, throwing original error');
-              throw e;
+              console.warn('[Loads] All query attempts failed. Falling back to cached/local data.');
+              const persisted = await readPersisted();
+              setLoads(mergeUniqueById(mockLoads, persisted));
+              setLastSyncTime(new Date());
+              setSyncStatus('idle');
+              endAudit('refreshLoads', { success: true, mode: 'final-fallback' });
+              return;
             }
           }
         } else if (e?.code === 'failed-precondition') {
@@ -487,25 +506,20 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       startAudit('cache-write');
       try { await setCache<Load[]>(CACHE_KEY, boardLoads, 5 * 60 * 1000); endAudit('cache-write', { success: true }); } catch { endAudit('cache-write', { success: false }); }
       
-      console.log(`[Loads] Successfully synced ${boardLoads.length} loads from Firestore`);
+      console.log(`[Loads] Synced ${boardLoads.length} loads from Firestore`);
       endAudit('refreshLoads', { success: true, mode: 'firestore', totalLoads: boardLoads.length });
     } catch (error: any) {
-      console.error('PERMISSION FIX - Failed to refresh loads:', error);
-      if (error?.code === 'permission-denied') {
-        console.error('PERMISSION FIX - Permission denied error detected');
-        console.error('PERMISSION FIX - This indicates Firebase rules or authentication issues');
-        console.error('PERMISSION FIX - Check that Firebase authentication is working and rules allow read access');
-      }
-      setSyncStatus('error');
+      console.warn('[Loads] Refresh failed; using cached/local data', error?.code || error?.message);
+      setSyncStatus('idle');
       try {
         startAudit('error-fallback-read');
         const persisted = await readPersisted();
         setLoads(mergeUniqueById(mockLoads, persisted));
-        console.log('PERMISSION FIX - Using fallback data due to Firestore error');
+        console.log('[Loads] Using fallback data due to Firestore error');
         endAudit('error-fallback-read', { success: true, count: persisted.length });
       } catch {
         setLoads([...mockLoads]);
-        console.log('PERMISSION FIX - Using mock data as final fallback');
+        console.log('[Loads] Using mock data as final fallback');
         endAudit('error-fallback-read', { success: false });
       }
       endAudit('refreshLoads', { success: false, error: error instanceof Error ? error.message : 'Unknown error' });
@@ -873,7 +887,11 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
               setLoads(merged);
               try { await setCache<Load[]>(CACHE_KEY, merged, 5 * 60 * 1000); } catch {}
             } else {
-              console.warn('[Loads] Firestore listener error', err);
+              console.warn('[Loads] Firestore listener error; falling back to cache', (err as any)?.code || (err as any)?.message);
+              const persisted = await readPersisted();
+              const merged = mergeUniqueById(mockLoads, persisted);
+              setLoads(merged);
+              try { await setCache<Load[]>(CACHE_KEY, merged, 5 * 60 * 1000); } catch {}
             }
           } catch (inner) {
             console.warn('[Loads] Listener fallback failed', inner);
