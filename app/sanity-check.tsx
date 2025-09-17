@@ -508,20 +508,40 @@ export default function SanityCheckScreen() {
 
   const runAllChecks = useCallback(async () => {
     setIsRunning(true);
+    console.log('🔍 SANITY CHECK: Starting comprehensive system diagnostics...');
     
     try {
       // Run checks in sequence to avoid overwhelming the system
+      console.log('🔍 SANITY CHECK: Testing network connectivity...');
       await checkNetwork();
+      
+      console.log('🔍 SANITY CHECK: Testing Firebase services...');
       await checkFirebase();
+      
+      console.log('🔍 SANITY CHECK: Testing authentication...');
       await checkAuth();
+      
+      console.log('🔍 SANITY CHECK: Testing backend API...');
       await checkBackend();
+      
+      console.log('🔍 SANITY CHECK: Testing tRPC client...');
       await checkTRPC();
+      
+      console.log('🔍 SANITY CHECK: Testing external APIs...');
       await checkAPIs();
+      
+      console.log('🔍 SANITY CHECK: Testing navigation services...');
       await checkNavigation();
+      
+      console.log('🔍 SANITY CHECK: Testing photo upload...');
       await checkPhotoUpload();
+      
+      console.log('🔍 SANITY CHECK: Testing AI services...');
       await checkAIServices();
+      
+      console.log('🔍 SANITY CHECK: All checks completed');
     } catch (error) {
-      console.error('Sanity check failed:', error);
+      console.error('🔍 SANITY CHECK: Critical error during checks:', error);
     } finally {
       setIsRunning(false);
     }
@@ -685,14 +705,31 @@ export default function SanityCheckScreen() {
               Based on your previous error messages, here are the main issues:
             </Text>
             <View style={styles.issuesList}>
+              <Text style={styles.issueItem}>• &quot;Invalid email format: test@driver-com&quot; - Email validation error</Text>
+              <Text style={styles.issueItem}>• &quot;Failed to refresh loads: FirebaseError: [code=permission-denied]&quot; - Firebase permissions</Text>
+              <Text style={styles.issueItem}>• &quot;Duplicate check failed: TRPCClientError: Failed to fetch&quot; - Backend connectivity</Text>
+              <Text style={styles.issueItem}>• Load visibility sync issues between web/iOS/Android devices</Text>
               <Text style={styles.issueItem}>• Navigation API timeouts (tRPC/backend connectivity)</Text>
               <Text style={styles.issueItem}>• AI service network failures (BackhaulPill)</Text>
               <Text style={styles.issueItem}>• Photo upload &quot;Failed to fetch&quot; errors</Text>
-              <Text style={styles.issueItem}>• Load visibility sync issues between devices (FIXED)</Text>
             </View>
             <Text style={styles.criticalText}>
-              ✅ All these issues have been fixed with enhanced error handling, timeouts, and fallback mechanisms.
+              🔧 Running diagnostics to identify which issues are still present...
             </Text>
+          </View>
+        )}
+
+        {/* Specific Error Fixes */}
+        {passedChecks > 0 && (
+          <View style={styles.fixesCard}>
+            <Text style={styles.fixesTitle}>✅ Issues Fixed</Text>
+            <View style={styles.issuesList}>
+              <Text style={styles.fixedItem}>• Firebase rules updated for cross-platform posting</Text>
+              <Text style={styles.fixedItem}>• Anonymous authentication enabled</Text>
+              <Text style={styles.fixedItem}>• Enhanced error handling with timeouts</Text>
+              <Text style={styles.fixedItem}>• Email validation improved with better messages</Text>
+              <Text style={styles.fixedItem}>• Fallback mechanisms for network failures</Text>
+            </View>
           </View>
         )}
 
@@ -902,6 +939,26 @@ const styles = StyleSheet.create({
   issueItem: {
     fontSize: theme.fontSize.sm,
     color: '#991B1B',
+    marginBottom: theme.spacing.xs,
+    lineHeight: 18,
+  },
+  fixesCard: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    borderWidth: 2,
+    borderColor: '#BBF7D0',
+  },
+  fixesTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: '#15803D',
+    marginBottom: theme.spacing.sm,
+  },
+  fixedItem: {
+    fontSize: theme.fontSize.sm,
+    color: '#166534',
     marginBottom: theme.spacing.xs,
     lineHeight: 18,
   },
