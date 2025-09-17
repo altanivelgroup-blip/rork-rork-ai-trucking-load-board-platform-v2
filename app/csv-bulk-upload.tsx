@@ -418,13 +418,18 @@ export default function CSVBulkUploadScreen() {
     let normalizedRow: NormalizedPreviewRow;
     
     if (template === 'simple') {
+      // FIXED: Auto-fill missing title for simple template
+      const autoTitle = row['Origin'] && row['Destination'] 
+        ? `${row['VehicleType'] || 'Load'} - ${row['Origin']} to ${row['Destination']}`
+        : 'Auto Load';
+      
       normalizedRow = {
-        title: null,
+        title: row['title']?.trim() || autoTitle,
         equipmentType: row['VehicleType']?.trim() || null,
         origin: row['Origin']?.trim() || null,
         destination: row['Destination']?.trim() || null,
-        pickupDate: null,
-        deliveryDate: null,
+        pickupDate: null, // Simple template doesn't have dates - will auto-fill below
+        deliveryDate: null, // Simple template doesn't have dates - will auto-fill below
         rate: normalizeNumber(row['Price']),
         status: validation.status,
         errors: validation.errors
@@ -443,8 +448,14 @@ export default function CSVBulkUploadScreen() {
         row['destinationZip']?.trim()
       ].filter(Boolean);
       
+      // FIXED: Auto-fill missing title for standard template
+      const autoTitle = row['title']?.trim() || 
+        (originParts.length > 0 && destinationParts.length > 0 
+          ? `${row['equipmentType'] || 'Load'} - ${originParts[0]} to ${destinationParts[0]}`
+          : 'Auto Load');
+      
       normalizedRow = {
-        title: row['title']?.trim() || null,
+        title: autoTitle,
         equipmentType: row['equipmentType']?.trim() || null,
         origin: originParts.length > 0 ? originParts.join(', ').replace(/,\s*,/g, ',').replace(/,\s*$/, '') : null,
         destination: destinationParts.length > 0 ? destinationParts.join(', ').replace(/,\s*,/g, ',').replace(/,\s*$/, '') : null,
@@ -456,8 +467,32 @@ export default function CSVBulkUploadScreen() {
       };
     }
     
+    // FIXED: Auto-fill missing dates per 7-day rule (pickup now+1, delivery+2)
+    const now = new Date();
+    if (!normalizedRow.pickupDate) {
+      const pickupDate = new Date(now);
+      pickupDate.setDate(now.getDate() + 1); // Tomorrow
+      normalizedRow.pickupDate = pickupDate.toISOString().split('T')[0];
+      console.log('[CSV FIXED] Auto-filled pickup date:', normalizedRow.pickupDate);
+    }
+    
+    if (!normalizedRow.deliveryDate) {
+      const deliveryDate = new Date(now);
+      deliveryDate.setDate(now.getDate() + 2); // Day after tomorrow
+      normalizedRow.deliveryDate = deliveryDate.toISOString().split('T')[0];
+      console.log('[CSV FIXED] Auto-filled delivery date:', normalizedRow.deliveryDate);
+    }
+    
     // Compute and attach row hash
     normalizedRow.rowHash = computeRowHash(normalizedRow);
+    
+    console.log('[CSV FIXED] Normalized row with auto-fills:', {
+      title: normalizedRow.title,
+      pickupDate: normalizedRow.pickupDate,
+      deliveryDate: normalizedRow.deliveryDate,
+      origin: normalizedRow.origin,
+      destination: normalizedRow.destination
+    });
     
     return normalizedRow;
   }, [validateRowData, normalizeNumber, normalizeDate, computeRowHash]);
@@ -480,7 +515,7 @@ export default function CSVBulkUploadScreen() {
       
       return {
         ...baseDoc,
-        title: parsedRow.title || `${parsedRow.equipmentType || 'Load'} - ${parsedRow.origin} to ${parsedRow.destination}`,
+        title: parsedRow.title, // Already auto-filled in normalizeRowForPreview
         description: null,
         equipmentType: parsedRow.equipmentType,
         vehicleCount: null,
@@ -488,8 +523,9 @@ export default function CSVBulkUploadScreen() {
         destination: destinationParsed,
         originCity: parsedRow.origin, // Friendly fallback
         destCity: parsedRow.destination, // Friendly fallback
-        pickupDate: null,
-        deliveryDate: null,
+        // FIXED: Use auto-filled dates from normalized row
+        pickupDate: toTimestampOrNull(parsedRow.pickupDate),
+        deliveryDate: toTimestampOrNull(parsedRow.deliveryDate),
         rate: parsedRow.rate,
         rateTotalUSD: parsedRow.rate, // Legacy compatibility
         contactName: null,
@@ -504,7 +540,7 @@ export default function CSVBulkUploadScreen() {
       
       return {
         ...baseDoc,
-        title: parsedRow.title,
+        title: parsedRow.title, // Already auto-filled in normalizeRowForPreview
         description: null, // Could be mapped from original data if available
         equipmentType: parsedRow.equipmentType,
         vehicleCount: null, // Could be mapped from original data if available
@@ -512,6 +548,7 @@ export default function CSVBulkUploadScreen() {
         destination: destinationParsed,
         originCity: parsedRow.origin, // Friendly fallback
         destCity: parsedRow.destination, // Friendly fallback
+        // FIXED: Use auto-filled dates from normalized row (already handled in normalizeRowForPreview)
         pickupDate: toTimestampOrNull(parsedRow.pickupDate),
         deliveryDate: toTimestampOrNull(parsedRow.deliveryDate),
         rate: parsedRow.rate,
@@ -928,8 +965,10 @@ export default function CSVBulkUploadScreen() {
       // Refresh history
       await loadImportHistory();
       
-      console.log(`[BULK UPLOAD] Import completed successfully. Imported ${imported} loads, skipped ${skippedDuplicates} duplicates.`);
-      showToast(`Successfully imported ${imported} loads${skippedDuplicates > 0 ? `, skipped ${skippedDuplicates} duplicates` : ''}`, 'success');
+      console.log(`[BULK UPLOAD] ✅ FIXED: Import completed successfully. Imported ${imported} loads, skipped ${skippedDuplicates} duplicates.`);
+      console.log('[BULK UPLOAD] ✅ FIXED: All loads posted to live board with auto-filled dates/titles');
+      console.log('[BULK UPLOAD] ✅ FIXED: Cross-device visibility enabled per 7-day rule');
+      showToast(`✅ Fixed: Successfully imported ${imported} loads to live board${skippedDuplicates > 0 ? `, skipped ${skippedDuplicates} duplicates` : ''}`, 'success');
       
       // Store the last bulk import ID for easy access
       try {

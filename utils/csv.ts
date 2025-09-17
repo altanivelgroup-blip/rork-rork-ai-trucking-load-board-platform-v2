@@ -144,7 +144,11 @@ export function buildSimpleTemplateCSV(): string {
   const r1 = ['Dallas, TX','Houston, TX','Car Hauler','5000','1200'];
   const r2 = ['Las Vegas, NV','Phoenix, AZ','Box Truck','8000','1600'];
   const r3 = ['Miami, FL','Atlanta, GA','Flatbed','12000','2400'];
-  return headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n' + r3.map(csvEscape).join(',') + '\n';
+  
+  // Add comment about auto-filled dates
+  const comment = '# FIXED: Dates auto-filled (pickup: tomorrow, delivery: day after) for board visibility';
+  
+  return comment + '\n' + headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n' + r3.map(csvEscape).join(',') + '\n';
 }
 
 export function csvEscape(v: string): string {
