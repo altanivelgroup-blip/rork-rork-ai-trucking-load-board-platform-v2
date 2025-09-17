@@ -253,23 +253,25 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   }, []);
 
   const isExpired = useCallback((l: Load) => {
-    // Updated archiving logic: Only consider loads expired if they are completed AND past 7-day window
-    // This prevents premature archiving of loads that are still active
+    // ENFORCE LOAD RULES: Enhanced archiving logic with 7-day auto-delete for board visibility
+    // History: Keep until manual profile delete
+    // Board: Auto-delete 7 days after delivery date (regardless of status)
     const d = l.deliveryDate instanceof Date ? l.deliveryDate : new Date(l.deliveryDate as unknown as string);
     const ts = d.getTime();
     if (isNaN(ts)) return false;
     
-    // Only archive if status is completed or archived AND delivery date is more than 7 days ago
+    // ENFORCE LOAD RULES: Auto-delete from board after 7 days post-delivery
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    const isCompletedOrArchived = l.status === 'completed' || l.status === 'archived';
     const isPastSevenDays = ts < sevenDaysAgo;
     
-    const shouldExpire = isCompletedOrArchived && isPastSevenDays;
+    // ENFORCE LOAD RULES: All loads auto-expire from board after 7 days
+    // This ensures fresh load visibility and prevents stale listings
+    const shouldExpire = isPastSevenDays;
     
     if (shouldExpire) {
-      console.log(`[Loads] Load ${l.id} eligible for archiving - status: ${l.status}, delivery: ${d.toISOString()}`);
+      console.log(`[Loads] ENFORCE RULES - Load ${l.id} auto-deleting from board - delivery: ${d.toISOString()} (7+ days ago)`);
     } else {
-      console.log(`[Loads] Load remains visible - ${l.id} status: ${l.status}, delivery: ${d.toISOString()}`);
+      console.log(`[Loads] ENFORCE RULES - Load ${l.id} remains on board - delivery: ${d.toISOString()} (within 7 days)`);
     }
     
     return shouldExpire;
@@ -279,15 +281,12 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     const persistedRaw = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
     const persistedArr: any[] = persistedRaw ? JSON.parse(persistedRaw) : [];
     const revived = persistedArr.map(reviveLoad);
-    const kept = revived.filter(l => !isExpired(l));
-    if (kept.length !== revived.length) {
-      try {
-        await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(kept));
-        console.log(`[Loads] Cleaned ${revived.length - kept.length} expired load(s)`);
-      } catch {}
-    }
-    return kept;
-  }, [USER_POSTED_LOADS_KEY, reviveLoad, isExpired]);
+    
+    // ENFORCE LOAD RULES: Return all history loads (no auto-cleanup)
+    // History keeps everything until manual profile delete
+    console.log(`[Loads] ENFORCE RULES - Loaded ${revived.length} loads from history (no auto-cleanup)`);
+    return revived;
+  }, [USER_POSTED_LOADS_KEY, reviveLoad]);
 
   const refreshLoads = useCallback(async () => {
     startAudit('refreshLoads', { source: 'useLoads' });
@@ -464,10 +463,25 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       startAudit('data-processing', { firestoreDocs: snap.docs.length });
       const fromFs = snap.docs.map(toLoad).filter((x): x is Load => x !== null);
       const persisted = await readPersisted();
-      const mergedLoads = mergeUniqueById(fromFs.length ? fromFs : mockLoads, persisted);
-      endAudit('data-processing', { processedLoads: fromFs.length, persistedLoads: persisted.length, totalMerged: mergedLoads.length });
+      const allLoads = mergeUniqueById(fromFs.length ? fromFs : mockLoads, persisted);
       
-      setLoads(mergedLoads);
+      // ENFORCE LOAD RULES: Filter board display by 7-day rule, keep history intact
+      const boardLoads = allLoads.filter(l => !isExpired(l));
+      const expiredCount = allLoads.length - boardLoads.length;
+      
+      if (expiredCount > 0) {
+        console.log(`[Loads] ENFORCE RULES - Filtered ${expiredCount} expired loads from board (kept in history)`);
+      }
+      
+      endAudit('data-processing', { 
+        processedLoads: fromFs.length, 
+        persistedLoads: persisted.length, 
+        totalMerged: allLoads.length,
+        boardVisible: boardLoads.length,
+        expiredFiltered: expiredCount
+      });
+      
+      setLoads(boardLoads);
       setLastSyncTime(new Date());
       setSyncStatus('idle');
       startAudit('cache-write');
@@ -504,14 +518,24 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 600));
+      
+      // ENFORCE LOAD RULES: Post to both history and live board
+      console.log('[Loads] ENFORCE RULES - Posting load to both history and live board');
+      
+      // Add to live board (filtered by 7-day rule)
       setLoads(prev => mergeUniqueById([load, ...prev], []));
+      
+      // ENFORCE LOAD RULES: Save to history (persistent until manual profile delete)
       try {
         const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
         const parsedRaw: any[] = existingLoads ? JSON.parse(existingLoads) : [];
-        const parsed = parsedRaw.map(reviveLoad).filter(l => !isExpired(l));
+        const parsed = parsedRaw.map(reviveLoad);
+        
+        // ENFORCE LOAD RULES: Keep all loads in history, only filter for board display
         const updated = mergeUniqueById([], [load, ...parsed]);
         await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
-        console.log('[Loads] Load posted and saved to AsyncStorage');
+        console.log('[Loads] ENFORCE RULES - Load saved to history (permanent until profile delete)');
+        console.log('[Loads] ENFORCE RULES - Load posted to live board (7-day visibility)');
       } catch (storageError) {
         console.warn('[Loads] Failed to save to AsyncStorage, but load added to memory:', storageError);
       }
@@ -521,7 +545,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     } finally {
       setIsLoading(false);
     }
-  }, [mergeUniqueById, reviveLoad, isExpired]);
+  }, [mergeUniqueById, reviveLoad]);
 
   const addLoadsBulk = useCallback(async (incoming: Load[]) => {
     setIsLoading(true);
@@ -595,11 +619,24 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   const deleteCompletedLoad = useCallback(async (loadId: string) => {
     setIsLoading(true);
     try {
-      // For completed loads, we only remove from local history
-      // Don't delete from Firebase as it affects shipper analytics
+      // ENFORCE LOAD RULES: Manual profile delete - remove from history permanently
+      console.log('[Loads] ENFORCE RULES - Manual profile delete for load:', loadId);
       
-      // Remove from local state
+      // Remove from local state (board)
       setLoads(prevLoads => prevLoads.filter(load => load.id !== loadId));
+      
+      // ENFORCE LOAD RULES: Remove from history (manual profile delete)
+      try {
+        const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
+        if (existingLoads) {
+          const parsedRaw: any[] = JSON.parse(existingLoads);
+          const updated = parsedRaw.filter(load => String(load.id) !== loadId);
+          await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
+          console.log('[Loads] ENFORCE RULES - Load permanently deleted from history');
+        }
+      } catch (storageError) {
+        console.warn('[Loads] Failed to remove from history:', storageError);
+      }
       
       // Remove from accepted loads history
       try {
@@ -613,7 +650,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         console.warn('[Loads] Failed to remove from accepted loads history:', storageError);
       }
       
-      console.log('[Loads] Completed load removed from history:', loadId);
+      console.log('[Loads] ENFORCE RULES - Load permanently removed from profile history:', loadId);
     } catch (error) {
       console.error('Failed to delete completed load:', error);
       throw error;

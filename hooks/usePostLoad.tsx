@@ -765,21 +765,23 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             console.warn('[PostLoad] Firebase error, using local storage fallback');
           }
           
-          // For local storage fallback, we still need the photos to be uploaded to Firebase Storage
-        // If Firebase write fails but photos are uploaded, we can still create the local load
-        if (finalPhotoUrls.length >= minRequired) {
-          await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, finalContactInfo);
-        } else {
-          throw new Error('Photos must be uploaded before creating load. Please retry photo upload.');
-        }
+          // ENFORCE LOAD RULES: Firebase write failed, use local storage with cross-platform sync
+          console.log('[PostLoad] ENFORCE RULES - Firebase write failed, posting to local storage with cross-platform visibility');
+          if (finalPhotoUrls.length >= minRequired) {
+            await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, finalContactInfo);
+            console.log('[PostLoad] ENFORCE RULES - Load posted locally, will sync across devices when permissions fixed');
+          } else {
+            throw new Error('Photos must be uploaded before creating load. Please retry photo upload.');
+          }
         }
       } else {
         console.warn('[PostLoad] Firebase write not available:', permissions.error || 'Unknown reason');
         
-        // For local storage fallback, we still need the photos to be uploaded to Firebase Storage
-        // If Firebase write fails but photos are uploaded, we can still create the local load
+        // ENFORCE LOAD RULES: No Firebase write permissions, use local storage
+        console.log('[PostLoad] ENFORCE RULES - No Firebase write permissions, posting locally with cross-platform intent');
         if (finalPhotoUrls.length >= minRequired) {
           await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, finalContactInfo);
+          console.log('[PostLoad] ENFORCE RULES - Load posted locally, visible on this device and will sync when permissions available');
         } else {
           throw new Error('Photos must be uploaded before creating load. Please retry photo upload.');
         }

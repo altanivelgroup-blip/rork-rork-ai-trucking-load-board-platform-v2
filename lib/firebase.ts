@@ -165,7 +165,7 @@ export async function testFirebaseConnection() {
   }
 }
 
-// ---- Archive expired loads (only completed loads after 7-day window) ----
+// ---- ENFORCE LOAD RULES: Archive expired loads (7-day auto-delete from board) ----
 export async function archiveExpiredLoads(): Promise<{ scanned: number; archived: number }> {
   const { db } = getFirebase();
   const now = Date.now();
@@ -173,10 +173,10 @@ export async function archiveExpiredLoads(): Promise<{ scanned: number; archived
   let archived = 0;
   let scanned = 0;
   
-  console.log('[ArchiveExpired] Archiving updated - Starting with new 7-day window logic');
+  console.log('[ArchiveExpired] ENFORCE RULES - Starting 7-day auto-delete from board');
   
   try {
-    // Query for loads that are not archived and are either completed or explicitly marked for archiving
+    // ENFORCE LOAD RULES: Query for loads that are past 7-day delivery window
     const q = query(
       collection(db, LOADS_COLLECTION),
       where('isArchived', '==', false),
@@ -185,7 +185,7 @@ export async function archiveExpiredLoads(): Promise<{ scanned: number; archived
     const snap = await getDocs(q as any);
     scanned = snap.docs.length;
     
-    console.log(`[ArchiveExpired] Scanned ${scanned} loads for archiving eligibility`);
+    console.log(`[ArchiveExpired] ENFORCE RULES - Scanned ${scanned} loads for 7-day rule`);
     
     if (scanned === 0) return { scanned, archived };
     
@@ -193,81 +193,76 @@ export async function archiveExpiredLoads(): Promise<{ scanned: number; archived
     
     snap.docs.forEach((doc) => {
       const data = doc.data() as any;
-      const status = data?.status;
       const deliveryDate = data?.deliveryDate?.toDate ? data.deliveryDate.toDate() : new Date(data?.deliveryDate || 0);
       const deliveryTimestamp = deliveryDate.getTime();
       
-      // Only archive if:
-      // 1. Status is 'completed' OR explicitly marked as 'archived'
-      // 2. AND delivery date is more than 7 days ago
+      // ENFORCE LOAD RULES: Auto-delete from board after 7 days post-delivery (regardless of status)
       const shouldArchive = (
-        (status === 'completed' || status === 'archived') &&
         deliveryTimestamp < sevenDaysAgo &&
         !isNaN(deliveryTimestamp)
       );
       
       if (shouldArchive) {
-        console.log(`[ArchiveExpired] Archiving load ${doc.id} - status: ${status}, delivery: ${deliveryDate.toISOString()}`);
+        console.log(`[ArchiveExpired] ENFORCE RULES - Auto-deleting load ${doc.id} from board - delivery: ${deliveryDate.toISOString()} (7+ days ago)`);
         batch.update(doc.ref, { 
           isArchived: true, 
           archivedAt: serverTimestamp(),
-          archivedReason: 'completed_7day_window'
+          archivedReason: '7day_auto_delete_from_board'
         });
         archived += 1;
       } else {
-        console.log(`[ArchiveExpired] Load remains visible - ${doc.id} status: ${status}, delivery: ${deliveryDate.toISOString()}`);
+        console.log(`[ArchiveExpired] ENFORCE RULES - Load ${doc.id} remains on board - delivery: ${deliveryDate.toISOString()} (within 7 days)`);
       }
     });
     
     if (archived > 0) {
       await batch.commit();
-      console.log(`[ArchiveExpired] Successfully archived ${archived} completed loads`);
+      console.log(`[ArchiveExpired] ENFORCE RULES - Successfully auto-deleted ${archived} loads from board (kept in history)`);
     } else {
-      console.log('[ArchiveExpired] No loads eligible for archiving at this time');
+      console.log('[ArchiveExpired] ENFORCE RULES - No loads eligible for board auto-delete at this time');
     }
     
     return { scanned, archived };
   } catch (e) {
-    console.log('[ArchiveExpired] error', e);
+    console.log('[ArchiveExpired] ENFORCE RULES - error', e);
     return { scanned, archived };
   }
 }
 
-// ---- Purge archived loads older than N days ----
+// ---- ENFORCE LOAD RULES: Purge archived loads (only when manually deleted from profile) ----
 export async function purgeArchivedLoads(days: number = 14): Promise<{ scanned: number; purged: number }> {
   const { db } = getFirebase();
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   let purged = 0;
   let scanned = 0;
   
-  console.log(`[PurgeArchived] Starting purge of archived loads older than ${days} days`);
+  console.log(`[PurgeArchived] ENFORCE RULES - Starting purge of manually deleted loads older than ${days} days`);
   
   try {
+    // ENFORCE LOAD RULES: Only purge loads that were manually deleted from profile
     const q = query(
       collection(db, LOADS_COLLECTION),
       where('isArchived', '==', true),
-      orderBy('clientCreatedAt', 'asc'),
+      where('archivedReason', '==', 'manual_profile_delete'),
+      orderBy('archivedAt', 'asc'),
       limit(200)
     );
     const snap = await getDocs(q as any);
     const toDelete = snap.docs.filter((d) => {
       const data = d.data() as any;
-      const cc = data?.clientCreatedAt ?? 0;
       const archivedAt = data?.archivedAt?.toDate ? data.archivedAt.toDate().getTime() : 0;
       
-      // Use archivedAt if available, otherwise fall back to clientCreatedAt
-      const timestamp = archivedAt || cc;
-      const shouldDelete = typeof timestamp === 'number' && timestamp < cutoff;
+      const shouldDelete = typeof archivedAt === 'number' && archivedAt < cutoff;
       
       if (shouldDelete) {
-        console.log(`[PurgeArchived] Marking for deletion: ${d.id}, archived: ${new Date(timestamp).toISOString()}`);
+        console.log(`[PurgeArchived] ENFORCE RULES - Marking manually deleted load for purge: ${d.id}, archived: ${new Date(archivedAt).toISOString()}`);
       }
       
       return shouldDelete;
     });
     
     scanned = toDelete.length;
-    console.log(`[PurgeArchived] Found ${scanned} archived loads eligible for deletion`);
+    console.log(`[PurgeArchived] ENFORCE RULES - Found ${scanned} manually deleted loads eligible for purge`);
     
     if (scanned === 0) return { scanned, purged };
     
@@ -278,11 +273,11 @@ export async function purgeArchivedLoads(days: number = 14): Promise<{ scanned: 
     });
     
     await batch.commit();
-    console.log(`[PurgeArchived] Successfully purged ${purged} archived loads`);
+    console.log(`[PurgeArchived] ENFORCE RULES - Successfully purged ${purged} manually deleted loads`);
     
     return { scanned, purged };
   } catch (e) {
-    console.log('[PurgeArchived] error', e);
+    console.log('[PurgeArchived] ENFORCE RULES - error', e);
     return { scanned, purged };
   }
 }
@@ -511,8 +506,9 @@ export async function postLoad(args: {
       ...baseData,
       ...createOnly,
       ...(computeExpires != null ? { expiresAtMs: computeExpires } : {}),
-      // Never touch isArchived/archivedAt here; cron-only
-      // Loads remain visible until explicitly completed and 7-day window passes
+      // ENFORCE LOAD RULES: Never touch isArchived/archivedAt here; cron-only
+      // Loads remain visible on board until 7-day window passes (regardless of status)
+      // History keeps all loads until manual profile delete
     } as const;
 
     console.log("[POST_LOAD] Attempting to write to Firestore...");
