@@ -60,35 +60,35 @@ service cloud.firestore {
 
     // Loads and board/history visibility
     match /loads/{docId} {
-      allow read: if isAuthenticatedUser();
-      allow create: if isAuthenticatedUser();
-      allow update: if isAuthenticatedUser() && notChangingArchive(resource.data, request.resource.data);
-      allow delete: if isAuthenticatedUser() && (request.auth.uid == resource.data.createdBy || request.auth.token.role == 'admin');
+      allow read: if isValidUser();
+      allow create: if isValidUser();
+      allow update: if isValidUser() && notChangingArchive(resource.data, request.resource.data);
+      allow delete: if isValidUser() && (request.auth.uid == resource.data.createdBy || request.auth.token.role == 'admin');
     }
 
     match /board/{docId} {
-      allow read: if isAuthenticatedUser();
-      allow write: if isAuthenticatedUser();
+      allow read: if isValidUser();
+      allow write: if isValidUser();
     }
 
     match /boards/{docId} {
-      allow read: if isAuthenticatedUser();
-      allow write: if isAuthenticatedUser();
+      allow read: if isValidUser();
+      allow write: if isValidUser();
     }
 
     match /history/{docId} {
-      allow read: if isAuthenticatedUser();
-      allow write: if isAuthenticatedUser();
+      allow read: if isValidUser();
+      allow write: if isValidUser();
     }
 
     match /posts/{docId} {
-      allow read: if isAuthenticatedUser();
-      allow write: if isAuthenticatedUser();
+      allow read: if isValidUser();
+      allow write: if isValidUser();
     }
 
     match /myLoads/{docId} {
-      allow read: if isAuthenticatedUser();
-      allow write: if isAuthenticatedUser();
+      allow read: if isValidUser();
+      allow write: if isValidUser();
     }
 
     match /vehicles/{docId} {
