@@ -66,6 +66,18 @@ service cloud.firestore {
       allow delete: if isValidUser() && (request.auth.uid == resource.data.createdBy || request.auth.token.role == 'admin');
     }
 
+    // Bulk import session metadata (audit/history)
+    match /bulkImports/{docId} {
+      // Read allowed to owner of the session
+      allow read: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+      // Create allowed when the creator is the signed-in user
+      allow create: if isAuthenticatedUser() && request.auth.uid == request.resource.data.userId;
+      // Updates allowed only to owner
+      allow update: if isAuthenticatedUser() && request.auth.uid == resource.data.userId;
+      // Deletes restricted to admin
+      allow delete: if isAdmin();
+    }
+
     match /board/{docId} {
       allow read: if isValidUser();
       allow write: if isValidUser();

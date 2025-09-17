@@ -566,55 +566,33 @@ export default function CSVBulkUploadScreen() {
   // Check for duplicate rows in Firestore
   const checkForDuplicates = useCallback(async (rows: NormalizedPreviewRow[]): Promise<NormalizedPreviewRow[]> => {
     if (rows.length === 0) return rows;
-    
     try {
       const { db } = getFirebase();
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
       const rowHashes = rows.map(row => row.rowHash).filter(Boolean) as string[];
-      
       if (rowHashes.length === 0) return rows;
-      
-      // Query for existing documents with the same hashes
-      // Note: Firestore 'in' queries are limited to 30 items, so we need to batch
+
+      // Firestore-safe: only use "in" filter on rowHash, batched by 30
       const batchSize = 30;
       const existingHashes = new Set<string>();
-      
       for (let i = 0; i < rowHashes.length; i += batchSize) {
         const batchHashes = rowHashes.slice(i, i + batchSize);
-        
         const q = query(
           collection(db, LOADS_COLLECTION),
-          where('rowHash', 'in', batchHashes),
-          where('status', '!=', 'deleted'),
-          where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo))
+          where('rowHash', 'in', batchHashes)
         );
-        
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(doc => {
-          const data = doc.data();
-          if (data.rowHash) {
-            existingHashes.add(data.rowHash);
-          }
+        const snapshot = await getDocs(q);
+        snapshot.forEach(d => {
+          const data: any = d.data();
+          if (data?.rowHash) existingHashes.add(data.rowHash as string);
         });
       }
-      
-      // Mark duplicate rows
-      return rows.map(row => {
-        if (row.rowHash && existingHashes.has(row.rowHash)) {
-          return {
-            ...row,
-            status: 'duplicate' as const,
-            errors: [...row.errors, 'Duplicate (existing recent load)']
-          };
-        }
-        return row;
-      });
-      
+
+      return rows.map(row => existingHashes.has(row.rowHash ?? '')
+        ? { ...row, status: 'duplicate' as const, errors: [...row.errors, 'Duplicate (existing load)'] }
+        : row
+      );
     } catch (error) {
       console.warn('[DUPLICATE CHECK] Error checking for duplicates:', error);
-      // If duplicate check fails, return original rows without marking duplicates
       return rows;
     }
   }, []);
@@ -908,6 +886,17 @@ export default function CSVBulkUploadScreen() {
       
       console.log(`[BULK UPLOAD] Processing ${validRows.length} valid rows with bulk ID: ${bulkImportId}`);
       
+      // Preflight: ensure write permission before we start
+      try {
+        const { checkFirebasePermissions } = await import('@/utils/firebase');
+        const perms = await checkFirebasePermissions();
+        if (!perms.canWrite) {
+          throw new Error(`Missing or insufficient permissions to write to Firestore. ${perms.error ?? ''}`.trim());
+        }
+      } catch (preErr: any) {
+        throw new Error(preErr?.message || 'Permission check failed');
+      }
+
       // Process in batches with duplicate checking
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
         const batchRows = validRows.slice(i, Math.min(i + BATCH_SIZE, validRows.length));
