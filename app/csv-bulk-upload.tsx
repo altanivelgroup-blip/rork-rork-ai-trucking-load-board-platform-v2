@@ -145,22 +145,23 @@ export default function CSVBulkUploadScreen() {
 
   // Load import history
   const loadImportHistory = useCallback(async () => {
-    if (!user?.id) return;
-    
     try {
+      const { auth, db } = getFirebase();
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+
       setIsLoadingHistory(true);
-      const { db } = getFirebase();
-      
+
       const q = query(
         collection(db, BULK_IMPORTS_COLLECTION),
-        where('userId', '==', user.id),
+        where('userId', '==', uid),
         orderBy('createdAt', 'desc'),
         limit(10)
       );
-      
+
       const querySnapshot = await getDocs(q);
       const sessions: BulkImportSession[] = [];
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         sessions.push({
@@ -173,14 +174,14 @@ export default function CSVBulkUploadScreen() {
           notes: data.notes
         });
       });
-      
+
       setImportHistory(sessions);
     } catch (error) {
       console.warn('[IMPORT HISTORY] Error loading history:', error);
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [user?.id]);
+  }, []),
 
   // Create bulk import session record
   const createBulkImportSession = useCallback(async (
@@ -189,28 +190,29 @@ export default function CSVBulkUploadScreen() {
     fileName: string,
     totals: { valid: number; skipped: number; written: number }
   ) => {
-    if (!user?.id) return;
-    
     try {
-      const { db } = getFirebase();
+      const { auth, db } = getFirebase();
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+
       const sessionData: Omit<BulkImportSession, 'id'> = {
-        userId: user.id,
+        userId: uid,
         createdAt: new Date(),
         templateType,
         fileName,
         totals
       };
-      
+
       await setDoc(doc(db, BULK_IMPORTS_COLLECTION, bulkImportId), {
         ...sessionData,
         createdAt: serverTimestamp()
       });
-      
+
       console.log(`[BULK IMPORT] Created session record: ${bulkImportId}`);
     } catch (error) {
       console.warn('[BULK IMPORT] Error creating session record:', error);
     }
-  }, [user?.id]);
+  }, []),
 
   // Navigate to loads filtered by bulk import ID
   const viewBulkImportLoads = useCallback((bulkImportId: string) => {
@@ -274,10 +276,8 @@ export default function CSVBulkUploadScreen() {
 
   // Load history on component mount
   useEffect(() => {
-    if (user?.id) {
-      loadImportHistory();
-    }
-  }, [user?.id, loadImportHistory]);
+    loadImportHistory();
+  }, [loadImportHistory]);
 
   const generateLoadId = useCallback(() => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
