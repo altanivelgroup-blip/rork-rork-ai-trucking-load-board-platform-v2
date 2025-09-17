@@ -9,7 +9,6 @@ import {
   Platform,
   Alert,
   Switch,
-
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { Upload, FileText, AlertCircle, CheckCircle, Download, Trash2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, RotateCcw, Share, History, ExternalLink } from 'lucide-react-native';
