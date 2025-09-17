@@ -38,8 +38,7 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.role == 'admin' ||
-        request.auth.token.email == 'admin@loadrush.com' ||
-        request.auth.uid != null
+        request.auth.token.email == 'admin@loadrush.com'
       );
     }
     
@@ -61,14 +60,13 @@ service cloud.firestore {
     // Loads and board/history visibility
     match /loads/{docId} {
       allow read: if isValidUser();
-      allow create: if isValidUser();
-      allow update: if isValidUser() && notChangingArchive(resource.data, request.resource.data);
-      allow delete: if isValidUser() && (request.auth.uid == resource.data.createdBy || request.auth.token.role == 'admin');
+      allow create: if isAuthenticatedUser();
+      allow update: if isAuthenticatedUser() && notChangingArchive(resource.data, request.resource.data);
+      allow delete: if isAuthenticatedUser() && (request.auth.uid == resource.data.createdBy || request.auth.token.role == 'admin');
     }
 
     // Bulk import session metadata (audit/history)
     match /bulkImports/{docId} {
-      // Temporarily open to any authenticated user to unblock imports
       allow read, write: if isAuthenticatedUser();
     }
 

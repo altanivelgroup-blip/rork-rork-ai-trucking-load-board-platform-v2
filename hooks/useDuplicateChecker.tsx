@@ -263,9 +263,15 @@ export function useDuplicateChecker() {
       return result;
     } catch (error) {
       console.warn('[duplicate-check] unexpected error, using local fallback');
-      const result = await performLocalDuplicateCheck(loads, options);
-      setLastResult(result);
-      return result;
+      try {
+        const result = await performLocalDuplicateCheck(loads, options);
+        setLastResult(result);
+        return result;
+      } catch (fallbackError) {
+        console.error('[duplicate-check] fallback also failed:', fallbackError);
+        setLastResult(null);
+        return null;
+      }
     } finally {
       setIsChecking(false);
     }
