@@ -181,7 +181,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, []),
+  }, []);
 
   // Create bulk import session record
   const createBulkImportSession = useCallback(async (
@@ -212,7 +212,7 @@ export default function CSVBulkUploadScreen() {
     } catch (error) {
       console.warn('[BULK IMPORT] Error creating session record:', error);
     }
-  }, []),
+  }, []);
 
   // Navigate to loads filtered by bulk import ID
   const viewBulkImportLoads = useCallback((bulkImportId: string) => {
