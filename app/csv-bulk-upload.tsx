@@ -121,7 +121,7 @@ export default function CSVBulkUploadScreen() {
   const [currentPage, setCurrentPage] = useState(0);
   const [expandedErrors, setExpandedErrors] = useState<Set<number>>(new Set());
   const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string; webFile?: File } | null>(null);
-  const [isDryRun, setIsDryRun] = useState(true);
+  const [isDryRun] = useState(false); // Dry Run disabled permanently
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importSummary, setImportSummary] = useState<{ imported: number; skipped: number; total: number } | null>(null);
   const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
@@ -1042,7 +1042,7 @@ export default function CSVBulkUploadScreen() {
   }, [normalizedRows, selectedTemplate, generateBulkImportId, generateLoadId, toFirestoreDoc, showToast, checkForDuplicates]);
 
   const handleImport = useCallback(async () => {
-    if (!isDryRun && !user) {
+    if (!user) {
       showToast('Sign in required', 'error');
       return;
     }
@@ -1054,19 +1054,8 @@ export default function CSVBulkUploadScreen() {
       return;
     }
 
-    if (isDryRun) {
-      await performImport(true);
-    } else {
-      Alert.alert(
-        'Confirm Import',
-        `Import ${validRows.length} loads to Firestore?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Import', onPress: () => performImport(false) }
-        ]
-      );
-    }
-  }, [isDryRun, user, normalizedRows, showToast, performImport]);
+    await performImport(false);
+  }, [user, normalizedRows, showToast, performImport]);
 
   const downloadSkippedRows = useCallback(async (rowsToDownload?: NormalizedPreviewRow[]) => {
     const skippedRows = rowsToDownload || normalizedRows.filter(row => row.status === 'invalid' || row.status === 'duplicate');
@@ -1440,26 +1429,11 @@ export default function CSVBulkUploadScreen() {
                 <Eye size={16} color={theme.colors.white} />
               )}
               <Text style={styles.actionButtonText}>
-                {isLoading ? 'Processing...' : 'AI Check & Preview'}
+                {isLoading ? 'Processing...' : 'Preview'}
               </Text>
             </TouchableOpacity>
             
             <View style={styles.importSection}>
-              <View style={styles.dryRunContainer}>
-                <View style={styles.dryRunToggle}>
-                  <Text style={styles.dryRunLabel}>Dry Run (no writes)</Text>
-                  <Switch
-                    value={isDryRun}
-                    onValueChange={setIsDryRun}
-                    trackColor={{ false: theme.colors.gray, true: theme.colors.primary }}
-                    thumbColor={isDryRun ? theme.colors.white : theme.colors.white}
-                  />
-                </View>
-                <Text style={styles.dryRunDescription}>
-                  {isDryRun ? 'Simulate import without writing to database' : 'Perform actual import to database'}
-                </Text>
-              </View>
-              
               <TouchableOpacity
                 style={[styles.actionButton, styles.importButton, normalizedRows.length > 0 && validCount > 0 ? { opacity: 1 } : {}]}
                 onPress={handleImport}
@@ -1471,7 +1445,7 @@ export default function CSVBulkUploadScreen() {
                   <CheckCircle size={16} color={theme.colors.white} />
                 )}
                 <Text style={styles.actionButtonText}>
-                  {isImporting ? 'Processing...' : isDryRun ? `Simulate Import (${validCount} valid)` : `Import ${validCount} Valid Rows`}
+                  {isImporting ? 'Processing...' : `Import ${validCount} Valid Rows`}
                 </Text>
               </TouchableOpacity>
             </View>
