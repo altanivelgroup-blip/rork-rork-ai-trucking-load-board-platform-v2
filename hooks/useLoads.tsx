@@ -485,10 +485,10 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       setLastSyncTime(new Date());
       setSyncStatus('idle');
       startAudit('cache-write');
-      try { await setCache<Load[]>(CACHE_KEY, mergedLoads, 5 * 60 * 1000); endAudit('cache-write', { success: true }); } catch { endAudit('cache-write', { success: false }); }
+      try { await setCache<Load[]>(CACHE_KEY, boardLoads, 5 * 60 * 1000); endAudit('cache-write', { success: true }); } catch { endAudit('cache-write', { success: false }); }
       
-      console.log(`[Loads] Successfully synced ${mergedLoads.length} loads from Firestore`);
-      endAudit('refreshLoads', { success: true, mode: 'firestore', totalLoads: mergedLoads.length });
+      console.log(`[Loads] Successfully synced ${boardLoads.length} loads from Firestore`);
+      endAudit('refreshLoads', { success: true, mode: 'firestore', totalLoads: boardLoads.length });
     } catch (error: any) {
       console.error('PERMISSION FIX - Failed to refresh loads:', error);
       if (error?.code === 'permission-denied') {
