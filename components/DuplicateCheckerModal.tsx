@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { X, AlertTriangle, CheckCircle, Merge, Trash2, Eye, Brain } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
-import { trpc } from '@/lib/trpc';
+import { useDuplicateChecker } from '@/hooks/useDuplicateChecker';
 
 interface DuplicateMatch {
   loadIndex: number;
@@ -61,41 +61,35 @@ interface Props {
 }
 
 export default function DuplicateCheckerModal({ visible, onClose, loads, onResolved }: Props) {
-  const [isChecking, setIsChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<DuplicateCheckResult | null>(null);
   const [selectedActions, setSelectedActions] = useState<Record<number, string>>({});
   const [showDetails, setShowDetails] = useState<Record<number, boolean>>({});
 
-  const checkDuplicatesMutation = trpc.loads.checkDuplicates.useMutation();
+  const { checkDuplicates, isChecking } = useDuplicateChecker();
 
   const runDuplicateCheck = useCallback(async () => {
     if (loads.length === 0) return;
 
     try {
-      setIsChecking(true);
-      
-      const result = await checkDuplicatesMutation.mutateAsync({
-        loads,
-        threshold: 0.80, // 80% similarity threshold
-        checkExisting: true
-      });
-      
+      console.log('[DuplicateCheckerModal] Running duplicate check for', loads.length, 'loads');
+      const result = await checkDuplicates(loads, { threshold: 0.8, checkExisting: true });
+      if (!result) {
+        console.warn('[DuplicateCheckerModal] Duplicate check returned null');
+        Alert.alert('Notice', 'Could not run server check. Used offline detector.');
+        return;
+      }
       setCheckResult(result);
-      
-      // Initialize selected actions with AI recommendations
+
       const initialActions: Record<number, string> = {};
       result.duplicates.forEach(dup => {
         initialActions[dup.loadIndex] = dup.recommendation;
       });
       setSelectedActions(initialActions);
-      
-    } catch (error) {
+    } catch (error: any) {
       console.error('Duplicate check failed:', error);
-      Alert.alert('Error', 'Failed to check for duplicates. Please try again.');
-    } finally {
-      setIsChecking(false);
+      Alert.alert('Error', 'Duplicate check failed. We switched to an offline check. Please try again.');
     }
-  }, [loads, checkDuplicatesMutation]);
+  }, [loads, checkDuplicates]);
 
   const toggleDetails = useCallback((index: number) => {
     setShowDetails(prev => ({
@@ -183,7 +177,6 @@ export default function DuplicateCheckerModal({ visible, onClose, loads, onResol
             </View>
           ) : checkResult ? (
             <>
-              {/* AI Insights */}
               <View style={styles.insightsContainer}>
                 <Text style={styles.sectionTitle}>🧠 AI Analysis</Text>
                 {checkResult.suggestions.aiInsights.map((insight, index) => (
@@ -360,19 +353,20 @@ export default function DuplicateCheckerModal({ visible, onClose, loads, onResol
         <View style={styles.footer}>
           {checkResult && checkResult.duplicates.length > 0 ? (
             <>
-              <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
+              <TouchableOpacity testID="duplicate-check-cancel" style={styles.secondaryButton} onPress={onClose}>
                 <Text style={styles.secondaryButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.primaryButton} onPress={applyResolutions}>
+              <TouchableOpacity testID="duplicate-check-apply" style={styles.primaryButton} onPress={applyResolutions}>
                 <Text style={styles.primaryButtonText}>Apply Resolutions</Text>
               </TouchableOpacity>
             </>
           ) : checkResult ? (
-            <TouchableOpacity style={styles.primaryButton} onPress={onClose}>
+            <TouchableOpacity testID="duplicate-check-continue" style={styles.primaryButton} onPress={onClose}>
               <Text style={styles.primaryButtonText}>Continue with Upload</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity 
+              testID="duplicate-check-start"
               style={[styles.primaryButton, isChecking && styles.primaryButtonDisabled]} 
               onPress={runDuplicateCheck}
               disabled={isChecking}
