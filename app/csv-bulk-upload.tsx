@@ -615,7 +615,7 @@ export default function CSVBulkUploadScreen() {
       // If duplicate check fails, return original rows without marking duplicates
       return rows;
     }
-  }, [withTimeout]);
+  }, []);
 
   const processCSVData = useCallback(async () => {
     if (!selectedFile) return;
