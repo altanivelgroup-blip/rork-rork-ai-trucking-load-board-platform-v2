@@ -1,0 +1,118 @@
+// BACKUP: Previous rules before bulk upload permissions fix
+// ULTIMATE CROSS-PLATFORM FIX: Zero-restriction Firestore rules for universal access
+// PERMANENT FIX: Complete removal of all authentication and permission checks
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ULTIMATE FIX: Universal access - no authentication required
+    // This allows all operations from all platforms (web, iOS, Android)
+    // without any authentication or permission checks
+    
+    // LOADS COLLECTION: Unlimited access for cross-platform visibility
+    match /loads/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // USER COLLECTIONS: Complete access for profile management
+    match /profiles/{uid} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /drivers/{uid} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /shippers/{uid} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /users/{uid} {
+      allow read, write, create, update, delete: if true;
+      
+      match /logins/{loginId} {
+        allow read, write, create, update, delete: if true;
+      }
+      
+      match /settings/{settingId} {
+        allow read, write, create, update, delete: if true;
+      }
+    }
+    
+    // BULK OPERATIONS: Full access for CSV imports
+    match /bulkImports/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // BOARD AND HISTORY: Complete access
+    match /board/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /boards/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /history/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /posts/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /myLoads/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // VEHICLE AND CARRIER DATA: Full access
+    match /vehicles/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /carrierPublic/{dot} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // SETTINGS AND NOTIFICATIONS: Complete access
+    match /notificationSettings/{uid} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /users/{userId}/settings/notifications {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // ANALYTICS AND REPORTS: Full access
+    match /reports/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /reportAnalytics/{docId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // PHOTO STORAGE: Complete access
+    match /photos/{photoId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /loadPhotos/{userId}/{loadId}/metadata/{photoId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // FINANCIAL TRANSACTIONS: Full access
+    match /transactions/{transactionId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    match /adminTransactions/{transactionId} {
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // ULTIMATE CATCH-ALL: Allow everything for any path
+    // This ensures no document or collection is ever blocked
+    match /{document=**} {
+      allow read, write, create, update, delete: if true;
+    }
+  }
+}
