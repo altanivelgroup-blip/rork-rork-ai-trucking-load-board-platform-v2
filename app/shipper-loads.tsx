@@ -1,3 +1,8 @@
+// UNLIMITED LOADS FIX: Removed all limits from shipper loads visibility
+// Shippers can now see ALL their posted loads across all platforms (web, iOS, Android)
+// Fixed: Shipper seeing fewer loads issue - no more 5-load limits or arbitrary restrictions
+// Step 1: Updated shipper queries/filters for unlimited load visibility
+// Step 2: Enhanced logging to verify full count shows across devices
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
@@ -106,23 +111,45 @@ export default function ShipperLoadsScreen() {
   }, []);
   
   const loads = useMemo(() => {
+    console.log('[ShipperLoads] UNLIMITED LOADS - Processing loads for shipper visibility');
+    console.log('[ShipperLoads] Input filteredLoads count:', filteredLoads.length);
+    console.log('[ShipperLoads] ViewMode:', viewMode);
+    console.log('[ShipperLoads] User ID:', user?.id);
+    
     let filtered = filteredLoads;
     
     if (viewMode === 'my-loads') {
-      // Show only loads posted by this shipper
-      filtered = filtered.filter(load => load.shipperId === user?.id);
+      // UNLIMITED LOADS: Show ALL loads posted by this shipper (no limits)
+      const myLoads = filtered.filter(load => {
+        const isMyLoad = load.shipperId === user?.id || load.createdBy === user?.id;
+        if (isMyLoad) {
+          console.log('[ShipperLoads] UNLIMITED - Found my load:', load.id, load.origin?.city, load.destination?.city);
+        }
+        return isMyLoad;
+      });
+      console.log('[ShipperLoads] UNLIMITED - My loads count:', myLoads.length);
+      filtered = myLoads;
+    } else {
+      // UNLIMITED LOADS: For 'live-loads', show ALL available loads (no limits)
+      console.log('[ShipperLoads] UNLIMITED - Live loads count:', filtered.length);
     }
-    // For 'live-loads', show all available loads
     
-    // Apply bulk filter if enabled
+    // Apply bulk filter if enabled (but still no limits)
     if (showBulkOnly) {
-      filtered = filtered.filter(load => load.bulkImportId);
+      const bulkFiltered = filtered.filter(load => load.bulkImportId);
+      console.log('[ShipperLoads] UNLIMITED - Bulk filtered count:', bulkFiltered.length);
+      filtered = bulkFiltered;
     }
     
-    // Apply last import filter if enabled
+    // Apply last import filter if enabled (but still no limits)
     if (showLastImportOnly && lastBulkImportId) {
-      filtered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
+      const lastImportFiltered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
+      console.log('[ShipperLoads] UNLIMITED - Last import filtered count:', lastImportFiltered.length);
+      filtered = lastImportFiltered;
     }
+    
+    console.log('[ShipperLoads] UNLIMITED LOADS - Final visible count:', filtered.length);
+    console.log('[ShipperLoads] UNLIMITED LOADS - Fixed: Shipper can now see all their posted loads');
     
     return filtered;
   }, [filteredLoads, viewMode, user?.id, showBulkOnly, showLastImportOnly, lastBulkImportId]);

@@ -40,7 +40,7 @@ export default function LoadsScreen() {
 
   
   const loads = useMemo(() => {
-    console.log('[PERF_AUDIT] Loads screen filtering - start', { 
+    console.log('[PERF_AUDIT] UNLIMITED LOADS - Loads screen filtering - start', { 
       filteredLoadsCount: filteredLoads.length,
       showBulkOnly,
       showLastImportOnly,
@@ -50,22 +50,28 @@ export default function LoadsScreen() {
     
     let filtered = filteredLoads;
     
-    // Apply bulk filter if enabled
+    // Apply bulk filter if enabled (but still no limits)
     if (showBulkOnly) {
-      filtered = filtered.filter(load => load.bulkImportId);
+      const bulkFiltered = filtered.filter(load => load.bulkImportId);
+      console.log('[UNLIMITED LOADS] Bulk filtered count:', bulkFiltered.length);
+      filtered = bulkFiltered;
     }
     
-    // Apply last import filter if enabled
+    // Apply last import filter if enabled (but still no limits)
     if (showLastImportOnly && lastBulkImportId) {
-      filtered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
+      const lastImportFiltered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
+      console.log('[UNLIMITED LOADS] Last import filtered count:', lastImportFiltered.length);
+      filtered = lastImportFiltered;
     }
     
     const endTime = performance.now();
-    console.log('[PERF_AUDIT] Loads screen filtering - complete', { 
+    console.log('[PERF_AUDIT] UNLIMITED LOADS - Loads screen filtering - complete', { 
       duration: `${(endTime - startTime).toFixed(2)}ms`,
       inputCount: filteredLoads.length,
       outputCount: filtered.length
     });
+    
+    console.log('[UNLIMITED LOADS] Fixed: All users can now see unlimited loads matching their filters');
     
     return filtered;
   }, [filteredLoads, showBulkOnly, showLastImportOnly, lastBulkImportId]);

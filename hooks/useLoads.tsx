@@ -340,12 +340,13 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       let snap;
       try {
         // CROSS-PLATFORM FIX: Use the simplest possible query to avoid index/permission issues
-        console.log('[CROSS-PLATFORM] Using simplified query without complex constraints...');
+        console.log('[CROSS-PLATFORM] UNLIMITED LOADS - Using simplified query without limits or complex constraints...');
         startAudit('firestore-query-simple', { collection: LOADS_COLLECTION });
         
         const simpleQuery = query(
           collection(db, LOADS_COLLECTION)
-          // UNLIMITED LOADS: Removed limit to show all available loads across platforms
+          // UNLIMITED LOADS: Completely removed limit() to show ALL available loads across platforms
+          // This ensures shippers can see all their posted loads and drivers can see all available loads
         );
         
         const simpleFetch = getDocs(simpleQuery);
