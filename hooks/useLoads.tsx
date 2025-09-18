@@ -84,7 +84,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
 
   const USER_POSTED_LOADS_KEY = 'userPostedLoads';
   const CACHE_KEY = 'cache:loads:open:v1';
-  const BOARD_VISIBILITY_DAYS: number | null = 30;
+  const BOARD_VISIBILITY_DAYS: number | null = null;
 
   const mergeUniqueById = useCallback((primary: Load[], extras: Load[]): Load[] => {
     console.log('[PERF_AUDIT] Merge unique loads - start', { primaryCount: primary.length, extrasCount: extras.length });
@@ -473,7 +473,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       // ENFORCE LOAD RULES: Post to both history and live board
       console.log('[Loads] ENFORCE RULES - Posting load to both history and live board');
       
-      // Add to live board (filtered by 7-day rule)
+      // Add to live board (unlimited visibility - no date filter)
       setLoads(prev => mergeUniqueById([load, ...prev], []));
       
       // ENFORCE LOAD RULES: Save to history (persistent until manual profile delete)
@@ -486,7 +486,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         const updated = mergeUniqueById([], [load, ...parsed]);
         await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
         console.log('[Loads] ENFORCE RULES - Load saved to history (permanent until profile delete)');
-        console.log('[Loads] ENFORCE RULES - Load posted to live board (7-day visibility)');
+        console.log('[Loads] ENFORCE RULES - Load posted to live board (unlimited visibility)');
       } catch (storageError) {
         console.warn('[Loads] Failed to save to AsyncStorage, but load added to memory:', storageError);
       }
