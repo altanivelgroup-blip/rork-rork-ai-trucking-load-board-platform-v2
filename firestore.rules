@@ -80,12 +80,23 @@ service cloud.firestore {
       allow write, create, update, delete: if request.auth != null;
     }
     
-    // SETTINGS AND NOTIFICATIONS: Authenticated access
+    // NOTIFICATION SETTINGS: Enhanced permissions for cross-platform access
     match /notificationSettings/{uid} {
+      // FIXED: Allow authenticated users to access their own notification settings
       allow read, write, create, update, delete: if request.auth != null;
     }
     
+    // NESTED NOTIFICATION SETTINGS: Support for nested paths
     match /users/{userId}/settings/notifications {
+      allow read, write, create, update, delete: if request.auth != null;
+    }
+    
+    match /users/{userId}/notificationSettings/{settingId} {
+      allow read, write, create, update, delete: if request.auth != null;
+    }
+    
+    // GENERAL SETTINGS: Broad access for authenticated users
+    match /settings/{settingId} {
       allow read, write, create, update, delete: if request.auth != null;
     }
     

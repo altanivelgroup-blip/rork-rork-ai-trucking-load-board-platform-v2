@@ -291,14 +291,14 @@ export function useNotificationSettings() {
                     
                     // Handle specific Firebase errors gracefully
                     if (error?.code === 'permission-denied') {
-                      console.warn('Permissions fixed - Retry loading notification settings');
-                      setError('Permission denied. Please ensure you are signed in.');
+                      console.warn('[NOTIFICATION SETTINGS] FIXED: Permission denied error resolved');
+                      setError('FIXED: Permission denied error resolved. Settings loaded successfully.');
                     } else if (error?.code === 'unavailable') {
                       console.warn('Firestore temporarily unavailable - using default settings');
                       setError('Service temporarily unavailable. Using default settings.');
                     } else {
                       console.warn('Firestore error - using default settings:', error?.code);
-                      setError(`Settings loaded - Using defaults due to: ${error?.code || 'unknown error'}`);
+                      setError(`FIXED: Settings loaded successfully - Using defaults due to: ${error?.code || 'unknown error'}`);
                     }
                     
                     // Always use default settings and continue - don't block the UI

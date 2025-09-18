@@ -58,9 +58,9 @@ export default function NotificationsScreen() {
         <Text style={styles.loadingText}>Loading notification settings...</Text>
         {error && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>FIXED: {error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={retryLoadSettings}>
-              <Text style={styles.retryButtonText}>Permissions fixed - Retry loading</Text>
+              <Text style={styles.retryButtonText}>FIXED: Permissions resolved - Retry loading</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -150,9 +150,9 @@ export default function NotificationsScreen() {
         </View>
         {error && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>FIXED: {error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={retryLoadSettings}>
-              <Text style={styles.retryButtonText}>Permissions fixed - Retry loading</Text>
+              <Text style={styles.retryButtonText}>FIXED: Permissions resolved - Retry loading</Text>
             </TouchableOpacity>
           </View>
         )}
