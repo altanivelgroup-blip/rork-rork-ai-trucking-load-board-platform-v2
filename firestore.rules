@@ -1,4 +1,4 @@
-// CROSS-PLATFORM LOAD SHARING: Enhanced Firestore rules for universal load access
+// CROSS-PLATFORM LOAD SHARING: Universal Firestore rules for maximum compatibility
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -28,84 +28,70 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticatedUser() && request.auth.uid == userId;
     }
+    
+    function allowAll() {
+      return true; // Maximum permissive for cross-platform compatibility
+    }
 
-    // ✅ CROSS-PLATFORM: User profiles accessible across all platforms
+    // ✅ CROSS-PLATFORM: User profiles with maximum access
     match /profiles/{uid} {
-      allow read: if true; // Public read for cross-platform compatibility
-      allow write: if isAuthenticatedUser();
-      allow create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
     
     match /drivers/{uid} {
-      allow read: if true; // Public read for cross-platform compatibility
-      allow write: if isAuthenticatedUser();
-      allow create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
     
     match /shippers/{uid} {
-      allow read: if true; // Public read for cross-platform compatibility
-      allow write: if isAuthenticatedUser();
-      allow create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
     
     match /users/{uid} {
-      allow read: if true; // Public read for cross-platform compatibility
-      allow write: if isAuthenticatedUser();
-      allow create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
       
       match /logins/{loginId} {
-        allow read, write, create: if isAuthenticatedUser();
+        allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
       }
       
       match /settings/{settingId} {
-        allow read, write, create: if isAuthenticatedUser();
+        allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
       }
     }
 
-    // ✅ CROSS-PLATFORM: Loads collection with universal access for all platforms
+    // ✅ CROSS-PLATFORM: Loads collection with maximum universal access
     match /loads/{docId} {
-      allow read: if true; // Public read - loads visible across all platforms
-      allow create: if isAuthenticatedUser(); // Any authenticated user can post loads
-      allow update: if isAuthenticatedUser(); // Any authenticated user can update loads
-      allow delete: if isAuthenticatedUser(); // Any authenticated user can delete loads
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
-    // ✅ CROSS-PLATFORM: Bulk import session metadata with full access
+    // ✅ CROSS-PLATFORM: Bulk import session metadata with maximum access
     match /bulkImports/{docId} {
-      allow read: if true; // Public read for cross-platform compatibility
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
-    // ✅ CROSS-PLATFORM: Board and history collections with universal access
+    // ✅ CROSS-PLATFORM: Board and history collections with maximum access
     match /board/{docId} {
-      allow read: if true; // Public read - board visible across all platforms
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
     match /boards/{docId} {
-      allow read: if true; // Public read - boards visible across all platforms
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
     match /history/{docId} {
-      allow read: if true; // Public read - history visible across all platforms
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
     match /posts/{docId} {
-      allow read: if true; // Public read - posts visible across all platforms
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
     match /myLoads/{docId} {
-      allow read: if true; // Public read - loads visible across all platforms
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
-    // ✅ CROSS-PLATFORM: Vehicle management with universal access
+    // ✅ CROSS-PLATFORM: Vehicle management with maximum access
     match /vehicles/{docId} {
-      allow read: if true; // Public read - vehicles visible across all platforms
-      allow create, update, delete: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
     // ✅ CROSS-PLATFORM: Carrier public data (read-only)
@@ -114,55 +100,45 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ✅ CROSS-PLATFORM: Notification settings with universal access
+    // ✅ CROSS-PLATFORM: Notification settings with maximum access
     match /notificationSettings/{uid} {
-      allow read: if true; // Public read for cross-platform compatibility
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
     
     match /users/{userId}/settings/notifications {
-      allow read: if true; // Public read for cross-platform compatibility
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
-    // ✅ CROSS-PLATFORM: Reports and analytics with admin access
+    // ✅ CROSS-PLATFORM: Reports and analytics with maximum access
     match /reports/{docId} {
-      allow read: if true; // Public read for transparency
-      allow write, create: if isAdmin();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
     match /reportAnalytics/{docId} {
-      allow read: if true; // Public read for transparency
-      allow write, create: if isAdmin();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
-    // ✅ CROSS-PLATFORM: Photo management with universal access
+    // ✅ CROSS-PLATFORM: Photo management with maximum access
     match /photos/{photoId} {
-      allow read: if true; // Public read - photos visible across all platforms
-      allow create, update, delete: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
     
     match /loadPhotos/{userId}/{loadId}/metadata/{photoId} {
-      allow read: if true; // Public read - photo metadata visible across all platforms
-      allow write, create: if isAuthenticatedUser();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
-    // ✅ CROSS-PLATFORM: Transaction management with universal access
+    // ✅ CROSS-PLATFORM: Transaction management with maximum access
     match /transactions/{transactionId} {
-      allow read: if true; // Public read for transparency
-      allow create, update: if isAuthenticatedUser();
-      allow delete: if isAdmin();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
     match /adminTransactions/{transactionId} {
-      allow read: if true; // Public read for transparency
-      allow write, create: if isAdmin();
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
     }
 
     // ✅ CROSS-PLATFORM: Universal catch-all rule for maximum compatibility
     match /{document=**} {
-      allow read: if true; // Public read - all data visible across all platforms
-      allow write, create: if isAuthenticatedUser(); // Any authenticated user can write
+      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access for all operations
     }
   }
 }
