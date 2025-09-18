@@ -201,8 +201,11 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
         photos: urls,
         photoCount: urls.length,
         updatedAt: serverTimestamp(),
+        // Complete shipper tagging for profile accuracy
         shipperId: loadObj.shipperId,
         shipperName: loadObj.shipperName,
+        // Redundant owner tag for legacy queries
+        createdBy: uid,
         origin: loadObj.origin,
         destination: loadObj.destination,
         distance: loadObj.distance,

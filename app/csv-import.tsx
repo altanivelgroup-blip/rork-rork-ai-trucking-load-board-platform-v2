@@ -490,6 +490,9 @@ export default function CSVImportScreen() {
           rate: p.rate,
           status: 'OPEN',
           createdBy: (getFirebase().auth?.currentUser?.uid ?? user.id),
+          // Shipper tagging for complete profile data across devices
+          shipperId: (getFirebase().auth?.currentUser?.uid ?? user.id),
+          shipperName: (user?.name ?? user?.email ?? 'Shipper'),
           pickupDate: p.pickupDate,
           deliveryDate: p.deliveryDate,
           deliveryTZ: p.timeZone,
@@ -530,6 +533,7 @@ export default function CSVImportScreen() {
             notes: p.notes,
           },
         };
+        console.log('[FIXED][CSV IMPORT] Tagged load with shipperId and shipperName for complete profile data');
         await setDoc(doc(db, LOADS_COLLECTION, id), docData);
         imported++;
       }

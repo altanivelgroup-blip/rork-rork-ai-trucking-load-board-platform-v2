@@ -507,6 +507,9 @@ export default function CSVBulkUploadScreen() {
     const baseDoc = {
       status: 'OPEN',
       createdBy: user?.id || 'unknown',
+      // Complete shipper tagging for accurate profile counts across devices
+      shipperId: user?.id || 'unknown',
+      shipperName: (user as any)?.name || (user as any)?.email || 'Shipper',
       createdAt: serverTimestamp(),
       bulkImportId,
       isArchived: false,
