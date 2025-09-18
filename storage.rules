@@ -1,44 +1,10 @@
-// CROSS-PLATFORM PHOTO SHARING: Maximum permissive storage rules for all platforms
+// ULTIMATE CROSS-PLATFORM FIX: Zero-restriction storage rules for universal access
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Helper function for authentication
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isAdmin() {
-      return request.auth != null
-        && (request.auth.token.admin == true || request.auth.token.role == 'admin');
-    }
-    
-    function allowAll() {
-      return true; // Maximum permissive for cross-platform compatibility
-    }
-
-    // ✅ CROSS-PLATFORM: Load photos with maximum access
-    match /loadPhotos/{userId}/{loadId}/{fileName} {
-      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
-    }
-
-    // ✅ CROSS-PLATFORM: Vehicle photos with maximum access
-    match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
-      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
-    }
-    
-    // ✅ CROSS-PLATFORM: Generic photo paths with maximum access
-    match /photos/{userId}/{photoId} {
-      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
-    }
-    
-    // ✅ CROSS-PLATFORM: User-specific paths with maximum access
-    match /users/{userId}/photos/{allPaths=**} {
-      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access
-    }
-    
-    // ✅ CROSS-PLATFORM: Universal fallback for maximum compatibility
+    // ULTIMATE FIX: Universal access for all storage operations
     match /{allPaths=**} {
-      allow read, write, create, update, delete: if allowAll(); // Maximum permissive access for all operations
+      allow read, write, create, update, delete: if true;
     }
   }
 }
