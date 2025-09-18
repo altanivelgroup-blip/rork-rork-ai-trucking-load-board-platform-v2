@@ -151,8 +151,8 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     
     const result = loads
       .filter(load => load.aiScore && load.aiScore > 85 && load.status === 'available')
-      .sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0))
-      .slice(0, 5);
+      .sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
+      // UNLIMITED LOADS: Removed .slice(0, 5) to show all AI recommended loads
     
     const endTime = performance.now();
     console.log('[PERF_AUDIT] AI recommended loads - complete', { 
@@ -344,8 +344,8 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         startAudit('firestore-query-simple', { collection: LOADS_COLLECTION });
         
         const simpleQuery = query(
-          collection(db, LOADS_COLLECTION),
-          limit(100) // Reasonable limit to avoid performance issues
+          collection(db, LOADS_COLLECTION)
+          // UNLIMITED LOADS: Removed limit to show all available loads across platforms
         );
         
         const simpleFetch = getDocs(simpleQuery);
@@ -682,8 +682,8 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         
         // CROSS-PLATFORM FIX: Use the simplest possible query for maximum compatibility
         const simpleQuery = query(
-          collection(db, LOADS_COLLECTION),
-          limit(50) // Keep it small for performance
+          collection(db, LOADS_COLLECTION)
+          // UNLIMITED LOADS: Removed limit to show all available loads across platforms
         );
         
         unsubscribeRef.current = onSnapshot(simpleQuery, async (snap) => {
