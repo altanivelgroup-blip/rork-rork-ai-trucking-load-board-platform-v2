@@ -84,6 +84,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
 
   const USER_POSTED_LOADS_KEY = 'userPostedLoads';
   const CACHE_KEY = 'cache:loads:open:v1';
+  const BOARD_VISIBILITY_DAYS: number | null = 30;
 
   const mergeUniqueById = useCallback((primary: Load[], extras: Load[]): Load[] => {
     console.log('[PERF_AUDIT] Merge unique loads - start', { primaryCount: primary.length, extrasCount: extras.length });
@@ -253,28 +254,25 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   }, []);
 
   const isExpired = useCallback((l: Load) => {
-    // ENFORCE LOAD RULES: Enhanced archiving logic with 7-day auto-delete for board visibility
-    // History: Keep until manual profile delete
-    // Board: Auto-delete 7 days after delivery date (regardless of status)
     const d = l.deliveryDate instanceof Date ? l.deliveryDate : new Date(l.deliveryDate as unknown as string);
     const ts = d.getTime();
     if (isNaN(ts)) return false;
-    
-    // ENFORCE LOAD RULES: Auto-delete from board after 7 days post-delivery
-    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    const isPastSevenDays = ts < sevenDaysAgo;
-    
-    // ENFORCE LOAD RULES: All loads auto-expire from board after 7 days
-    // This ensures fresh load visibility and prevents stale listings
-    const shouldExpire = isPastSevenDays;
-    
-    if (shouldExpire) {
-      console.log(`[Loads] ENFORCE RULES - Load ${l.id} auto-deleting from board - delivery: ${d.toISOString()} (7+ days ago)`);
-    } else {
-      console.log(`[Loads] ENFORCE RULES - Load ${l.id} remains on board - delivery: ${d.toISOString()} (within 7 days)`);
+
+    if (BOARD_VISIBILITY_DAYS === null) {
+      console.log(`[Loads] VISIBILITY - Unlimited mode: keeping load ${l.id} on board`);
+      return false;
     }
-    
-    return shouldExpire;
+
+    const cutoffMs = Date.now() - (BOARD_VISIBILITY_DAYS * 24 * 60 * 60 * 1000);
+    const expired = ts < cutoffMs;
+
+    if (expired) {
+      console.log(`[Loads] VISIBILITY - Load ${l.id} hidden from board (delivery ${d.toISOString()} is > ${BOARD_VISIBILITY_DAYS} days old)`);
+    } else {
+      console.log(`[Loads] VISIBILITY - Load ${l.id} visible (delivery within ${BOARD_VISIBILITY_DAYS} days)`);
+    }
+
+    return expired;
   }, []);
 
   const readPersisted = useCallback(async () => {
@@ -422,7 +420,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       const persisted = await readPersisted();
       const allLoads = mergeUniqueById(fromFs.length ? fromFs : mockLoads, persisted);
       
-      // ENFORCE LOAD RULES: Filter board display by 7-day rule, keep history intact
+      // VISIBILITY: Apply board display window (default 30 days, unlimited if null), keep history intact
       const boardLoads = allLoads.filter(l => !isExpired(l));
       const expiredCount = allLoads.length - boardLoads.length;
       
@@ -445,6 +443,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       try { await setCache<Load[]>(CACHE_KEY, boardLoads, 5 * 60 * 1000); endAudit('cache-write', { success: true }); } catch { endAudit('cache-write', { success: false }); }
       
       console.log(`[Loads] Synced ${boardLoads.length} loads from Firestore`);
+      console.log(`[Loads] ✅ Visibility window=${BOARD_VISIBILITY_DAYS ?? 'unlimited'} days - Fixed`);
       endAudit('refreshLoads', { success: true, mode: 'firestore', totalLoads: boardLoads.length });
     } catch (error: any) {
       console.warn('[Loads] Refresh failed; using cached/local data', error?.code || error?.message);
@@ -507,7 +506,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       try {
         const existingLoads = await AsyncStorage.getItem(USER_POSTED_LOADS_KEY);
         const parsedRaw: any[] = existingLoads ? JSON.parse(existingLoads) : [];
-        const parsed = parsedRaw.map(reviveLoad).filter(l => !isExpired(l));
+        const parsed = parsedRaw.map(reviveLoad);
         const updated = mergeUniqueById([], [...incoming, ...parsed]);
         await AsyncStorage.setItem(USER_POSTED_LOADS_KEY, JSON.stringify(updated));
         console.log('[Loads] Imported loads saved to AsyncStorage');
@@ -746,6 +745,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
             }
             
             console.log(`[CROSS-PLATFORM] ✅ Real-time sync complete - ${boardLoads.length} loads visible across all platforms`);
+            console.log(`[Loads] ✅ Visibility window=${BOARD_VISIBILITY_DAYS ?? 'unlimited'} days - Fixed`);
             
           } catch (e) {
             console.warn('[CROSS-PLATFORM] Snapshot processing failed:', e);
