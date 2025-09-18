@@ -23,7 +23,7 @@ export default function ShipperLoadsScreen() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { user } = useAuth();
-  const { filteredLoads, isLoading, refreshLoads, filters, setFilters } = useLoads();
+  const { loads: allLoads, isLoading, refreshLoads, filters, setFilters } = useLoads();
   const { deleteLoadWithToast } = useLoadsWithToast();
   
   const [showFiltersModal, setShowFiltersModal] = useState<boolean>(false);
@@ -34,6 +34,7 @@ export default function ShipperLoadsScreen() {
   const [showLastImportOnly, setShowLastImportOnly] = useState<boolean>(false);
   const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ visible: boolean; loadId: string | null }>({ visible: false, loadId: null });
+  const [myHistoryLoads, setMyHistoryLoads] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'my-loads' | 'live-loads'>('my-loads');
   
   // Always define all callbacks and memoized values
@@ -84,6 +85,7 @@ export default function ShipperLoadsScreen() {
       console.log('[ShipperLoads] Refreshing live data...');
       await refreshLoads();
       setLastRefresh(new Date());
+      console.log('[ShipperLoads] ✅ Fixed: refreshed. Visible loads now =', (viewMode === 'my-loads' ? 'my ' : 'live '), 'count:', (typeof loads?.length === 'number' ? loads.length : 'n/a'));
       show('Live data updated', 'success', 1500);
     } catch (error) {
       console.error('[ShipperLoads] Refresh failed:', error);
@@ -112,63 +114,62 @@ export default function ShipperLoadsScreen() {
   
   const loads = useMemo(() => {
     console.log('[ShipperLoads] UNLIMITED LOADS - Processing loads for shipper visibility');
-    console.log('[ShipperLoads] Input filteredLoads count:', filteredLoads.length);
+    console.log('[ShipperLoads] Input allLoads count:', allLoads.length);
     console.log('[ShipperLoads] ViewMode:', viewMode);
     console.log('[ShipperLoads] User ID:', user?.id);
     
-    let filtered = filteredLoads;
-    
+    // Start from ALL loads (board) + local history to bypass 7-day board filter for shipper view
+    const mergeMap = new Map<string, any>();
+    (allLoads as any[]).forEach((l: any) => mergeMap.set(String(l.id), l));
+    myHistoryLoads.forEach((l: any) => mergeMap.set(String(l.id), { ...mergeMap.get(String(l.id)), ...l }));
+    let base: any[] = Array.from(mergeMap.values());
+
     if (viewMode === 'my-loads') {
-      // UNLIMITED LOADS: Show ALL loads posted by this shipper (no limits)
-      const myLoads = filtered.filter(load => {
-        const isMyLoad = load.shipperId === user?.id || load.createdBy === user?.id;
-        if (isMyLoad) {
-          console.log('[ShipperLoads] UNLIMITED - Found my load:', load.id, load.origin?.city, load.destination?.city);
-        }
-        return isMyLoad;
-      });
-      console.log('[ShipperLoads] UNLIMITED - My loads count:', myLoads.length);
-      filtered = myLoads;
+      // Show ALL loads posted by this shipper (includes bulk + manual; any status)
+      const myLoads = base.filter((load: any) => (load.shipperId === user?.id) || (load.createdBy === user?.id));
+      console.log('[ShipperLoads] FIXED - My loads count (all statuses, incl. history):', myLoads.length);
+      base = myLoads;
     } else {
-      // UNLIMITED LOADS: For 'live-loads', show ALL available loads (no limits)
-      console.log('[ShipperLoads] UNLIMITED - Live loads count:', filtered.length);
+      // Live market: keep as-is
+      console.log('[ShipperLoads] Live loads count (board filtered elsewhere):', base.length);
     }
-    
-    // Apply bulk filter if enabled (but still no limits)
+
     if (showBulkOnly) {
-      const bulkFiltered = filtered.filter(load => load.bulkImportId);
-      console.log('[ShipperLoads] UNLIMITED - Bulk filtered count:', bulkFiltered.length);
-      filtered = bulkFiltered;
+      const bulkFiltered = base.filter((load: any) => !!load.bulkImportId);
+      console.log('[ShipperLoads] Filter: Bulk only ->', bulkFiltered.length);
+      base = bulkFiltered;
     }
-    
-    // Apply last import filter if enabled (but still no limits)
+
     if (showLastImportOnly && lastBulkImportId) {
-      const lastImportFiltered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
-      console.log('[ShipperLoads] UNLIMITED - Last import filtered count:', lastImportFiltered.length);
-      filtered = lastImportFiltered;
+      const lastImportFiltered = base.filter((load: any) => load.bulkImportId === lastBulkImportId);
+      console.log('[ShipperLoads] Filter: Last bulk import ->', lastImportFiltered.length);
+      base = lastImportFiltered;
     }
-    
-    console.log('[ShipperLoads] UNLIMITED LOADS - Final visible count:', filtered.length);
-    console.log('[ShipperLoads] UNLIMITED LOADS - Fixed: Shipper can now see all their posted loads');
-    
-    return filtered;
-  }, [filteredLoads, viewMode, user?.id, showBulkOnly, showLastImportOnly, lastBulkImportId]);
+
+    console.log('[ShipperLoads] ✅ FIXED - Final visible count:', base.length);
+    return base;
+  }, [allLoads, myHistoryLoads, viewMode, user?.id, showBulkOnly, showLastImportOnly, lastBulkImportId]);
   
-  // Load last bulk import ID on component mount
+  // Load last bulk import ID + full posted history (no 7-day filter)
   useEffect(() => {
-    const loadLastBulkImportId = async () => {
+    const bootstrap = async () => {
       try {
-        // Mock storage for now - replace with actual storage hook when available
-        const storedId = null; // await storage.getItem('lastBulkImportId');
+        const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+        const storedId = await AsyncStorage.getItem('lastBulkImportId');
         if (storedId) {
           setLastBulkImportId(storedId);
+          console.log('[ShipperLoads] Loaded lastBulkImportId from storage:', storedId);
         }
+        const postedRaw = await AsyncStorage.getItem('userPostedLoads');
+        const postedArr = postedRaw ? JSON.parse(postedRaw) : [];
+        setMyHistoryLoads(Array.isArray(postedArr) ? postedArr : []);
+        console.log('[ShipperLoads] History loads loaded from device:', postedArr?.length || 0);
       } catch (error) {
-        console.warn('Failed to load last bulk import ID:', error);
+        console.warn('Failed to load shipper history/bulk id:', error);
+        setMyHistoryLoads([]);
       }
     };
-    
-    loadLastBulkImportId();
+    bootstrap();
   }, []);
   
   // Redirect non-shippers with error handling
@@ -336,7 +337,7 @@ export default function ShipperLoadsScreen() {
           <View style={styles.liveDataInfo}>
             <Text style={styles.debugBanner}>
               {viewMode === 'my-loads' 
-                ? `${loads.length} posted loads` 
+                ? `${loads.length} posted loads (all, incl. bulk/history)` 
                 : `${loads.length} available loads`
               }
             </Text>
