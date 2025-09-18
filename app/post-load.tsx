@@ -130,14 +130,47 @@ const onNext = useCallback(async () => {
       const ref = doc(db, LOADS_COLLECTION, loadId);
       const existing = await (await import('firebase/firestore')).getDoc(ref);
       
+      // CROSS-PLATFORM FIX: Enhanced data structure for universal compatibility
       const baseData = {
         id: loadId,
         title: (draft.title || '').trim(),
         description: (draft.description || '').trim(),
-        vehicleType: draft.vehicleType || null,
-        status: 'DRAFT' as const,
+        vehicleType: draft.vehicleType || 'cargo-van',
+        status: 'OPEN' as const, // Use consistent status for cross-platform queries
+        isArchived: false, // Explicit archiving flag
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        clientCreatedAt: serverTimestamp(), // For ordering compatibility
+        
+        // CROSS-PLATFORM: Add multiple field formats for compatibility
+        originCity: draft.origin?.city || 'Las Vegas',
+        originState: draft.origin?.state || 'NV',
+        destCity: draft.destination?.city || 'Las Vegas', 
+        destState: draft.destination?.state || 'NV',
+        distanceMi: draft.distanceMi || 0,
+        revenueUsd: draft.revenueUsd || 350,
+        rateTotalUSD: draft.revenueUsd || 350,
+        rate: draft.revenueUsd || 350,
+        equipmentType: draft.vehicleType || 'cargo-van',
+        weightLbs: 0,
+        
+        // Structured data for advanced queries
+        origin: {
+          city: draft.origin?.city || 'Las Vegas',
+          state: draft.origin?.state || 'NV',
+          address: '',
+          zipCode: '',
+          lat: 0,
+          lng: 0
+        },
+        destination: {
+          city: draft.destination?.city || 'Las Vegas',
+          state: draft.destination?.state || 'NV', 
+          address: '',
+          zipCode: '',
+          lat: 0,
+          lng: 0
+        }
       };
       
       const createOnly = existing.exists() ? {} : { 

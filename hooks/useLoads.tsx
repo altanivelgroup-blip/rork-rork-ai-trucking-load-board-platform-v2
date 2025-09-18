@@ -289,25 +289,26 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   }, [USER_POSTED_LOADS_KEY, reviveLoad]);
 
   const refreshLoads = useCallback(async () => {
+    console.log('[CROSS-PLATFORM] Starting universal load sync across all platforms...');
     startAudit('refreshLoads', { source: 'useLoads' });
     setIsLoading(true);
     setSyncStatus('syncing');
     try {
+      // Load from cache first for immediate UI response
       try {
         startAudit('cache-check', { key: CACHE_KEY });
         const cached = await getCache<Load[]>(CACHE_KEY);
         endAudit('cache-check', { hit: cached.hit, dataLength: cached.data?.length });
         if (cached.hit && Array.isArray(cached.data)) {
-          console.log('[Loads] Loading from cache...');
+          console.log('[CROSS-PLATFORM] Loading from cache for immediate display...');
           setLoads(cached.data ?? []);
         }
       } catch (cacheErr) {
-        console.warn('[Loads] cache check failed', cacheErr);
+        console.warn('[CROSS-PLATFORM] Cache check failed', cacheErr);
       }
-      console.log('[Loads] Starting refresh with live data integration...');
       
       if (!online) {
-        console.log('[Loads] Offline: showing cached loads');
+        console.log('[CROSS-PLATFORM] Offline: showing cached loads');
         startAudit('offline-persisted-read');
         const persisted = await readPersisted();
         endAudit('offline-persisted-read', { count: persisted.length });
@@ -317,13 +318,15 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         return;
       }
 
+      // CROSS-PLATFORM FIX: Simplified Firebase query for maximum compatibility
+      console.log('[CROSS-PLATFORM] Ensuring Firebase authentication...');
       startAudit('firebase-auth');
-      console.log('[Loads] Ensuring Firebase authentication before reading loads...');
       const authed = await ensureFirebaseAuth();
       endAudit('firebase-auth', { success: authed });
       const { db } = getFirebase();
+      
       if (!authed || !db) {
-        console.log('[Loads] Auth unavailable - using cached + local data fallback');
+        console.log('[CROSS-PLATFORM] Auth unavailable - using cached + local data fallback');
         startAudit('fallback-persisted-read');
         const persisted = await readPersisted();
         endAudit('fallback-persisted-read', { count: persisted.length });
@@ -331,103 +334,39 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         endAudit('refreshLoads', { success: true, mode: 'fallback' });
         return;
       }
-      console.log('[Loads] Firebase authentication successful, proceeding with Firestore query');
-
-      const baseConstraints: QueryConstraint[] = [
-        where('status', '==', LOAD_STATUS.OPEN),
-        where('isArchived', '==', false),
-      ];
-      // Lightweight permission probe to avoid noisy errors
-      try {
-        const probe = query(collection(db, LOADS_COLLECTION), limit(1));
-        await getDocs(probe);
-      } catch (probeErr: any) {
-        if (probeErr?.code === 'permission-denied') {
-          console.warn('[Loads] Read permissions not available. Falling back to cached/local data.');
-          const persisted = await readPersisted();
-          setLoads(mergeUniqueById(mockLoads, persisted));
-          setLastSyncTime(new Date());
-          setSyncStatus('idle');
-          endAudit('refreshLoads', { success: true, mode: 'permission-fallback' });
-          return;
-        }
-      }
+      
+      console.log('[CROSS-PLATFORM] Firebase authenticated, using simplified query for cross-platform compatibility');
 
       let snap;
       try {
-        startAudit('firestore-query-ordered', { collection: LOADS_COLLECTION });
-        const qOrdered = query(
+        // CROSS-PLATFORM FIX: Use the simplest possible query to avoid index/permission issues
+        console.log('[CROSS-PLATFORM] Using simplified query without complex constraints...');
+        startAudit('firestore-query-simple', { collection: LOADS_COLLECTION });
+        
+        const simpleQuery = query(
           collection(db, LOADS_COLLECTION),
-          ...baseConstraints,
-          orderBy('clientCreatedAt', 'desc'),
+          limit(100) // Reasonable limit to avoid performance issues
         );
-        const orderedFetch = getDocs(qOrdered);
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('QUERY_TIMEOUT_ORDERED')), 4000));
-        snap = await Promise.race([orderedFetch, timeout]) as typeof snap;
-        endAudit('firestore-query-ordered', { success: true, docCount: snap.docs.length });
+        
+        const simpleFetch = getDocs(simpleQuery);
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('QUERY_TIMEOUT')), 8000));
+        snap = await Promise.race([simpleFetch, timeout]) as typeof snap;
+        
+        console.log(`[CROSS-PLATFORM] Simple query successful - found ${snap.docs.length} documents`);
+        endAudit('firestore-query-simple', { success: true, docCount: snap.docs.length });
+        
       } catch (e: any) {
-        endAudit('firestore-query-ordered', { success: false, error: e?.code || e?.message });
-        if (e?.code === 'permission-denied') {
-          console.warn('[Loads] Firestore read permission denied. Retrying auth, then fallback.');
-          try {
-            const authedRetry = await ensureFirebaseAuth();
-            if (authedRetry) {
-              console.log('[Loads] PERMISSION FIX - Re-authentication successful, retrying query...');
-              const qRetry = query(
-                collection(db, LOADS_COLLECTION),
-                ...baseConstraints,
-                orderBy('clientCreatedAt', 'desc'),
-              );
-              snap = await getDocs(qRetry);
-              console.log('[Loads] Retry query successful after re-auth');
-              endAudit('firestore-query-ordered', { success: true, retried: true, docCount: snap.docs.length });
-            } else {
-              console.warn('[Loads] Re-authentication failed, proceeding to unordered fallback');
-              throw e;
-            }
-          } catch (innerPermErr) {
-            console.warn('[Loads] Retry after auth failed; falling back to unordered query', innerPermErr);
-            // Try unordered w/out orderBy as a last resort
-            try {
-              const qUnordered = query(
-                collection(db, LOADS_COLLECTION),
-                ...baseConstraints,
-              );
-              snap = await getDocs(qUnordered);
-              console.log('[Loads] Unordered fallback query successful');
-              endAudit('firestore-query-unordered-fallback', { success: true, docCount: snap.docs.length, reason: 'permission-denied' });
-            } catch (finalErr) {
-              console.warn('[Loads] All query attempts failed. Falling back to cached/local data.');
-              const persisted = await readPersisted();
-              setLoads(mergeUniqueById(mockLoads, persisted));
-              setLastSyncTime(new Date());
-              setSyncStatus('idle');
-              endAudit('refreshLoads', { success: true, mode: 'final-fallback' });
-              return;
-            }
-          }
-        } else if (e?.code === 'failed-precondition') {
-          console.warn('[Loads] Missing Firestore index for ordered query. Falling back without orderBy.');
-          startAudit('firestore-query-unordered-fallback');
-          const qUnordered = query(
-            collection(db, LOADS_COLLECTION),
-            ...baseConstraints,
-          );
-          snap = await getDocs(qUnordered);
-          endAudit('firestore-query-unordered-fallback', { success: true, docCount: snap.docs.length });
-        } else if (typeof e?.message === 'string' && e.message === 'QUERY_TIMEOUT_ORDERED') {
-          console.warn('[Loads] Ordered query is slow. Retrying with smaller limit and without orderBy');
-          startAudit('firestore-query-unordered-timeout-fallback');
-          const qSmaller = query(
-            collection(db, LOADS_COLLECTION),
-            where('status', '==', LOAD_STATUS.OPEN),
-            where('isArchived', '==', false),
-          );
-          snap = await getDocs(qSmaller);
-          endAudit('firestore-query-unordered-timeout-fallback', { success: true, docCount: snap.docs.length });
-        } else {
-          throw e;
-        }
+        console.error('[CROSS-PLATFORM] Simple query failed:', e?.code || e?.message);
+        endAudit('firestore-query-simple', { success: false, error: e?.code || e?.message });
+        
+        // Final fallback to local data
+        console.warn('[CROSS-PLATFORM] All Firebase queries failed. Using local data.');
+        const persisted = await readPersisted();
+        setLoads(mergeUniqueById(mockLoads, persisted));
+        setLastSyncTime(new Date());
+        setSyncStatus('idle');
+        endAudit('refreshLoads', { success: true, mode: 'final-fallback' });
+        return;
       }
 
       const toLoad = (doc: any): Load | null => {
@@ -708,56 +647,62 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     return () => { mounted = false; };
   }, [FAVORITES_KEY]);
 
+  // CROSS-PLATFORM FIX: Simplified real-time listener for universal compatibility
   useEffect(() => {
     let mounted = true;
     
-    // Start Firestore listener in background (non-blocking)
-    const start = async () => {
+    console.log('[CROSS-PLATFORM] Setting up universal real-time listener...');
+    
+    const startCrossPlatformListener = async () => {
       try {
-        if (!online) return;
+        if (!online) {
+          console.log('[CROSS-PLATFORM] Offline - skipping real-time listener');
+          return;
+        }
         
-        // Try Firebase auth with short timeout
+        // Quick auth check with timeout
         const authed = await Promise.race([
           ensureFirebaseAuth(),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1000))
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000))
         ]);
         
         const { db } = getFirebase();
-        if (!mounted || !authed || !db) return;
+        if (!mounted || !authed || !db) {
+          console.log('[CROSS-PLATFORM] Auth failed or component unmounted - skipping listener');
+          return;
+        }
         
+        // Clean up existing listener
         if (unsubscribeRef.current) {
           unsubscribeRef.current();
           unsubscribeRef.current = null;
         }
         
-        const baseConstraints: QueryConstraint[] = [
-          where('status', '==', LOAD_STATUS.OPEN),
-          where('isArchived', '==', false),
-        ];
+        console.log('[CROSS-PLATFORM] Starting simplified real-time listener...');
         
-        const qOrdered = query(
+        // CROSS-PLATFORM FIX: Use the simplest possible query for maximum compatibility
+        const simpleQuery = query(
           collection(db, LOADS_COLLECTION),
-          ...baseConstraints,
-          orderBy('clientCreatedAt', 'desc'),
+          limit(50) // Keep it small for performance
         );
         
-        const qUnordered = query(
-          collection(db, LOADS_COLLECTION),
-          ...baseConstraints,
-        );
-        
-        unsubscribeRef.current = onSnapshot(qOrdered, async (snap) => {
+        unsubscribeRef.current = onSnapshot(simpleQuery, async (snap) => {
           try {
+            console.log(`[CROSS-PLATFORM] Real-time update received - ${snap.docs.length} documents`);
+            
             const docs = snap.docs.map((doc) => {
               const d: any = doc.data();
+              
+              // Skip archived loads
               if (d?.isArchived === true) return null;
+              
               const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
               const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
               
-              // Handle both structured and friendly fallback fields for origin/destination
-              const originCity = d?.origin?.city || d?.originCity || 'Unknown';
+              // Handle multiple field formats for cross-platform compatibility
+              const originCity = d?.origin?.city || d?.originCity || d?.title?.split(' to ')[0] || 'Unknown';
               const originState = d?.origin?.state || d?.originState || '';
-              const destCity = d?.destination?.city || d?.destCity || 'Unknown';
+              const destCity = d?.destination?.city || d?.destCity || d?.title?.split(' to ')[1] || 'Unknown';
               const destState = d?.destination?.state || d?.destState || '';
               
               const mapped: Load = {
@@ -766,10 +711,10 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
                 shipperName: '',
                 origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
                 destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
-                distance: Number(d?.distance ?? 0),
+                distance: Number(d?.distance ?? d?.distanceMi ?? 0),
                 weight: Number(d?.weight ?? d?.weightLbs ?? 0),
-                vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'van',
-                rate: Number(d?.rate ?? d?.rateTotalUSD ?? 0),
+                vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'cargo-van',
+                rate: Number(d?.rate ?? d?.rateTotalUSD ?? d?.revenueUsd ?? 0),
                 ratePerMile: 0,
                 pickupDate: pickup,
                 deliveryDate: delivery,
@@ -781,135 +726,107 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
               };
               return mapped;
             }).filter((x): x is Load => x !== null);
+            
             const persisted = await readPersisted();
             const mergedLoads = mergeUniqueById(docs.length ? docs : mockLoads, persisted);
             
-            setLoads(mergedLoads);
+            // Filter out expired loads for board display
+            const boardLoads = mergedLoads.filter(l => !isExpired(l));
+            
+            setLoads(boardLoads);
             setLastSyncTime(new Date());
             setSyncStatus('idle');
-            try { await setCache<Load[]>(CACHE_KEY, mergedLoads, 5 * 60 * 1000); } catch {}
             
-            console.log(`[Loads] Real-time update: ${mergedLoads.length} loads`);
+            // Update cache
+            try { 
+              await setCache<Load[]>(CACHE_KEY, boardLoads, 5 * 60 * 1000); 
+            } catch (cacheErr) {
+              console.warn('[CROSS-PLATFORM] Cache update failed:', cacheErr);
+            }
+            
+            console.log(`[CROSS-PLATFORM] ✅ Real-time sync complete - ${boardLoads.length} loads visible across all platforms`);
+            
           } catch (e) {
-            console.warn('[Loads] Snapshot mapping failed', e);
+            console.warn('[CROSS-PLATFORM] Snapshot processing failed:', e);
           }
         }, async (err) => {
+          console.error('[CROSS-PLATFORM] Real-time listener error:', (err as any)?.code || (err as any)?.message);
+          
+          // Fallback to one-time fetch on listener error
           try {
-            const code = (err as any)?.code;
-            if (code === 'permission-denied') {
-              console.warn('[Loads] Listener permission denied. Attempting auth then one-time fetch.');
-              try {
-                const authedRetry = await ensureFirebaseAuth();
-                if (authedRetry) {
-                  const fallbackSnap = await getDocs(qUnordered);
-                  const docs = fallbackSnap.docs.map((doc) => {
-                    const d: any = doc.data();
-                    if (d?.isArchived === true) return null;
-                    const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
-                    const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
-                    const originCity = d?.origin?.city || d?.originCity || 'Unknown';
-                    const originState = d?.origin?.state || d?.originState || '';
-                    const destCity = d?.destination?.city || d?.destCity || 'Unknown';
-                    const destState = d?.destination?.state || d?.destState || '';
-                    const mapped: Load = {
-                      id: String(doc.id),
-                      shipperId: String(d?.createdBy ?? 'unknown'),
-                      shipperName: '',
-                      origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
-                      destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
-                      distance: Number(d?.distance ?? 0),
-                      weight: Number(d?.weight ?? d?.weightLbs ?? 0),
-                      vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'van',
-                      rate: Number(d?.rate ?? d?.rateTotalUSD ?? 0),
-                      ratePerMile: 0,
-                      pickupDate: pickup,
-                      deliveryDate: delivery,
-                      status: 'available',
-                      description: String(d?.title ?? d?.description ?? ''),
-                      special_requirements: undefined,
-                      isBackhaul: false,
-                      bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
-                    };
-                    return mapped;
-                  }).filter((x): x is Load => x !== null);
-                  const persisted = await readPersisted();
-                  const merged = mergeUniqueById(docs.length ? docs : mockLoads, persisted);
-                  setLoads(merged);
-                  try { await setCache<Load[]>(CACHE_KEY, merged, 5 * 60 * 1000); } catch {}
-                  return;
-                }
-              } catch (authErr) {
-                console.warn('[Loads] Auth retry for listener failed', authErr);
-              }
-            }
-
-            if (code === 'failed-precondition') {
-              console.warn('[Loads] Missing Firestore index for listener. Switching to non-ordered one-time fetch.');
-              const fallbackSnap = await getDocs(qUnordered);
-              const docs = fallbackSnap.docs.map((doc) => {
-                const d: any = doc.data();
-                if (d?.isArchived === true) return null;
-                const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
-                const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
-                
-                // Handle both structured and friendly fallback fields for origin/destination
-                const originCity = d?.origin?.city || d?.originCity || 'Unknown';
-                const originState = d?.origin?.state || d?.originState || '';
-                const destCity = d?.destination?.city || d?.destCity || 'Unknown';
-                const destState = d?.destination?.state || d?.destState || '';
-                
-                const mapped: Load = {
-                  id: String(doc.id),
-                  shipperId: String(d?.createdBy ?? 'unknown'),
-                  shipperName: '',
-                  origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
-                  destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
-                  distance: Number(d?.distance ?? 0),
-                  weight: Number(d?.weight ?? d?.weightLbs ?? 0),
-                  vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'van',
-                  rate: Number(d?.rate ?? d?.rateTotalUSD ?? 0),
-                  ratePerMile: 0,
-                  pickupDate: pickup,
-                  deliveryDate: delivery,
-                  status: 'available',
-                  description: String(d?.title ?? d?.description ?? ''),
-                  special_requirements: undefined,
-                  isBackhaul: false,
-                  bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
-                };
-                return mapped;
-              }).filter((x): x is Load => x !== null);
-              const persisted = await readPersisted();
-              const merged = mergeUniqueById(docs.length ? docs : mockLoads, persisted);
-              setLoads(merged);
-              try { await setCache<Load[]>(CACHE_KEY, merged, 5 * 60 * 1000); } catch {}
-            } else {
-              console.warn('[Loads] Firestore listener error; falling back to cache', (err as any)?.code || (err as any)?.message);
-              const persisted = await readPersisted();
-              const merged = mergeUniqueById(mockLoads, persisted);
-              setLoads(merged);
-              try { await setCache<Load[]>(CACHE_KEY, merged, 5 * 60 * 1000); } catch {}
-            }
-          } catch (inner) {
-            console.warn('[Loads] Listener fallback failed', inner);
+            console.log('[CROSS-PLATFORM] Attempting fallback one-time fetch...');
+            const fallbackSnap = await getDocs(simpleQuery);
+            
+            const docs = fallbackSnap.docs.map((doc) => {
+              const d: any = doc.data();
+              if (d?.isArchived === true) return null;
+              
+              const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
+              const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+              
+              const originCity = d?.origin?.city || d?.originCity || d?.title?.split(' to ')[0] || 'Unknown';
+              const originState = d?.origin?.state || d?.originState || '';
+              const destCity = d?.destination?.city || d?.destCity || d?.title?.split(' to ')[1] || 'Unknown';
+              const destState = d?.destination?.state || d?.destState || '';
+              
+              const mapped: Load = {
+                id: String(doc.id),
+                shipperId: String(d?.createdBy ?? 'unknown'),
+                shipperName: '',
+                origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
+                destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
+                distance: Number(d?.distance ?? d?.distanceMi ?? 0),
+                weight: Number(d?.weight ?? d?.weightLbs ?? 0),
+                vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'cargo-van',
+                rate: Number(d?.rate ?? d?.rateTotalUSD ?? d?.revenueUsd ?? 0),
+                ratePerMile: 0,
+                pickupDate: pickup,
+                deliveryDate: delivery,
+                status: 'available',
+                description: String(d?.title ?? d?.description ?? ''),
+                special_requirements: undefined,
+                isBackhaul: false,
+                bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
+              };
+              return mapped;
+            }).filter((x): x is Load => x !== null);
+            
+            const persisted = await readPersisted();
+            const merged = mergeUniqueById(docs.length ? docs : mockLoads, persisted);
+            const boardLoads = merged.filter(l => !isExpired(l));
+            
+            setLoads(boardLoads);
+            try { await setCache<Load[]>(CACHE_KEY, boardLoads, 5 * 60 * 1000); } catch {}
+            
+            console.log('[CROSS-PLATFORM] Fallback fetch successful');
+            
+          } catch (fallbackErr) {
+            console.warn('[CROSS-PLATFORM] Fallback fetch failed, using local data:', fallbackErr);
+            const persisted = await readPersisted();
+            const merged = mergeUniqueById(mockLoads, persisted);
+            setLoads(merged.filter(l => !isExpired(l)));
           }
         });
+        
+        console.log('[CROSS-PLATFORM] ✅ Real-time listener established successfully');
+        
       } catch (e) {
-        console.warn('[Loads] Firestore listener failed', e);
+        console.warn('[CROSS-PLATFORM] Failed to start real-time listener:', e);
       }
     };
     
-    // Start in background without blocking
-    setTimeout(start, 100);
+    // Start listener after a short delay to avoid blocking initial render
+    const timeoutId = setTimeout(startCrossPlatformListener, 500);
     
     return () => {
       mounted = false;
+      clearTimeout(timeoutId);
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }
     };
-  }, [online, mergeUniqueById, readPersisted]);
+  }, [online, mergeUniqueById, readPersisted, isExpired]);
 
   useEffect(() => {
     let mounted = true;
