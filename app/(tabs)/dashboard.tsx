@@ -461,15 +461,15 @@ export default function DashboardScreen() {
 
           {AI_COPILOT_CHIPS_ENABLED && isDriver ? (
             <View style={styles.filtersRow}>
-              <Text onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
+              <TouchableOpacity onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
                 <Text style={styles.sortChipText} allowFontScaling={false}>Highest $/mi</Text>
-              </Text>
-              <Text onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => void applyChip('near')} style={[styles.sortChip, { backgroundColor: theme.colors.primary }]} accessibilityRole="button" testID="chipNearMe">
                 <Text style={[styles.sortChipText, { color: theme.colors.white }]} allowFontScaling={false}>Near me</Text>
-              </Text>
-              <Text onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => void applyChip('lightest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipLightest">
                 <Text style={styles.sortChipText} allowFontScaling={false}>Lightest</Text>
-              </Text>
+              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -478,7 +478,7 @@ export default function DashboardScreen() {
           {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
             <View style={styles.filtersRow}>
               {[25, 50, 100, 250].map((r) => (
-                <Text
+                <TouchableOpacity
                   key={r}
                   onPress={() => { void setRadiusMiles(r); }}
                   style={[styles.sortChip, r === radiusMiles ? { backgroundColor: theme.colors.primary } : {}, r !== radiusMiles ? { backgroundColor: theme.colors.white } : {}, { paddingVertical: moderateScale(8) }]}
@@ -486,7 +486,7 @@ export default function DashboardScreen() {
                   testID={r === 25 ? 'pillRadius25' : r === 50 ? 'pillRadius50' : r === 100 ? 'pillRadius100' : 'pillRadius250'}
                 >
                   <Text style={{ color: r === radiusMiles ? theme.colors.white : theme.colors.dark, fontWeight: '600' }} allowFontScaling={false}>{r} mi</Text>
-                </Text>
+                </TouchableOpacity>
               ))}
             </View>
           )}
