@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { DollarSign, Filter, Phone, Mail, Plus, X, Upload, Trash2 } from 'lucide-react-native';
+import { DollarSign, Filter, Phone, Mail, Plus, X, Upload, Trash2, RefreshCw } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
 import { LoadsFiltersModal } from '@/components/LoadsFiltersModal';
@@ -171,22 +171,37 @@ export default function LoadsScreen() {
     <>
       <Stack.Screen options={{ 
         title: isDriver ? 'AI Loads' : isShipper ? 'My Loads' : 'Loads',
-        headerRight: isShipper ? () => (
+        headerRight: () => (
           <View style={styles.headerActions}>
             <TouchableOpacity 
               style={styles.headerButton}
-              onPress={() => router.push('/post-load')}
+              onPress={handleRefresh}
+              disabled={refreshing}
             >
-              <Plus size={20} color={theme.colors.primary} />
+              <RefreshCw 
+                size={20} 
+                color={refreshing ? theme.colors.gray : theme.colors.primary} 
+                style={refreshing ? { transform: [{ rotate: '180deg' }] } : undefined}
+              />
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.headerButton}
-              onPress={() => router.push('/csv-bulk-upload')}
-            >
-              <Upload size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
+            {isShipper && (
+              <>
+                <TouchableOpacity 
+                  style={styles.headerButton}
+                  onPress={() => router.push('/post-load')}
+                >
+                  <Plus size={20} color={theme.colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.headerButton}
+                  onPress={() => router.push('/csv-bulk-upload')}
+                >
+                  <Upload size={20} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-        ) : undefined
+        )
       }} />
       <View style={styles.container}>
         {/* Header Controls */}
