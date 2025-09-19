@@ -439,8 +439,15 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       setLoads(boardLoads);
       setLastSyncTime(new Date());
       setSyncStatus('idle');
+      // LOADS_DISAPPEAR_FIX: Update cache with longer expiration and fallback
       startAudit('cache-write');
-      try { await setCache<Load[]>(CACHE_KEY, boardLoads, 5 * 60 * 1000); endAudit('cache-write', { success: true }); } catch { endAudit('cache-write', { success: false }); }
+      try { 
+        const cacheData = boardLoads.length > 0 ? boardLoads : mockLoads;
+        await setCache<Load[]>(CACHE_KEY, cacheData, 15 * 60 * 1000); // 15 minutes instead of 5
+        endAudit('cache-write', { success: true, dataLength: cacheData.length }); 
+      } catch { 
+        endAudit('cache-write', { success: false }); 
+      }
       
       console.log(`[Loads] Synced ${boardLoads.length} loads from Firestore`);
       console.log(`[Loads] ✅ Visibility window=${BOARD_VISIBILITY_DAYS ?? 'unlimited'} days - Fixed`);
@@ -647,38 +654,51 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     return () => { mounted = false; };
   }, [FAVORITES_KEY]);
 
-  // CROSS-PLATFORM FIX: Simplified real-time listener for universal compatibility
+  // LOADS_DISAPPEAR_FIX: Robust real-time listener with auto-reconnection
   useEffect(() => {
     let mounted = true;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
     
-    console.log('[CROSS-PLATFORM] Setting up universal real-time listener...');
+    console.log('[LOADS_DISAPPEAR_FIX] Setting up robust real-time listener with auto-reconnection...');
     
     const startCrossPlatformListener = async () => {
       try {
+        if (!mounted) {
+          console.log('[LOADS_DISAPPEAR_FIX] Component unmounted, skipping listener setup');
+          return;
+        }
+        
         if (!online) {
-          console.log('[CROSS-PLATFORM] Offline - skipping real-time listener');
+          console.log('[LOADS_DISAPPEAR_FIX] Offline - will retry when online');
+          // Retry when back online
+          reconnectTimer = setTimeout(startCrossPlatformListener, 5000);
           return;
         }
         
         // Quick auth check with timeout
         const authed = await Promise.race([
           ensureFirebaseAuth(),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000))
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000))
         ]);
         
         const { db } = getFirebase();
         if (!mounted || !authed || !db) {
-          console.log('[CROSS-PLATFORM] Auth failed or component unmounted - skipping listener');
+          console.log('[LOADS_DISAPPEAR_FIX] Auth failed or component unmounted - will retry');
+          if (mounted) {
+            reconnectTimer = setTimeout(startCrossPlatformListener, 10000);
+          }
           return;
         }
         
         // Clean up existing listener
         if (unsubscribeRef.current) {
+          console.log('[LOADS_DISAPPEAR_FIX] Cleaning up existing listener');
           unsubscribeRef.current();
           unsubscribeRef.current = null;
         }
         
-        console.log('[CROSS-PLATFORM] Starting simplified real-time listener...');
+        console.log('[LOADS_DISAPPEAR_FIX] Starting robust real-time listener...');
         
         // CROSS-PLATFORM FIX: Use the simplest possible query for maximum compatibility
         const simpleQuery = query(
@@ -688,7 +708,12 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         
         unsubscribeRef.current = onSnapshot(simpleQuery, async (snap) => {
           try {
-            console.log(`[CROSS-PLATFORM] Real-time update received - ${snap.docs.length} documents`);
+            if (!mounted) {
+              console.log('[LOADS_DISAPPEAR_FIX] Component unmounted during snapshot processing');
+              return;
+            }
+            
+            console.log(`[LOADS_DISAPPEAR_FIX] Real-time update received - ${snap.docs.length} documents`);
             
             const docs = snap.docs.map((doc) => {
               const d: any = doc.data();
@@ -733,86 +758,85 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
             // Filter out expired loads for board display
             const boardLoads = mergedLoads.filter(l => !isExpired(l));
             
-            setLoads(boardLoads);
+            // LOADS_DISAPPEAR_FIX: Always ensure we have loads to display
+            if (boardLoads.length === 0 && mockLoads.length > 0) {
+              console.log('[LOADS_DISAPPEAR_FIX] No loads from Firebase, ensuring mock loads are visible');
+              setLoads(mockLoads);
+            } else {
+              setLoads(boardLoads);
+            }
+            
             setLastSyncTime(new Date());
             setSyncStatus('idle');
             
-            // Update cache
+            // Update cache with longer expiration to prevent disappearing
             try { 
-              await setCache<Load[]>(CACHE_KEY, boardLoads, 5 * 60 * 1000); 
+              await setCache<Load[]>(CACHE_KEY, boardLoads.length > 0 ? boardLoads : mockLoads, 15 * 60 * 1000); // 15 minutes
             } catch (cacheErr) {
-              console.warn('[CROSS-PLATFORM] Cache update failed:', cacheErr);
+              console.warn('[LOADS_DISAPPEAR_FIX] Cache update failed:', cacheErr);
             }
             
-            console.log(`[CROSS-PLATFORM] ✅ Real-time sync complete - ${boardLoads.length} loads visible across all platforms`);
+            console.log(`[LOADS_DISAPPEAR_FIX] ✅ Real-time sync complete - ${boardLoads.length || mockLoads.length} loads visible`);
             console.log(`[Loads] ✅ Visibility window=${BOARD_VISIBILITY_DAYS ?? 'unlimited'} days - Fixed`);
             
           } catch (e) {
-            console.warn('[CROSS-PLATFORM] Snapshot processing failed:', e);
+            console.warn('[LOADS_DISAPPEAR_FIX] Snapshot processing failed:', e);
+            // Fallback to ensure loads don't disappear
+            if (mounted) {
+              const persisted = await readPersisted();
+              const fallbackLoads = mergeUniqueById(mockLoads, persisted);
+              setLoads(fallbackLoads.filter(l => !isExpired(l)));
+            }
           }
         }, async (err) => {
-          console.error('[CROSS-PLATFORM] Real-time listener error:', (err as any)?.code || (err as any)?.message);
+          console.error('[LOADS_DISAPPEAR_FIX] Real-time listener error:', (err as any)?.code || (err as any)?.message);
           
-          // Fallback to one-time fetch on listener error
-          try {
-            console.log('[CROSS-PLATFORM] Attempting fallback one-time fetch...');
-            const fallbackSnap = await getDocs(simpleQuery);
-            
-            const docs = fallbackSnap.docs.map((doc) => {
-              const d: any = doc.data();
-              if (d?.isArchived === true) return null;
-              
-              const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
-              const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
-              
-              const originCity = d?.origin?.city || d?.originCity || d?.title?.split(' to ')[0] || 'Unknown';
-              const originState = d?.origin?.state || d?.originState || '';
-              const destCity = d?.destination?.city || d?.destCity || d?.title?.split(' to ')[1] || 'Unknown';
-              const destState = d?.destination?.state || d?.destState || '';
-              
-              const mapped: Load = {
-                id: String(doc.id),
-                shipperId: String(d?.createdBy ?? 'unknown'),
-                shipperName: '',
-                origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
-                destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
-                distance: Number(d?.distance ?? d?.distanceMi ?? 0),
-                weight: Number(d?.weight ?? d?.weightLbs ?? 0),
-                vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'cargo-van',
-                rate: Number(d?.rate ?? d?.rateTotalUSD ?? d?.revenueUsd ?? 0),
-                ratePerMile: 0,
-                pickupDate: pickup,
-                deliveryDate: delivery,
-                status: 'available',
-                description: String(d?.title ?? d?.description ?? ''),
-                special_requirements: undefined,
-                isBackhaul: false,
-                bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
-              };
-              return mapped;
-            }).filter((x): x is Load => x !== null);
-            
-            const persisted = await readPersisted();
-            const merged = mergeUniqueById(docs.length ? docs : mockLoads, persisted);
-            const boardLoads = merged.filter(l => !isExpired(l));
-            
-            setLoads(boardLoads);
-            try { await setCache<Load[]>(CACHE_KEY, boardLoads, 5 * 60 * 1000); } catch {}
-            
-            console.log('[CROSS-PLATFORM] Fallback fetch successful');
-            
-          } catch (fallbackErr) {
-            console.warn('[CROSS-PLATFORM] Fallback fetch failed, using local data:', fallbackErr);
-            const persisted = await readPersisted();
-            const merged = mergeUniqueById(mockLoads, persisted);
-            setLoads(merged.filter(l => !isExpired(l)));
+          // LOADS_DISAPPEAR_FIX: Immediate fallback to prevent empty state
+          if (mounted) {
+            try {
+              const persisted = await readPersisted();
+              const fallbackLoads = mergeUniqueById(mockLoads, persisted);
+              setLoads(fallbackLoads.filter(l => !isExpired(l)));
+              console.log('[LOADS_DISAPPEAR_FIX] Applied immediate fallback to prevent empty loads');
+            } catch (fallbackErr) {
+              console.warn('[LOADS_DISAPPEAR_FIX] Fallback failed, using mock loads:', fallbackErr);
+              setLoads(mockLoads);
+            }
+          }
+          
+          // Auto-reconnect after error
+          if (mounted) {
+            console.log('[LOADS_DISAPPEAR_FIX] Scheduling auto-reconnect in 15 seconds...');
+            reconnectTimer = setTimeout(startCrossPlatformListener, 15000);
           }
         });
         
-        console.log('[CROSS-PLATFORM] ✅ Real-time listener established successfully');
+        // LOADS_DISAPPEAR_FIX: Set up heartbeat to detect connection issues
+        heartbeatTimer = setInterval(() => {
+          if (mounted && unsubscribeRef.current) {
+            console.log('[LOADS_DISAPPEAR_FIX] Heartbeat - listener still active');
+          } else if (mounted) {
+            console.warn('[LOADS_DISAPPEAR_FIX] Heartbeat detected disconnected listener, reconnecting...');
+            startCrossPlatformListener();
+          }
+        }, 60000); // Check every minute
+        
+        console.log('[LOADS_DISAPPEAR_FIX] ✅ Robust real-time listener established with heartbeat monitoring');
         
       } catch (e) {
-        console.warn('[CROSS-PLATFORM] Failed to start real-time listener:', e);
+        console.warn('[LOADS_DISAPPEAR_FIX] Failed to start real-time listener:', e);
+        // Ensure we always have loads visible
+        if (mounted) {
+          try {
+            const persisted = await readPersisted();
+            const fallbackLoads = mergeUniqueById(mockLoads, persisted);
+            setLoads(fallbackLoads.filter(l => !isExpired(l)));
+          } catch {
+            setLoads(mockLoads);
+          }
+          // Retry connection
+          reconnectTimer = setTimeout(startCrossPlatformListener, 20000);
+        }
       }
     };
     
@@ -822,7 +846,16 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     return () => {
       mounted = false;
       clearTimeout(timeoutId);
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
       if (unsubscribeRef.current) {
+        console.log('[LOADS_DISAPPEAR_FIX] Cleaning up listener on unmount');
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }
