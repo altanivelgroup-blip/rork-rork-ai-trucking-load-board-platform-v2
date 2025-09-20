@@ -18,6 +18,7 @@ import BackhaulPill from '@/components/BackhaulPill';
 import { Driver } from '@/types';
 import { formatCurrency } from '@/utils/fuel';
 import { DriverNavigation } from '@/components/DriverNavigation';
+import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
 import { db } from '@/utils/firebase';
@@ -525,6 +526,23 @@ export default function LoadDetailsScreen() {
               </View>
             </View>
           </View>
+
+          {/* Driver-specific Analytics Card */}
+          {user?.role === 'driver' && (
+            <LoadAnalyticsCard
+              load={{
+                distanceMiles: distanceDisplayMiles ?? load?.distance ?? 0,
+                rateTotalUSD: load?.rate ?? 0,
+                rpm: load?.ratePerMile ?? null,
+                rate: load?.rate ?? null,
+              }}
+              driver={{
+                mpgRated: (user as Driver)?.fuelProfile?.averageMpg ?? (user as Driver)?.mpgRated ?? null,
+                fuelType: (user as Driver)?.fuelProfile?.fuelType ?? (user as Driver)?.fuelType ?? 'diesel',
+              }}
+              dieselPrice={eiaQuery.data?.price}
+            />
+          )}
 
           <View style={styles.financeCard} testID="financials-card">
             <Text style={styles.sectionTitle}>Financials</Text>
