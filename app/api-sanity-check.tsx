@@ -65,6 +65,9 @@ export default function ApiSanityCheckScreen() {
     const tests: TestResult[] = [
       { name: 'API Base Health Check', status: 'pending', message: 'Testing base API endpoint...' },
       { name: 'tRPC Backend Connection', status: 'pending', message: 'Testing tRPC backend...' },
+      { name: 'tRPC URL Resolution', status: 'pending', message: 'Testing tRPC URL resolution...' },
+      { name: 'Loads Router - Duplicate Check', status: 'pending', message: 'Testing loads duplicate checker...' },
+      { name: 'Payments Router', status: 'pending', message: 'Testing payments router...' },
       { name: 'Report Analytics - Graph', status: 'pending', message: 'Testing report analytics graph endpoint...' },
       { name: 'Report Analytics - Metrics', status: 'pending', message: 'Testing report analytics metrics endpoint...' },
       { name: 'Report Analytics - Bottom Row', status: 'pending', message: 'Testing report analytics bottom row endpoint...' },
@@ -92,24 +95,55 @@ export default function ApiSanityCheckScreen() {
       return await trpcClient.example.hi.mutate({ name: 'SanityCheck' });
     });
 
-    // Test 3: Report Analytics - Graph
+    // Test 3: tRPC URL Resolution
     await runTest(tests[2], 2, async () => {
+      const { resolveTrpcUrl } = await import('@/lib/trpc');
+      const url = resolveTrpcUrl();
+      if (!url || url === '/api/trpc') {
+        throw new Error('tRPC URL not properly resolved');
+      }
+      return { resolvedUrl: url };
+    });
+
+    // Test 4: Loads Router - Duplicate Check
+    await runTest(tests[3], 3, async () => {
+      return await trpcClient.loads.checkDuplicates.mutate({
+        loads: [{
+          origin: 'Dallas, TX',
+          destination: 'Houston, TX',
+          rate: 1500,
+          pickupDate: new Date().toISOString().split('T')[0]
+        }],
+        threshold: 0.8
+      });
+    });
+
+    // Test 5: Payments Router
+    await runTest(tests[4], 4, async () => {
+      return await trpcClient.payments.getPaymentHistory.query({
+        userId: 'test-user-id',
+        limit: 10
+      });
+    });
+
+    // Test 6: Report Analytics - Graph
+    await runTest(tests[5], 5, async () => {
       return await trpcClient.reportAnalytics.graph.query({ period: 'weekly' });
     });
 
-    // Test 4: Report Analytics - Metrics
-    await runTest(tests[3], 3, async () => {
+    // Test 7: Report Analytics - Metrics
+    await runTest(tests[6], 6, async () => {
       return await trpcClient.reportAnalytics.metrics.query({ period: 'weekly' });
     });
 
-    // Test 5: Report Analytics - Bottom Row
-    await runTest(tests[4], 4, async () => {
+    // Test 8: Report Analytics - Bottom Row
+    await runTest(tests[7], 7, async () => {
       return await trpcClient.reportAnalytics.bottomRow.query({ period: 'weekly' });
     });
 
-    // Test 6: Mapbox Geocoding
+    // Test 9: Mapbox Geocoding
     if (hasMapbox) {
-      await runTest(tests[5], 5, async () => {
+      await runTest(tests[8], 8, async () => {
         return await trpcClient.geocode.search.query({
           q: 'Dallas, TX',
           provider: 'mapbox',
@@ -117,12 +151,12 @@ export default function ApiSanityCheckScreen() {
         });
       });
     } else {
-      updateResult(5, { status: 'skipped', message: 'Mapbox token not configured' });
+      updateResult(8, { status: 'skipped', message: 'Mapbox token not configured' });
     }
 
-    // Test 7: OpenRouteService
+    // Test 10: OpenRouteService
     if (hasORS) {
-      await runTest(tests[6], 6, async () => {
+      await runTest(tests[9], 9, async () => {
         return await trpcClient.route.eta.query({
           origin: { lat: 32.7767, lon: -96.7970 }, // Dallas
           destination: { lat: 29.7604, lon: -95.3698 }, // Houston
@@ -132,24 +166,24 @@ export default function ApiSanityCheckScreen() {
         });
       });
     } else {
-      updateResult(6, { status: 'skipped', message: 'ORS API key not configured' });
+      updateResult(9, { status: 'skipped', message: 'ORS API key not configured' });
     }
 
-    // Test 8: EIA Fuel Prices
+    // Test 11: EIA Fuel Prices
     if (hasEIA) {
-      await runTest(tests[7], 7, async () => {
+      await runTest(tests[10], 10, async () => {
         return await trpcClient.fuel.eiaDiesel.query({
           state: 'Texas',
           eiaApiKey: EIA_API_KEY!
         });
       });
     } else {
-      updateResult(7, { status: 'skipped', message: 'EIA API key not configured' });
+      updateResult(10, { status: 'skipped', message: 'EIA API key not configured' });
     }
 
-    // Test 9: OpenWeather
+    // Test 12: OpenWeather
     if (hasOpenWeather) {
-      await runTest(tests[8], 8, async () => {
+      await runTest(tests[11], 11, async () => {
         return await trpcClient.weather.current.query({
           lat: 40.7128,
           lon: -74.0060, // NYC
@@ -157,11 +191,11 @@ export default function ApiSanityCheckScreen() {
         });
       });
     } else {
-      updateResult(8, { status: 'skipped', message: 'OpenWeather API key not configured' });
+      updateResult(11, { status: 'skipped', message: 'OpenWeather API key not configured' });
     }
 
-    // Test 10: AI Text Generation
-    await runTest(tests[9], 9, async () => {
+    // Test 13: AI Text Generation
+    await runTest(tests[12], 12, async () => {
       const response = await fetch('https://toolkit.rork.com/text/llm/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -176,8 +210,8 @@ export default function ApiSanityCheckScreen() {
       return await response.json();
     });
 
-    // Test 11: AI Image Generation
-    await runTest(tests[10], 10, async () => {
+    // Test 14: AI Image Generation
+    await runTest(tests[13], 13, async () => {
       const response = await fetch('https://toolkit.rork.com/images/generate/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,8 +225,8 @@ export default function ApiSanityCheckScreen() {
       return { hasImage: !!data.image?.base64Data, size: data.size };
     });
 
-    // Test 12: Speech-to-Text (just test endpoint availability)
-    await runTest(tests[11], 11, async () => {
+    // Test 15: Speech-to-Text (just test endpoint availability)
+    await runTest(tests[14], 14, async () => {
       // Just test if the endpoint is reachable with a HEAD request
       const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
         method: 'OPTIONS'
