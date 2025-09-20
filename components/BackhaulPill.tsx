@@ -308,12 +308,14 @@ Output schema:
             let jsonStr = rawCompletion.slice(jsonStart, jsonEnd + 1);
             
             try {
-              // Clean common JSON issues
+              // Clean common JSON issues more thoroughly
               jsonStr = jsonStr
                 .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Add quotes to unquoted keys
                 .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
                 .replace(/,\s*([}\]])/g, '$1') // Remove trailing commas before closing brackets/braces
                 .replace(/,\s*,/g, ',') // Remove duplicate commas
+                .replace(/,\s*}/g, '}') // Remove trailing comma before closing brace
+                .replace(/,\s*]/g, ']') // Remove trailing comma before closing bracket
                 .replace(/\\n/g, '\\\\n') // Escape newlines properly
                 .replace(/\\t/g, '\\\\t') // Escape tabs properly
                 .replace(/([^\\])\\([^"\\nrtbf/])/g, '$1\\\\$2'); // Escape unescaped backslashes
