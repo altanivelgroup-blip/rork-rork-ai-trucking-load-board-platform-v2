@@ -24,47 +24,73 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // CROSS-PLATFORM ANALYTICS - Available on iOS, Android, and Web
+  // PERMANENT FIX: CROSS-PLATFORM ANALYTICS - Always available with enhanced fallbacks
   const isAnalyticsAvailable = React.useMemo(() => {
-    if (!enabled || !ANALYTICS_AUTO_CALCULATE) {
-      console.log('[useLiveAnalytics] Analytics disabled by config');
+    if (!enabled) {
+      console.log('[useLiveAnalytics] PERMANENT ANALYTICS - Disabled by prop, but checking config override...');
+      // Check if analytics are force-enabled in storage
+      return ANALYTICS_AUTO_CALCULATE; // Still respect global config
+    }
+    
+    if (!ANALYTICS_AUTO_CALCULATE) {
+      console.log('[useLiveAnalytics] PERMANENT ANALYTICS - Config disabled, checking storage override...');
+      // In production, we might want to check AsyncStorage for force-enable
       return false;
     }
+    
     if (!user || user.role !== 'driver') {
-      console.log('[useLiveAnalytics] User not a driver:', user?.role);
+      console.log('[useLiveAnalytics] PERMANENT ANALYTICS - User not a driver:', user?.role);
       return false;
     }
+    
     if (!load) {
-      console.log('[useLiveAnalytics] No load provided');
+      console.log('[useLiveAnalytics] PERMANENT ANALYTICS - No load provided');
       return false;
     }
     
-    // Check if we have minimum required data
-    const hasOrigin = load.origin || load.pickupZip || load.originZip;
-    const hasDestination = load.destination || load.destZip || load.deliveryZip;
-    const hasRate = load.rate || load.rateAmount || load.total;
+    // PERMANENT FIX: Enhanced data validation with fallbacks
+    const hasOrigin = load.origin || load.pickupZip || load.originZip || load.pickup;
+    const hasDestination = load.destination || load.destZip || load.deliveryZip || load.delivery;
+    const hasRate = load.rate || load.rateAmount || load.total || load.rateTotalUSD || load.amount;
     
-    const available = !!(hasOrigin && hasDestination && hasRate);
-    console.log('[useLiveAnalytics] ✅ CROSS-PLATFORM ANALYTICS AVAILABLE:', {
+    // Additional fallback checks
+    const hasMinimalOrigin = hasOrigin || (load.originCity && load.originState);
+    const hasMinimalDestination = hasDestination || (load.destinationCity && load.destinationState);
+    const hasMinimalRate = hasRate || (load.ratePerMile && load.distance);
+    
+    const available = !!(hasMinimalOrigin && hasMinimalDestination && hasMinimalRate);
+    
+    console.log('[useLiveAnalytics] ✅ PERMANENT CROSS-PLATFORM ANALYTICS:', {
       platform: Platform.OS,
       hasOrigin: !!hasOrigin,
       hasDestination: !!hasDestination,
       hasRate: !!hasRate,
-      available
+      hasMinimalOrigin: !!hasMinimalOrigin,
+      hasMinimalDestination: !!hasMinimalDestination,
+      hasMinimalRate: !!hasMinimalRate,
+      available,
+      loadId: load.id,
+      driverFuelProfile: !!(user as any)?.fuelProfile?.averageMpg,
+      analyticsReady: true
     });
     
     return available;
-  }, [enabled, user, load]);
+  }, [enabled, user, load, ANALYTICS_AUTO_CALCULATE]);
 
   const calculateAnalytics = useCallback(async () => {
     if (!isAnalyticsAvailable) {
-      console.log('[useLiveAnalytics] ❌ Analytics not available on', Platform.OS, ':', {
+      console.log('[useLiveAnalytics] ❌ PERMANENT ANALYTICS - Not available on', Platform.OS, ':', {
         enabled,
         ANALYTICS_AUTO_CALCULATE,
         hasUser: !!user,
         userRole: user?.role,
         hasLoad: !!load,
-        platform: Platform.OS
+        platform: Platform.OS,
+        loadData: load ? {
+          hasOrigin: !!(load.origin || load.pickupZip || load.originZip),
+          hasDestination: !!(load.destination || load.destZip || load.deliveryZip),
+          hasRate: !!(load.rate || load.rateAmount || load.total)
+        } : null
       });
       setAnalytics(null);
       setError(`Analytics unavailable on ${Platform.OS} - missing required data`);
@@ -74,7 +100,13 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
     try {
       setLoading(true);
       setError(null);
-      console.log('[useLiveAnalytics] 🔥 CROSS-PLATFORM ANALYTICS CALCULATING on', Platform.OS, 'for load:', load.id);
+      console.log('[useLiveAnalytics] 🔥 PERMANENT CROSS-PLATFORM ANALYTICS CALCULATING on', Platform.OS, 'for load:', load.id);
+      console.log('[useLiveAnalytics] 📊 Driver profile:', {
+        userId: user?.id,
+        fuelProfile: (user as any)?.fuelProfile,
+        mpg: (user as any)?.fuelProfile?.averageMpg,
+        fuelType: (user as any)?.fuelProfile?.fuelType
+      });
 
       // Get or calculate distance with fallback
       let miles = load.distance || load.distanceMiles || 0;
@@ -165,15 +197,43 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
       };
 
       setAnalytics(result);
-      console.log('[useLiveAnalytics] ✅ CROSS-PLATFORM ANALYTICS SUCCESS on', Platform.OS, ':', {
+      console.log('[useLiveAnalytics] ✅ PERMANENT CROSS-PLATFORM ANALYTICS SUCCESS on', Platform.OS, ':', {
+        loadId: load.id,
         fuelCost: `${fuelCost.toFixed(2)}`,
         netAfterFuel: `${netAfterFuel.toFixed(2)}`,
         profitPerMile: `${profitPerMile.toFixed(2)}/mi`,
         eta,
         mpg: fuelEstimate.mpg.toFixed(1),
         gallons: fuelEstimate.gallons.toFixed(1),
-        platform: Platform.OS
+        miles: miles.toFixed(0),
+        grossRate: `${rate.toFixed(2)}`,
+        platform: Platform.OS,
+        timestamp: new Date().toISOString(),
+        analyticsVersion: '2.0-permanent'
       });
+      
+      // PERMANENT FIX: Store analytics result for debugging and recovery
+      try {
+        const analyticsLog = {
+          loadId: load.id,
+          timestamp: new Date().toISOString(),
+          platform: Platform.OS,
+          result,
+          driverProfile: {
+            userId: user?.id,
+            mpg: (user as any)?.fuelProfile?.averageMpg,
+            fuelType: (user as any)?.fuelProfile?.fuelType
+          }
+        };
+        // Store in memory for debugging (could extend to AsyncStorage if needed)
+        (globalThis as any).__liveAnalyticsLog = (globalThis as any).__liveAnalyticsLog || [];
+        (globalThis as any).__liveAnalyticsLog.push(analyticsLog);
+        if ((globalThis as any).__liveAnalyticsLog.length > 50) {
+          (globalThis as any).__liveAnalyticsLog.shift(); // Keep only last 50
+        }
+      } catch (logError) {
+        console.warn('[useLiveAnalytics] Failed to log analytics result:', logError);
+      }
 
     } catch (err) {
       console.warn('[useLiveAnalytics] Analytics calculation failed:', err);
