@@ -348,8 +348,9 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         );
         
         const simpleFetch = getDocs(simpleQuery);
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('QUERY_TIMEOUT')), 8000));
-        snap = await Promise.race([simpleFetch, timeout]) as typeof snap;
+        // TIMEOUT DISABLED: Allow unlimited time for drivers to browse loads
+        // const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('QUERY_TIMEOUT')), 8000));
+        snap = await simpleFetch;
         
         console.log(`[CROSS-PLATFORM] Simple query successful - found ${snap.docs.length} documents`);
         endAudit('firestore-query-simple', { success: true, docCount: snap.docs.length });
@@ -671,22 +672,22 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         
         if (!online) {
           console.log('[LOADS_DISAPPEAR_FIX] Offline - will retry when online');
+          // TIMEOUT DISABLED: Drivers need unlimited time to browse loads
           // Retry when back online
-          reconnectTimer = setTimeout(startCrossPlatformListener, 5000);
+          // reconnectTimer = setTimeout(startCrossPlatformListener, 5000);
           return;
         }
         
+        // TIMEOUT DISABLED: Allow unlimited time for auth to complete
         // Quick auth check with timeout
-        const authed = await Promise.race([
-          ensureFirebaseAuth(),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000))
-        ]);
+        const authed = await ensureFirebaseAuth();
         
         const { db } = getFirebase();
         if (!mounted || !authed || !db) {
           console.log('[LOADS_DISAPPEAR_FIX] Auth failed or component unmounted - will retry');
           if (mounted) {
-            reconnectTimer = setTimeout(startCrossPlatformListener, 10000);
+            // TIMEOUT DISABLED: Drivers need unlimited time to browse loads
+            // reconnectTimer = setTimeout(startCrossPlatformListener, 10000);
           }
           return;
         }
@@ -806,8 +807,9 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
           
           // Auto-reconnect after error
           if (mounted) {
-            console.log('[LOADS_DISAPPEAR_FIX] Scheduling auto-reconnect in 15 seconds...');
-            reconnectTimer = setTimeout(startCrossPlatformListener, 15000);
+            console.log('[LOADS_DISAPPEAR_FIX] Auto-reconnect disabled - drivers need unlimited time');
+            // TIMEOUT DISABLED: Drivers need unlimited time to browse loads
+            // reconnectTimer = setTimeout(startCrossPlatformListener, 15000);
           }
         });
         
@@ -834,8 +836,9 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
           } catch {
             setLoads(mockLoads);
           }
+          // TIMEOUT DISABLED: Drivers need unlimited time to browse loads
           // Retry connection
-          reconnectTimer = setTimeout(startCrossPlatformListener, 20000);
+          // reconnectTimer = setTimeout(startCrossPlatformListener, 20000);
         }
       }
     };

@@ -170,13 +170,9 @@ export async function retryFirebaseAuth(maxRetries: number = 5): Promise<boolean
         return true;
       }
       
+      // TIMEOUT DISABLED: Allow unlimited time for Firebase auth to complete
       // Immediate authentication with extended timeout
-      const result = await Promise.race([
-        signInAnonymously(auth),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Auth timeout')), 20000) // Extended to 20s
-        )
-      ]);
+      const result = await signInAnonymously(auth);
       
       if (result?.user?.uid) {
         console.log(`[PERMANENT_RETRY] ✅ SUCCESS on attempt ${attempt}`);
@@ -255,12 +251,8 @@ export async function testFirebaseConnectivity(): Promise<{
         details.authWorking = true;
         console.log('[FIREBASE_TEST] Auth: Already authenticated');
       } else {
-        const authResult = await Promise.race([
-          signInAnonymously(auth),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Auth timeout')), 5000)
-          ),
-        ]);
+        // TIMEOUT DISABLED: Allow unlimited time for auth to complete
+        const authResult = await signInAnonymously(auth);
         details.authWorking = true;
         console.log('[FIREBASE_TEST] Auth: Successfully authenticated');
       }
@@ -321,12 +313,8 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
       console.log(`[PERMANENT_FIX] Attempt ${authAttempts}/${maxAttempts}`);
       
       try {
-        const result = await Promise.race([
-          signInAnonymously(auth),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Auth timeout')), 15000) // Extended timeout
-          )
-        ]);
+        // TIMEOUT DISABLED: Allow unlimited time for auth to complete
+        const result = await signInAnonymously(auth);
         
         if (result?.user?.uid) {
           console.log(`[PERMANENT_FIX] ✅ SUCCESS on attempt ${authAttempts}`);

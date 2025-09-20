@@ -426,7 +426,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       user,
       userId,
       isLoading,
-      isAuthenticated: !!user && hasSignedInThisSession,
+      // TIMEOUT DISABLED: Keep drivers authenticated indefinitely while browsing loads
+      isAuthenticated: !!user, // Removed hasSignedInThisSession requirement
       isFirebaseAuthenticated,
       hasSignedInThisSession,
       login,
