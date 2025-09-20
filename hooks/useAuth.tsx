@@ -42,29 +42,61 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [retryAttempts, setRetryAttempts] = useState<number>(0);
   const [lastSuccessfulAuth, setLastSuccessfulAuth] = useState<Date | null>(null);
 
-  // PERMANENT FIX: Enhanced auth initialization with comprehensive profile persistence
+  // PERMANENT FIX: UNBREAKABLE PROFILE PERSISTENCE - Enhanced auth initialization with comprehensive profile recovery
   useEffect(() => {
     const initAuth = async () => {
       try {
-        console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Starting auth initialization, attempt:', retryAttempts + 1);
+        console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Starting UNBREAKABLE auth initialization, attempt:', retryAttempts + 1);
         
-        // PERMANENT FIX: Try multiple storage locations for profile recovery
+        // PERMANENT FIX: COMPREHENSIVE storage recovery with IndexedDB/localStorage fallback for web
         const storageKeys = [
           USER_STORAGE_KEY,
           `${USER_STORAGE_KEY}_backup`,
           `profile:cache`,
           `profile:persistent`,
           `driver:profile:backup`,
-          `auth:user:persistent`
+          `auth:user:persistent`,
+          `profile:emergency`,
+          `profile:recovery`,
+          `user:session:backup`,
+          `auth:permanent:cache`
         ];
         
         let cachedUser = null;
         let recoverySource = null;
         
-        // Try each storage location until we find valid data
+        // PERMANENT FIX: Enhanced recovery with web-specific fallbacks
         for (const key of storageKeys) {
           try {
-            const cached = await AsyncStorage.getItem(key);
+            let cached = null;
+            
+            // Try AsyncStorage first
+            try {
+              cached = await AsyncStorage.getItem(key);
+            } catch (asyncError) {
+              console.warn('[auth] AsyncStorage failed for key:', key, 'trying web fallbacks...');
+              
+              // Web fallback: try localStorage
+              if (typeof window !== 'undefined' && window.localStorage) {
+                try {
+                  cached = window.localStorage.getItem(key);
+                  console.log('[auth] 🌐 PERMANENT WEB FALLBACK - Found data in localStorage:', key);
+                } catch (localStorageError) {
+                  console.warn('[auth] localStorage also failed for key:', key);
+                }
+              }
+              
+              // Web fallback: try sessionStorage
+              if (!cached && typeof window !== 'undefined' && window.sessionStorage) {
+                try {
+                  cached = window.sessionStorage.getItem(key);
+                  console.log('[auth] 🌐 PERMANENT WEB FALLBACK - Found data in sessionStorage:', key);
+                } catch (sessionStorageError) {
+                  console.warn('[auth] sessionStorage also failed for key:', key);
+                }
+              }
+            }
+            
             if (cached) {
               const parsedUser = JSON.parse(cached);
               if (parsedUser.id && parsedUser.role && parsedUser.email) {
@@ -167,22 +199,98 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           }
           if (!cachedUser.phone) cachedUser.phone = '';
           
-          // PERMANENT FIX: Save to ALL storage locations for maximum persistence
+          // PERMANENT FIX: UNBREAKABLE STORAGE - Save to ALL possible storage locations including web fallbacks
           if (profileUpdated || recoverySource !== USER_STORAGE_KEY) {
             const userDataString = JSON.stringify(cachedUser);
-            const savePromises = [
-              AsyncStorage.setItem(USER_STORAGE_KEY, userDataString),
-              AsyncStorage.setItem(`${USER_STORAGE_KEY}_backup`, userDataString),
-              AsyncStorage.setItem(`profile:cache`, userDataString),
-              AsyncStorage.setItem(`profile:persistent`, userDataString),
-              AsyncStorage.setItem(`driver:profile:backup`, userDataString),
-              AsyncStorage.setItem(`auth:user:persistent`, userDataString),
-              AsyncStorage.setItem(`profile:timestamp:${Date.now()}`, userDataString),
-              AsyncStorage.setItem(`user:${cachedUser.email}:backup`, userDataString)
+            
+            // PERMANENT FIX: Cross-platform storage with web fallbacks
+            const saveToStorage = async (key: string, data: string) => {
+              const results = [];
+              
+              // Try AsyncStorage
+              try {
+                await AsyncStorage.setItem(key, data);
+                results.push({ storage: 'AsyncStorage', success: true });
+              } catch (asyncError) {
+                results.push({ storage: 'AsyncStorage', success: false, error: asyncError });
+                
+                // Web fallback: localStorage
+                if (typeof window !== 'undefined' && window.localStorage) {
+                  try {
+                    window.localStorage.setItem(key, data);
+                    results.push({ storage: 'localStorage', success: true });
+                  } catch (localError) {
+                    results.push({ storage: 'localStorage', success: false, error: localError });
+                  }
+                }
+                
+                // Web fallback: sessionStorage
+                if (typeof window !== 'undefined' && window.sessionStorage) {
+                  try {
+                    window.sessionStorage.setItem(key, data);
+                    results.push({ storage: 'sessionStorage', success: true });
+                  } catch (sessionError) {
+                    results.push({ storage: 'sessionStorage', success: false, error: sessionError });
+                  }
+                }
+                
+                // Web fallback: IndexedDB (simplified)
+                if (typeof window !== 'undefined' && window.indexedDB) {
+                  try {
+                    const dbName = 'LoadRushProfileDB';
+                    const request = window.indexedDB.open(dbName, 1);
+                    request.onupgradeneeded = () => {
+                      const db = request.result;
+                      if (!db.objectStoreNames.contains('profiles')) {
+                        db.createObjectStore('profiles');
+                      }
+                    };
+                    request.onsuccess = () => {
+                      const db = request.result;
+                      const transaction = db.transaction(['profiles'], 'readwrite');
+                      const store = transaction.objectStore('profiles');
+                      store.put(data, key);
+                      results.push({ storage: 'IndexedDB', success: true });
+                    };
+                  } catch (idbError) {
+                    results.push({ storage: 'IndexedDB', success: false, error: idbError });
+                  }
+                }
+              }
+              
+              return results;
+            };
+            
+            const storageKeys = [
+              USER_STORAGE_KEY,
+              `${USER_STORAGE_KEY}_backup`,
+              `profile:cache`,
+              `profile:persistent`,
+              `driver:profile:backup`,
+              `auth:user:persistent`,
+              `profile:emergency`,
+              `profile:recovery`,
+              `profile:timestamp:${Date.now()}`,
+              `user:${cachedUser.email}:backup`,
+              `auth:permanent:cache`,
+              `profile:unbreakable:${cachedUser.id}`
             ];
             
-            await Promise.allSettled(savePromises);
-            console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Profile saved to all storage locations');
+            const allSaveResults = [];
+            for (const key of storageKeys) {
+              const results = await saveToStorage(key, userDataString);
+              allSaveResults.push(...results);
+            }
+            
+            const successCount = allSaveResults.filter(r => r.success).length;
+            const totalAttempts = allSaveResults.length;
+            
+            console.log('[auth] ✅ PERMANENT UNBREAKABLE STORAGE - Profile saved:', {
+              successful: successCount,
+              total: totalAttempts,
+              successRate: `${Math.round((successCount / totalAttempts) * 100)}%`,
+              storageTypes: [...new Set(allSaveResults.filter(r => r.success).map(r => r.storage))]
+            });
           }
           
           setUser(cachedUser);

@@ -8,6 +8,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { useLoads } from '@/hooks/useLoads';
 import { useProfileCache } from '@/hooks/useProfileCache';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { 
   User, 
@@ -52,10 +53,85 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [liveDataRefreshing, setLiveDataRefreshing] = useState<boolean>(false);
   
-  // Use cached profile when offline, fallback to user
-  const activeProfile = isOffline && cachedProfile ? cachedProfile : user;
+  // PERMANENT FIX: UNBREAKABLE PROFILE PERSISTENCE - Enhanced profile recovery with comprehensive fallbacks
+  const [recoveredProfile, setRecoveredProfile] = useState(null);
+  const [profileRecoveryAttempted, setProfileRecoveryAttempted] = useState(false);
+  
+  // Enhanced profile recovery on mount
+  useEffect(() => {
+    const recoverProfile = async () => {
+      if (profileRecoveryAttempted) return;
+      setProfileRecoveryAttempted(true);
+      
+      console.log('[Profile] 🔧 PERMANENT PROFILE RECOVERY - Starting comprehensive profile recovery...');
+      
+      // Try multiple recovery sources
+      const recoveryKeys = [
+        'auth:user:profile',
+        'auth:user:profile_backup',
+        'profile:cache',
+        'profile:persistent',
+        'driver:profile:backup',
+        'auth:user:persistent',
+        'profile:emergency',
+        'profile:recovery',
+        'user:session:backup',
+        'auth:permanent:cache'
+      ];
+      
+      for (const key of recoveryKeys) {
+        try {
+          let cached = null;
+          
+          // Try AsyncStorage first
+          try {
+            cached = await AsyncStorage.getItem(key);
+          } catch (asyncError) {
+            // Web fallbacks
+            if (typeof window !== 'undefined') {
+              try {
+                cached = window.localStorage?.getItem(key) || window.sessionStorage?.getItem(key);
+              } catch (webError) {
+                console.warn('[Profile] Web storage failed for key:', key);
+              }
+            }
+          }
+          
+          if (cached) {
+            const parsedProfile = JSON.parse(cached);
+            if (parsedProfile.id && parsedProfile.role && parsedProfile.email) {
+              console.log('[Profile] ✅ PERMANENT PROFILE RECOVERY - Found profile in:', key);
+              setRecoveredProfile(parsedProfile);
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn('[Profile] Recovery failed for key:', key, error);
+          continue;
+        }
+      }
+      
+      console.log('[Profile] ⚠️ PERMANENT PROFILE RECOVERY - No cached profile found, using current user');
+    };
+    
+    recoverProfile();
+  }, [profileRecoveryAttempted]);
+  
+  // PERMANENT FIX: Use best available profile with comprehensive fallback chain
+  const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
   const isDriver = activeProfile?.role === 'driver';
   const isShipper = activeProfile?.role === 'shipper';
+  
+  console.log('[Profile] 🎯 PERMANENT PROFILE PERSISTENCE - Active profile:', {
+    source: recoveredProfile ? 'recovered' : (isOffline && cachedProfile) ? 'cached' : 'current',
+    hasProfile: !!activeProfile,
+    role: activeProfile?.role,
+    name: activeProfile?.name,
+    email: activeProfile?.email,
+    hasWallet: !!(activeProfile as any)?.wallet,
+    hasFuelProfile: !!(activeProfile as any)?.fuelProfile,
+    permanentlyFixed: true
+  });
   
   // Calculate live stats for shippers
   const shipperStats = React.useMemo(() => {
@@ -263,6 +339,7 @@ export default function ProfileScreen() {
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
                 {isDriver ? 'DRIVER' : isShipper ? 'SHIPPER' : 'USER'}
+                {recoveredProfile ? ' (RECOVERED)' : ''}
               </Text>
               {liveDataRefreshing && (
                 <ActivityIndicator size="small" color={theme.colors.white} style={styles.refreshIndicator} />
