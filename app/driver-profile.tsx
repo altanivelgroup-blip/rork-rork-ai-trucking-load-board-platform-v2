@@ -209,80 +209,137 @@ export default function DriverProfileScreen() {
   );
 
   const onSave = useCallback(async () => {
-    if (submitting) return;
+    if (submitting) {
+      console.log('[DriverProfile] Save already in progress, skipping');
+      return;
+    }
+    
+    console.log('[DriverProfile] Starting profile save process...');
+    console.log('[DriverProfile] Form data:', JSON.stringify(formData, null, 2));
     
     try {
       setSubmitting(true);
+      console.log('[DriverProfile] Set submitting to true');
+      
+      // Enhanced validation with detailed logging
+      console.log('[DriverProfile] Starting validation...');
+      
+      // Basic required field validation
+      if (!formData.name || formData.name.trim() === '') {
+        console.error('[DriverProfile] Validation failed: Name is required');
+        toast.show('Name is required', 'error');
+        return;
+      }
       
       // Validation for tank size
       if (formData.tankSize && parseInt(formData.tankSize) <= 0) {
+        console.error('[DriverProfile] Validation failed: Tank size must be greater than 0');
         toast.show('Tank size must be greater than 0', 'error');
         return;
       }
       
+      console.log('[DriverProfile] Basic validation passed');
+      
       // API validation for years of experience
       if (formData.yearsExperience) {
+        console.log('[DriverProfile] Validating years of experience:', formData.yearsExperience);
         setValidatingExperience(true);
-        const validation = await validateExperience(parseInt(formData.yearsExperience));
-        setValidatingExperience(false);
         
-        if (!validation.valid) {
-          toast.show(validation.message, 'error');
+        try {
+          const validation = await validateExperience(parseInt(formData.yearsExperience));
+          console.log('[DriverProfile] Experience validation result:', validation);
+          
+          if (!validation.valid) {
+            console.error('[DriverProfile] Experience validation failed:', validation.message);
+            toast.show(validation.message, 'error');
+            return;
+          } else if (validation.message) {
+            console.log('[DriverProfile] Experience validation success:', validation.message);
+            toast.show(validation.message, 'success');
+          }
+        } catch (validationError) {
+          console.error('[DriverProfile] Experience validation error:', validationError);
+          toast.show('Experience validation failed. Please try again.', 'error');
           return;
-        } else if (validation.message) {
-          toast.show(validation.message, 'success');
+        } finally {
+          setValidatingExperience(false);
         }
       }
       
+      console.log('[DriverProfile] All validations passed, preparing update data...');
+      
       const updateData = {
-        name: formData.name,
-        phone: formData.phone,
-        company: formData.company,
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        company: formData.company.trim(),
         
         // Basic Driver Profile Fields
         truckType: formData.truckType,
         tankSize: formData.tankSize ? parseInt(formData.tankSize) : null,
         fuelTypePreference: formData.fuelTypePreference,
         yearsExperience: formData.yearsExperience ? parseInt(formData.yearsExperience) : null,
-        safetyCertifications: formData.safetyCertifications,
+        safetyCertifications: formData.safetyCertifications.trim(),
 
-        vehicleMake: formData.vehicleMake,
-        vehicleModel: formData.vehicleModel,
+        vehicleMake: formData.vehicleMake.trim(),
+        vehicleModel: formData.vehicleModel.trim(),
         vehicleYear: formData.vehicleYear ? parseInt(formData.vehicleYear) : null,
         fuelType: formData.fuelType === 'gasoline' ? 'gas' as FuelKind : 'diesel' as FuelKind,
         mpgRated: formData.mpgRated ? parseFloat(formData.mpgRated) : null,
-        vin: formData.vin,
-        plate: formData.plate,
+        vin: formData.vin.trim(),
+        plate: formData.plate.trim(),
         tankGallons: formData.tankGallons ? parseInt(formData.tankGallons) : null,
         gvwrLbs: formData.gvwrLbs ? parseInt(formData.gvwrLbs) : null,
         vehicleInfo: undefined,
-        trailerMake: formData.trailerMake,
-        trailerModel: formData.trailerModel,
+        trailerMake: formData.trailerMake.trim(),
+        trailerModel: formData.trailerModel.trim(),
         trailerYear: formData.trailerYear ? parseInt(formData.trailerYear) : null,
-        trailerVin: formData.trailerVin,
-        trailerPlate: formData.trailerPlate,
-        trailerInsuranceCarrier: formData.trailerInsuranceCarrier,
-        trailerPolicyNumber: formData.trailerPolicyNumber,
+        trailerVin: formData.trailerVin.trim(),
+        trailerPlate: formData.trailerPlate.trim(),
+        trailerInsuranceCarrier: formData.trailerInsuranceCarrier.trim(),
+        trailerPolicyNumber: formData.trailerPolicyNumber.trim(),
         trailerGvwrLbs: formData.trailerGvwrLbs ? parseInt(formData.trailerGvwrLbs) : null,
         trailerType: formData.trailerType as VehicleType,
 
-        companyName: formData.companyName,
-        mcNumber: formData.mcNumber,
-        dotNumber: formData.dotNumber,
-        insuranceCarrier: formData.insuranceCarrier,
-        policyNumber: formData.policyNumber,
+        companyName: formData.companyName.trim(),
+        mcNumber: formData.mcNumber.trim(),
+        dotNumber: formData.dotNumber.trim(),
+        insuranceCarrier: formData.insuranceCarrier.trim(),
+        policyNumber: formData.policyNumber.trim(),
       };
+      
+      console.log('[DriverProfile] Update data prepared:', JSON.stringify(updateData, null, 2));
+      console.log('[DriverProfile] Calling updateCachedProfile...');
       
       // Use cached profile update for offline support
       await updateCachedProfile(updateData);
-      console.log('[DriverProfile] Profile updated - Truck info saved');
-      toast.show('Profile updated - Truck info saved', 'success');
-    } catch (error) {
-      console.error('Profile save error:', error);
-      toast.show('Save failed. Please try again.', 'error');
+      
+      console.log('[DriverProfile] ✅ Profile updated successfully - All driver info saved');
+      toast.show('✅ Profile saved successfully! All driver information updated.', 'success');
+      
+    } catch (error: any) {
+      console.error('[DriverProfile] ❌ Profile save error:', error);
+      console.error('[DriverProfile] Error details:', {
+        message: error?.message,
+        code: error?.code,
+        stack: error?.stack
+      });
+      
+      // Provide more specific error messages
+      let errorMessage = 'Save failed. Please try again.';
+      if (error?.message?.includes('network')) {
+        errorMessage = 'Network error. Your changes are saved locally and will sync when online.';
+      } else if (error?.message?.includes('permission')) {
+        errorMessage = 'Permission error. Please check your account settings.';
+      } else if (error?.message?.includes('validation')) {
+        errorMessage = 'Validation error. Please check your input and try again.';
+      }
+      
+      toast.show(errorMessage, 'error');
     } finally {
+      console.log('[DriverProfile] Cleaning up save process...');
       setSubmitting(false);
       setValidatingExperience(false);
+      console.log('[DriverProfile] Save process completed');
     }
   }, [formData, updateCachedProfile, validateExperience, toast, submitting]);
 
@@ -863,6 +920,19 @@ export default function DriverProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+        
+        {/* Debug Info - Only show in development */}
+        {__DEV__ && (
+          <View style={styles.debugInfo}>
+            <Text style={styles.debugText}>Debug Info:</Text>
+            <Text style={styles.debugText}>User ID: {userId || 'None'}</Text>
+            <Text style={styles.debugText}>User Role: {user?.role || 'None'}</Text>
+            <Text style={styles.debugText}>Submitting: {submitting ? 'Yes' : 'No'}</Text>
+            <Text style={styles.debugText}>Validating: {validatingExperience ? 'Yes' : 'No'}</Text>
+            <Text style={styles.debugText}>Form Name: {formData.name || 'Empty'}</Text>
+            <Text style={styles.debugText}>Form Email: {formData.email || 'Empty'}</Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );

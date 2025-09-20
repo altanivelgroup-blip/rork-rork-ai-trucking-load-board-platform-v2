@@ -91,33 +91,83 @@ export const [ProfileCacheProvider, useProfileCache] = createContextHook<Profile
   }, []);
 
   const updateCachedProfile = useCallback(async (updates: Partial<Driver | Shipper | Admin>) => {
-    if (!cachedProfile) return;
+    console.log('[ProfileCache] 🚀 Starting profile update process...');
+    console.log('[ProfileCache] Updates to apply:', JSON.stringify(updates, null, 2));
+    
+    if (!cachedProfile) {
+      console.error('[ProfileCache] ❌ No cached profile found - cannot update');
+      throw new Error('No cached profile found. Please refresh and try again.');
+    }
 
+    console.log('[ProfileCache] Current cached profile:', JSON.stringify(cachedProfile, null, 2));
     const updatedProfile = { ...cachedProfile, ...updates };
+    console.log('[ProfileCache] Updated profile prepared:', JSON.stringify(updatedProfile, null, 2));
+    
     setCachedProfile(updatedProfile);
+    console.log('[ProfileCache] ✅ Local state updated');
     
     try {
-      // Always update local cache
+      // Always update local cache first
+      console.log('[ProfileCache] 💾 Saving to AsyncStorage...');
       await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(updatedProfile));
+      console.log('[ProfileCache] ✅ AsyncStorage updated successfully');
       
       if (isOnline) {
         // If online, sync immediately
-        console.log('[ProfileCache] Online - syncing profile immediately');
-        await updateProfile(updates);
-        setLastSyncTime(new Date());
-        await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-        await AsyncStorage.removeItem(PROFILE_SYNC_KEY);
-        setPendingChanges(false);
-        console.log('[ProfileCache] Profile synced - Ready');
+        console.log('[ProfileCache] 🌐 Online - syncing profile immediately to Firebase...');
+        
+        try {
+          await updateProfile(updates);
+          console.log('[ProfileCache] ✅ Firebase sync successful');
+          
+          const now = new Date();
+          setLastSyncTime(now);
+          await AsyncStorage.setItem(LAST_SYNC_KEY, now.toISOString());
+          await AsyncStorage.removeItem(PROFILE_SYNC_KEY);
+          setPendingChanges(false);
+          
+          console.log('[ProfileCache] ✅ Profile fully synced - All systems updated');
+          console.log('[ProfileCache] ✅ Local cache, Firebase, and sync status all updated');
+        } catch (syncError: any) {
+          console.error('[ProfileCache] ❌ Firebase sync failed:', syncError);
+          console.log('[ProfileCache] 📝 Marking for offline sync...');
+          
+          // Mark for later sync if Firebase fails
+          await AsyncStorage.setItem(PROFILE_SYNC_KEY, JSON.stringify(updates));
+          setPendingChanges(true);
+          
+          console.log('[ProfileCache] ⚠️ Profile saved locally, will sync when connection improves');
+          // Don't throw here - local save succeeded
+        }
       } else {
         // If offline, mark for later sync
-        console.log('[ProfileCache] Offline - marking for sync');
+        console.log('[ProfileCache] 📴 Offline - marking for sync when online');
         await AsyncStorage.setItem(PROFILE_SYNC_KEY, JSON.stringify(updates));
         setPendingChanges(true);
-        console.log('[ProfileCache] Profile cached offline - Will sync when online');
+        console.log('[ProfileCache] ✅ Profile cached offline - Will sync when online');
       }
-    } catch (error) {
-      console.error('[ProfileCache] Error updating cached profile:', error);
+      
+      console.log('[ProfileCache] 🎉 Profile update process completed successfully');
+    } catch (error: any) {
+      console.error('[ProfileCache] ❌ Critical error updating cached profile:', error);
+      console.error('[ProfileCache] Error details:', {
+        message: error?.message,
+        code: error?.code,
+        stack: error?.stack
+      });
+      
+      // Revert local state if storage failed
+      setCachedProfile(cachedProfile);
+      
+      // Provide specific error message
+      let errorMessage = 'Failed to save profile. Please try again.';
+      if (error?.message?.includes('storage')) {
+        errorMessage = 'Storage error. Please check device storage and try again.';
+      } else if (error?.message?.includes('network')) {
+        errorMessage = 'Network error. Profile saved locally, will sync when online.';
+      }
+      
+      throw new Error(errorMessage);
     }
   }, [cachedProfile, isOnline, updateProfile]);
 
