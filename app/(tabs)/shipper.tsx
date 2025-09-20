@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
+import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
+import { useLoads } from '@/hooks/useLoads';
 import { Crown, Zap, DollarSign, Settings } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -23,6 +25,7 @@ const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { ti
 export default function ShipperHome() {
   const router = useRouter();
   const { user } = useAuth();
+  const { loads } = useLoads();
   const insets = useSafeAreaInsets();
   const isShipper = user?.role === 'shipper';
   
@@ -66,6 +69,25 @@ export default function ShipperHome() {
       >
         <Text style={styles.heading}>Welcome, Shipper</Text>
         <Text style={styles.subheading}>Quick actions and tools</Text>
+        
+        {/* ANALYTICS PREVIEW FOR SHIPPERS */}
+        {loads.length > 0 && (
+          <View style={styles.analyticsPreview}>
+            <Text style={styles.analyticsPreviewTitle}>📊 Driver Analytics Preview</Text>
+            <Text style={styles.analyticsPreviewSubtitle}>
+              This is what drivers see when they view your loads:
+            </Text>
+            <LiveAnalyticsDashboard 
+              load={loads[0]} 
+              compact={false} 
+              showTitle={false} 
+              enabled={true}
+            />
+            <Text style={styles.analyticsPreviewNote}>
+              Live analytics help drivers make informed decisions about your loads
+            </Text>
+          </View>
+        )}
 
         {/* Main Actions - Consolidated to Post Loads tab */}
 
@@ -146,5 +168,33 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
     color: theme.colors.dark,
+  },
+  analyticsPreview: {
+    backgroundColor: '#F0F9FF',
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  analyticsPreviewTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: '#0C4A6E',
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  analyticsPreviewSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: '#0369A1',
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  analyticsPreviewNote: {
+    fontSize: theme.fontSize.xs,
+    color: '#0369A1',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: theme.spacing.sm,
   },
 });

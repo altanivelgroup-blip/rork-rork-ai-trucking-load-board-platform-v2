@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
+import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
 import { DollarSign, Filter, Phone, Mail, Plus, X, Upload, Trash2, RefreshCw } from 'lucide-react-native';
 import { useLoads, useLoadsWithToast } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
@@ -326,6 +327,15 @@ export default function LoadsScreen() {
           {isDriver ? `${loads.length} available loads` : `${loads.length} posted loads`}
         </Text>
         
+        {/* LIVE ANALYTICS STATUS */}
+        {user?.role === 'driver' && (
+          <View style={styles.analyticsStatus}>
+            <Text style={styles.analyticsStatusText}>
+              🔥 Live analytics active - showing fuel cost, net profit, $/mi, and ETA on all loads
+            </Text>
+          </View>
+        )}
+        
         <ScrollView 
           contentContainerStyle={styles.content}
           refreshControl={
@@ -487,6 +497,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: theme.spacing.xs,
     backgroundColor: theme.colors.lightGray,
+  },
+  analyticsStatus: {
+    backgroundColor: '#ECFDF5',
+    padding: theme.spacing.md,
+    marginHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  analyticsStatusText: {
+    fontSize: theme.fontSize.sm,
+    color: '#065F46',
+    textAlign: 'center',
+    fontWeight: '600',
   },
 
   content: {
