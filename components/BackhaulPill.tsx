@@ -316,6 +316,8 @@ Output schema:
                 .replace(/,\s*,/g, ',') // Remove duplicate commas
                 .replace(/,\s*}/g, '}') // Remove trailing comma before closing brace
                 .replace(/,\s*]/g, ']') // Remove trailing comma before closing bracket
+                .replace(/,\s*([}\]])/g, '$1') // Additional trailing comma cleanup
+                .replace(/,\s*$/, '') // Remove trailing comma at end of string
                 .replace(/\\n/g, '\\\\n') // Escape newlines properly
                 .replace(/\\t/g, '\\\\t') // Escape tabs properly
                 .replace(/([^\\])\\([^"\\nrtbf/])/g, '$1\\\\$2'); // Escape unescaped backslashes

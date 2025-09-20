@@ -35,48 +35,86 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [hasSignedInThisSession, setHasSignedInThisSession] = useState<boolean>(false);
   
-  console.log('[useAuth] CRASH FIX - Hook called with enhanced error handling and consistent hook order');
+  console.log('[useAuth] 🎯 PERMANENT SIGN IN FIX - Hook called with enhanced error handling and consistent hook order');
   
-  // CRASH FIX: Add initialization state tracking
+  // PERMANENT FIX: Add comprehensive error tracking and recovery
   const [initError, setInitError] = useState<string | null>(null);
+  const [retryAttempts, setRetryAttempts] = useState<number>(0);
+  const [lastSuccessfulAuth, setLastSuccessfulAuth] = useState<Date | null>(null);
 
-  // Simple auth initialization
+  // Enhanced auth initialization with error recovery
   useEffect(() => {
     const initAuth = async () => {
       try {
+        console.log('[auth] 🎯 PERMANENT SIGN IN FIX - Starting auth initialization, attempt:', retryAttempts + 1);
+        
         const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
         if (cached) {
-          const cachedUser = JSON.parse(cached);
-          
-          // Migration: Add fuelProfile to existing drivers if missing
-          if (cachedUser.role === 'driver' && !cachedUser.fuelProfile) {
-            cachedUser.fuelProfile = {
-              vehicleType: 'truck',
-              averageMpg: 8.5,
-              fuelPricePerGallon: 3.85,
-              fuelType: 'diesel',
-              tankCapacity: 150,
-            };
-            // Save the migrated user back to storage
-            await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cachedUser));
-            console.log('[auth] ✅ Migrated existing driver with fuel profile');
+          try {
+            const cachedUser = JSON.parse(cached);
+            
+            // Validate cached user structure
+            if (!cachedUser.id || !cachedUser.role || !cachedUser.email) {
+              console.warn('[auth] 🎯 PERMANENT SIGN IN FIX - Invalid cached user structure, clearing cache');
+              await AsyncStorage.removeItem(USER_STORAGE_KEY);
+              throw new Error('Invalid cached user data');
+            }
+            
+            // Migration: Add fuelProfile to existing drivers if missing
+            if (cachedUser.role === 'driver' && !cachedUser.fuelProfile) {
+              cachedUser.fuelProfile = {
+                vehicleType: 'truck',
+                averageMpg: 8.5,
+                fuelPricePerGallon: 3.85,
+                fuelType: 'diesel',
+                tankCapacity: 150,
+              };
+              // Save the migrated user back to storage
+              await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cachedUser));
+              console.log('[auth] ✅ PERMANENT SIGN IN FIX - Migrated existing driver with fuel profile');
+            }
+            
+            setUser(cachedUser);
+            setUserId(cachedUser.id);
+            setIsAnonymous(cachedUser.email === 'guest@example.com');
+            setHasSignedInThisSession(false);
+            setLastSuccessfulAuth(new Date());
+            setInitError(null);
+            
+            console.log('[auth] ✅ PERMANENT SIGN IN FIX - Successfully loaded cached user:', {
+              role: cachedUser.role,
+              email: cachedUser.email,
+              isAnonymous: cachedUser.email === 'guest@example.com'
+            });
+          } catch (parseError) {
+            console.error('[auth] 🎯 PERMANENT SIGN IN FIX - Failed to parse cached user, clearing cache:', parseError);
+            await AsyncStorage.removeItem(USER_STORAGE_KEY);
+            setInitError('Corrupted user data cleared');
           }
-          
-          setUser(cachedUser);
-          setUserId(cachedUser.id);
-          setIsAnonymous(cachedUser.email === 'guest@example.com');
-          setHasSignedInThisSession(false);
+        } else {
+          console.log('[auth] 🎯 PERMANENT SIGN IN FIX - No cached user found, user needs to sign in');
         }
-      } catch (error) {
-        console.error('[auth] Error loading cached user:', error);
+      } catch (error: any) {
+        console.error('[auth] 🎯 PERMANENT SIGN IN FIX - Auth initialization error:', error);
+        setInitError(error?.message || 'Unknown initialization error');
+        
+        // Retry logic for critical failures
+        if (retryAttempts < 3) {
+          console.log('[auth] 🎯 PERMANENT SIGN IN FIX - Retrying initialization in 2 seconds...');
+          setTimeout(() => {
+            setRetryAttempts(prev => prev + 1);
+          }, 2000);
+          return; // Don't set loading to false yet
+        }
       } finally {
         setIsLoading(false);
         setIsInitialized(true);
+        console.log('[auth] 🎯 PERMANENT SIGN IN FIX - Auth initialization completed');
       }
     };
     
     initAuth();
-  }, []);
+  }, [retryAttempts]);
 
   // Firebase setup
   useEffect(() => {
@@ -218,7 +256,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const login = useCallback(async (email: string, password: string, role: UserRole = 'driver') => {
-    console.log('[auth] ✅ Auth optimized - Login attempt for', email, 'as', role);
+    console.log('[auth] 🎯 PERMANENT SIGN IN FIX - Login attempt for', email, 'as', role);
     
     // Enhanced input validation with user-friendly messages
     if (!email || !password) {
@@ -301,8 +339,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         console.warn('[auth] ⚠️ Auth optimization - Failed to cache user data:', storageError);
       }
       
-      console.log('[auth] ✅ Auth optimized - Login successful as', finalRole);
-      console.log('[auth] LOADING FIX - Loading complete - Advancing to startup');
+      setLastSuccessfulAuth(new Date());
+      setInitError(null);
+      setRetryAttempts(0);
+      
+      console.log('[auth] ✅ PERMANENT SIGN IN FIX - Login successful as', finalRole);
+      console.log('[auth] 🎯 PERMANENT SIGN IN FIX - Loading complete - Advancing to startup');
       
       // INSTANT ANALYTICS ACTIVATION for drivers
       if (finalRole === 'driver') {
@@ -310,7 +352,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         console.log('[auth] ⚡ Live analytics will show on all load cards immediately');
       }
     } catch (error: any) {
-      console.error('[auth] ❌ Auth optimization - Login failed:', error?.message || error);
+      console.error('[auth] ❌ PERMANENT SIGN IN FIX - Login failed:', error?.message || error);
+      setInitError(error?.message || 'Login failed');
       throw error;
     }
   }, [createNewUser]);
@@ -380,7 +423,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const logout = useCallback(async () => {
-    console.log('[auth] ✅ Auth optimized - Logging out user...');
+    console.log('[auth] 🎯 PERMANENT SIGN IN FIX - Logging out user...');
     
     try {
       await AsyncStorage.removeItem(USER_STORAGE_KEY);
@@ -390,9 +433,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
     
     setUser(null);
+    setUserId(null);
     setIsAnonymous(true);
     setHasSignedInThisSession(false);
-    console.log('[auth] ✅ Auth optimized - Logout successful');
+    setLastSuccessfulAuth(null);
+    setInitError(null);
+    setRetryAttempts(0);
+    console.log('[auth] ✅ PERMANENT SIGN IN FIX - Logout successful');
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -488,7 +535,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       user,
       userId,
       isLoading,
-      // TIMEOUT DISABLED: Keep drivers authenticated indefinitely while browsing loads
+      // PERMANENT FIX: Keep drivers authenticated indefinitely while browsing loads
       isAuthenticated: !!user, // Removed hasSignedInThisSession requirement
       isFirebaseAuthenticated,
       hasSignedInThisSession,
@@ -498,16 +545,20 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       logout,
       updateProfile,
     };
-    console.log('[useAuth] Auth state computed:', {
+    console.log('[useAuth] 🎯 PERMANENT SIGN IN FIX - Auth state computed:', {
       hasUser: !!user,
       userRole: user?.role,
       isAnonymous,
       hasSignedInThisSession,
       isAuthenticated: result.isAuthenticated,
-      isLoading
+      isLoading,
+      initError,
+      retryAttempts,
+      lastSuccessfulAuth: lastSuccessfulAuth?.toISOString(),
+      isInitialized
     });
     return result;
-  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile]);
+  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile, initError, retryAttempts, lastSuccessfulAuth, isInitialized]);
 
   return value;
 });
