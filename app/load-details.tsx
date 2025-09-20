@@ -21,6 +21,7 @@ import { DriverNavigation } from '@/components/DriverNavigation';
 import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
+import { computeDistanceMilesFromZips, extractZips } from '@/src/services/distance';
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Image } from 'expo-image';
@@ -51,6 +52,8 @@ export default function LoadDetailsScreen() {
   const [fuelEstimate, setFuelEstimate] = useState<FuelApiResponse | null>(null);
   const [fuelLoading, setFuelLoading] = useState<boolean>(false);
   const [fuelError, setFuelError] = useState<string | null>(null);
+  const [derivedMiles, setDerivedMiles] = useState<number | null>(null);
+  const [distLoading, setDistLoading] = useState<boolean>(false);
 
   const mapboxToken = (require('@/utils/env').MAPBOX_TOKEN as string | undefined) ?? undefined;
   const orsKey = (require('@/utils/env').ORS_API_KEY as string | undefined) ?? undefined;
@@ -129,11 +132,19 @@ export default function LoadDetailsScreen() {
     }
   }, [etaQuery.data?.distanceMeters, etaQuery.data?.durationSec, load?.distance, load?.pickupDate, load?.vehicleType, load?.origin?.state, load?.destination?.state, (user as Driver)?.fuelProfile?.vehicleType]);
 
+  const adaptedLoad = useMemo(() => ({
+    ...load,
+    distanceMiles: load?.distanceMiles ?? load?.distance ?? null,
+    rateTotalUSD: load?.rateTotalUSD ?? load?.rateAmount ?? load?.total ?? load?.rate ?? null,
+    rpm: load?.rpm ?? load?.ratePerMile ?? null,
+    rate: load?.rate ?? null,
+  }), [load]);
+
   const distanceDisplayMiles = useMemo(() => {
     const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
-    const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : Number(load?.distance ?? 0);
+    const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : (derivedMiles ?? Number(load?.distance ?? 0));
     return Number.isFinite(miles) && miles > 0 ? Math.round(miles) : undefined;
-  }, [etaQuery.data?.distanceMeters, load?.distance]);
+  }, [etaQuery.data?.distanceMeters, load?.distance, derivedMiles]);
 
   const weatherEnabled = useMemo(() => {
     const d: any = (load as any)?.destination;
@@ -333,6 +344,19 @@ export default function LoadDetailsScreen() {
     };
   }, [etaQuery.data?.distanceMeters, eiaQuery.data?.price, eiaQuery.data?.source, load?.id, load?.distance, load?.vehicleType, load?.weight, load?.origin?.state, load?.destination?.state, user?.id, (user as Driver)?.fuelProfile?.averageMpg, (user as Driver)?.fuelProfile?.fuelPricePerGallon, (user as Driver)?.fuelProfile?.vehicleType]);
 
+  // Auto-derive distance from ZIP codes using new service
+  useEffect(() => {
+    if (!adaptedLoad.distanceMiles) {
+      const { origZip, destZip } = extractZips(load);
+      if (origZip && destZip) {
+        setDistLoading(true);
+        computeDistanceMilesFromZips(String(origZip), String(destZip))
+          .then(m => setDerivedMiles(m ? Number(m.toFixed(1)) : null))
+          .finally(() => setDistLoading(false));
+      }
+    }
+  }, [load, adaptedLoad.distanceMiles]);
+
   useEffect(() => {
     let active = true;
     const run = async () => {
@@ -531,16 +555,15 @@ export default function LoadDetailsScreen() {
           {user?.role === 'driver' && (
             <LoadAnalyticsCard
               load={{
-                distanceMiles: distanceDisplayMiles ?? load?.distance ?? 0,
-                rateTotalUSD: load?.rate ?? 0,
-                rpm: load?.ratePerMile ?? null,
-                rate: load?.rate ?? null,
+                ...adaptedLoad,
+                distanceMiles: adaptedLoad.distanceMiles ?? derivedMiles ?? 0
               }}
               driver={{
                 mpgRated: (user as Driver)?.fuelProfile?.averageMpg ?? (user as Driver)?.mpgRated ?? null,
                 fuelType: (user as Driver)?.fuelProfile?.fuelType ?? (user as Driver)?.fuelType ?? 'diesel',
               }}
               dieselPrice={eiaQuery.data?.price}
+              loading={distLoading && !adaptedLoad.distanceMiles && !derivedMiles}
             />
           )}
 
