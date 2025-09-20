@@ -10,13 +10,13 @@ export default function DevSignOut() {
   useEffect(() => {
     const performSignOut = async () => {
       try {
-        console.log('[DevSignOut] 🔄 Signing out user...');
+        console.log('[DevSignOut] 🎯 PERMANENT SIGN IN FIX - Signing out user...');
         if (logout) {
           await logout();
-          console.log('[DevSignOut] ✅ User signed out successfully');
+          console.log('[DevSignOut] ✅ PERMANENT SIGN IN FIX - User signed out successfully');
         }
       } catch (error) {
-        console.error('[DevSignOut] ❌ Sign out failed:', error);
+        console.error('[DevSignOut] ❌ PERMANENT SIGN IN FIX - Sign out failed:', error);
       }
     };
     
