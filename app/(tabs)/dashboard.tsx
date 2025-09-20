@@ -581,21 +581,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
           
-          {/* INSTANT ANALYTICS DEMO - Show analytics for first load */}
-          {isDriver && recentLoads.length > 0 && (
-            <View style={styles.analyticsDemo}>
-              <Text style={styles.analyticsDemoTitle}>🔥 Live Analytics Preview</Text>
-              <LiveAnalyticsDashboard 
-                load={recentLoads[0]} 
-                compact={false} 
-                showTitle={false} 
-                enabled={true}
-              />
-              <Text style={styles.analyticsDemoSubtitle}>
-                Analytics appear instantly on all load cards when you're signed in as a driver
-              </Text>
-            </View>
-          )}
+
 
           {/* Analytics Section for Drivers */}
           {ENABLE_LOAD_ANALYTICS && isDriver && recentLoads.length > 0 && (
@@ -891,29 +877,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.dark,
   },
-  analyticsDemo: {
-    backgroundColor: '#FFF7ED',
-    padding: moderateScale(theme.spacing.lg),
-    borderRadius: moderateScale(theme.borderRadius.md),
-    marginHorizontal: moderateScale(theme.spacing.lg),
-    marginBottom: moderateScale(theme.spacing.lg),
-    borderWidth: 2,
-    borderColor: '#FB923C',
-  },
-  analyticsDemoTitle: {
-    fontSize: font(18),
-    fontWeight: '700',
-    color: '#EA580C',
-    textAlign: 'center',
-    marginBottom: moderateScale(theme.spacing.md),
-  },
-  analyticsDemoSubtitle: {
-    fontSize: font(12),
-    color: '#9A3412',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginTop: moderateScale(theme.spacing.sm),
-  },
+
   viewAllRow: {
     flexDirection: 'row',
     alignItems: 'center',
