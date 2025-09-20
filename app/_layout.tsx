@@ -17,6 +17,7 @@ import { LoadsProvider } from "@/hooks/useLoads";
 import { AutoArriveProvider } from "@/hooks/useAutoArrive";
 import { ProfileCacheProvider } from "@/hooks/useProfileCache";
 import { FuelMonitorProvider } from "@/hooks/useFuelMonitor";
+import { DriverDataPersistenceProvider } from "@/hooks/useDriverDataPersistence";
 
 
 import HeaderBack from "@/components/HeaderBack";
@@ -201,6 +202,7 @@ function RootLayoutNav() {
       <Stack.Screen name="permission-fix-test" options={{ title: "Permission Fix Test" }} />
       <Stack.Screen name="sanity-check" options={{ title: "Sanity Check" }} />
       <Stack.Screen name="permanent-fixes-test" options={{ title: "Profile Persistence Test" }} />
+      <Stack.Screen name="cross-platform-persistence-test" options={{ title: "Cross-Platform Persistence Test" }} />
     </Stack>
   );
 }
@@ -223,12 +225,14 @@ export default function RootLayout() {
                               <LoadsProvider>
                                 <AutoArriveProvider>
                                   <ProfileCacheProvider>
-                                    <FuelMonitorProvider>
-                                      <ErrorBoundary safeRoute="/(auth)/login">
-                                        <RootLayoutNav />
-                                      </ErrorBoundary>
-                                      <AutoArriveSheet />
-                                    </FuelMonitorProvider>
+                                    <DriverDataPersistenceProvider>
+                                      <FuelMonitorProvider>
+                                        <ErrorBoundary safeRoute="/(auth)/login">
+                                          <RootLayoutNav />
+                                        </ErrorBoundary>
+                                        <AutoArriveSheet />
+                                      </FuelMonitorProvider>
+                                    </DriverDataPersistenceProvider>
                                   </ProfileCacheProvider>
                                 </AutoArriveProvider>
                               </LoadsProvider>
