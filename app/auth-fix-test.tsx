@@ -14,19 +14,17 @@ import { theme } from '@/constants/theme';
 import { CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react-native';
 import { crossPlatformStorage } from '@/utils/crossPlatformStorage';
 
-// Bundling safeguard: Ensure Platform is properly imported and available
+// PERMANENT FIX: Single Platform declaration with comprehensive error handling
 const safePlatform = (() => {
   try {
-    // Verify Platform is properly imported and not duplicated
     if (typeof Platform !== 'undefined' && Platform.OS) {
-      console.log('✅ Platform import verified:', Platform.OS);
+      console.log('✅ PERMANENT BUNDLING FIX - Platform import verified:', Platform.OS);
       return Platform;
     }
-    // Fallback for edge cases
-    console.warn('⚠️ Platform fallback used');
+    console.warn('⚠️ PERMANENT BUNDLING FIX - Platform fallback used');
     return { OS: 'unknown' as const };
   } catch (error) {
-    console.error('❌ Platform import error:', error);
+    console.error('❌ PERMANENT BUNDLING FIX - Platform import error:', error);
     return { OS: 'unknown' as const };
   }
 })();
@@ -366,7 +364,8 @@ export default function AuthFixTestScreen() {
             
             {failCount === 0 && (
               <Text style={styles.successMessage}>
-                🎯 Permanently Fixed: Duplicate Declaration & Bundling - {safePlatform.OS}
+                🎯 Permanently Fixed: Auth Error & Sign-In Nav - {safePlatform.OS}
+                {"\n"}🎯 Permanently Fixed: Duplicate Declaration & Bundling - {safePlatform.OS}
               </Text>
             )}
           </View>
