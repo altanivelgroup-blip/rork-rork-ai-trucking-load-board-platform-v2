@@ -312,6 +312,7 @@ Output schema:
               jsonStr = jsonStr
                 .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Add quotes to unquoted keys
                 .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
+                .replace(/,\s*([}\]])/g, '$1') // Remove trailing commas before closing brackets/braces
                 .replace(/\\n/g, '\\\\n') // Escape newlines properly
                 .replace(/\\t/g, '\\\\t') // Escape tabs properly
                 .replace(/([^\\])\\([^"\\nrtbf/])/g, '$1\\\\$2'); // Escape unescaped backslashes
