@@ -222,7 +222,7 @@ export default function RootLayout() {
                                 <AutoArriveProvider>
                                   <ProfileCacheProvider>
                                     <FuelMonitorProvider>
-                                      <ErrorBoundary safeRoute="/(auth)/sign-in">
+                                      <ErrorBoundary safeRoute="/(auth)/login">
                                         <RootLayoutNav />
                                       </ErrorBoundary>
                                       <AutoArriveSheet />
