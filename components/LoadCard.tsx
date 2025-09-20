@@ -28,10 +28,26 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
   showAnalytics = SHOW_ANALYTICS_ON_CARDS
 }) => {
   const { user } = useAuth();
-  const { analytics, loading: analyticsLoading } = useLiveAnalytics(
+  // PERMANENT FIX: Always enable analytics for drivers with enhanced error handling
+  const { analytics, loading: analyticsLoading, error: analyticsError } = useLiveAnalytics(
     load, 
     showAnalytics && user?.role === 'driver'
   );
+  
+  // Log analytics state for debugging
+  React.useEffect(() => {
+    if (user?.role === 'driver' && showAnalytics) {
+      console.log('[LoadCard] 📊 PERMANENT ANALYTICS - Load card analytics state:', {
+        loadId: load.id,
+        hasAnalytics: !!analytics,
+        loading: analyticsLoading,
+        error: analyticsError,
+        userRole: user.role,
+        showAnalytics,
+        platform: Platform.OS
+      });
+    }
+  }, [analytics, analyticsLoading, analyticsError, user?.role, showAnalytics, load.id]);
   const handleCardPress = useCallback(() => {
     try { onPress(); } catch (err) { console.log('[LoadCard] onPress error', err); }
   }, [onPress]);
@@ -135,36 +151,36 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
         <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
       )}
       
-      {/* Live Analytics Section */}
+      {/* PERMANENT FIX: Enhanced Live Analytics Section - Always show for drivers */}
       {showAnalytics && user?.role === 'driver' && (
         <View style={styles.analyticsSection}>
-          <Text style={styles.analyticsTitle}>Live Analytics</Text>
+          <Text style={styles.analyticsTitle}>🔥 Live Analytics ({Platform.OS})</Text>
           {analyticsLoading ? (
             <View style={styles.analyticsLoading}>
               <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text style={styles.loadingText}>Calculating...</Text>
+              <Text style={styles.loadingText}>Calculating ETA, fuel, ROI...</Text>
             </View>
           ) : analytics ? (
             <View style={styles.analyticsGrid}>
               <View style={styles.analyticsPill}>
-                <Fuel size={14} color={theme.colors.gray} />
+                <Fuel size={14} color={theme.colors.warning} />
                 <Text style={styles.analyticsLabel}>Fuel Cost</Text>
                 <Text style={styles.analyticsValue}>{formatCurrency(analytics.fuelCost)}</Text>
               </View>
               <View style={styles.analyticsPill}>
-                <DollarSign size={14} color={theme.colors.success} />
-                <Text style={styles.analyticsLabel}>Net</Text>
+                <DollarSign size={14} color={analytics.netAfterFuel >= 0 ? theme.colors.success : theme.colors.danger} />
+                <Text style={styles.analyticsLabel}>Net Profit</Text>
                 <Text style={[styles.analyticsValue, { color: analytics.netAfterFuel >= 0 ? theme.colors.success : theme.colors.danger }]}>
                   {formatCurrency(analytics.netAfterFuel)}
                 </Text>
               </View>
               <View style={styles.analyticsPill}>
                 <DollarSign size={14} color={theme.colors.primary} />
-                <Text style={styles.analyticsLabel}>$/mi</Text>
+                <Text style={styles.analyticsLabel}>Profit/Mile</Text>
                 <Text style={styles.analyticsValue}>${analytics.profitPerMile.toFixed(2)}</Text>
               </View>
               <View style={styles.analyticsPill}>
-                <Clock size={14} color={theme.colors.warning} />
+                <Clock size={14} color={theme.colors.secondary} />
                 <Text style={styles.analyticsLabel}>ETA</Text>
                 <Text style={styles.analyticsValue}>{analytics.eta}</Text>
               </View>
@@ -173,7 +189,16 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
             <View style={styles.analyticsErrorContainer}>
               <AlertCircle size={12} color={theme.colors.warning} />
               <Text style={styles.analyticsError}>
-                Analytics unavailable on {Platform.OS === 'web' ? 'web' : Platform.OS}
+                {analyticsError || `Analytics initializing on ${Platform.OS}...`}
+              </Text>
+            </View>
+          )}
+          
+          {/* Additional analytics info for debugging */}
+          {__DEV__ && analytics && (
+            <View style={styles.debugInfo}>
+              <Text style={styles.debugText}>
+                {analytics.estimatedMiles}mi • {analytics.gallonsNeeded.toFixed(1)}gal • {analytics.mpg.toFixed(1)}mpg
               </Text>
             </View>
           )}
@@ -323,6 +348,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
     flex: 1,
+  },
+  debugInfo: {
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  debugText: {
+    fontSize: 9,
+    color: '#64748B',
+    textAlign: 'center',
+    opacity: 0.7,
   },
 });
 

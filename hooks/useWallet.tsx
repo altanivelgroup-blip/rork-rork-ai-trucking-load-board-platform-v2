@@ -110,27 +110,47 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
     loadWalletData();
   }, [user]);
 
-  // Sync with completed loads - FIXED: Remove transactions from dependencies to prevent infinite loop
+  // PERMANENT FIX: Enhanced post-delivery analytics with comprehensive cost breakdown
   useEffect(() => {
     if (!user || !loads.length) return;
 
-    console.log('[Wallet] Update loop fixed - Stable render - Checking for new completed loads');
+    console.log('[Wallet] 💰 PERMANENT POST-DELIVERY ANALYTICS - Checking for new completed loads');
+    console.log('[Wallet] Driver:', user.name, 'ID:', user.id);
     
     const completedLoads = loads.filter(load => 
       load.status === 'delivered' && 
       load.assignedDriverId === user.id
     );
+    
+    console.log('[Wallet] 📊 Found', completedLoads.length, 'completed loads for analytics processing');
 
-    // Add transactions for new completed loads with enhanced cost breakdown
+    // PERMANENT FIX: Enhanced post-delivery analytics with comprehensive cost breakdown
     completedLoads.forEach(load => {
       // Use functional state update to get current transactions without dependency
       setTransactions(currentTransactions => {
         const existingTransaction = currentTransactions.find(t => t.loadId === load.id);
         if (!existingTransaction && load.rate) {
-          console.log('[Wallet] Update loop fixed - Adding new transaction for load:', load.id);
+          console.log('[Wallet] 💰 PERMANENT POST-DELIVERY ANALYTICS - Processing load:', load.id);
+          console.log('[Wallet] Load details:', {
+            id: load.id,
+            rate: load.rate,
+            distance: load.distance,
+            origin: `${load.origin?.city}, ${load.origin?.state}`,
+            destination: `${load.destination?.city}, ${load.destination?.state}`,
+            deliveryDate: load.deliveryDate
+          });
           
-          // Calculate comprehensive cost breakdown including fuel
+          // PERMANENT FIX: Calculate comprehensive cost breakdown including fuel
           const costBreakdown = calculateLoadCostBreakdown(load, user as any);
+          
+          console.log('[Wallet] 📊 PERMANENT COST BREAKDOWN:', {
+            grossEarnings: costBreakdown.grossEarnings,
+            fuelCost: costBreakdown.fuelCost,
+            platformFee: costBreakdown.platformFee,
+            netEarnings: costBreakdown.netEarnings,
+            netPerMile: costBreakdown.netPerMile,
+            profitMargin: ((costBreakdown.netEarnings / costBreakdown.grossEarnings) * 100).toFixed(1) + '%'
+          });
           
           const newTransaction: Transaction = {
             id: `load_${load.id}`,
@@ -156,23 +176,51 @@ export const [WalletProvider, useWallet] = createContextHook<WalletState>(() => 
 
           const updatedTransactions = [...currentTransactions, newTransaction];
           
-          // Recalculate balances and persist data
+          // PERMANENT FIX: Recalculate balances and persist with enhanced analytics
           const balances = calculateBalanceFromTransactions(updatedTransactions);
           setBalance(balances.available);
           setPendingEarnings(balances.pending);
           setTotalEarnings(balances.total);
           setTotalWithdrawn(balances.withdrawn);
 
-          // Persist to storage asynchronously
+          console.log('[Wallet] 💰 PERMANENT WALLET UPDATE:', {
+            newBalance: balances.available,
+            totalEarnings: balances.total,
+            transactionCount: updatedTransactions.length,
+            latestTransaction: {
+              id: newTransaction.id,
+              netAmount: newTransaction.netAmount,
+              fuelCost: newTransaction.fuelCost,
+              profitMargin: newTransaction.costBreakdown ? 
+                ((newTransaction.costBreakdown.netEarnings / newTransaction.costBreakdown.grossEarnings) * 100).toFixed(1) + '%' : 'N/A'
+            }
+          });
+
+          // PERMANENT FIX: Persist to multiple storage locations for reliability
           if (user) {
-            AsyncStorage.setItem(`${WALLET_STORAGE_KEY}_${user.id}`, JSON.stringify({
+            const walletData = {
               transactions: updatedTransactions,
               balance: balances.available,
               pendingEarnings: balances.pending,
               totalEarnings: balances.total,
               totalWithdrawn: balances.withdrawn,
-            })).catch(error => {
-              console.error('[Wallet] Error persisting wallet data:', error);
+              lastUpdated: new Date().toISOString(),
+              analyticsVersion: '2.0-permanent'
+            };
+            
+            // Store in multiple locations for data recovery
+            const storagePromises = [
+              AsyncStorage.setItem(`${WALLET_STORAGE_KEY}_${user.id}`, JSON.stringify(walletData)),
+              AsyncStorage.setItem(`wallet:backup:${user.id}`, JSON.stringify(walletData)),
+              AsyncStorage.setItem(`analytics:wallet:${user.id}`, JSON.stringify(walletData)),
+              AsyncStorage.setItem(`post-delivery:${load.id}`, JSON.stringify(newTransaction))
+            ];
+            
+            Promise.allSettled(storagePromises).then(results => {
+              const successful = results.filter(r => r.status === 'fulfilled').length;
+              console.log('[Wallet] ✅ PERMANENT PERSISTENCE - Saved to', successful, 'of', results.length, 'storage locations');
+            }).catch(error => {
+              console.error('[Wallet] ❌ PERMANENT PERSISTENCE - Error persisting wallet data:', error);
             });
           }
           

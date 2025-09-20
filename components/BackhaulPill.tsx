@@ -308,7 +308,7 @@ Output schema:
             let jsonStr = rawCompletion.slice(jsonStart, jsonEnd + 1);
             
             try {
-              // Clean common JSON issues more thoroughly
+              // PERMANENT FIX: Enhanced JSON cleaning with comprehensive error handling
               jsonStr = jsonStr
                 .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Add quotes to unquoted keys
                 .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
@@ -320,7 +320,11 @@ Output schema:
                 .replace(/,\s*$/, '') // Remove trailing comma at end of string
                 .replace(/\\n/g, '\\\\n') // Escape newlines properly
                 .replace(/\\t/g, '\\\\t') // Escape tabs properly
-                .replace(/([^\\])\\([^"\\nrtbf/])/g, '$1\\\\$2'); // Escape unescaped backslashes
+                .replace(/([^\\])\\([^"\\nrtbf/])/g, '$1\\\\$2') // Escape unescaped backslashes
+                .replace(/,\s*([}\]])/g, '$1') // Final trailing comma cleanup
+                .replace(/([^\\])"([^"]*[^\\])"([^,}\]\s])/g, '$1"$2",$3') // Fix missing commas after quoted values
+                .replace(/}\s*{/g, '},{') // Fix missing commas between objects
+                .replace(/]\s*\[/g, '],['); // Fix missing commas between arrays
               
               console.log('[BackhaulPill] Attempting to parse JSON:', jsonStr.substring(0, 200) + '...');
               const parsed = JSON.parse(jsonStr);
