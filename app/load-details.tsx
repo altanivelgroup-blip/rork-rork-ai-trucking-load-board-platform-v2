@@ -21,7 +21,7 @@ import { DriverNavigation } from '@/components/DriverNavigation';
 import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
-import { computeDistanceMilesFromZips, extractZips } from '@/src/services/distance';
+import { computeDistanceMiles, extractEndpoints } from '@/src/services/distance';
 import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -390,26 +390,26 @@ export default function LoadDetailsScreen() {
     };
   }, [etaQuery.data?.distanceMeters, eiaQuery.data?.price, eiaQuery.data?.source, load?.id, load?.distance, load?.vehicleType, load?.weight, load?.origin?.state, load?.destination?.state, user?.id, (user as Driver)?.fuelProfile?.averageMpg, (user as Driver)?.fuelProfile?.fuelPricePerGallon, (user as Driver)?.fuelProfile?.vehicleType]);
 
-  // Auto-derive distance from ZIP codes using new service
+  // Auto-derive distance using robust endpoint extraction
   useEffect(() => {
-    if (!adaptedLoad.distanceMiles && load) {
-      try {
-        const { origZip, destZip } = extractZips(load);
-        if (origZip && destZip) {
-          setDistLoading(true);
-          computeDistanceMilesFromZips(String(origZip), String(destZip))
-            .then(m => setDerivedMiles(m ? Number(m.toFixed(1)) : null))
-            .catch(error => {
-              console.warn('[LoadDetails] Distance calculation failed:', error);
-              setDerivedMiles(null);
-            })
-            .finally(() => setDistLoading(false));
-        }
-      } catch (error) {
-        console.warn('[LoadDetails] extractZips failed:', error);
-      }
+    if (!L?.distanceMiles) {
+      setDistLoading(true);
+      computeDistanceMiles(L)
+        .then(m => setDerivedMiles(m ?? null))
+        .catch(error => {
+          console.warn('[LoadDetails] Distance calculation failed:', error);
+          setDerivedMiles(null);
+        })
+        .finally(() => setDistLoading(false));
     }
-  }, [load, adaptedLoad.distanceMiles]);
+  }, [L?.id]);
+
+  // Optional: Log endpoints for debugging
+  useEffect(() => {
+    if (L) {
+      console.log('[LoadDetails] endpoints', extractEndpoints(L));
+    }
+  }, [L?.id]);
 
   useEffect(() => {
     let active = true;
