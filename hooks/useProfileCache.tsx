@@ -22,7 +22,8 @@ const LAST_SYNC_KEY = 'profile:last_sync';
 
 export const [ProfileCacheProvider, useProfileCache] = createContextHook<ProfileCacheState>(() => {
   const { user, updateProfile } = useAuth();
-  const { online: isOnline } = useOnlineStatus();
+  const { online } = useOnlineStatus();
+  const isOnline = online;
   const [cachedProfile, setCachedProfile] = useState<Driver | Shipper | Admin | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -103,7 +104,7 @@ export const [ProfileCacheProvider, useProfileCache] = createContextHook<Profile
     const updatedProfile = { ...cachedProfile, ...updates };
     console.log('[ProfileCache] Updated profile prepared:', JSON.stringify(updatedProfile, null, 2));
     
-    setCachedProfile(updatedProfile as Driver | Shipper | Admin);
+    setCachedProfile(updatedProfile);
     console.log('[ProfileCache] ✅ Local state updated');
     
     try {

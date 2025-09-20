@@ -177,6 +177,7 @@ export default function LoadsScreen() {
               style={styles.headerButton}
               onPress={handleRefresh}
               disabled={refreshing}
+              testID="refresh-loads-btn"
             >
               <RefreshCw 
                 size={20} 
