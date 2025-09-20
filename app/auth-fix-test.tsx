@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,30 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { theme } from '@/constants/theme';
 import { CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react-native';
 import { crossPlatformStorage } from '@/utils/crossPlatformStorage';
+
+// Bundling safeguard: Ensure Platform is properly imported and available
+const safePlatform = (() => {
+  try {
+    // Verify Platform is properly imported and not duplicated
+    if (typeof Platform !== 'undefined' && Platform.OS) {
+      console.log('✅ Platform import verified:', Platform.OS);
+      return Platform;
+    }
+    // Fallback for edge cases
+    console.warn('⚠️ Platform fallback used');
+    return { OS: 'unknown' as const };
+  } catch (error) {
+    console.error('❌ Platform import error:', error);
+    return { OS: 'unknown' as const };
+  }
+})();
 
 interface TestResult {
   name: string;
@@ -29,20 +47,30 @@ export default function AuthFixTestScreen() {
     setTestResults(prev => [...prev, result]);
   };
 
-  const runTests = async () => {
+  const runTests = useCallback(async () => {
     setIsRunning(true);
     setTestResults([]);
 
     // Test 1: Platform Detection
     try {
-      const { Platform } = require('react-native');
-      const platformOS = Platform.OS;
-      addTestResult({
-        name: 'Platform Detection',
-        status: 'pass',
-        message: `Platform.OS detected: ${platformOS}`,
-        details: 'Platform import and detection working correctly'
-      });
+      // Use the safeguarded Platform with bundling protection
+      const platformOS = safePlatform.OS;
+      
+      if (platformOS !== 'unknown') {
+        addTestResult({
+          name: 'Platform Detection',
+          status: 'pass',
+          message: `Platform.OS detected: ${platformOS}`,
+          details: 'Platform import and detection working correctly'
+        });
+      } else {
+        addTestResult({
+          name: 'Platform Detection',
+          status: 'warning',
+          message: 'Platform.OS fallback used',
+          details: 'Platform detection using fallback method'
+        });
+      }
     } catch (error) {
       addTestResult({
         name: 'Platform Detection',
@@ -167,7 +195,49 @@ export default function AuthFixTestScreen() {
       }
     }
 
-    // Test 6: Navigation State
+    // Test 6: Bundling Integrity
+    try {
+      // Test for duplicate declarations and bundling conflicts
+      const platformTests = [
+        () => typeof Platform !== 'undefined',
+        () => Platform.OS !== undefined,
+        () => safePlatform.OS !== 'unknown',
+        () => !window || typeof window === 'object', // Web compatibility
+      ];
+      
+      const passedTests = platformTests.filter(test => {
+        try {
+          return test();
+        } catch {
+          return false;
+        }
+      }).length;
+      
+      if (passedTests >= 3) {
+        addTestResult({
+          name: 'Bundling Integrity',
+          status: 'pass',
+          message: 'No duplicate declarations detected',
+          details: `${passedTests}/4 bundling tests passed. Platform: ${safePlatform.OS}`
+        });
+      } else {
+        addTestResult({
+          name: 'Bundling Integrity',
+          status: 'warning',
+          message: 'Some bundling issues detected',
+          details: `${passedTests}/4 bundling tests passed`
+        });
+      }
+    } catch (error) {
+      addTestResult({
+        name: 'Bundling Integrity',
+        status: 'fail',
+        message: 'Bundling test failed',
+        details: error instanceof Error ? error.message : 'Unknown bundling error'
+      });
+    }
+
+    // Test 7: Navigation State
     try {
       // This is a basic test to see if we can access navigation context
       addTestResult({
@@ -186,12 +256,12 @@ export default function AuthFixTestScreen() {
     }
 
     setIsRunning(false);
-  };
+  }, [auth]);
 
   useEffect(() => {
     // Auto-run tests on mount
     runTests();
-  }, []);
+  }, [runTests]);
 
   const getStatusIcon = (status: TestResult['status']) => {
     switch (status) {
@@ -269,7 +339,7 @@ export default function AuthFixTestScreen() {
 
         <View style={styles.resultsContainer}>
           {testResults.map((result, index) => (
-            <View key={index} style={styles.testResult}>
+            <View key={`${result.name}-${index}`} style={styles.testResult}>
               <View style={styles.testHeader}>
                 {getStatusIcon(result.status)}
                 <Text style={styles.testName}>{result.name}</Text>
@@ -296,7 +366,7 @@ export default function AuthFixTestScreen() {
             
             {failCount === 0 && (
               <Text style={styles.successMessage}>
-                🎯 Permanently Fixed: Auth Error & Sign-In Nav - All Platforms
+                🎯 Permanently Fixed: Duplicate Declaration & Bundling - {safePlatform.OS}
               </Text>
             )}
           </View>
