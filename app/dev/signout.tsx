@@ -15,7 +15,7 @@ export default function DevSignOut() {
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
       <ActivityIndicator />
-      <Redirect href="/(auth)/login" />
+      <Redirect href="/(auth)/sign-in" />
     </View>
   );
 }

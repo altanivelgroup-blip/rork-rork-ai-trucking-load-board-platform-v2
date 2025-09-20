@@ -1,87 +1,45 @@
-import { View, Text, TextInput, Button, Alert, StyleSheet } from "react-native";
+import { View, Text, TextInput, Button, Alert } from "react-native";
 import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
 import { Stack } from "expo-router";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function SignIn() {
-  const { login } = useAuth();
+  const { login } = useAuth?.() ?? {};
   const [email, setEmail] = useState("test@loadrush.app");
   const [password, setPassword] = useState("password");
-
-  const handleEmailSignIn = async () => {
-    try {
-      if (login) {
-        await login(email, password);
-      } else {
-        Alert.alert("Auth", "Hook missing login function");
-      }
-    } catch (e: any) {
-      Alert.alert("Auth error", e.message);
-    }
-  };
-
-  const handleGuestSignIn = async () => {
-    try {
-      if (login) {
-        await login("guest@example.com", "guest");
-      } else {
-        Alert.alert("Auth", "Hook missing login function");
-      }
-    } catch (e: any) {
-      Alert.alert("Auth error", e.message);
-    }
-  };
-
+  
   return (
-    <View style={styles.container}>
+    <View style={{ flex:1, justifyContent:"center", padding:16, gap:12 }}>
       <Stack.Screen options={{ title: "Sign In" }} />
-      <Text style={styles.title}>Welcome</Text>
-      
-      <TextInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        style={styles.input}
-        keyboardType="email-address"
-        autoCapitalize="none"
+      <Text style={{ fontSize:18, fontWeight:"700" }}>Welcome</Text>
+      <TextInput 
+        placeholder="Email" 
+        value={email} 
+        onChangeText={setEmail} 
+        style={{ borderWidth:1, padding:10, borderRadius:8 }} 
+        autoCapitalize="none" 
       />
-      
-      <TextInput
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        style={styles.input}
+      <TextInput 
+        placeholder="Password" 
+        value={password} 
+        onChangeText={setPassword} 
+        secureTextEntry 
+        style={{ borderWidth:1, padding:10, borderRadius:8 }} 
       />
-      
-      <Button title="Sign in with Email" onPress={handleEmailSignIn} />
-      
-      <View style={styles.spacer} />
-      
-      <Button title="Continue as Guest" onPress={handleGuestSignIn} />
+      <Button title="Sign in with Email" onPress={async () => {
+        try { 
+          if (login) await login(email, password); 
+          else Alert.alert("Auth", "Missing email sign-in"); 
+        }
+        catch (e:any) { Alert.alert("Auth error", e.message); }
+      }} />
+      <Button title="Continue as Guest" onPress={async () => {
+        try { 
+          if (login) await login("guest@example.com", "password"); 
+          else Alert.alert("Auth", "Missing guest sign-in"); 
+        }
+        catch (e:any) { Alert.alert("Auth error", e.message); }
+      }} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    gap: 12,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 20,
-  },
-  input: {
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
-    borderColor: "#ccc",
-  },
-  spacer: {
-    height: 20,
-  },
-});
