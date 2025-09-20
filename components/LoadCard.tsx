@@ -1,6 +1,12 @@
 import React, { memo, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Load } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import { useLiveAnalytics } from '@/hooks/useLiveAnalytics';
+import { SHOW_ANALYTICS_ON_CARDS } from '@/src/config/runtime';
+import { formatCurrency } from '@/utils/fuel';
+import { theme } from '@/constants/theme';
+import { Fuel, DollarSign, Clock } from 'lucide-react-native';
 
 interface LoadCardProps {
   load: Load;
@@ -8,15 +14,24 @@ interface LoadCardProps {
   showBids?: boolean;
   showStatus?: boolean;
   showActions?: boolean;
+  showAnalytics?: boolean;
 }
+
+
 
 const LoadCardComponent: React.FC<LoadCardProps> = ({ 
   load, 
   onPress, 
   showBids = true, 
   showStatus = true, 
-  showActions = false 
+  showActions = false,
+  showAnalytics = SHOW_ANALYTICS_ON_CARDS
 }) => {
+  const { user } = useAuth();
+  const { analytics, loading: analyticsLoading } = useLiveAnalytics(
+    load, 
+    showAnalytics && user?.role === 'driver'
+  );
   const handleCardPress = useCallback(() => {
     try { onPress(); } catch (err) { console.log('[LoadCard] onPress error', err); }
   }, [onPress]);
@@ -95,6 +110,8 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
            load.status === 'in-transit' ? 'Booked' : 'Pending';
   }, [load.status]);
 
+
+
   return (
     <Pressable
       style={styles.container}
@@ -116,6 +133,46 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
       
       {showBids && (
         <Text style={styles.bidsText}>Bids: {bidsCount}</Text>
+      )}
+      
+      {/* Live Analytics Section */}
+      {showAnalytics && user?.role === 'driver' && (
+        <View style={styles.analyticsSection}>
+          <Text style={styles.analyticsTitle}>Live Analytics</Text>
+          {analyticsLoading ? (
+            <View style={styles.analyticsLoading}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Calculating...</Text>
+            </View>
+          ) : analytics ? (
+            <View style={styles.analyticsGrid}>
+              <View style={styles.analyticsPill}>
+                <Fuel size={14} color={theme.colors.gray} />
+                <Text style={styles.analyticsLabel}>Fuel Cost</Text>
+                <Text style={styles.analyticsValue}>{formatCurrency(analytics.fuelCost)}</Text>
+              </View>
+              <View style={styles.analyticsPill}>
+                <DollarSign size={14} color={theme.colors.success} />
+                <Text style={styles.analyticsLabel}>Net</Text>
+                <Text style={[styles.analyticsValue, { color: analytics.netAfterFuel >= 0 ? theme.colors.success : theme.colors.danger }]}>
+                  {formatCurrency(analytics.netAfterFuel)}
+                </Text>
+              </View>
+              <View style={styles.analyticsPill}>
+                <DollarSign size={14} color={theme.colors.primary} />
+                <Text style={styles.analyticsLabel}>$/mi</Text>
+                <Text style={styles.analyticsValue}>${analytics.profitPerMile.toFixed(2)}</Text>
+              </View>
+              <View style={styles.analyticsPill}>
+                <Clock size={14} color={theme.colors.warning} />
+                <Text style={styles.analyticsLabel}>ETA</Text>
+                <Text style={styles.analyticsValue}>{analytics.eta}</Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.analyticsError}>Analytics unavailable</Text>
+          )}
+        </View>
       )}
       
       {/* Tap for Details */}
@@ -195,6 +252,65 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     fontWeight: '600',
     textAlign: 'center',
+  },
+  analyticsSection: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  analyticsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  analyticsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    justifyContent: 'space-between',
+  },
+  analyticsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    minWidth: '48%',
+  },
+  analyticsLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    flex: 1,
+  },
+  analyticsValue: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  analyticsError: {
+    fontSize: 11,
+    color: '#64748B',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
 

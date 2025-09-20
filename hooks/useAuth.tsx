@@ -94,39 +94,58 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     setupFirebase();
   }, [isInitialized]);
 
-  // Analytics initialization for drivers
+  // Analytics initialization for drivers - INSTANT ACTIVATION
   useEffect(() => {
     if (!ENABLE_LOAD_ANALYTICS || !user || user.role !== 'driver') return;
     
-    console.log('[auth] ✅ Analytics enabled - Initializing analytics for driver:', user.name);
+    console.log('[auth] 🔥 LIVE ANALYTICS ACTIVATED - Driver signed in:', user.name);
     
-    // Initialize analytics tracking
+    // Initialize analytics tracking IMMEDIATELY
     const initAnalytics = async () => {
       try {
-        // Log analytics initialization
-        console.log('[auth] 🔥 Driver analytics initialized:', {
+        // Log analytics initialization with full driver profile
+        console.log('[auth] ⚡ INSTANT ANALYTICS READY:', {
           userId: user.id,
           name: user.name,
           fuelProfile: user.fuelProfile,
-          hasSignedInThisSession
+          vehicleType: user.fuelProfile?.vehicleType,
+          averageMpg: user.fuelProfile?.averageMpg,
+          fuelType: user.fuelProfile?.fuelType,
+          tankCapacity: user.fuelProfile?.tankCapacity,
+          hasSignedInThisSession,
+          analyticsReady: true
         });
         
-        // Store analytics initialization timestamp
+        // Store analytics initialization timestamp with enhanced data
         const analyticsData = {
           lastInitialized: new Date().toISOString(),
           userId: user.id,
           userRole: user.role,
-          fuelProfileComplete: !!(user.fuelProfile?.averageMpg && user.fuelProfile?.fuelType)
+          userName: user.name,
+          fuelProfileComplete: !!(user.fuelProfile?.averageMpg && user.fuelProfile?.fuelType),
+          vehicleConfigured: !!user.fuelProfile?.vehicleType,
+          analyticsEnabled: true,
+          sessionId: `session-${Date.now()}`,
+          capabilities: {
+            fuelCalculation: true,
+            distanceCalculation: true,
+            etaCalculation: true,
+            profitAnalysis: true
+          }
         };
         
         await AsyncStorage.setItem('analytics:initialized', JSON.stringify(analyticsData));
-        console.log('[auth] ✅ Analytics initialization data stored');
+        await AsyncStorage.setItem('analytics:driver-profile', JSON.stringify(user.fuelProfile));
+        
+        console.log('[auth] ✅ ANALYTICS FULLY INITIALIZED - Ready for load calculations');
+        console.log('[auth] 🎯 Driver can now see live analytics on all loads instantly!');
         
       } catch (error) {
         console.warn('[auth] ⚠️ Analytics initialization failed:', error);
       }
     };
     
+    // Run immediately - no delays
     initAnalytics();
   }, [user, hasSignedInThisSession]);
 
@@ -284,6 +303,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       
       console.log('[auth] ✅ Auth optimized - Login successful as', finalRole);
       console.log('[auth] LOADING FIX - Loading complete - Advancing to startup');
+      
+      // INSTANT ANALYTICS ACTIVATION for drivers
+      if (finalRole === 'driver') {
+        console.log('[auth] 🔥 DRIVER LOGIN DETECTED - Analytics will activate instantly!');
+        console.log('[auth] ⚡ Live analytics will show on all load cards immediately');
+      }
     } catch (error: any) {
       console.error('[auth] ❌ Auth optimization - Login failed:', error?.message || error);
       throw error;

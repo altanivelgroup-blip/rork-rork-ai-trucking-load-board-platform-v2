@@ -430,7 +430,11 @@ export default function LoadDetailsScreen() {
   // Optional: Log endpoints for debugging
   useEffect(() => {
     if (loadNorm) {
-      console.log('[LoadDetails] endpoints', extractEndpoints(loadNorm));
+      try {
+        console.log('[LoadDetails] endpoints', extractEndpoints(loadNorm));
+      } catch (error) {
+        console.warn('[LoadDetails] Failed to extract endpoints:', error);
+      }
     }
   }, [loadNorm?.id]);
 
