@@ -1,12 +1,31 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import { Driver, Shipper, Admin, UserRole } from '@/types';
 import { auth, ensureFirebaseAuth, db } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { crossPlatformStorage, permanentSave, permanentLoad, getPlatformOptimizedKeys } from '@/utils/crossPlatformStorage';
 
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
+
+// PERMANENT FIX: Platform detection with fallbacks
+const getPlatformSafely = (): string => {
+  try {
+    return Platform.OS || 'unknown';
+  } catch (error) {
+    console.warn('[auth] Platform.OS not available, using fallback detection');
+    if (typeof window !== 'undefined') {
+      return 'web';
+    }
+    return 'unknown';
+  }
+};
+
+// PERMANENT FIX: Safe platform detection for cross-platform compatibility
+const CURRENT_PLATFORM = getPlatformSafely();
+console.log('[auth] 🎯 PERMANENT PLATFORM FIX - Detected platform:', CURRENT_PLATFORM);
 
 interface AuthState {
   user: Driver | Shipper | Admin | null;
@@ -304,7 +323,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             role: cachedUser.role,
             email: cachedUser.email,
             name: cachedUser.name,
-            platform: Platform.OS,
+            platform: CURRENT_PLATFORM,
             isAnonymous: cachedUser.email === 'guest@example.com',
             hasWallet: !!(cachedUser as any).wallet,
             hasFuelProfile: !!(cachedUser as any).fuelProfile,
@@ -314,7 +333,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             crossPlatformEnabled: true
           });
           
-          console.log('[auth] 🎯 Permanently Fixed: Driver Data Saving - ' + Platform.OS);
+          console.log('[auth] 🎯 Permanently Fixed: Driver Data Saving - ' + CURRENT_PLATFORM);
         } else {
           console.log('[auth] ⚠️ PERMANENT CROSS-PLATFORM PERSISTENCE - No cached user found');
           console.log('[auth] This is expected for first-time users');
