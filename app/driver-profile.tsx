@@ -1026,7 +1026,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segmentButtonActive: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.primary,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -1039,7 +1039,7 @@ const styles = StyleSheet.create({
     color: theme.colors.gray,
   },
   segmentButtonTextActive: {
-    color: theme.colors.dark,
+    color: theme.colors.white,
     fontWeight: '600',
   },
   subtypeScroll: { maxHeight: 40 },
