@@ -8,16 +8,26 @@ interface LoadAnalyticsCardProps {
   driver: any;
   dieselPrice?: number;
   gasPrice?: number;
+  loading?: boolean;
 }
 
-export default function LoadAnalyticsCard({ load, driver, dieselPrice, gasPrice }: LoadAnalyticsCardProps) {
+export default function LoadAnalyticsCard({ load, driver, dieselPrice, gasPrice, loading }: LoadAnalyticsCardProps) {
   const analytics = calculateLoadAnalytics(load, driver, { dieselPrice, gasPrice });
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Fuel Analytics</Text>
+        <Text style={styles.note}>Calculating distance…</Text>
+      </View>
+    );
+  }
 
   if (!analytics) {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Fuel Analytics</Text>
-        <Text style={styles.note}>Add MPG and distance to see estimates.</Text>
+        <Text style={styles.note}>Add MPG in your profile and ensure distance is available.</Text>
       </View>
     );
   }
