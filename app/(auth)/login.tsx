@@ -133,17 +133,18 @@ export default function LoginScreen() {
         // Update local auth state with correct role
         await login(email.trim(), password.trim(), finalRole);
         
-        console.log('[login] success, navigating based on role:', finalRole);
-        try {
-          if (finalRole === 'admin') {
-            router.replace('/(tabs)/admin' as any);
-          } else if (finalRole === 'shipper') {
-            router.replace('/(tabs)/shipper' as any);
-          } else {
-            router.replace('/(tabs)/dashboard' as any);
-          }
-        } catch (navError) {
-          console.error('[login] Navigation error after login:', navError);
+        console.log('[login] ✅ SIGN IN NAV FIX: Login success, navigating based on role:', finalRole);
+        
+        // Navigate immediately after successful login
+        if (finalRole === 'admin') {
+          console.log('[login] 🔄 Redirecting to admin dashboard');
+          router.replace('/(tabs)/admin');
+        } else if (finalRole === 'shipper') {
+          console.log('[login] 🔄 Redirecting to shipper dashboard');
+          router.replace('/(tabs)/shipper');
+        } else {
+          console.log('[login] 🔄 Redirecting to driver dashboard');
+          router.replace('/(tabs)/dashboard');
         }
         return;
       }
@@ -160,17 +161,18 @@ export default function LoginScreen() {
       // Update local auth state with anonymous user
       await login('guest@example.com', 'guest', selectedRole);
       
-      console.log('[login] anonymous success, navigating based on role:', selectedRole);
-      try {
-        if (selectedRole === 'admin') {
-          router.replace('/(tabs)/admin' as any);
-        } else if (selectedRole === 'shipper') {
-          router.replace('/(tabs)/shipper' as any);
-        } else {
-          router.replace('/(tabs)/dashboard' as any);
-        }
-      } catch (navError) {
-        console.error('[login] Navigation error after anonymous login:', navError);
+      console.log('[login] ✅ SIGN IN NAV FIX: Anonymous login success, navigating based on role:', selectedRole);
+      
+      // Navigate immediately after successful anonymous login
+      if (selectedRole === 'admin') {
+        console.log('[login] 🔄 Redirecting to admin dashboard (anonymous)');
+        router.replace('/(tabs)/admin');
+      } else if (selectedRole === 'shipper') {
+        console.log('[login] 🔄 Redirecting to shipper dashboard (anonymous)');
+        router.replace('/(tabs)/shipper');
+      } else {
+        console.log('[login] 🔄 Redirecting to driver dashboard (anonymous)');
+        router.replace('/(tabs)/dashboard');
       }
     } catch (error: any) {
       console.error('[login] failed:', error?.code, error?.message);

@@ -18,32 +18,32 @@ export default function IndexScreen() {
     }
     
     if (isAuthenticated && user) {
-      console.log('[IndexScreen] ✅ PERMANENT FIX: Navigating authenticated user for role:', user.role);
+      console.log('[IndexScreen] ✅ SIGN IN NAV FIX: Navigating authenticated user for role:', user.role);
       
-      // Add small delay to ensure navigation state is ready
-      setTimeout(() => {
-        try {
-          if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
-            router.replace({ pathname: '/(tabs)/admin' });
-          } else if (user.role === 'shipper') {
-            router.replace({ pathname: '/(tabs)/shipper' });
-          } else {
-            router.replace({ pathname: '/(tabs)/dashboard' });
-          }
-        } catch (navError) {
-          console.error('[IndexScreen] Navigation error:', navError);
-          router.replace({ pathname: '/(auth)/login' });
+      // Immediate navigation without delay to fix sign-in flow
+      try {
+        if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
+          console.log('[IndexScreen] 🔄 Navigating to admin dashboard');
+          router.replace('/(tabs)/admin');
+        } else if (user.role === 'shipper') {
+          console.log('[IndexScreen] 🔄 Navigating to shipper dashboard');
+          router.replace('/(tabs)/shipper');
+        } else {
+          console.log('[IndexScreen] 🔄 Navigating to driver dashboard');
+          router.replace('/(tabs)/dashboard');
         }
-      }, 100);
+      } catch (navError) {
+        console.error('[IndexScreen] Navigation error:', navError);
+        // Fallback to login if navigation fails
+        router.replace('/(auth)/login');
+      }
     } else {
-      console.log('[IndexScreen] ✅ PERMANENT FIX: No authenticated user, navigating to login');
-      setTimeout(() => {
-        try {
-          router.replace({ pathname: '/(auth)/login' });
-        } catch (navError) {
-          console.error('[IndexScreen] Navigation to login failed:', navError);
-        }
-      }, 100);
+      console.log('[IndexScreen] ✅ SIGN IN NAV FIX: No authenticated user, navigating to login');
+      try {
+        router.replace('/(auth)/login');
+      } catch (navError) {
+        console.error('[IndexScreen] Navigation to login failed:', navError);
+      }
     }
   }, [isLoading, isAuthenticated, user, router]);
 
