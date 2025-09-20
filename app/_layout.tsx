@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React, { useMemo, useCallback } from "react";
 import { View, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -53,6 +53,7 @@ const styles = StyleSheet.create({
 });
 
 function RootLayoutNav() {
+  const router = useRouter();
   const headerLeft = useCallback(
     ({ tintColor }: { tintColor?: string }) => (
       <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} />
@@ -60,12 +61,18 @@ function RootLayoutNav() {
     []
   );
 
+  const headerRight = useCallback(() => {
+    const HeaderAuthAction = require('@/components/HeaderAuthAction').default;
+    return <HeaderAuthAction />;
+  }, []);
+
   const rootScreenOptions = useMemo(
     () => ({
       headerTitleAlign: "center" as const,
       headerLeft,
+      headerRight,
     }),
-    [headerLeft]
+    [headerLeft, headerRight]
   );
 
   return (
@@ -205,6 +212,8 @@ function RootLayoutNav() {
       <Stack.Screen name="permanent-fixes-test" options={{ title: "Profile Persistence Test" }} />
       <Stack.Screen name="cross-platform-persistence-test" options={{ title: "Cross-Platform Persistence Test" }} />
       <Stack.Screen name="auth-fix-test" options={{ title: "Auth Fix Test" }} />
+      <Stack.Screen name="account" options={{ title: "Account" }} />
+      <Stack.Screen name="signin" options={{ title: "Sign In" }} />
     </Stack>
   );
 }

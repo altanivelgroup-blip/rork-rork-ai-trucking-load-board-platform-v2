@@ -710,78 +710,127 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const register = useCallback(async (email: string, password: string, role: UserRole, profile?: Partial<Driver | Shipper | Admin>) => {
     console.log('[auth] register attempt for', email, 'as', role);
-    await ensureFirebaseAuth();
-    const uid = auth?.currentUser?.uid ?? `local-${Date.now()}`;
-    
-    let mockUser: Driver | Shipper | Admin;
-    
-    if (role === 'shipper') {
-      mockUser = {
-        id: uid,
-        role: 'shipper',
-        email,
-        name: profile?.name ?? 'New Shipper',
-        phone: profile?.phone ?? '',
-        membershipTier: 'basic',
-        createdAt: new Date(),
-        companyName: (profile as Partial<Shipper>)?.companyName ?? 'New Company',
-        verificationStatus: 'unverified',
-        totalLoadsPosted: 0,
-        activeLoads: 0,
-        completedLoads: 0,
-        totalRevenue: 0,
-        avgRating: 0,
-      } as Shipper;
-    } else {
-      mockUser = {
-        id: uid,
-        role: 'driver',
-        email,
-        name: profile?.name ?? 'New Driver',
-        phone: profile?.phone ?? '',
-        membershipTier: 'basic',
-        createdAt: new Date(),
-        cdlNumber: '',
-        vehicleTypes: [],
-        rating: 0,
-        completedLoads: 0,
-        documents: [],
-        wallet: {
-          balance: 0,
-          pendingEarnings: 0,
-          totalEarnings: 0,
-          transactions: [],
-        },
-        fuelProfile: {
-          vehicleType: 'truck',
-          averageMpg: 8.5,
-          fuelPricePerGallon: 3.85,
-          fuelType: 'diesel',
-          tankCapacity: 150,
-        },
-        isAvailable: true,
-        verificationStatus: 'unverified',
-        company: profile?.company ?? '',
-      } as Driver;
-    }
+    try {
+      await ensureFirebaseAuth();
+      const { createUserWithEmailAndPassword, sendEmailVerification } = await import('firebase/auth');
+      const { doc: fsDoc, setDoc: fsSetDoc, serverTimestamp: fsServerTimestamp, getDoc: fsGetDoc } = await import('firebase/firestore');
 
-    setUser(mockUser);
-    setIsAnonymous(false);
-    setHasSignedInThisSession(true);
-    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
-    console.log('[auth] registration successful as', role);
+      let createdUid: string | null = null;
+      try {
+        if (auth) {
+          const cred = await createUserWithEmailAndPassword(auth as any, email.trim(), password.trim());
+          createdUid = cred.user.uid;
+          try { await sendEmailVerification(cred.user); } catch { /* optional */ }
+        }
+      } catch (firebaseErr: any) {
+        console.warn('[auth] Firebase createUser failed, falling back to local mock user:', firebaseErr?.code || firebaseErr);
+      }
+
+      const uid = createdUid ?? auth?.currentUser?.uid ?? `local-${Date.now()}`;
+
+      let newUser: Driver | Shipper | Admin;
+      if (role === 'shipper') {
+        newUser = {
+          id: uid,
+          role: 'shipper',
+          email,
+          name: profile?.name ?? 'New Shipper',
+          phone: profile?.phone ?? '',
+          membershipTier: 'basic',
+          createdAt: new Date(),
+          companyName: (profile as Partial<Shipper>)?.companyName ?? 'New Company',
+          verificationStatus: 'unverified',
+          totalLoadsPosted: 0,
+          activeLoads: 0,
+          completedLoads: 0,
+          totalRevenue: 0,
+          avgRating: 0,
+        } as Shipper;
+      } else if (role === 'admin') {
+        newUser = {
+          id: uid,
+          role: 'admin',
+          email,
+          name: profile?.name ?? 'New Admin',
+          phone: profile?.phone ?? '',
+          membershipTier: 'enterprise',
+          createdAt: new Date(),
+          permissions: ['analytics', 'user_management', 'load_management', 'system_admin'],
+          lastLoginAt: new Date(),
+        } as Admin;
+      } else {
+        newUser = {
+          id: uid,
+          role: 'driver',
+          email,
+          name: profile?.name ?? 'New Driver',
+          phone: profile?.phone ?? '',
+          membershipTier: 'basic',
+          createdAt: new Date(),
+          cdlNumber: '',
+          vehicleTypes: [],
+          rating: 0,
+          completedLoads: 0,
+          documents: [],
+          wallet: {
+            balance: 0,
+            pendingEarnings: 0,
+            totalEarnings: 0,
+            transactions: [],
+          },
+          fuelProfile: {
+            vehicleType: 'truck',
+            averageMpg: 8.5,
+            fuelPricePerGallon: 3.85,
+            fuelType: 'diesel',
+            tankCapacity: 150,
+          },
+          isAvailable: true,
+          verificationStatus: 'unverified',
+          company: (profile as any)?.company ?? '',
+        } as Driver;
+      }
+
+      try {
+        if (db && uid) {
+          const userDocRef = fsDoc(db as any, 'users', uid);
+          const snap = await fsGetDoc(userDocRef);
+          if (!snap.exists()) {
+            await fsSetDoc(userDocRef, { email, createdAt: fsServerTimestamp() }, { merge: true });
+            console.log('[auth] Firestore: users doc created for', uid);
+          }
+        }
+      } catch (firestoreErr) {
+        console.warn('[auth] Firestore users doc create failed:', firestoreErr);
+      }
+
+      setUser(newUser);
+      setIsAnonymous(false);
+      setHasSignedInThisSession(true);
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+      console.log('[auth] registration successful as', role);
+    } catch (e) {
+      console.error('[auth] register failed:', e);
+      throw e;
+    }
   }, []);
 
   const logout = useCallback(async () => {
     console.log('[auth] 🎯 PERMANENT SIGN IN FIX - Logging out user...');
-    
     try {
+      try {
+        const { signOut } = await import('firebase/auth');
+        if (auth) {
+          await signOut(auth as any);
+        }
+      } catch (e) {
+        console.warn('[auth] Firebase signOut failed or unavailable:', e);
+      }
       await AsyncStorage.removeItem(USER_STORAGE_KEY);
       console.log('[auth] ✅ Auth optimized - User data cleared from storage');
     } catch (storageError) {
       console.warn('[auth] ⚠️ Auth optimization - Failed to clear storage:', storageError);
     }
-    
     setUser(null);
     setUserId(null);
     setIsAnonymous(true);
@@ -794,6 +843,16 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const resetPassword = useCallback(async (email: string) => {
     console.log('Password reset requested for:', email);
+    if (!email?.trim()) throw new Error('Email required');
+    try {
+      const { sendPasswordResetEmail } = await import('firebase/auth');
+      if (auth) {
+        await sendPasswordResetEmail(auth as any, email.trim());
+        console.log('[auth] Password reset email sent');
+      }
+    } catch (e) {
+      console.warn('[auth] sendPasswordResetEmail failed, continuing silently:', e);
+    }
   }, []);
 
   const updateProfile = useCallback(async (updates: Partial<Driver | Shipper | Admin>) => {

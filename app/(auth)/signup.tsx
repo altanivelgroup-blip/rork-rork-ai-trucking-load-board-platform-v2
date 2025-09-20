@@ -39,20 +39,21 @@ export default function SignUpScreen() {
       await register(email, password, selectedRole, { name, phone, company });
       
       if (selectedRole === 'shipper') {
-        router.replace('/shipper-dashboard');
+        router.replace('/(tabs)/shipper');
+      } else if (selectedRole === 'admin') {
+        router.replace('/(tabs)/admin');
       } else {
-        router.replace('/(auth)/driver-vehicle-setup');
+        router.replace('/(tabs)/dashboard');
       }
     } catch (e) {
       console.error('[signup] error', e);
-      // In development, we allow signup to continue even if Firebase fails
-      console.log('[signup] Continuing with mock authentication system');
-      
-      // Still navigate to the appropriate screen since mock auth should work
+      // In development, continue with mock authentication system
       if (selectedRole === 'shipper') {
-        router.replace('/shipper-dashboard');
+        router.replace('/(tabs)/shipper');
+      } else if (selectedRole === 'admin') {
+        router.replace('/(tabs)/admin');
       } else {
-        router.replace('/(auth)/driver-vehicle-setup');
+        router.replace('/(tabs)/dashboard');
       }
     } finally {
       setIsLoading(false);
