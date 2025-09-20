@@ -43,7 +43,7 @@ export default function LiveAnalyticsDashboard({
         <View style={styles.errorContainer}>
           <AlertCircle size={20} color={theme.colors.warning} />
           <Text style={styles.errorText}>
-            {error || `No live analytics available on ${Platform.OS === 'web' ? 'web' : Platform.OS}. Ensure fuel profile is complete.`}
+            {error || `Live analytics initializing on ${Platform.OS}...`}
           </Text>
         </View>
         {__DEV__ && (
@@ -57,7 +57,7 @@ export default function LiveAnalyticsDashboard({
 
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
-      {showTitle && <Text style={styles.title}>🔥 Live Analytics</Text>}
+      {showTitle && <Text style={styles.title}>🔥 Live Analytics ({Platform.OS})</Text>}
       
       <View style={[styles.metricsGrid, compact && styles.metricsGridCompact]}>
         {/* Fuel Cost */}

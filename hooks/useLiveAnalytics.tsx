@@ -24,23 +24,41 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Platform-specific availability check
+  // CROSS-PLATFORM ANALYTICS - Available on iOS, Android, and Web
   const isAnalyticsAvailable = React.useMemo(() => {
-    if (!enabled || !ANALYTICS_AUTO_CALCULATE) return false;
-    if (!user || user.role !== 'driver') return false;
-    if (!load) return false;
+    if (!enabled || !ANALYTICS_AUTO_CALCULATE) {
+      console.log('[useLiveAnalytics] Analytics disabled by config');
+      return false;
+    }
+    if (!user || user.role !== 'driver') {
+      console.log('[useLiveAnalytics] User not a driver:', user?.role);
+      return false;
+    }
+    if (!load) {
+      console.log('[useLiveAnalytics] No load provided');
+      return false;
+    }
     
     // Check if we have minimum required data
     const hasOrigin = load.origin || load.pickupZip || load.originZip;
     const hasDestination = load.destination || load.destZip || load.deliveryZip;
     const hasRate = load.rate || load.rateAmount || load.total;
     
-    return !!(hasOrigin && hasDestination && hasRate);
+    const available = !!(hasOrigin && hasDestination && hasRate);
+    console.log('[useLiveAnalytics] ✅ CROSS-PLATFORM ANALYTICS AVAILABLE:', {
+      platform: Platform.OS,
+      hasOrigin: !!hasOrigin,
+      hasDestination: !!hasDestination,
+      hasRate: !!hasRate,
+      available
+    });
+    
+    return available;
   }, [enabled, user, load]);
 
   const calculateAnalytics = useCallback(async () => {
     if (!isAnalyticsAvailable) {
-      console.log('[useLiveAnalytics] Analytics not available:', {
+      console.log('[useLiveAnalytics] ❌ Analytics not available on', Platform.OS, ':', {
         enabled,
         ANALYTICS_AUTO_CALCULATE,
         hasUser: !!user,
@@ -49,14 +67,14 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
         platform: Platform.OS
       });
       setAnalytics(null);
-      setError('Analytics unavailable - missing required data');
+      setError(`Analytics unavailable on ${Platform.OS} - missing required data`);
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      console.log('[useLiveAnalytics] 🔥 Calculating analytics for load:', load.id);
+      console.log('[useLiveAnalytics] 🔥 CROSS-PLATFORM ANALYTICS CALCULATING on', Platform.OS, 'for load:', load.id);
 
       // Get or calculate distance with fallback
       let miles = load.distance || load.distanceMiles || 0;
@@ -147,13 +165,14 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
       };
 
       setAnalytics(result);
-      console.log('[useLiveAnalytics] ✅ Analytics calculated:', {
-        fuelCost: `$${fuelCost.toFixed(2)}`,
-        netAfterFuel: `$${netAfterFuel.toFixed(2)}`,
-        profitPerMile: `$${profitPerMile.toFixed(2)}/mi`,
+      console.log('[useLiveAnalytics] ✅ CROSS-PLATFORM ANALYTICS SUCCESS on', Platform.OS, ':', {
+        fuelCost: `${fuelCost.toFixed(2)}`,
+        netAfterFuel: `${netAfterFuel.toFixed(2)}`,
+        profitPerMile: `${profitPerMile.toFixed(2)}/mi`,
         eta,
         mpg: fuelEstimate.mpg.toFixed(1),
-        gallons: fuelEstimate.gallons.toFixed(1)
+        gallons: fuelEstimate.gallons.toFixed(1),
+        platform: Platform.OS
       });
 
     } catch (err) {
