@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { theme } from '@/constants/theme';
 import { useLiveAnalytics, LiveAnalytics } from '@/hooks/useLiveAnalytics';
 import { formatCurrency } from '@/utils/fuel';
-import { Fuel, DollarSign, Clock, TrendingUp, MapPin } from 'lucide-react-native';
+import { Fuel, DollarSign, Clock, TrendingUp, MapPin, AlertCircle } from 'lucide-react-native';
 
 interface LiveAnalyticsDashboardProps {
   load: any;
@@ -40,9 +40,17 @@ export default function LiveAnalyticsDashboard({
     return (
       <View style={[styles.container, compact && styles.containerCompact]}>
         {showTitle && <Text style={styles.title}>Live Analytics</Text>}
-        <Text style={styles.errorText}>
-          {error || 'Analytics unavailable - ensure distance and fuel profile are set'}
-        </Text>
+        <View style={styles.errorContainer}>
+          <AlertCircle size={20} color={theme.colors.warning} />
+          <Text style={styles.errorText}>
+            {error || `No live analytics available on ${Platform.OS === 'web' ? 'web' : Platform.OS}. Ensure fuel profile is complete.`}
+          </Text>
+        </View>
+        {__DEV__ && (
+          <Text style={styles.debugText}>
+            Platform: {Platform.OS} • Load: {!!load} • Enabled: {enabled.toString()}
+          </Text>
+        )}
       </View>
     );
   }
@@ -170,12 +178,26 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.gray,
   },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.lg,
+  },
   errorText: {
-    fontSize: theme.fontSize.md,
+    fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
     textAlign: 'center',
     fontStyle: 'italic',
-    paddingVertical: theme.spacing.lg,
+    flex: 1,
+  },
+  debugText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    opacity: 0.7,
+    marginTop: theme.spacing.sm,
   },
   metricsGrid: {
     flexDirection: 'row',
