@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import { Home, User, Package, MapPin, PlusCircle, BarChart3, Settings } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,6 +10,11 @@ export default function TabsLayout() {
   
   // Safely destructure after hook is called
   const user = authState?.user;
+
+  if (!user) {
+    console.log('[TabsLayout] No user -> redirecting to /(auth)/login');
+    return <Redirect href="/(auth)/login" />;
+  }
   const isDriver = user?.role === 'driver';
   const isShipper = user?.role === 'shipper';
   const isAdmin = (user?.role as string) === 'admin' || user?.email === 'admin@loadrush.com';
