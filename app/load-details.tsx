@@ -22,6 +22,7 @@ import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
 import { computeDistanceMilesFromZips, extractZips } from '@/src/services/distance';
+import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Image } from 'expo-image';
@@ -75,7 +76,11 @@ export default function LoadDetailsScreen() {
   const { acceptLoad, setFilters, loads } = useLoads();
   const { user, updateProfile } = useAuth();
   const [isAccepting, setIsAccepting] = useState<boolean>(false);
-  const [load, setLoad] = useState<any | null>(null);
+  
+  // Guard route param access
+  const rawParamLoad = params?.load ?? null;
+  const paramId = params?.id ?? (rawParamLoad as any)?.id ?? null;
+  const [load, setLoad] = useState<any>(rawParamLoad);
   const [loading, setLoading] = useState<boolean>(true);
 
   const photos: string[] = useMemo(() => {
@@ -388,12 +393,20 @@ export default function LoadDetailsScreen() {
   // Auto-derive distance from ZIP codes using new service
   useEffect(() => {
     if (!adaptedLoad.distanceMiles && load) {
-      const { origZip, destZip } = extractZips(load);
-      if (origZip && destZip) {
-        setDistLoading(true);
-        computeDistanceMilesFromZips(String(origZip), String(destZip))
-          .then(m => setDerivedMiles(m ? Number(m.toFixed(1)) : null))
-          .finally(() => setDistLoading(false));
+      try {
+        const { origZip, destZip } = extractZips(load);
+        if (origZip && destZip) {
+          setDistLoading(true);
+          computeDistanceMilesFromZips(String(origZip), String(destZip))
+            .then(m => setDerivedMiles(m ? Number(m.toFixed(1)) : null))
+            .catch(error => {
+              console.warn('[LoadDetails] Distance calculation failed:', error);
+              setDerivedMiles(null);
+            })
+            .finally(() => setDistLoading(false));
+        }
+      } catch (error) {
+        console.warn('[LoadDetails] extractZips failed:', error);
       }
     }
   }, [load, adaptedLoad.distanceMiles]);
@@ -595,8 +608,8 @@ export default function LoadDetailsScreen() {
             </View>
           </View>
 
-          {/* Driver-specific Analytics Card */}
-          {user?.role === 'driver' && (
+          {/* Driver-specific Analytics Card - Feature Flag Controlled */}
+          {ENABLE_LOAD_ANALYTICS && user?.role === 'driver' && (
             <LoadAnalyticsCard
               load={{
                 ...adaptedLoad,
@@ -648,7 +661,7 @@ export default function LoadDetailsScreen() {
                 <Text style={styles.locationAddress}>{L.origin.address}</Text>
               ) : null}
               <Text style={styles.locationCity}>
-                {L.origin?.city}, {L.origin?.state} {L.origin?.zipCode}
+                {getOriginText(L)}
               </Text>
               <View style={styles.dateRow}>
                 <Calendar size={16} color={theme.colors.gray} />
@@ -726,7 +739,7 @@ export default function LoadDetailsScreen() {
                 <Text style={styles.locationAddress}>{L.destination.address}</Text>
               ) : null}
               <Text style={styles.locationCity}>
-                {L.destination?.city}, {L.destination?.state} {L.destination?.zipCode}
+                {getDestText(L)}
               </Text>
               <View style={styles.dateRow}>
                 <Calendar size={16} color={theme.colors.gray} />
