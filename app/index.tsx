@@ -102,13 +102,13 @@ export default function Index() {
             style={[styles.retryButton, { backgroundColor: '#FF9500', marginTop: 8 }]} 
             onPress={() => {
               try {
-                router.replace('/test-login');
+                router.replace('/simple-login');
               } catch (e) {
-                console.error('Failed to navigate to test login:', e);
+                console.error('Failed to navigate to simple login:', e);
               }
             }}
           >
-            <Text style={styles.retryButtonText}>🚀 Quick Test Login</Text>
+            <Text style={styles.retryButtonText}>🚀 Simple Login</Text>
           </TouchableOpacity>
           <Text style={styles.retryText}>
             Retry attempt: {retryCount + 1}
@@ -170,13 +170,13 @@ export default function Index() {
           style={[styles.retryButton, { backgroundColor: '#FF9500', marginTop: 8 }]} 
           onPress={() => {
             try {
-              router.replace('/test-login');
+              router.replace('/simple-login');
             } catch (e) {
-              console.error('Failed to navigate to test login:', e);
+              console.error('Failed to navigate to simple login:', e);
             }
           }}
         >
-          <Text style={styles.retryButtonText}>🚀 Quick Test Login</Text>
+          <Text style={styles.retryButtonText}>🚀 Simple Login</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -224,13 +224,13 @@ export default function Index() {
             style={[styles.retryButton, { backgroundColor: '#FF9500', marginTop: 8 }]} 
             onPress={() => {
               try {
-                router.replace('/test-login');
+                router.replace('/simple-login');
               } catch (e) {
-                console.error('Failed to navigate to test login:', e);
+                console.error('Failed to navigate to simple login:', e);
               }
             }}
           >
-            <Text style={styles.retryButtonText}>🚀 Quick Test Login</Text>
+            <Text style={styles.retryButtonText}>🚀 Simple Login</Text>
           </TouchableOpacity>
         </SafeAreaView>
       );

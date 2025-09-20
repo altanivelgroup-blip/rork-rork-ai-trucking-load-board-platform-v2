@@ -300,16 +300,16 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={[styles.loginButton, { backgroundColor: '#FF9500', marginTop: 12 }]}
               onPress={() => {
-                console.log('[Login] 🚀 Quick Test Login button pressed!');
+                console.log('[Login] 🚀 Simple Login button pressed!');
                 try {
-                  router.replace('/test-login');
+                  router.replace('/simple-login');
                 } catch (e) {
-                  console.error('Failed to navigate to test login:', e);
+                  console.error('Failed to navigate to simple login:', e);
                 }
               }}
-              testID="quick-test-login"
+              testID="simple-login"
             >
-              <Text style={styles.loginButtonText}>🚀 Quick Test Login</Text>
+              <Text style={styles.loginButtonText}>🚀 Simple Login</Text>
             </TouchableOpacity>
             
 
