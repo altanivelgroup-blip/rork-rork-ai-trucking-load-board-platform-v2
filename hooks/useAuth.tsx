@@ -6,6 +6,7 @@ import { auth, ensureFirebaseAuth, db } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
 
 interface AuthState {
   user: Driver | Shipper | Admin | null;
@@ -92,6 +93,42 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     
     setupFirebase();
   }, [isInitialized]);
+
+  // Analytics initialization for drivers
+  useEffect(() => {
+    if (!ENABLE_LOAD_ANALYTICS || !user || user.role !== 'driver') return;
+    
+    console.log('[auth] ✅ Analytics enabled - Initializing analytics for driver:', user.name);
+    
+    // Initialize analytics tracking
+    const initAnalytics = async () => {
+      try {
+        // Log analytics initialization
+        console.log('[auth] 🔥 Driver analytics initialized:', {
+          userId: user.id,
+          name: user.name,
+          fuelProfile: user.fuelProfile,
+          hasSignedInThisSession
+        });
+        
+        // Store analytics initialization timestamp
+        const analyticsData = {
+          lastInitialized: new Date().toISOString(),
+          userId: user.id,
+          userRole: user.role,
+          fuelProfileComplete: !!(user.fuelProfile?.averageMpg && user.fuelProfile?.fuelType)
+        };
+        
+        await AsyncStorage.setItem('analytics:initialized', JSON.stringify(analyticsData));
+        console.log('[auth] ✅ Analytics initialization data stored');
+        
+      } catch (error) {
+        console.warn('[auth] ⚠️ Analytics initialization failed:', error);
+      }
+    };
+    
+    initAnalytics();
+  }, [user, hasSignedInThisSession]);
 
   const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper | Admin> => {
     await ensureFirebaseAuth();

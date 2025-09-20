@@ -17,6 +17,9 @@ import { trpcClient } from '@/lib/trpc';
 import { OPENWEATHER_API_KEY, ORS_API_KEY, MAPBOX_TOKEN } from '@/utils/env';
 import { startAudit, endAudit } from '@/utils/performanceAudit';
 import { Stack } from 'expo-router';
+import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
+import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
+import { calculateLoadAnalytics } from '@/utils/fuelCalculator';
 
 interface RecentLoadProps {
   id: string;
@@ -135,6 +138,18 @@ export default function DashboardScreen() {
   }, [hasLocationPerm, sortOptionsBase, setSortOrder]);
 
   console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
+
+  // Analytics initialization effect
+  useEffect(() => {
+    if (ENABLE_LOAD_ANALYTICS && isDriver && user) {
+      console.log('[Dashboard] 🔥 Analytics are RUNNING for driver:', user.name);
+      console.log('[Dashboard] 📊 Driver fuel profile:', {
+        mpg: (user as any).fuelProfile?.averageMpg,
+        fuelType: (user as any).fuelProfile?.fuelType,
+        complete: !!((user as any).fuelProfile?.averageMpg && (user as any).fuelProfile?.fuelType)
+      });
+    }
+  }, [ENABLE_LOAD_ANALYTICS, isDriver, user]);
 
   const recentLoads = useMemo(() => actualLoads?.slice(0, 3) ?? [], [actualLoads]);
   const lastDelivery = useMemo(() => recentLoads[0]?.destination, [recentLoads]);
@@ -556,6 +571,54 @@ export default function DashboardScreen() {
               </View>
             </TouchableOpacity>
           </View>
+
+          {/* Analytics Section for Drivers */}
+          {ENABLE_LOAD_ANALYTICS && isDriver && recentLoads.length > 0 && (
+            <View style={styles.analyticsSection}>
+              <Text style={styles.analyticsSectionTitle}>Load Analytics</Text>
+              <Text style={styles.analyticsSectionSubtitle}>Fuel cost analysis for your recent loads</Text>
+              {recentLoads.slice(0, 2).map((load) => {
+                const analytics = calculateLoadAnalytics(
+                  {
+                    distanceMiles: (load as any).distanceMiles || distances[load.id] || 0,
+                    rateTotalUSD: (load as any).rateTotalUSD || load.rate || 0,
+                    rate: load.rate,
+                    rpm: (load as any).ratePerMile
+                  },
+                  {
+                    mpgRated: (user as any).fuelProfile?.averageMpg || (user as any).fuelProfile?.mpgRated,
+                    fuelType: (user as any).fuelProfile?.fuelType
+                  }
+                );
+                
+                if (!analytics) return null;
+                
+                return (
+                  <View key={load.id} style={styles.analyticsCard}>
+                    <Text style={styles.analyticsLoadTitle}>
+                      {load.origin?.city}, {load.origin?.state} → {load.destination?.city}, {load.destination?.state}
+                    </Text>
+                    <View style={styles.analyticsMetrics}>
+                      <View style={styles.analyticsMetric}>
+                        <Text style={styles.analyticsMetricLabel}>Distance</Text>
+                        <Text style={styles.analyticsMetricValue}>{Math.round(analytics.miles)} mi</Text>
+                      </View>
+                      <View style={styles.analyticsMetric}>
+                        <Text style={styles.analyticsMetricLabel}>Fuel Cost</Text>
+                        <Text style={styles.analyticsMetricValue}>${analytics.fuelCost.toFixed(0)}</Text>
+                      </View>
+                      <View style={styles.analyticsMetric}>
+                        <Text style={styles.analyticsMetricLabel}>Net Revenue</Text>
+                        <Text style={[styles.analyticsMetricValue, { color: analytics.netRevenue >= 0 ? theme.colors.success : theme.colors.danger }]}>
+                          ${analytics.netRevenue.toFixed(0)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           <View>
             {(aiRecentOrder ? (() => {
@@ -1023,5 +1086,52 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: '600',
     fontSize: font(14),
+  },
+  analyticsSection: {
+    marginHorizontal: moderateScale(theme.spacing.lg),
+    marginTop: moderateScale(theme.spacing.md),
+  },
+  analyticsSectionTitle: {
+    fontSize: font(18),
+    fontWeight: '700',
+    color: theme.colors.dark,
+    marginBottom: moderateScale(4),
+  },
+  analyticsSectionSubtitle: {
+    fontSize: font(14),
+    color: theme.colors.gray,
+    marginBottom: moderateScale(theme.spacing.md),
+  },
+  analyticsCard: {
+    backgroundColor: theme.colors.white,
+    padding: moderateScale(theme.spacing.md),
+    borderRadius: moderateScale(theme.borderRadius.md),
+    marginBottom: moderateScale(theme.spacing.sm),
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+  },
+  analyticsLoadTitle: {
+    fontSize: font(14),
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: moderateScale(theme.spacing.sm),
+  },
+  analyticsMetrics: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  analyticsMetric: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  analyticsMetricLabel: {
+    fontSize: font(12),
+    color: theme.colors.gray,
+    marginBottom: moderateScale(2),
+  },
+  analyticsMetricValue: {
+    fontSize: font(14),
+    fontWeight: '600',
+    color: theme.colors.dark,
   },
 });
