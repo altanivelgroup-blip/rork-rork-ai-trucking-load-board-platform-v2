@@ -98,6 +98,18 @@ export default function Index() {
           <TouchableOpacity style={styles.retryButton} onPress={handleManualRetry}>
             <Text style={styles.retryButtonText}>Go to Sign In</Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.retryButton, { backgroundColor: '#FF9500', marginTop: 8 }]} 
+            onPress={() => {
+              try {
+                router.replace('/test-login');
+              } catch (e) {
+                console.error('Failed to navigate to test login:', e);
+              }
+            }}
+          >
+            <Text style={styles.retryButtonText}>🚀 Quick Test Login</Text>
+          </TouchableOpacity>
           <Text style={styles.retryText}>
             Retry attempt: {retryCount + 1}
           </Text>
@@ -154,6 +166,18 @@ export default function Index() {
         <TouchableOpacity style={styles.retryButton} onPress={handleManualRetry}>
           <Text style={styles.retryButtonText}>Continue to Sign In</Text>
         </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.retryButton, { backgroundColor: '#FF9500', marginTop: 8 }]} 
+          onPress={() => {
+            try {
+              router.replace('/test-login');
+            } catch (e) {
+              console.error('Failed to navigate to test login:', e);
+            }
+          }}
+        >
+          <Text style={styles.retryButtonText}>🚀 Quick Test Login</Text>
+        </TouchableOpacity>
       </SafeAreaView>
     );
   }
@@ -195,6 +219,18 @@ export default function Index() {
           </Text>
           <TouchableOpacity style={styles.retryButton} onPress={handleManualRetry}>
             <Text style={styles.retryButtonText}>Reset Navigation</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.retryButton, { backgroundColor: '#FF9500', marginTop: 8 }]} 
+            onPress={() => {
+              try {
+                router.replace('/test-login');
+              } catch (e) {
+                console.error('Failed to navigate to test login:', e);
+              }
+            }}
+          >
+            <Text style={styles.retryButtonText}>🚀 Quick Test Login</Text>
           </TouchableOpacity>
         </SafeAreaView>
       );

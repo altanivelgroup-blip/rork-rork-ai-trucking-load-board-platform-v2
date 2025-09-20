@@ -277,7 +277,14 @@ export default function LoginScreen() {
 
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
+              onPress={() => {
+                console.log('[Login] 🎯 PERMANENT SIGN IN NAV FIX - Login button pressed!');
+                console.log('[Login] Email:', email);
+                console.log('[Login] Password length:', password?.length || 0);
+                console.log('[Login] Selected role:', selectedRole);
+                console.log('[Login] Is loading:', isLoading);
+                handleLogin();
+              }}
               disabled={isLoading}
               testID="login-submit"
             >
@@ -288,6 +295,21 @@ export default function LoginScreen() {
                   {email?.trim() && password?.trim() ? `Login as ${selectedRole}` : `Continue as Guest ${selectedRole}`}
                 </Text>
               )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.loginButton, { backgroundColor: '#FF9500', marginTop: 12 }]}
+              onPress={() => {
+                console.log('[Login] 🚀 Quick Test Login button pressed!');
+                try {
+                  router.replace('/test-login');
+                } catch (e) {
+                  console.error('Failed to navigate to test login:', e);
+                }
+              }}
+              testID="quick-test-login"
+            >
+              <Text style={styles.loginButtonText}>🚀 Quick Test Login</Text>
             </TouchableOpacity>
             
 
