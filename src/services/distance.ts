@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { extractEndpoints, sanitizeZip } from './zipUtil';
 
 // Environment variables with fallbacks
 const MAPBOX = Constants.expoConfig?.extra?.EXPO_PUBLIC_MAPBOX_TOKEN ?? process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -55,6 +56,31 @@ async function geocodeZip(zip: string): Promise<LatLng | null> {
     return null;
   } catch (error) {
     console.warn('[distance] Geocoding failed for ZIP', zip, error);
+    return null;
+  }
+}
+
+// Geocode any text (ZIP or freeform address) using Mapbox
+async function geocodeAny(text: string): Promise<LatLng | null> {
+  try {
+    if (!MAPBOX) {
+      console.warn('[distance] No Mapbox token for freeform geocoding');
+      return null;
+    }
+
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?country=US&limit=1&access_token=${MAPBOX}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Mapbox freeform geocoding failed');
+    
+    const data = await response.json();
+    if (data.features && data.features[0] && data.features[0].center) {
+      const [lon, lat] = data.features[0].center;
+      return { lat, lon };
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('[distance] Freeform geocoding failed for text', text, error);
     return null;
   }
 }
@@ -153,32 +179,78 @@ export async function computeDistanceMilesFromZips(origZip: string, destZip: str
   }
 }
 
-// Helper function to extract ZIP codes from load object
-export function extractZips(load: any): { origZip: string | null; destZip: string | null } {
-  // Handle null/undefined load
-  if (!load) {
-    return { origZip: null, destZip: null };
+// Main function to compute distance from load object with robust endpoint extraction
+export async function computeDistanceMiles(load: any): Promise<number | null> {
+  try {
+    if (!load) {
+      console.warn('[distance] No load provided');
+      return null;
+    }
+
+    const endpoints = extractEndpoints(load);
+    const cacheKey = `${endpoints.origin.zip || endpoints.origin.text}-${endpoints.destination.zip || endpoints.destination.text}`;
+    
+    // Check cache first
+    if (milesCache.has(cacheKey)) {
+      return milesCache.get(cacheKey)!;
+    }
+
+    let originCoords: LatLng | null = null;
+    let destCoords: LatLng | null = null;
+
+    // Try to geocode origin
+    if (endpoints.origin.zip) {
+      // Clean ZIP available - use ZIP geocoding
+      originCoords = await geocodeZip(endpoints.origin.zip);
+    }
+    
+    if (!originCoords && endpoints.origin.text) {
+      // Fallback to freeform geocoding
+      originCoords = await geocodeAny(endpoints.origin.text);
+    }
+
+    // Try to geocode destination
+    if (endpoints.destination.zip) {
+      // Clean ZIP available - use ZIP geocoding
+      destCoords = await geocodeZip(endpoints.destination.zip);
+    }
+    
+    if (!destCoords && endpoints.destination.text) {
+      // Fallback to freeform geocoding
+      destCoords = await geocodeAny(endpoints.destination.text);
+    }
+
+    if (!originCoords || !destCoords) {
+      console.warn('[distance] Failed to geocode endpoints:', {
+        origin: endpoints.origin,
+        destination: endpoints.destination,
+        originCoords: !!originCoords,
+        destCoords: !!destCoords
+      });
+      return null;
+    }
+
+    // Calculate route distance
+    const miles = await routeMiles(originCoords, destCoords);
+    
+    if (miles && miles > 0) {
+      // Cache the result
+      milesCache.set(cacheKey, miles);
+      return Math.round(miles * 10) / 10; // Round to 1 decimal place
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[distance] computeDistanceMiles error:', error);
+    return null;
   }
-  
-  const origZip = load.origin?.zip || 
-                  load.pickupZip || 
-                  load.originZip || 
-                  load.srcZip || 
-                  load.fromZip || 
-                  load.origin?.postal || 
-                  load.pickup?.zip ||
-                  load.origin?.zipCode;
-  
-  const destZip = load.destination?.zip || 
-                  load.destZip || 
-                  load.deliveryZip || 
-                  load.toZip || 
-                  load.destination?.postal || 
-                  load.dropoff?.zip ||
-                  load.destination?.zipCode;
-  
+}
+
+// Legacy function for backward compatibility
+export function extractZips(load: any): { origZip: string | null; destZip: string | null } {
+  const endpoints = extractEndpoints(load);
   return {
-    origZip: origZip ? String(origZip).trim() : null,
-    destZip: destZip ? String(destZip).trim() : null
+    origZip: endpoints.origin.zip,
+    destZip: endpoints.destination.zip
   };
 }
