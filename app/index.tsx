@@ -1,15 +1,29 @@
 import { Redirect } from "expo-router";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StyleSheet } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: '#f5f5f5',
+  },
+});
 
 export default function Index() {
-  const { user, isLoading } = useAuth();
+  const authState = useAuth();
+  
+  // Safe destructuring to prevent crashes
+  const user = authState?.user || null;
+  const isLoading = authState?.isLoading ?? true;
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </SafeAreaView>
     );
   }
   
@@ -20,7 +34,7 @@ export default function Index() {
     } else if (user.role === 'shipper') {
       return <Redirect href="/(tabs)/shipper" />;
     } else {
-      return <Redirect href="/(tabs)" />;
+      return <Redirect href="/(tabs)/dashboard" />;
     }
   }
   

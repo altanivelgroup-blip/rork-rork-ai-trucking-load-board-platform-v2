@@ -18,7 +18,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      initialRouteName={isShipper ? "shipper" : isAdmin ? "dashboard" : "dashboard"}
+      initialRouteName={isShipper ? "shipper" : isAdmin ? "admin" : "dashboard"}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -40,7 +40,7 @@ export default function TabsLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-          href: isShipper ? '/shipper' : null,
+          href: isShipper ? '/(tabs)/shipper' : null,
         }}
       />
       
@@ -50,7 +50,7 @@ export default function TabsLayout() {
         options={{
           title: isShipper ? 'My Loads' : 'Loads',
           tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
-          href: isShipper ? '/shipper-loads' : (isDriver || isAdmin) ? '/loads' : null,
+          href: isShipper ? '/(tabs)/loads' : (isDriver || isAdmin) ? '/(tabs)/loads' : null,
         }}
       />
       
@@ -60,7 +60,7 @@ export default function TabsLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-          href: (isDriver || isAdmin) ? '/dashboard' : null,
+          href: (isDriver || isAdmin) ? '/(tabs)/dashboard' : null,
         }}
       />
       
@@ -70,7 +70,7 @@ export default function TabsLayout() {
         options={{
           title: 'Service Finder',
           tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
-          href: (isDriver && !isAdmin) ? '/service-finder' : null,
+          href: (isDriver && !isAdmin) ? '/(tabs)/service-finder' : null,
         }}
       />
       
@@ -80,7 +80,7 @@ export default function TabsLayout() {
         options={{
           title: 'Post Loads',
           tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
-          href: isShipper ? '/shipper-post' : null,
+          href: isShipper ? '/(tabs)/shipper-post' : null,
         }}
       />
       
@@ -90,7 +90,7 @@ export default function TabsLayout() {
         options={{
           title: 'Analytics',
           tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size} />,
-          href: isAdmin ? '/reports' : (isShipper ? '/shipper-analytics' : null),
+          href: isAdmin ? '/(tabs)/shipper-analytics' : (isShipper ? '/(tabs)/shipper-analytics' : null),
         }}
       />
       
@@ -100,7 +100,7 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
-          href: isShipper ? '/shipper-profile' : (isDriver || isAdmin) ? '/profile' : null,
+          href: isShipper ? '/(tabs)/profile' : (isDriver || isAdmin) ? '/(tabs)/profile' : null,
         }}
       />
       
@@ -110,7 +110,7 @@ export default function TabsLayout() {
         options={{
           title: 'Admin',
           tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
-          href: isAdmin ? '/admin' : null,
+          href: isAdmin ? '/(tabs)/admin' : null,
         }}
       />
     </Tabs>

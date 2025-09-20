@@ -403,12 +403,20 @@ export default function DashboardScreen() {
       <Stack.Screen 
         options={{
           headerRight: () => (
-            <TouchableOpacity 
-              onPress={() => router.push('/dev/signout')}
-              style={{ marginRight: 16 }}
-            >
-              <LogOut size={20} color={theme.colors.dark} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 16 }}>
+              <TouchableOpacity 
+                onPress={() => router.push('/sanity-check')}
+                style={{ padding: 4 }}
+              >
+                <Text style={{ fontSize: 12, color: theme.colors.primary, fontWeight: '600' }}>FIX</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => router.push('/dev/signout')}
+                style={{ padding: 4 }}
+              >
+                <LogOut size={20} color={theme.colors.dark} />
+              </TouchableOpacity>
+            </View>
           )
         }} 
       />
