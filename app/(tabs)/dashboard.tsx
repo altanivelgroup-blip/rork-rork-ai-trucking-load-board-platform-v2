@@ -1,10 +1,10 @@
 import React, { useMemo, useCallback, useState, memo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, TextInput, Button } from 'react-native';
 import Screen from '@/src/ui/Screen';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
-import { Truck, Star, Package, ArrowRight, MapPin, Mic, Cloud, Sun, CloudRain, CloudLightning, Snowflake } from 'lucide-react-native';
+import { Truck, Star, Package, ArrowRight, MapPin, Mic, Cloud, Sun, CloudRain, CloudLightning, Snowflake, LogOut } from 'lucide-react-native';
 import { VoiceCapture } from '@/components/VoiceCapture';
 import { mockLoads } from '@/mocks/loads';
 import { useLoads } from '@/hooks/useLoads';
@@ -16,6 +16,7 @@ import { font, moderateScale } from '@/src/ui/scale';
 import { trpcClient } from '@/lib/trpc';
 import { OPENWEATHER_API_KEY, ORS_API_KEY, MAPBOX_TOKEN } from '@/utils/env';
 import { startAudit, endAudit } from '@/utils/performanceAudit';
+import { Stack } from 'expo-router';
 
 interface RecentLoadProps {
   id: string;
@@ -384,6 +385,18 @@ export default function DashboardScreen() {
 
   return (
     <Screen>
+      <Stack.Screen 
+        options={{
+          headerRight: () => (
+            <TouchableOpacity 
+              onPress={() => router.push('/dev/signout')}
+              style={{ marginRight: 16 }}
+            >
+              <LogOut size={20} color={theme.colors.dark} />
+            </TouchableOpacity>
+          )
+        }} 
+      />
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading dashboard...</Text>
