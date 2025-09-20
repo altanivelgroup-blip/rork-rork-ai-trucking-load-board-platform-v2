@@ -1,12 +1,12 @@
 import React, { memo, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform } from 'react-native';
 import { Load } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiveAnalytics } from '@/hooks/useLiveAnalytics';
 import { SHOW_ANALYTICS_ON_CARDS } from '@/src/config/runtime';
 import { formatCurrency } from '@/utils/fuel';
 import { theme } from '@/constants/theme';
-import { Fuel, DollarSign, Clock } from 'lucide-react-native';
+import { Fuel, DollarSign, Clock, AlertCircle } from 'lucide-react-native';
 
 interface LoadCardProps {
   load: Load;
@@ -170,7 +170,12 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
               </View>
             </View>
           ) : (
-            <Text style={styles.analyticsError}>Analytics unavailable</Text>
+            <View style={styles.analyticsErrorContainer}>
+              <AlertCircle size={12} color={theme.colors.warning} />
+              <Text style={styles.analyticsError}>
+                Analytics unavailable on {Platform.OS === 'web' ? 'web' : Platform.OS}
+              </Text>
+            </View>
           )}
         </View>
       )}
@@ -306,11 +311,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1E293B',
   },
+  analyticsErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
   analyticsError: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#64748B',
     textAlign: 'center',
     fontStyle: 'italic',
+    flex: 1,
   },
 });
 
