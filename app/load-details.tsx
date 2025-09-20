@@ -258,6 +258,7 @@ export default function LoadDetailsScreen() {
     }
   }, [(user as Driver)?.fuelProfile?.tankCapacity, (user as Driver)?.fuelProfile?.averageMpg, fuelEstimate?.mpg, distanceDisplayMiles, load?.distance]);
 
+  // Move all useCallback hooks to the top to ensure consistent order
   const handlePickupConfirmed = useCallback(() => {
     console.log('[LoadDetails] Pickup confirmed - Route loaded');
     // Update load status or perform any pickup-related actions
@@ -268,6 +269,24 @@ export default function LoadDetailsScreen() {
     // Navigate back to loads or dashboard after delivery
     router.push('/(tabs)/loads');
   }, [router]);
+
+  const handleAccept = useCallback(async () => {
+    setIsAccepting(true);
+    try {
+      await acceptLoad(loadNorm.id);
+      console.log('[LoadDetails] Load accepted - Navigating to pickup');
+      setFilters({
+        showBackhaul: true,
+        backhaulCenter: { lat: loadNorm.destination.lat || 0, lng: loadNorm.destination.lng || 0 },
+        backhaulRadiusMiles: 50,
+      });
+      // Don't navigate away - stay on this page to show navigation
+    } catch (error) {
+      console.error('Failed to accept load:', error);
+    } finally {
+      setIsAccepting(false);
+    }
+  }, [loadNorm?.id, loadNorm?.destination?.lat, loadNorm?.destination?.lng, acceptLoad, setFilters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -496,23 +515,7 @@ export default function LoadDetailsScreen() {
     );
   }
 
-  const handleAccept = async () => {
-    setIsAccepting(true);
-    try {
-      await acceptLoad(loadNorm.id);
-      console.log('[LoadDetails] Load accepted - Navigating to pickup');
-      setFilters({
-        showBackhaul: true,
-        backhaulCenter: { lat: loadNorm.destination.lat || 0, lng: loadNorm.destination.lng || 0 },
-        backhaulRadiusMiles: 50,
-      });
-      // Don't navigate away - stay on this page to show navigation
-    } catch (error) {
-      console.error('Failed to accept load:', error);
-    } finally {
-      setIsAccepting(false);
-    }
-  };
+
 
   const vehicleColor = theme.colors[(loadNorm?.vehicleType as keyof typeof theme.colors) ?? 'primary'] ?? theme.colors.primary;
 
