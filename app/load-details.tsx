@@ -102,7 +102,7 @@ export default function LoadDetailsScreen() {
   const [distLoading, setDistLoading] = useState<boolean>(false);
 
   // Coerce load to ensure safe property access - moved up to avoid initialization errors
-  const L = coerceLoad(load);
+  const loadNorm = useMemo(() => coerceLoad(load), [load]);
 
   const mapboxToken = (require('@/utils/env').MAPBOX_TOKEN as string | undefined) ?? undefined;
   const orsKey = (require('@/utils/env').ORS_API_KEY as string | undefined) ?? undefined;
@@ -395,9 +395,9 @@ export default function LoadDetailsScreen() {
 
   // Auto-derive distance using robust endpoint extraction
   useEffect(() => {
-    if (!L?.distanceMiles) {
+    if (!loadNorm?.distanceMiles) {
       setDistLoading(true);
-      computeDistanceMiles(L)
+      computeDistanceMiles(loadNorm)
         .then(m => setDerivedMiles(m ?? null))
         .catch(error => {
           console.warn('[LoadDetails] Distance calculation failed:', error);
@@ -405,14 +405,14 @@ export default function LoadDetailsScreen() {
         })
         .finally(() => setDistLoading(false));
     }
-  }, [L?.id]);
+  }, [loadNorm?.id]);
 
   // Optional: Log endpoints for debugging
   useEffect(() => {
-    if (L) {
-      console.log('[LoadDetails] endpoints', extractEndpoints(L));
+    if (loadNorm) {
+      console.log('[LoadDetails] endpoints', extractEndpoints(loadNorm));
     }
-  }, [L?.id]);
+  }, [loadNorm?.id]);
 
   useEffect(() => {
     let active = true;
@@ -469,9 +469,9 @@ export default function LoadDetailsScreen() {
     );
   }
 
-  // L is already declared above to avoid initialization errors
+  // normalized load declared above to avoid initialization errors
 
-  if (!L) {
+  if (!loadNorm) {
     return (
       <Modal
         animationType="slide"
@@ -498,11 +498,11 @@ export default function LoadDetailsScreen() {
   const handleAccept = async () => {
     setIsAccepting(true);
     try {
-      await acceptLoad(L.id);
+      await acceptLoad(loadNorm.id);
       console.log('[LoadDetails] Load accepted - Navigating to pickup');
       setFilters({
         showBackhaul: true,
-        backhaulCenter: { lat: L.destination.lat || 0, lng: L.destination.lng || 0 },
+        backhaulCenter: { lat: loadNorm.destination.lat || 0, lng: loadNorm.destination.lng || 0 },
         backhaulRadiusMiles: 50,
       });
       // Don't navigate away - stay on this page to show navigation
@@ -513,7 +513,7 @@ export default function LoadDetailsScreen() {
     }
   };
 
-  const vehicleColor = theme.colors[(L?.vehicleType as keyof typeof theme.colors) ?? 'primary'] ?? theme.colors.primary;
+  const vehicleColor = theme.colors[(loadNorm?.vehicleType as keyof typeof theme.colors) ?? 'primary'] ?? theme.colors.primary;
 
 
   return (
@@ -555,24 +555,24 @@ export default function LoadDetailsScreen() {
               <View style={[styles.vehicleTag, { backgroundColor: vehicleColor }]}>
                 <Truck size={16} color={theme.colors.white} />
                 <Text style={styles.vehicleText}>
-                  {String(L.vehicleType ?? '').replace('-', ' ').toUpperCase()}
+                  {String(loadNorm.vehicleType ?? '').replace('-', ' ').toUpperCase()}
                 </Text>
               </View>
-              {L.isBackhaul && (
+              {loadNorm.isBackhaul && (
                 <View style={styles.backhaulTag}>
                   <Text style={styles.backhaulText}>BACKHAUL</Text>
                 </View>
               )}
             </View>
 
-            <Text style={styles.shipperName}>{L.shipperName}</Text>
-            {L.description ? <Text style={styles.description}>{L.description}</Text> : null}
+            <Text style={styles.shipperName}>{loadNorm.shipperName}</Text>
+            {loadNorm.description ? <Text style={styles.description}>{loadNorm.description}</Text> : null}
 
             <View style={styles.rateContainer}>
               <Text style={styles.rateLabel}>Total Rate</Text>
-              <Text style={styles.rateAmount}>${Number(L.rate ?? 0).toLocaleString()}</Text>
-              {typeof L.ratePerMile === 'number' ? (
-                <Text style={styles.ratePerMile}>${L.ratePerMile.toFixed(2)} per mile</Text>
+              <Text style={styles.rateAmount}>${Number(loadNorm.rate ?? 0).toLocaleString()}</Text>
+              {typeof loadNorm.ratePerMile === 'number' ? (
+                <Text style={styles.ratePerMile}>${loadNorm.ratePerMile.toFixed(2)} per mile</Text>
               ) : null}
 
               <View style={styles.topMetricsRow} testID="top-metrics">
@@ -659,16 +659,16 @@ export default function LoadDetailsScreen() {
                 <MapPin size={20} color={theme.colors.success} />
                 <Text style={styles.locationLabel}>Pickup Location</Text>
               </View>
-              {L.origin?.address ? (
-                <Text style={styles.locationAddress}>{L.origin.address}</Text>
+              {loadNorm.origin?.address ? (
+                <Text style={styles.locationAddress}>{loadNorm.origin.address}</Text>
               ) : null}
               <Text style={styles.locationCity}>
-                {getOriginText(L)}
+                {getOriginText(loadNorm)}
               </Text>
               <View style={styles.dateRow}>
                 <Calendar size={16} color={theme.colors.gray} />
                 <Text style={styles.dateText}>
-                  {new Date(L.pickupDate ?? Date.now()).toLocaleDateString('en-US', {
+                  {new Date(loadNorm.pickupDate ?? Date.now()).toLocaleDateString('en-US', {
                     weekday: 'short',
                     month: 'short',
                     day: 'numeric',
@@ -737,16 +737,16 @@ export default function LoadDetailsScreen() {
                 <MapPin size={20} color={theme.colors.danger} />
                 <Text style={styles.locationLabel}>Delivery Location</Text>
               </View>
-              {L.destination?.address ? (
-                <Text style={styles.locationAddress}>{L.destination.address}</Text>
+              {loadNorm.destination?.address ? (
+                <Text style={styles.locationAddress}>{loadNorm.destination.address}</Text>
               ) : null}
               <Text style={styles.locationCity}>
-                {getDestText(L)}
+                {getDestText(loadNorm)}
               </Text>
               <View style={styles.dateRow}>
                 <Calendar size={16} color={theme.colors.gray} />
                 <Text style={styles.dateText}>
-                  {new Date(L.deliveryDate ?? Date.now()).toLocaleDateString('en-US', {
+                  {new Date(loadNorm.deliveryDate ?? Date.now()).toLocaleDateString('en-US', {
                     weekday: 'short',
                     month: 'short',
                     day: 'numeric',
@@ -757,14 +757,14 @@ export default function LoadDetailsScreen() {
           </View>
 
           {/* Backhaul Pill - Only for Drivers */}
-          {user?.role === 'driver' && L?.destination && (
+          {user?.role === 'driver' && loadNorm?.destination && (
             <View style={styles.backhaulSection}>
               <BackhaulPill
                 deliveryLocation={{
-                  lat: L.destination.lat || 0,
-                  lng: L.destination.lng || 0,
-                  city: L.destination.city || '',
-                  state: L.destination.state || '',
+                  lat: loadNorm.destination.lat || 0,
+                  lng: loadNorm.destination.lng || 0,
+                  city: loadNorm.destination.city || '',
+                  state: loadNorm.destination.state || '',
                 }}
                 onLoadSelect={(loadId) => {
                   console.log('[LoadDetails] Backhaul selected:', loadId);
@@ -780,7 +780,7 @@ export default function LoadDetailsScreen() {
             <View style={styles.detailRow}>
               <Package size={20} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Weight</Text>
-              <Text style={styles.detailValue}>{(Number(L.weight ?? 0) / 1000).toFixed(1)}k lbs</Text>
+              <Text style={styles.detailValue}>{(Number(loadNorm.weight ?? 0) / 1000).toFixed(1)}k lbs</Text>
             </View>
 
             <View style={styles.detailRow}>
@@ -882,7 +882,7 @@ export default function LoadDetailsScreen() {
                       if (!Number.isFinite(val) || val <= 0) return;
                       await updateProfile({
                         fuelProfile: {
-                          vehicleType: (selectedVehicleType as any) ?? (L?.vehicleType as any),
+                          vehicleType: (selectedVehicleType as any) ?? (loadNorm?.vehicleType as any),
                           averageMpg: val,
                           fuelPricePerGallon: (user as Driver)?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
                           fuelType: ((user as Driver)?.fuelProfile?.fuelType ?? 'diesel') as any,
@@ -911,7 +911,7 @@ export default function LoadDetailsScreen() {
                       if (!Number.isFinite(val) || val <= 0) return;
                       await updateProfile({
                         fuelProfile: {
-                          vehicleType: (selectedVehicleType as any) ?? (L?.vehicleType as any),
+                          vehicleType: (selectedVehicleType as any) ?? (loadNorm?.vehicleType as any),
                           averageMpg: (user as Driver)?.fuelProfile?.averageMpg ?? (undefined as unknown as number),
                           fuelPricePerGallon: (user as Driver)?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
                           fuelType: ((user as Driver)?.fuelProfile?.fuelType ?? 'diesel') as any,
@@ -927,35 +927,35 @@ export default function LoadDetailsScreen() {
               </View>
             </View>
 
-            {Array.isArray(L.special_requirements) && L.special_requirements.length > 0 && (
+            {Array.isArray(loadNorm.special_requirements) && loadNorm.special_requirements.length > 0 && (
               <View style={styles.requirementsContainer}>
                 <View style={styles.requirementsHeader}>
                   <AlertCircle size={20} color={theme.colors.warning} />
                   <Text style={styles.requirementsTitle}>Special Requirements</Text>
                 </View>
-                {L.special_requirements.map((req: string, index: number): React.ReactElement => (
+                {loadNorm.special_requirements.map((req: string, index: number): React.ReactElement => (
                   <Text key={`req-${index}`} style={styles.requirementItem} testID={`requirement-${index}`}>• {req}</Text>
                 ))}
               </View>
             )}
           </View>
 
-          {typeof L.aiScore === 'number' && (
+          {typeof loadNorm.aiScore === 'number' && (
             <View style={styles.aiScoreCard}>
               <Text style={styles.aiScoreLabel}>AI Match Score</Text>
               <View style={styles.aiScoreBar}>
                 <View 
-                  style={[styles.aiScoreFill, { width: `${L.aiScore}%` }]} 
+                  style={[styles.aiScoreFill, { width: `${loadNorm.aiScore}%` }]} 
                 />
               </View>
-              <Text style={styles.aiScoreValue}>{L.aiScore}%</Text>
+              <Text style={styles.aiScoreValue}>{loadNorm.aiScore}%</Text>
             </View>
           )}
 
           {/* Driver Navigation - Only show for drivers and accepted loads */}
-          {user?.role === 'driver' && L?.status === 'in-transit' && (
+          {user?.role === 'driver' && loadNorm?.status === 'in-transit' && (
             <DriverNavigation
-              load={L}
+              load={loadNorm}
               onPickupConfirmed={handlePickupConfirmed}
               onDeliveryConfirmed={handleDeliveryConfirmed}
             />
@@ -990,7 +990,7 @@ export default function LoadDetailsScreen() {
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() => router.push({ pathname: '/damage-protection', params: { loadId: L.id } })}
+            onPress={() => router.push({ pathname: '/damage-protection', params: { loadId: loadNorm.id } })}
             testID="btn-damage-photos"
           >
             <Text style={styles.secondaryButtonText}>Pickup/Delivery Photos</Text>
