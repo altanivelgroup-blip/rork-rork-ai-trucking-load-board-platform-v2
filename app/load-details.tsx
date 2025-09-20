@@ -27,6 +27,47 @@ import { doc, getDoc } from 'firebase/firestore';
 import { Image } from 'expo-image';
 import { trpc } from '@/lib/trpc';
 
+// Helper functions for safe load property access
+function getOriginText(load: any): string {
+  if (!load?.origin) return 'Unknown Origin';
+  const parts = [
+    load.origin.address,
+    load.origin.city,
+    load.origin.state,
+    load.origin.zipCode
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : 'Unknown Origin';
+}
+
+function getDestText(load: any): string {
+  if (!load?.destination) return 'Unknown Destination';
+  const parts = [
+    load.destination.address,
+    load.destination.city,
+    load.destination.state,
+    load.destination.zipCode
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : 'Unknown Destination';
+}
+
+function coerceLoad(load: any): any {
+  if (!load) return null;
+  return {
+    ...load,
+    origin: load.origin || {},
+    destination: load.destination || {},
+    rate: load.rate || 0,
+    distance: load.distance || 0,
+    pickupDate: load.pickupDate || Date.now(),
+    deliveryDate: load.deliveryDate || Date.now(),
+    vehicleType: load.vehicleType || 'truck',
+    weight: load.weight || 0,
+    shipperName: load.shipperName || 'Unknown Shipper',
+    description: load.description || '',
+    photos: Array.isArray(load.photos) ? load.photos : []
+  };
+}
+
 export default function LoadDetailsScreen() {
   const params = useLocalSearchParams();
   const loadId = typeof params.loadId === 'string' ? params.loadId : Array.isArray(params.loadId) ? params.loadId[0] : undefined;
@@ -346,7 +387,7 @@ export default function LoadDetailsScreen() {
 
   // Auto-derive distance from ZIP codes using new service
   useEffect(() => {
-    if (!adaptedLoad.distanceMiles) {
+    if (!adaptedLoad.distanceMiles && load) {
       const { origZip, destZip } = extractZips(load);
       if (origZip && destZip) {
         setDistLoading(true);
@@ -412,7 +453,10 @@ export default function LoadDetailsScreen() {
     );
   }
 
-  if (!load) {
+  // Coerce load to ensure safe property access
+  const L = coerceLoad(load);
+
+  if (!L) {
     return (
       <Modal
         animationType="slide"
@@ -439,11 +483,11 @@ export default function LoadDetailsScreen() {
   const handleAccept = async () => {
     setIsAccepting(true);
     try {
-      await acceptLoad(load.id);
+      await acceptLoad(L.id);
       console.log('[LoadDetails] Load accepted - Navigating to pickup');
       setFilters({
         showBackhaul: true,
-        backhaulCenter: { lat: load.destination.lat, lng: load.destination.lng },
+        backhaulCenter: { lat: L.destination.lat || 0, lng: L.destination.lng || 0 },
         backhaulRadiusMiles: 50,
       });
       // Don't navigate away - stay on this page to show navigation
@@ -454,7 +498,7 @@ export default function LoadDetailsScreen() {
     }
   };
 
-  const vehicleColor = theme.colors[(load?.vehicleType as keyof typeof theme.colors) ?? 'primary'] ?? theme.colors.primary;
+  const vehicleColor = theme.colors[(L?.vehicleType as keyof typeof theme.colors) ?? 'primary'] ?? theme.colors.primary;
 
 
   return (
@@ -496,24 +540,24 @@ export default function LoadDetailsScreen() {
               <View style={[styles.vehicleTag, { backgroundColor: vehicleColor }]}>
                 <Truck size={16} color={theme.colors.white} />
                 <Text style={styles.vehicleText}>
-                  {String(load.vehicleType ?? '').replace('-', ' ').toUpperCase()}
+                  {String(L.vehicleType ?? '').replace('-', ' ').toUpperCase()}
                 </Text>
               </View>
-              {load.isBackhaul && (
+              {L.isBackhaul && (
                 <View style={styles.backhaulTag}>
                   <Text style={styles.backhaulText}>BACKHAUL</Text>
                 </View>
               )}
             </View>
 
-            <Text style={styles.shipperName}>{load.shipperName}</Text>
-            {load.description ? <Text style={styles.description}>{load.description}</Text> : null}
+            <Text style={styles.shipperName}>{L.shipperName}</Text>
+            {L.description ? <Text style={styles.description}>{L.description}</Text> : null}
 
             <View style={styles.rateContainer}>
               <Text style={styles.rateLabel}>Total Rate</Text>
-              <Text style={styles.rateAmount}>${Number(load.rate ?? 0).toLocaleString()}</Text>
-              {typeof load.ratePerMile === 'number' ? (
-                <Text style={styles.ratePerMile}>${load.ratePerMile.toFixed(2)} per mile</Text>
+              <Text style={styles.rateAmount}>${Number(L.rate ?? 0).toLocaleString()}</Text>
+              {typeof L.ratePerMile === 'number' ? (
+                <Text style={styles.ratePerMile}>${L.ratePerMile.toFixed(2)} per mile</Text>
               ) : null}
 
               <View style={styles.topMetricsRow} testID="top-metrics">
@@ -600,16 +644,16 @@ export default function LoadDetailsScreen() {
                 <MapPin size={20} color={theme.colors.success} />
                 <Text style={styles.locationLabel}>Pickup Location</Text>
               </View>
-              {load.origin?.address ? (
-                <Text style={styles.locationAddress}>{load.origin.address}</Text>
+              {L.origin?.address ? (
+                <Text style={styles.locationAddress}>{L.origin.address}</Text>
               ) : null}
               <Text style={styles.locationCity}>
-                {load.origin?.city}, {load.origin?.state} {load.origin?.zipCode}
+                {L.origin?.city}, {L.origin?.state} {L.origin?.zipCode}
               </Text>
               <View style={styles.dateRow}>
                 <Calendar size={16} color={theme.colors.gray} />
                 <Text style={styles.dateText}>
-                  {new Date(load.pickupDate ?? Date.now()).toLocaleDateString('en-US', {
+                  {new Date(L.pickupDate ?? Date.now()).toLocaleDateString('en-US', {
                     weekday: 'short',
                     month: 'short',
                     day: 'numeric',
@@ -678,16 +722,16 @@ export default function LoadDetailsScreen() {
                 <MapPin size={20} color={theme.colors.danger} />
                 <Text style={styles.locationLabel}>Delivery Location</Text>
               </View>
-              {load.destination?.address ? (
-                <Text style={styles.locationAddress}>{load.destination.address}</Text>
+              {L.destination?.address ? (
+                <Text style={styles.locationAddress}>{L.destination.address}</Text>
               ) : null}
               <Text style={styles.locationCity}>
-                {load.destination?.city}, {load.destination?.state} {load.destination?.zipCode}
+                {L.destination?.city}, {L.destination?.state} {L.destination?.zipCode}
               </Text>
               <View style={styles.dateRow}>
                 <Calendar size={16} color={theme.colors.gray} />
                 <Text style={styles.dateText}>
-                  {new Date(load.deliveryDate ?? Date.now()).toLocaleDateString('en-US', {
+                  {new Date(L.deliveryDate ?? Date.now()).toLocaleDateString('en-US', {
                     weekday: 'short',
                     month: 'short',
                     day: 'numeric',
@@ -698,14 +742,14 @@ export default function LoadDetailsScreen() {
           </View>
 
           {/* Backhaul Pill - Only for Drivers */}
-          {user?.role === 'driver' && load?.destination && (
+          {user?.role === 'driver' && L?.destination && (
             <View style={styles.backhaulSection}>
               <BackhaulPill
                 deliveryLocation={{
-                  lat: load.destination.lat,
-                  lng: load.destination.lng,
-                  city: load.destination.city,
-                  state: load.destination.state,
+                  lat: L.destination.lat || 0,
+                  lng: L.destination.lng || 0,
+                  city: L.destination.city || '',
+                  state: L.destination.state || '',
                 }}
                 onLoadSelect={(loadId) => {
                   console.log('[LoadDetails] Backhaul selected:', loadId);
@@ -721,7 +765,7 @@ export default function LoadDetailsScreen() {
             <View style={styles.detailRow}>
               <Package size={20} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Weight</Text>
-              <Text style={styles.detailValue}>{(Number(load.weight ?? 0) / 1000).toFixed(1)}k lbs</Text>
+              <Text style={styles.detailValue}>{(Number(L.weight ?? 0) / 1000).toFixed(1)}k lbs</Text>
             </View>
 
             <View style={styles.detailRow}>
@@ -823,7 +867,7 @@ export default function LoadDetailsScreen() {
                       if (!Number.isFinite(val) || val <= 0) return;
                       await updateProfile({
                         fuelProfile: {
-                          vehicleType: (selectedVehicleType as any) ?? (load?.vehicleType as any),
+                          vehicleType: (selectedVehicleType as any) ?? (L?.vehicleType as any),
                           averageMpg: val,
                           fuelPricePerGallon: (user as Driver)?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
                           fuelType: ((user as Driver)?.fuelProfile?.fuelType ?? 'diesel') as any,
@@ -852,7 +896,7 @@ export default function LoadDetailsScreen() {
                       if (!Number.isFinite(val) || val <= 0) return;
                       await updateProfile({
                         fuelProfile: {
-                          vehicleType: (selectedVehicleType as any) ?? (load?.vehicleType as any),
+                          vehicleType: (selectedVehicleType as any) ?? (L?.vehicleType as any),
                           averageMpg: (user as Driver)?.fuelProfile?.averageMpg ?? (undefined as unknown as number),
                           fuelPricePerGallon: (user as Driver)?.fuelProfile?.fuelPricePerGallon ?? (undefined as unknown as number),
                           fuelType: ((user as Driver)?.fuelProfile?.fuelType ?? 'diesel') as any,
@@ -868,35 +912,35 @@ export default function LoadDetailsScreen() {
               </View>
             </View>
 
-            {Array.isArray(load.special_requirements) && load.special_requirements.length > 0 && (
+            {Array.isArray(L.special_requirements) && L.special_requirements.length > 0 && (
               <View style={styles.requirementsContainer}>
                 <View style={styles.requirementsHeader}>
                   <AlertCircle size={20} color={theme.colors.warning} />
                   <Text style={styles.requirementsTitle}>Special Requirements</Text>
                 </View>
-                {load.special_requirements.map((req: string, index: number): React.ReactElement => (
+                {L.special_requirements.map((req: string, index: number): React.ReactElement => (
                   <Text key={`req-${index}`} style={styles.requirementItem} testID={`requirement-${index}`}>• {req}</Text>
                 ))}
               </View>
             )}
           </View>
 
-          {typeof load.aiScore === 'number' && (
+          {typeof L.aiScore === 'number' && (
             <View style={styles.aiScoreCard}>
               <Text style={styles.aiScoreLabel}>AI Match Score</Text>
               <View style={styles.aiScoreBar}>
                 <View 
-                  style={[styles.aiScoreFill, { width: `${load.aiScore}%` }]} 
+                  style={[styles.aiScoreFill, { width: `${L.aiScore}%` }]} 
                 />
               </View>
-              <Text style={styles.aiScoreValue}>{load.aiScore}%</Text>
+              <Text style={styles.aiScoreValue}>{L.aiScore}%</Text>
             </View>
           )}
 
           {/* Driver Navigation - Only show for drivers and accepted loads */}
-          {user?.role === 'driver' && load?.status === 'in-transit' && (
+          {user?.role === 'driver' && L?.status === 'in-transit' && (
             <DriverNavigation
-              load={load}
+              load={L}
               onPickupConfirmed={handlePickupConfirmed}
               onDeliveryConfirmed={handleDeliveryConfirmed}
             />
@@ -931,7 +975,7 @@ export default function LoadDetailsScreen() {
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() => router.push({ pathname: '/damage-protection', params: { loadId: load.id } })}
+            onPress={() => router.push({ pathname: '/damage-protection', params: { loadId: L.id } })}
             testID="btn-damage-photos"
           >
             <Text style={styles.secondaryButtonText}>Pickup/Delivery Photos</Text>
