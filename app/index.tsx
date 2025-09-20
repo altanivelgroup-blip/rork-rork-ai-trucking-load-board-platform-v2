@@ -19,7 +19,7 @@ const styles = StyleSheet.create({
 });
 
 export default function Index() {
-  console.log('[Index] 🔄 SIGN IN NAV FIX - App entry point rendering');
+  console.log('[Index] 🔄 PERMANENT SIGN IN FIX - App entry point rendering');
   
   const authState = useAuth();
   
@@ -27,7 +27,7 @@ export default function Index() {
   const user = authState?.user || null;
   const isLoading = authState?.isLoading ?? true;
   
-  console.log('[Index] 🔍 SIGN IN NAV FIX - Auth state:', {
+  console.log('[Index] 🔍 PERMANENT SIGN IN FIX - Auth state:', {
     hasUser: !!user,
     userRole: user?.role,
     userEmail: user?.email,
@@ -36,7 +36,7 @@ export default function Index() {
   });
 
   if (isLoading) {
-    console.log('[Index] ⏳ SIGN IN NAV FIX - Still loading, showing spinner');
+    console.log('[Index] ⏳ PERMANENT SIGN IN FIX - Still loading, showing spinner');
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -45,22 +45,22 @@ export default function Index() {
     );
   }
   
-  if (user) {
-    console.log('[Index] ✅ SIGN IN NAV FIX - User found, routing to dashboard for role:', user.role);
-    // Route based on user role
-    if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
-      console.log('[Index] 🔄 SIGN IN NAV FIX - Redirecting to admin dashboard');
-      return <Redirect href="/(tabs)/admin" />;
-    } else if (user.role === 'shipper') {
-      console.log('[Index] 🔄 SIGN IN NAV FIX - Redirecting to shipper dashboard');
-      return <Redirect href="/(tabs)/shipper" />;
-    } else {
-      console.log('[Index] 🔄 SIGN IN NAV FIX - Redirecting to driver dashboard');
-      return <Redirect href="/(tabs)/dashboard" />;
-    }
+  if (!user) {
+    console.log('[Index] 🔄 PERMANENT SIGN IN FIX - No user found, redirecting to login');
+    return <Redirect href="/(auth)/login" />;
   }
   
-  console.log('[Index] 🔄 SIGN IN NAV FIX - No user found, redirecting to login');
-  return <Redirect href="/(auth)/login" />;
+  console.log('[Index] ✅ PERMANENT SIGN IN FIX - User found, routing to dashboard for role:', user.role);
+  // Route based on user role
+  if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
+    console.log('[Index] 🔄 PERMANENT SIGN IN FIX - Redirecting to admin dashboard');
+    return <Redirect href="/(tabs)/admin" />;
+  } else if (user.role === 'shipper') {
+    console.log('[Index] 🔄 PERMANENT SIGN IN FIX - Redirecting to shipper dashboard');
+    return <Redirect href="/(tabs)/shipper" />;
+  } else {
+    console.log('[Index] 🔄 PERMANENT SIGN IN FIX - Redirecting to driver dashboard');
+    return <Redirect href="/(tabs)/dashboard" />;
+  }
 }
 

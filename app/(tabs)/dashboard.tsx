@@ -2,7 +2,7 @@ import React, { useMemo, useCallback, useState, memo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, TextInput, Button } from 'react-native';
 import Screen from '@/src/ui/Screen';
 import { theme } from '@/constants/theme';
-import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
+
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { Truck, Star, Package, ArrowRight, MapPin, Mic, Cloud, Sun, CloudRain, CloudLightning, Snowflake, LogOut } from 'lucide-react-native';
@@ -19,8 +19,7 @@ import { OPENWEATHER_API_KEY, ORS_API_KEY, MAPBOX_TOKEN } from '@/utils/env';
 import { startAudit, endAudit } from '@/utils/performanceAudit';
 import { Stack } from 'expo-router';
 import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
-import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
-import { calculateLoadAnalytics } from '@/utils/fuelCalculator';
+
 
 interface RecentLoadProps {
   id: string;
