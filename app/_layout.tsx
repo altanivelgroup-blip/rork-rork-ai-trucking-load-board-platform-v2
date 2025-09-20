@@ -22,6 +22,7 @@ import { DriverDataPersistenceProvider } from "@/hooks/useDriverDataPersistence"
 
 import HeaderBack from "@/components/HeaderBack";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import NavigationErrorBoundary from "@/components/NavigationErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
 import ToastHost from "@/components/ToastHost";
 import AutoArriveSheet from "@/components/AutoArriveSheet";
@@ -229,7 +230,9 @@ export default function RootLayout() {
                                     <DriverDataPersistenceProvider>
                                       <FuelMonitorProvider>
                                         <ErrorBoundary safeRoute="/(auth)/login">
-                                          <RootLayoutNav />
+                                          <NavigationErrorBoundary fallbackRoute="/(auth)/login">
+                                            <RootLayoutNav />
+                                          </NavigationErrorBoundary>
                                         </ErrorBoundary>
                                         <AutoArriveSheet />
                                       </FuelMonitorProvider>
