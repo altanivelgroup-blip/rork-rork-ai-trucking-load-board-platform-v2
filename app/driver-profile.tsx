@@ -433,7 +433,7 @@ export default function DriverProfileScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Truck Type</Text>
             <View style={styles.segmentedControl}>
-              {['truck', 'box-truck', 'flatbed', 'reefer'].map((type) => (
+              {['cargo-van', 'truck', 'box-truck', 'flatbed', 'reefer'].map((type) => (
                 <TouchableOpacity
                   key={type}
                   style={[
