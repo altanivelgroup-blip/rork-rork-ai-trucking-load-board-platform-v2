@@ -101,6 +101,9 @@ export default function LoadDetailsScreen() {
   const [derivedMiles, setDerivedMiles] = useState<number | null>(null);
   const [distLoading, setDistLoading] = useState<boolean>(false);
 
+  // Coerce load to ensure safe property access - moved up to avoid initialization errors
+  const L = coerceLoad(load);
+
   const mapboxToken = (require('@/utils/env').MAPBOX_TOKEN as string | undefined) ?? undefined;
   const orsKey = (require('@/utils/env').ORS_API_KEY as string | undefined) ?? undefined;
   const eiaKey = (require('@/utils/env').EIA_API_KEY as string | undefined) ?? undefined;
@@ -466,8 +469,7 @@ export default function LoadDetailsScreen() {
     );
   }
 
-  // Coerce load to ensure safe property access
-  const L = coerceLoad(load);
+  // L is already declared above to avoid initialization errors
 
   if (!L) {
     return (
