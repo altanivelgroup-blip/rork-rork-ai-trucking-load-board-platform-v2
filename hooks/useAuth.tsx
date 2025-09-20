@@ -46,6 +46,21 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
         if (cached) {
           const cachedUser = JSON.parse(cached);
+          
+          // Migration: Add fuelProfile to existing drivers if missing
+          if (cachedUser.role === 'driver' && !cachedUser.fuelProfile) {
+            cachedUser.fuelProfile = {
+              vehicleType: 'truck',
+              averageMpg: 8.5,
+              fuelPricePerGallon: 3.85,
+              fuelType: 'diesel',
+              tankCapacity: 150,
+            };
+            // Save the migrated user back to storage
+            await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cachedUser));
+            console.log('[auth] ✅ Migrated existing driver with fuel profile');
+          }
+          
           setUser(cachedUser);
           setUserId(cachedUser.id);
           setIsAnonymous(cachedUser.email === 'guest@example.com');
@@ -132,6 +147,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           pendingEarnings: 850,
           totalEarnings: 12500,
           transactions: [],
+        },
+        fuelProfile: {
+          vehicleType: 'truck',
+          averageMpg: 8.5,
+          fuelPricePerGallon: 3.85,
+          fuelType: 'diesel',
+          tankCapacity: 150,
         },
         isAvailable: true,
         verificationStatus: 'verified',
@@ -274,6 +296,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           pendingEarnings: 0,
           totalEarnings: 0,
           transactions: [],
+        },
+        fuelProfile: {
+          vehicleType: 'truck',
+          averageMpg: 8.5,
+          fuelPricePerGallon: 3.85,
+          fuelType: 'diesel',
+          tankCapacity: 150,
         },
         isAvailable: true,
         verificationStatus: 'unverified',
