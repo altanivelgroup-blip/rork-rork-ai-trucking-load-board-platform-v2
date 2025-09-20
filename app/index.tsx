@@ -20,10 +20,10 @@ export default function Index() {
     } else if (user.role === 'shipper') {
       return <Redirect href="/(tabs)/shipper" />;
     } else {
-      return <Redirect href="/(tabs)/dashboard" />;
+      return <Redirect href="/(tabs)" />;
     }
   }
   
-  return <Redirect href="/(auth)/login" />;
+  return <Redirect href="/(auth)/sign-in" />;
 }
 
