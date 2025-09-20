@@ -199,6 +199,7 @@ function RootLayoutNav() {
       <Stack.Screen name="simple-login-test" options={{ title: "Simple Login Test" }} />
       <Stack.Screen name="permission-fix-test" options={{ title: "Permission Fix Test" }} />
       <Stack.Screen name="sanity-check" options={{ title: "Sanity Check" }} />
+      <Stack.Screen name="permanent-fixes-test" options={{ title: "Profile Persistence Test" }} />
     </Stack>
   );
 }

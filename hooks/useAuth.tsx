@@ -48,53 +48,71 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       try {
         console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Starting auth initialization, attempt:', retryAttempts + 1);
         
-        const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
-        if (cached) {
+        // PERMANENT FIX: Try multiple storage locations for profile recovery
+        const storageKeys = [
+          USER_STORAGE_KEY,
+          `${USER_STORAGE_KEY}_backup`,
+          `profile:cache`,
+          `profile:persistent`,
+          `driver:profile:backup`,
+          `auth:user:persistent`
+        ];
+        
+        let cachedUser = null;
+        let recoverySource = null;
+        
+        // Try each storage location until we find valid data
+        for (const key of storageKeys) {
           try {
-            const cachedUser = JSON.parse(cached);
-            
-            // PERMANENT FIX: Enhanced validation with profile data recovery
-            if (!cachedUser.id || !cachedUser.role || !cachedUser.email) {
-              console.warn('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Invalid cached user structure, attempting recovery...');
-              
-              // Try to recover from backup storage keys
-              const backupKeys = [
-                `${USER_STORAGE_KEY}_backup`,
-                `profile:cache`,
-                `driver:profile:${cachedUser.id || 'unknown'}`,
-                `user:${cachedUser.email || 'unknown'}`
-              ];
-              
-              let recovered = false;
-              for (const backupKey of backupKeys) {
-                try {
-                  const backup = await AsyncStorage.getItem(backupKey);
-                  if (backup) {
-                    const backupUser = JSON.parse(backup);
-                    if (backupUser.id && backupUser.role && backupUser.email) {
-                      console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Recovered user from backup:', backupKey);
-                      Object.assign(cachedUser, backupUser);
-                      recovered = true;
-                      break;
-                    }
-                  }
-                } catch (backupError) {
-                  console.warn('[auth] Backup recovery failed for key:', backupKey, backupError);
-                }
-              }
-              
-              if (!recovered) {
-                console.error('[auth] ❌ PERMANENT PROFILE PERSISTENCE - Could not recover user data, clearing cache');
-                await AsyncStorage.removeItem(USER_STORAGE_KEY);
-                throw new Error('Invalid cached user data - recovery failed');
+            const cached = await AsyncStorage.getItem(key);
+            if (cached) {
+              const parsedUser = JSON.parse(cached);
+              if (parsedUser.id && parsedUser.role && parsedUser.email) {
+                cachedUser = parsedUser;
+                recoverySource = key;
+                console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Found valid user data in:', key);
+                break;
               }
             }
+          } catch (parseError) {
+            console.warn('[auth] Failed to parse data from key:', key, parseError);
+            continue;
+          }
+        }
+        
+        if (cachedUser) {
+          // PERMANENT FIX: Comprehensive profile migration and enhancement
+          let profileUpdated = false;
+          
+          // Ensure all required fields exist for drivers
+          if (cachedUser.role === 'driver') {
+            // Core driver fields
+            if (!cachedUser.name || cachedUser.name.trim() === '') {
+              cachedUser.name = cachedUser.email === 'guest@example.com' ? 'Guest Driver' : 'Driver User';
+              profileUpdated = true;
+            }
+            if (!cachedUser.completedLoads) cachedUser.completedLoads = 24;
+            if (!cachedUser.rating) cachedUser.rating = 4.8;
+            if (cachedUser.isAvailable === undefined) cachedUser.isAvailable = true;
+            if (!cachedUser.verificationStatus) cachedUser.verificationStatus = 'verified';
+            if (!cachedUser.documents) cachedUser.documents = [];
+            if (!cachedUser.vehicleTypes) cachedUser.vehicleTypes = [];
+            if (!cachedUser.cdlNumber) cachedUser.cdlNumber = '';
             
-            // PERMANENT FIX: Comprehensive profile migration and enhancement
-            let profileUpdated = false;
+            // Wallet - CRITICAL for driver functionality
+            if (!cachedUser.wallet) {
+              cachedUser.wallet = {
+                balance: 2450,
+                pendingEarnings: 850,
+                totalEarnings: 12500,
+                transactions: [],
+              };
+              profileUpdated = true;
+              console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Added wallet to driver');
+            }
             
-            // Migration: Add fuelProfile to existing drivers if missing
-            if (cachedUser.role === 'driver' && !cachedUser.fuelProfile) {
+            // Fuel Profile - CRITICAL for analytics
+            if (!cachedUser.fuelProfile) {
               cachedUser.fuelProfile = {
                 vehicleType: 'truck',
                 averageMpg: 8.5,
@@ -106,107 +124,87 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Added fuel profile to driver');
             }
             
-            // Migration: Add wallet to existing drivers if missing
-            if (cachedUser.role === 'driver' && !cachedUser.wallet) {
-              cachedUser.wallet = {
-                balance: 2450,
-                pendingEarnings: 850,
-                totalEarnings: 12500,
-                transactions: [],
-              };
-              profileUpdated = true;
-              console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Added wallet to driver');
-            }
+            // Vehicle profile fields for comprehensive driver data
+            if (!cachedUser.truckType) cachedUser.truckType = 'truck';
+            if (!cachedUser.tankSize) cachedUser.tankSize = 150;
+            if (!cachedUser.fuelTypePreference) cachedUser.fuelTypePreference = 'diesel';
+            if (!cachedUser.yearsExperience) cachedUser.yearsExperience = 5;
+            if (!cachedUser.vehicleMake) cachedUser.vehicleMake = '';
+            if (!cachedUser.vehicleModel) cachedUser.vehicleModel = '';
+            if (!cachedUser.fuelType) cachedUser.fuelType = 'diesel';
+            if (!cachedUser.mpgRated) cachedUser.mpgRated = 8.5;
+            if (!cachedUser.tankGallons) cachedUser.tankGallons = 150;
             
-            // Migration: Add missing driver fields
-            if (cachedUser.role === 'driver') {
-              if (!cachedUser.completedLoads) cachedUser.completedLoads = 24;
-              if (!cachedUser.rating) cachedUser.rating = 4.8;
-              if (!cachedUser.isAvailable) cachedUser.isAvailable = true;
-              if (!cachedUser.verificationStatus) cachedUser.verificationStatus = 'verified';
-              if (!cachedUser.documents) cachedUser.documents = [];
-              if (!cachedUser.vehicleTypes) cachedUser.vehicleTypes = [];
-              if (!cachedUser.cdlNumber) cachedUser.cdlNumber = '';
-              profileUpdated = true;
-            }
-            
-            // Migration: Add missing shipper fields
-            if (cachedUser.role === 'shipper') {
-              if (!cachedUser.companyName) cachedUser.companyName = 'Test Logistics';
-              if (!cachedUser.mcNumber) cachedUser.mcNumber = 'MC123456';
-              if (!cachedUser.dotNumber) cachedUser.dotNumber = 'DOT789012';
-              if (!cachedUser.verificationStatus) cachedUser.verificationStatus = 'verified';
-              if (!cachedUser.totalLoadsPosted) cachedUser.totalLoadsPosted = 45;
-              if (!cachedUser.activeLoads) cachedUser.activeLoads = 12;
-              if (!cachedUser.completedLoads) cachedUser.completedLoads = 33;
-              if (!cachedUser.totalRevenue) cachedUser.totalRevenue = 125000;
-              if (!cachedUser.avgRating) cachedUser.avgRating = 4.6;
-              profileUpdated = true;
-            }
-            
-            // Add timestamps if missing
-            if (!cachedUser.createdAt) {
-              cachedUser.createdAt = new Date();
-              profileUpdated = true;
-            }
-            if (!cachedUser.membershipTier) {
-              cachedUser.membershipTier = 'basic';
-              profileUpdated = true;
-            }
-            
-            // Save updated profile if changes were made
-            if (profileUpdated) {
-              await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cachedUser));
-              // Create backup copies for recovery
-              await AsyncStorage.setItem(`${USER_STORAGE_KEY}_backup`, JSON.stringify(cachedUser));
-              await AsyncStorage.setItem(`profile:cache`, JSON.stringify(cachedUser));
-              console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Profile updated and backed up');
-            }
-            
-            setUser(cachedUser);
-            setUserId(cachedUser.id);
-            setIsAnonymous(cachedUser.email === 'guest@example.com');
-            setHasSignedInThisSession(false);
-            setLastSuccessfulAuth(new Date());
-            setInitError(null);
-            
-            console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Successfully loaded cached user:', {
-              role: cachedUser.role,
-              email: cachedUser.email,
-              isAnonymous: cachedUser.email === 'guest@example.com',
-              hasWallet: !!(cachedUser as any).wallet,
-              hasFuelProfile: !!(cachedUser as any).fuelProfile,
-              profileComplete: true
-            });
-          } catch (parseError) {
-            console.error('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Failed to parse cached user, attempting recovery:', parseError);
-            
-            // Try to recover from backup before clearing
-            try {
-              const backup = await AsyncStorage.getItem(`${USER_STORAGE_KEY}_backup`);
-              if (backup) {
-                const backupUser = JSON.parse(backup);
-                if (backupUser.id && backupUser.role && backupUser.email) {
-                  console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Recovered from backup after parse error');
-                  await AsyncStorage.setItem(USER_STORAGE_KEY, backup);
-                  setUser(backupUser);
-                  setUserId(backupUser.id);
-                  setIsAnonymous(backupUser.email === 'guest@example.com');
-                  setHasSignedInThisSession(false);
-                  setLastSuccessfulAuth(new Date());
-                  setInitError(null);
-                  return;
-                }
-              }
-            } catch (backupError) {
-              console.error('[auth] Backup recovery failed:', backupError);
-            }
-            
-            await AsyncStorage.removeItem(USER_STORAGE_KEY);
-            setInitError('Corrupted user data cleared - please sign in again');
+            profileUpdated = true;
           }
+          
+          // Ensure all required fields exist for shippers
+          if (cachedUser.role === 'shipper') {
+            if (!cachedUser.name || cachedUser.name.trim() === '') {
+              cachedUser.name = cachedUser.email === 'guest@example.com' ? 'Guest Shipper' : 'Shipper User';
+              profileUpdated = true;
+            }
+            if (!cachedUser.companyName) cachedUser.companyName = 'Test Logistics';
+            if (!cachedUser.mcNumber) cachedUser.mcNumber = 'MC123456';
+            if (!cachedUser.dotNumber) cachedUser.dotNumber = 'DOT789012';
+            if (!cachedUser.verificationStatus) cachedUser.verificationStatus = 'verified';
+            if (!cachedUser.totalLoadsPosted) cachedUser.totalLoadsPosted = 45;
+            if (!cachedUser.activeLoads) cachedUser.activeLoads = 12;
+            if (!cachedUser.completedLoads) cachedUser.completedLoads = 33;
+            if (!cachedUser.totalRevenue) cachedUser.totalRevenue = 125000;
+            if (!cachedUser.avgRating) cachedUser.avgRating = 4.6;
+            profileUpdated = true;
+          }
+          
+          // Common fields for all users
+          if (!cachedUser.createdAt) {
+            cachedUser.createdAt = new Date();
+            profileUpdated = true;
+          }
+          if (!cachedUser.membershipTier) {
+            cachedUser.membershipTier = 'basic';
+            profileUpdated = true;
+          }
+          if (!cachedUser.phone) cachedUser.phone = '';
+          
+          // PERMANENT FIX: Save to ALL storage locations for maximum persistence
+          if (profileUpdated || recoverySource !== USER_STORAGE_KEY) {
+            const userDataString = JSON.stringify(cachedUser);
+            const savePromises = [
+              AsyncStorage.setItem(USER_STORAGE_KEY, userDataString),
+              AsyncStorage.setItem(`${USER_STORAGE_KEY}_backup`, userDataString),
+              AsyncStorage.setItem(`profile:cache`, userDataString),
+              AsyncStorage.setItem(`profile:persistent`, userDataString),
+              AsyncStorage.setItem(`driver:profile:backup`, userDataString),
+              AsyncStorage.setItem(`auth:user:persistent`, userDataString),
+              AsyncStorage.setItem(`profile:timestamp:${Date.now()}`, userDataString),
+              AsyncStorage.setItem(`user:${cachedUser.email}:backup`, userDataString)
+            ];
+            
+            await Promise.allSettled(savePromises);
+            console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Profile saved to all storage locations');
+          }
+          
+          setUser(cachedUser);
+          setUserId(cachedUser.id);
+          setIsAnonymous(cachedUser.email === 'guest@example.com');
+          setHasSignedInThisSession(false);
+          setLastSuccessfulAuth(new Date());
+          setInitError(null);
+          
+          console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Successfully loaded cached user:', {
+            role: cachedUser.role,
+            email: cachedUser.email,
+            name: cachedUser.name,
+            isAnonymous: cachedUser.email === 'guest@example.com',
+            hasWallet: !!(cachedUser as any).wallet,
+            hasFuelProfile: !!(cachedUser as any).fuelProfile,
+            hasVehicleData: !!(cachedUser as any).truckType,
+            profileComplete: true,
+            recoveredFrom: recoverySource
+          });
         } else {
-          console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - No cached user found, user needs to sign in');
+          console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - No cached user found in any storage location');
         }
       } catch (error: any) {
         console.error('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Auth initialization error:', error);
@@ -510,12 +508,49 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       setIsAnonymous(email === 'guest@example.com');
       setHasSignedInThisSession(true);
       
-      // Enhanced storage with error handling
+      // PERMANENT FIX: Enhanced storage with comprehensive backup on login
       try {
-        await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser));
-        console.log('[auth] ✅ Auth optimized - User data cached successfully');
+        const userDataString = JSON.stringify(mockUser);
+        
+        // Save to all storage locations immediately on login
+        const loginStoragePromises = [
+          AsyncStorage.setItem(USER_STORAGE_KEY, userDataString),
+          AsyncStorage.setItem(`${USER_STORAGE_KEY}_backup`, userDataString),
+          AsyncStorage.setItem(`profile:cache`, userDataString),
+          AsyncStorage.setItem(`profile:persistent`, userDataString),
+          AsyncStorage.setItem(`auth:user:persistent`, userDataString),
+          AsyncStorage.setItem(`login:${mockUser.role}:${Date.now()}`, userDataString),
+          AsyncStorage.setItem(`user:${mockUser.email}:backup`, userDataString)
+        ];
+        
+        const results = await Promise.allSettled(loginStoragePromises);
+        const successCount = results.filter(r => r.status === 'fulfilled').length;
+        
+        console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Login data cached:', {
+          successful: successCount,
+          total: loginStoragePromises.length,
+          userRole: mockUser.role,
+          userEmail: mockUser.email
+        });
+        
+        // Mark successful login for analytics
+        await AsyncStorage.setItem('auth:last-successful-login', JSON.stringify({
+          timestamp: new Date().toISOString(),
+          userId: mockUser.id,
+          userRole: mockUser.role,
+          storageSuccess: successCount
+        }));
+        
       } catch (storageError) {
-        console.warn('[auth] ⚠️ Auth optimization - Failed to cache user data:', storageError);
+        console.error('[auth] ❌ PERMANENT PROFILE PERSISTENCE - Failed to cache user data:', storageError);
+        
+        // Emergency login storage
+        try {
+          await AsyncStorage.setItem(`emergency:login:${Date.now()}`, JSON.stringify(mockUser));
+          console.log('[auth] ✅ Emergency login storage successful');
+        } catch (emergencyError) {
+          console.error('[auth] ❌ Even emergency login storage failed:', emergencyError);
+        }
       }
       
       setLastSuccessfulAuth(new Date());
@@ -641,24 +676,46 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     
     setUser(updated);
     
-    // PERMANENT FIX: Enhanced local storage with multiple backup strategies
+    // PERMANENT FIX: Enhanced local storage with comprehensive backup strategies
     try {
-      // Primary storage
-      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
+      const userDataString = JSON.stringify(updated);
       
-      // Create multiple backup copies for data recovery
-      const backupPromises = [
-        AsyncStorage.setItem(`${USER_STORAGE_KEY}_backup`, JSON.stringify(updated)),
-        AsyncStorage.setItem(`profile:cache`, JSON.stringify(updated)),
-        AsyncStorage.setItem(`driver:profile:${updated.id}`, JSON.stringify(updated)),
-        AsyncStorage.setItem(`user:${updated.email}`, JSON.stringify(updated)),
-        AsyncStorage.setItem(`profile:timestamp:${Date.now()}`, JSON.stringify(updated))
+      // PERMANENT FIX: Save to ALL possible storage locations for maximum persistence
+      const storagePromises = [
+        // Primary storage locations
+        AsyncStorage.setItem(USER_STORAGE_KEY, userDataString),
+        AsyncStorage.setItem(`${USER_STORAGE_KEY}_backup`, userDataString),
+        AsyncStorage.setItem(`profile:cache`, userDataString),
+        AsyncStorage.setItem(`profile:persistent`, userDataString),
+        
+        // Role-specific backups
+        AsyncStorage.setItem(`${updated.role}:profile:${updated.id}`, userDataString),
+        AsyncStorage.setItem(`driver:profile:backup`, userDataString),
+        AsyncStorage.setItem(`auth:user:persistent`, userDataString),
+        
+        // Email-based backups
+        AsyncStorage.setItem(`user:${updated.email}:backup`, userDataString),
+        AsyncStorage.setItem(`profile:${updated.email}`, userDataString),
+        
+        // Timestamped backups for recovery
+        AsyncStorage.setItem(`profile:timestamp:${Date.now()}`, userDataString),
+        AsyncStorage.setItem(`profile:latest:${updated.role}`, userDataString),
+        
+        // Session-based backup
+        AsyncStorage.setItem(`session:profile:${Date.now()}`, userDataString)
       ];
       
-      await Promise.allSettled(backupPromises);
-      console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Profile saved with multiple backups');
+      const results = await Promise.allSettled(storagePromises);
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
       
-      // Store profile update history for debugging
+      console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Profile saved:', {
+        successful: successCount,
+        failed: failCount,
+        total: storagePromises.length
+      });
+      
+      // Store profile update history for debugging and recovery
       try {
         const historyKey = `profile:history:${updated.id}`;
         const existingHistory = await AsyncStorage.getItem(historyKey);
@@ -666,26 +723,63 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         history.push({
           timestamp: new Date().toISOString(),
           updates,
-          profileSnapshot: { ...updated }
+          profileSnapshot: { ...updated },
+          storageResults: { successful: successCount, failed: failCount }
         });
-        // Keep only last 10 updates
-        if (history.length > 10) history.splice(0, history.length - 10);
+        // Keep only last 20 updates for better debugging
+        if (history.length > 20) history.splice(0, history.length - 20);
         await AsyncStorage.setItem(historyKey, JSON.stringify(history));
+        
+        // Also save a simplified recovery file
+        const recoveryData = {
+          lastUpdate: new Date().toISOString(),
+          userId: updated.id,
+          userRole: updated.role,
+          userEmail: updated.email,
+          userName: updated.name,
+          profileComplete: true,
+          hasWallet: !!(updated as any).wallet,
+          hasFuelProfile: !!(updated as any).fuelProfile,
+          hasVehicleData: !!(updated as any).truckType || !!(updated as any).vehicleMake
+        };
+        await AsyncStorage.setItem(`profile:recovery:${updated.id}`, JSON.stringify(recoveryData));
+        
       } catch (historyError) {
         console.warn('[auth] Failed to save profile history:', historyError);
+      }
+      
+      // If less than half the storage operations succeeded, log a warning
+      if (successCount < storagePromises.length / 2) {
+        console.warn('[auth] ⚠️ PERMANENT PROFILE PERSISTENCE - Low success rate for storage operations');
       }
       
     } catch (storageError) {
       console.error('[auth] ❌ PERMANENT PROFILE PERSISTENCE - Failed to save profile locally:', storageError);
       
-      // Try alternative storage methods
-      try {
-        const fallbackKey = `profile:fallback:${Date.now()}`;
-        await AsyncStorage.setItem(fallbackKey, JSON.stringify(updated));
-        console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Saved to fallback storage');
-      } catch (fallbackError) {
-        console.error('[auth] ❌ PERMANENT PROFILE PERSISTENCE - Even fallback storage failed:', fallbackError);
-        throw new Error('Critical: Unable to persist profile data');
+      // PERMANENT FIX: Emergency fallback storage with multiple attempts
+      const emergencyKeys = [
+        `profile:emergency:${Date.now()}`,
+        `profile:fallback:${updated.id}`,
+        `emergency:${updated.role}:${updated.email}`,
+        `backup:critical:${Date.now()}`
+      ];
+      
+      let emergencySaved = false;
+      for (const key of emergencyKeys) {
+        try {
+          await AsyncStorage.setItem(key, JSON.stringify(updated));
+          console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Emergency save successful:', key);
+          emergencySaved = true;
+          break;
+        } catch (emergencyError) {
+          console.warn('[auth] Emergency save failed for key:', key, emergencyError);
+          continue;
+        }
+      }
+      
+      if (!emergencySaved) {
+        console.error('[auth] ❌ PERMANENT PROFILE PERSISTENCE - ALL storage methods failed!');
+        throw new Error('Critical: Unable to persist profile data - all storage methods failed');
       }
     }
 
