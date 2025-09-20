@@ -155,6 +155,11 @@ export async function computeDistanceMilesFromZips(origZip: string, destZip: str
 
 // Helper function to extract ZIP codes from load object
 export function extractZips(load: any): { origZip: string | null; destZip: string | null } {
+  // Handle null/undefined load
+  if (!load) {
+    return { origZip: null, destZip: null };
+  }
+  
   const origZip = load.origin?.zip || 
                   load.pickupZip || 
                   load.originZip || 
