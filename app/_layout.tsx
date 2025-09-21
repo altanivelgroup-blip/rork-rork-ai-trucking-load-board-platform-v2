@@ -1,6 +1,6 @@
-import { Stack, useRouter } from "expo-router";
-import React, { useMemo, useCallback } from "react";
-import { View, StyleSheet } from "react-native";
+import { Stack } from "expo-router";
+import React, { useMemo, useCallback, useEffect, useState } from "react";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -42,6 +42,8 @@ const queryClient = new QueryClient({
   },
 });
 
+
+
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
@@ -53,7 +55,6 @@ const styles = StyleSheet.create({
 });
 
 function RootLayoutNav() {
-  const router = useRouter();
   const headerLeft = useCallback(
     ({ tintColor }: { tintColor?: string }) => (
       <HeaderBack tintColor={tintColor ?? theme.colors.dark} size={28} />
@@ -62,6 +63,7 @@ function RootLayoutNav() {
   );
 
   const headerRight = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const HeaderAuthAction = require('@/components/HeaderAuthAction').default;
     return <HeaderAuthAction />;
   }, []);
@@ -220,6 +222,29 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Prevent hydration timeout by ensuring client-side rendering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsHydrated(true);
+    }, 50); // Very short delay to prevent hydration mismatch
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Show loading while hydrating
+  if (!isHydrated) {
+    return (
+      <GestureHandlerRootView style={styles.rootContainer}>
+        <SafeAreaProvider>
+          <View style={[styles.appContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+            <ActivityIndicator size="large" color="#007AFF" />
+          </View>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={styles.rootContainer}>
       <SafeAreaProvider>

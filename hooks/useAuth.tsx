@@ -65,12 +65,19 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        console.log('[auth] Starting email/password auth initialization...');
+        console.log('[auth] Starting fast auth initialization...');
         
-        // Check for cached user data
+        // Quick timeout to prevent hydration issues
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Auth init timeout')), 2000);
+        });
+        
+        // Check for cached user data with timeout
         let cachedUser = null;
         try {
-          const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
+          const cachePromise = AsyncStorage.getItem(USER_STORAGE_KEY);
+          const cached = await Promise.race([cachePromise, timeoutPromise]) as string | null;
+          
           if (cached) {
             const parsedUser = JSON.parse(cached);
             // Only use cached user if it's not a guest user
@@ -79,61 +86,54 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               console.log('[auth] Found valid cached user:', parsedUser.email);
             } else {
               console.log('[auth] Cached user is guest or invalid, clearing...');
-              await AsyncStorage.removeItem(USER_STORAGE_KEY);
+              // Don't await this to prevent blocking
+              AsyncStorage.removeItem(USER_STORAGE_KEY).catch(() => {});
             }
           }
         } catch (error) {
-          console.warn('[auth] Failed to load cached user:', error);
+          console.warn('[auth] Failed to load cached user or timeout:', error);
         }
         
         if (cachedUser) {
-          // Enhance cached user with required fields
+          // Enhance cached user with required fields (minimal for fast loading)
           if (cachedUser.role === 'driver') {
-            if (!cachedUser.name || cachedUser.name.trim() === '') {
-              cachedUser.name = 'Driver User';
-            }
-            if (!cachedUser.completedLoads) cachedUser.completedLoads = 24;
-            if (!cachedUser.rating) cachedUser.rating = 4.8;
-            if (cachedUser.isAvailable === undefined) cachedUser.isAvailable = true;
-            if (!cachedUser.verificationStatus) cachedUser.verificationStatus = 'verified';
-            if (!cachedUser.documents) cachedUser.documents = [];
-            if (!cachedUser.vehicleTypes) cachedUser.vehicleTypes = [];
-            if (!cachedUser.cdlNumber) cachedUser.cdlNumber = '';
+            cachedUser.name = cachedUser.name || 'Driver User';
+            cachedUser.completedLoads = cachedUser.completedLoads || 24;
+            cachedUser.rating = cachedUser.rating || 4.8;
+            cachedUser.isAvailable = cachedUser.isAvailable !== undefined ? cachedUser.isAvailable : true;
+            cachedUser.verificationStatus = cachedUser.verificationStatus || 'verified';
+            cachedUser.documents = cachedUser.documents || [];
+            cachedUser.vehicleTypes = cachedUser.vehicleTypes || [];
+            cachedUser.cdlNumber = cachedUser.cdlNumber || '';
             
-            if (!cachedUser.wallet) {
-              cachedUser.wallet = {
-                balance: 2450,
-                pendingEarnings: 850,
-                totalEarnings: 12500,
-                transactions: [],
-              };
-            }
+            cachedUser.wallet = cachedUser.wallet || {
+              balance: 2450,
+              pendingEarnings: 850,
+              totalEarnings: 12500,
+              transactions: [],
+            };
             
-            if (!cachedUser.fuelProfile) {
-              cachedUser.fuelProfile = {
-                vehicleType: 'truck',
-                averageMpg: 8.5,
-                fuelPricePerGallon: 3.85,
-                fuelType: 'diesel',
-                tankCapacity: 150,
-              };
-            }
+            cachedUser.fuelProfile = cachedUser.fuelProfile || {
+              vehicleType: 'truck',
+              averageMpg: 8.5,
+              fuelPricePerGallon: 3.85,
+              fuelType: 'diesel',
+              tankCapacity: 150,
+            };
           }
           
           if (cachedUser.role === 'shipper') {
-            if (!cachedUser.name || cachedUser.name.trim() === '') {
-              cachedUser.name = 'Shipper User';
-            }
-            if (!cachedUser.companyName) cachedUser.companyName = 'Test Logistics';
-            if (!cachedUser.verificationStatus) cachedUser.verificationStatus = 'verified';
+            cachedUser.name = cachedUser.name || 'Shipper User';
+            cachedUser.companyName = cachedUser.companyName || 'Test Logistics';
+            cachedUser.verificationStatus = cachedUser.verificationStatus || 'verified';
           }
           
-          if (!cachedUser.createdAt) cachedUser.createdAt = new Date();
-          if (!cachedUser.membershipTier) cachedUser.membershipTier = 'basic';
-          if (!cachedUser.phone) cachedUser.phone = '';
+          cachedUser.createdAt = cachedUser.createdAt || new Date();
+          cachedUser.membershipTier = cachedUser.membershipTier || 'basic';
+          cachedUser.phone = cachedUser.phone || '';
           
-          // Save updated user data
-          await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cachedUser));
+          // Save updated user data asynchronously to not block loading
+          AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cachedUser)).catch(() => {});
           
           setUser(cachedUser);
           setUserId(cachedUser.id);
