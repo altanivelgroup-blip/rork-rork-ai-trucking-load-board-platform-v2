@@ -13,7 +13,7 @@ export default function HeaderAuthAction() {
   const isFirebaseSignedIn = !!auth?.currentUser;
   const showAccount = !!user && isFirebaseSignedIn;
   const label = showAccount ? 'Account' : 'Sign In';
-  const target = showAccount ? '/account' : '/signin';
+  const target = showAccount ? '/account' : '/(auth)/login';
 
   return (
     <TouchableOpacity
