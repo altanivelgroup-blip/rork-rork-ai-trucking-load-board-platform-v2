@@ -206,13 +206,13 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
       });
 
       const result: LiveAnalytics = {
-        fuelCost,
-        netAfterFuel,
-        profitPerMile,
-        estimatedMiles: miles,
-        eta,
-        mpg: fuelEstimate.mpg,
-        gallonsNeeded: fuelEstimate.gallons,
+        fuelCost: Number.isFinite(fuelCost) ? fuelCost : 0,
+        netAfterFuel: Number.isFinite(netAfterFuel) ? netAfterFuel : 0,
+        profitPerMile: Number.isFinite(profitPerMile) ? profitPerMile : 0,
+        estimatedMiles: Number.isFinite(miles) ? Math.round(miles) : 0,
+        eta: eta || 'Calculating...',
+        mpg: Number.isFinite(fuelEstimate.mpg) ? fuelEstimate.mpg : 8,
+        gallonsNeeded: Number.isFinite(fuelEstimate.gallons) ? fuelEstimate.gallons : 0,
         loading: false,
         error: null
       };

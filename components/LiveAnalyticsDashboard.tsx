@@ -71,10 +71,10 @@ export default function LiveAnalyticsDashboard({
             </Text>
           </View>
           <Text style={[styles.metricValue, compact && styles.metricValueCompact]}>
-            {formatCurrency(analytics.fuelCost)}
+            {formatCurrency(analytics.fuelCost || 0)}
           </Text>
           <Text style={[styles.metricSubtext, compact && styles.metricSubtextCompact]}>
-            {analytics.gallonsNeeded.toFixed(1)} gal @ {analytics.mpg.toFixed(1)} mpg
+            {(analytics.gallonsNeeded || 0).toFixed(1)} gal @ {(analytics.mpg || 0).toFixed(1)} mpg
           </Text>
         </View>
 
@@ -92,12 +92,12 @@ export default function LiveAnalyticsDashboard({
           <Text style={[
             styles.metricValue, 
             compact && styles.metricValueCompact,
-            { color: analytics.netAfterFuel >= 0 ? theme.colors.success : theme.colors.danger }
+            { color: (analytics.netAfterFuel || 0) >= 0 ? theme.colors.success : theme.colors.danger }
           ]}>
-            {formatCurrency(analytics.netAfterFuel)}
+            {formatCurrency(analytics.netAfterFuel || 0)}
           </Text>
           <Text style={[styles.metricSubtext, compact && styles.metricSubtextCompact]}>
-            {analytics.netAfterFuel >= 0 ? 'Profitable' : 'Loss'}
+            {(analytics.netAfterFuel || 0) >= 0 ? 'Profitable' : 'Loss'}
           </Text>
         </View>
 
@@ -110,7 +110,7 @@ export default function LiveAnalyticsDashboard({
             </Text>
           </View>
           <Text style={[styles.metricValue, compact && styles.metricValueCompact]}>
-            ${analytics.profitPerMile.toFixed(2)}
+            ${(analytics.profitPerMile || 0).toFixed(2)}
           </Text>
           <Text style={[styles.metricSubtext, compact && styles.metricSubtextCompact]}>
             per mile
@@ -126,10 +126,10 @@ export default function LiveAnalyticsDashboard({
             </Text>
           </View>
           <Text style={[styles.metricValue, compact && styles.metricValueCompact]}>
-            {analytics.eta}
+            {analytics.eta || 'Calculating...'}
           </Text>
           <Text style={[styles.metricSubtext, compact && styles.metricSubtextCompact]}>
-            {analytics.estimatedMiles} miles
+            {analytics.estimatedMiles || 0} miles
           </Text>
         </View>
       </View>
@@ -140,7 +140,7 @@ export default function LiveAnalyticsDashboard({
           <View style={styles.summaryItem}>
             <MapPin size={16} color={theme.colors.gray} />
             <Text style={styles.summaryText}>
-              {analytics.estimatedMiles} mi • {analytics.gallonsNeeded.toFixed(1)} gal • {analytics.mpg.toFixed(1)} mpg
+              {analytics.estimatedMiles || 0} mi • {(analytics.gallonsNeeded || 0).toFixed(1)} gal • {(analytics.mpg || 0).toFixed(1)} mpg
             </Text>
           </View>
         </View>
