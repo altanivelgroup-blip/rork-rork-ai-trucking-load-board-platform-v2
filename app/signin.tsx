@@ -31,7 +31,7 @@ export default function SignInScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, hardReset } = useAuth();
 
   const isValidEmail = (emailValue: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -227,6 +227,33 @@ export default function SignInScreen() {
               testID="forgot-password-link"
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.forgotPassword, { marginTop: theme.spacing.sm }]} 
+              onPress={async () => {
+                console.log('[signin] 🔥 HARD LOGOUT - Clearing all auth data');
+                try {
+                  if (hardReset) {
+                    await hardReset();
+                    console.log('[signin] ✅ Hard reset completed');
+                  }
+                } catch (error) {
+                  console.warn('[signin] Hard reset failed, clearing manually:', error);
+                  // Manual cleanup
+                  const AsyncStorage = await import('@react-native-async-storage/async-storage');
+                  const keys = await AsyncStorage.default.getAllKeys();
+                  const authKeys = keys.filter(key => 
+                    key.includes('auth:') || key.includes('profile:') || key.includes('user:')
+                  );
+                  await Promise.all(authKeys.map(key => AsyncStorage.default.removeItem(key)));
+                }
+                // Force reload
+                router.replace('/signin');
+              }} 
+              testID="hard-logout-link"
+            >
+              <Text style={[styles.forgotPasswordText, { color: '#FF6B35' }]}>Hard Logout (Clear All Data)</Text>
             </TouchableOpacity>
             
             {/* Debug Buttons */}
