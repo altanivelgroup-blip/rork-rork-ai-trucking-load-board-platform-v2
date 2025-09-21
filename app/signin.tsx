@@ -268,9 +268,9 @@ export default function SignInScreen() {
                     height: Dimensions.get('window').height
                   });
                   
-                  // Auto-fill test credentials
+                  // Auto-fill email only - user must enter their real password
                   setEmail('driver@truck.com');
-                  setPassword('password123');
+                  setPassword('');
                   setSelectedRole('driver');
                   
                   // Wait a moment for state to update
@@ -302,45 +302,45 @@ export default function SignInScreen() {
           </View>
 
           <View style={styles.testCredentials}>
-            <Text style={styles.testCredentialsTitle}>Quick Test Login:</Text>
+            <Text style={styles.testCredentialsTitle}>Quick Email Fill (You must enter your actual password):</Text>
             <TouchableOpacity 
               style={styles.testButton}
               onPress={() => {
-                console.log('[signin] 🎯 IPAD FIX - Driver test account selected');
+                console.log('[signin] 🎯 EXISTING USER - Driver account selected');
                 setEmail('driver@truck.com');
-                setPassword('password123');
+                setPassword('');
                 setSelectedRole('driver');
               }}
               activeOpacity={0.7}
               hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
-              <Text style={styles.testButtonText}>driver@truck.com</Text>
+              <Text style={styles.testButtonText}>driver@truck.com (enter your password)</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.testButton}
               onPress={() => {
-                console.log('[signin] 🎯 IPAD FIX - Shipper test account selected');
+                console.log('[signin] 🎯 EXISTING USER - Shipper account selected');
                 setEmail('enterprise@shipper.com');
-                setPassword('password123');
+                setPassword('');
                 setSelectedRole('shipper');
               }}
               activeOpacity={0.7}
               hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
-              <Text style={styles.testButtonText}>enterprise@shipper.com</Text>
+              <Text style={styles.testButtonText}>enterprise@shipper.com (enter your password)</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.testButton}
               onPress={() => {
-                console.log('[signin] 🎯 IPAD FIX - Admin test account selected');
+                console.log('[signin] 🎯 EXISTING USER - Admin account selected');
                 setEmail('admin@loadrush.com');
-                setPassword('admin123');
+                setPassword('');
                 setSelectedRole('admin');
               }}
               activeOpacity={0.7}
               hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
-              <Text style={styles.testButtonText}>admin@loadrush.com</Text>
+              <Text style={styles.testButtonText}>admin@loadrush.com (enter your password)</Text>
             </TouchableOpacity>
           </View>
 

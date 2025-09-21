@@ -24,33 +24,33 @@ type QuickUser = {
 const QUICK_USERS: QuickUser[] = [
   {
     email: 'driver@truck.com',
-    password: 'T23456',
+    password: '', // User must enter their real password
     role: 'driver',
-    displayName: '🚛 Truck Driver'
+    displayName: '🚛 Truck Driver (enter your password)'
   },
   {
     email: 'driver@cargovan.com',
-    password: 'C23456',
+    password: '', // User must enter their real password
     role: 'driver',
-    displayName: '🚐 Cargo Van Driver'
+    displayName: '🚐 Cargo Van Driver (enter your password)'
   },
   {
     email: 'base@shipper.com',
-    password: 'B23456',
+    password: '', // User must enter their real password
     role: 'shipper',
-    displayName: '📦 Base Shipper'
+    displayName: '📦 Base Shipper (enter your password)'
   },
   {
     email: 'pro@shipper.com',
-    password: 'P23456',
+    password: '', // User must enter their real password
     role: 'shipper',
-    displayName: '⭐ Pro Shipper'
+    displayName: '⭐ Pro Shipper (enter your password)'
   },
   {
     email: 'admin@loadrush.com',
-    password: 'admin123',
+    password: '', // User must enter their real password
     role: 'admin',
-    displayName: '⚙️ Admin User'
+    displayName: '⚙️ Admin User (enter your password)'
   }
 ];
 
@@ -63,9 +63,17 @@ export default function SimpleLoginScreen() {
   const [customLoading, setCustomLoading] = useState<boolean>(false);
 
   const handleQuickLogin = async (quickUser: QuickUser) => {
+    // Don't auto-login with empty password - just fill the form
+    if (!quickUser.password.trim()) {
+      setCustomEmail(quickUser.email);
+      setCustomPassword('');
+      console.log(`[SimpleLogin] 📝 Email filled for ${quickUser.displayName} - please enter your password`);
+      return;
+    }
+    
     setLoading(quickUser.email);
     try {
-      console.log(`[SimpleLogin] 🎯 PERMANENT SIGN IN FIX - Quick login as ${quickUser.displayName}`);
+      console.log(`[SimpleLogin] 🎯 REAL FIREBASE LOGIN - Quick login as ${quickUser.displayName}`);
       
       await login(quickUser.email, quickUser.password, quickUser.role);
       
@@ -151,7 +159,7 @@ export default function SimpleLoginScreen() {
 
         {/* Quick Login Buttons */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚡ Quick Login</Text>
+          <Text style={styles.sectionTitle}>📝 Quick Email Fill (You must enter your password below)</Text>
           {QUICK_USERS.map((quickUser) => (
             <TouchableOpacity
               key={quickUser.email}
@@ -164,7 +172,10 @@ export default function SimpleLoginScreen() {
                   console.warn('[SimpleLogin] Invalid quick user data');
                   return;
                 }
-                handleQuickLogin(quickUser);
+                // Just fill the email field - user must enter password
+                setCustomEmail(quickUser.email);
+                setCustomPassword('');
+                console.log(`[SimpleLogin] 📝 Email filled: ${quickUser.email} - please enter your password`);
               }}
               disabled={loading === quickUser.email}
             >
