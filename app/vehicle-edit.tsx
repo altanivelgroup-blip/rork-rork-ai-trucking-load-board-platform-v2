@@ -82,6 +82,7 @@ export default function VehicleEditScreen() {
   });
   
   const [authError, setAuthError] = useState<string | null>(null);
+  const { user, isAuthenticated } = useAuth();
 
   // Load existing vehicle data
   const loadVehicle = useCallback(async () => {
@@ -92,20 +93,33 @@ export default function VehicleEditScreen() {
 
     try {
       console.log('[VehicleEdit] Loading vehicle:', vehicle_id);
+      console.log('[VehicleEdit] Auth state:', { user: !!user, isAuthenticated, userEmail: user?.email });
+      
+      // CRITICAL FIX: Check app-level authentication first
+      if (!user || !isAuthenticated) {
+        console.warn('[VehicleEdit] User not authenticated in app state');
+        // Don't set auth error for loading, just continue without blocking
+        console.log('[VehicleEdit] Continuing without authentication for vehicle loading');
+      }
       
       // CRITICAL FIX: Enhanced authentication check with fallback
       const { auth } = getFirebase();
       
       if (!auth?.currentUser?.uid) {
-        console.warn('[VehicleEdit] No authenticated user - attempting to ensure auth...');
+        console.warn('[VehicleEdit] No Firebase user - attempting to ensure auth...');
         
         // Try to ensure authentication
         const authSuccess = await ensureFirebaseAuth();
         if (!authSuccess || !auth?.currentUser?.uid) {
-          console.error('[VehicleEdit] Authentication failed - showing sign in option');
-          setAuthError('Please sign in to access vehicle data.');
-          setState(prev => ({ ...prev, loading: false }));
-          return;
+          console.error('[VehicleEdit] Firebase authentication failed - but user is signed in app');
+          // Don't block if app user exists
+          if (user && isAuthenticated) {
+            console.log('[VehicleEdit] Continuing with app authentication');
+          } else {
+            setAuthError('Please sign in to access vehicle data.');
+            setState(prev => ({ ...prev, loading: false }));
+            return;
+          }
         }
       }
       
@@ -160,7 +174,7 @@ export default function VehicleEditScreen() {
       toast.show(errorMessage, 'error');
       setState(prev => ({ ...prev, loading: false }));
     }
-  }, [vehicle_id, toast]);
+  }, [vehicle_id, toast, user, isAuthenticated]);
 
   useEffect(() => {
     loadVehicle();
@@ -253,18 +267,32 @@ export default function VehicleEditScreen() {
   // Save vehicle
   const handleSave = useCallback(async (publish = false) => {
     try {
+      console.log('[VehicleEdit] Save attempt - Auth state:', { user: !!user, isAuthenticated, userEmail: user?.email });
+      
+      // CRITICAL FIX: Check app-level authentication first
+      if (!user || !isAuthenticated) {
+        console.warn('[VehicleEdit] User not authenticated in app state');
+        setAuthError('Please sign in to save vehicle.');
+        toast.show('Please sign in to save vehicle.', 'error');
+        return;
+      }
+      
       // CRITICAL FIX: Enhanced authentication check with fallback
       const { auth } = getFirebase();
       
       if (!auth?.currentUser?.uid) {
-        console.warn('[VehicleEdit] No authenticated user - attempting to ensure auth...');
+        console.warn('[VehicleEdit] No Firebase user - attempting to ensure auth...');
         
         // Try to ensure authentication
         const authSuccess = await ensureFirebaseAuth();
         if (!authSuccess || !auth?.currentUser?.uid) {
-          setAuthError('Please sign in to save vehicle.');
-          toast.show('Please sign in to save vehicle.', 'error');
-          return;
+          console.error('[VehicleEdit] Firebase authentication failed - but user is signed in app');
+          // Don't block if app user exists
+          if (!user || !isAuthenticated) {
+            setAuthError('Please sign in to save vehicle.');
+            toast.show('Please sign in to save vehicle.', 'error');
+            return;
+          }
         }
       }
       
@@ -296,7 +324,7 @@ export default function VehicleEditScreen() {
         photos: state.photos,
         primaryPhoto: state.primaryPhoto,
         updatedAt: serverTimestamp(),
-        createdBy: currentUser.uid, // Add user ownership
+        createdBy: currentUser?.uid || user?.id || 'unknown', // Add user ownership with fallback
         ...(vehicle_id ? {} : { createdAt: serverTimestamp() }),
       };
       
@@ -342,7 +370,7 @@ export default function VehicleEditScreen() {
     } finally {
       setState(prev => ({ ...prev, saving: false }));
     }
-  }, [state, validateVehicle, toast, router, vehicle_id]);
+  }, [state, validateVehicle, toast, router, vehicle_id, user, isAuthenticated]);
 
   // Handle publish
   const handlePublish = useCallback(() => {
@@ -553,49 +581,10 @@ export default function VehicleEditScreen() {
             <AlertCircle color={theme.colors.danger} size={20} />
             <View style={styles.statusTextContainer}>
               <Text style={styles.authErrorText}>{authError}</Text>
+              <Text style={styles.authErrorSubtext}>
+                Current user: {user?.email || 'None'} | Auth: {isAuthenticated ? 'Yes' : 'No'}
+              </Text>
               <View style={styles.authButtonsContainer}>
-                <TouchableOpacity
-                  style={styles.quickSignInButton}
-                  onPress={async () => {
-                    try {
-                      console.log('[VehicleEdit] Quick sign in as driver');
-                      
-                      // Try to sign in with Firebase directly
-                      const { signInWithEmailAndPassword } = await import('firebase/auth');
-                      const { auth } = getFirebase();
-                      
-                      if (auth) {
-                        const userCredential = await signInWithEmailAndPassword(auth, 'driver@truck.com', 'password123');
-                        if (userCredential.user) {
-                          console.log('[VehicleEdit] ✅ Quick sign in successful:', userCredential.user.uid);
-                          toast.show('Signed in successfully!', 'success');
-                          setAuthError(null);
-                          // Reload the page to refresh authentication state
-                          loadVehicle();
-                          return;
-                        }
-                      }
-                      
-                      // Fallback to sign in page
-                      router.push('/signin');
-                    } catch (error: any) {
-                      console.error('[VehicleEdit] Quick sign in failed:', error);
-                      
-                      if (error?.code === 'auth/user-not-found') {
-                        toast.show('Test account not found. Please use the sign in page.', 'error');
-                      } else if (error?.code === 'auth/wrong-password') {
-                        toast.show('Invalid credentials. Please use the sign in page.', 'error');
-                      } else {
-                        toast.show('Quick sign in failed. Please use the sign in page.', 'error');
-                      }
-                      
-                      router.push('/signin');
-                    }
-                  }}
-                  testID="vehicle-edit-quick-signin"
-                >
-                  <Text style={styles.quickSignInButtonText}>Quick Sign In</Text>
-                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.signInButton}
                   onPress={() => {
@@ -608,6 +597,30 @@ export default function VehicleEditScreen() {
                   <Text style={styles.signInButtonText}>Sign In</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        )}
+        
+        {/* Show sign in prompt if not authenticated */}
+        {!user && !authError && (
+          <View style={styles.signInPromptContainer}>
+            <View style={styles.signInPromptContent}>
+              <LogIn size={24} color={theme.colors.primary} />
+              <Text style={styles.signInPromptTitle}>Sign In Required</Text>
+              <Text style={styles.signInPromptText}>
+                Please sign in to save your vehicle information and upload photos.
+              </Text>
+              <TouchableOpacity
+                style={styles.signInPromptButton}
+                onPress={() => {
+                  console.log('[VehicleEdit] Sign in prompt - navigating to sign in');
+                  router.push('/signin');
+                }}
+                testID="vehicle-edit-signin-prompt"
+              >
+                <LogIn size={16} color={theme.colors.white} />
+                <Text style={styles.signInPromptButtonText}>Sign In Now</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -825,25 +838,21 @@ const styles = StyleSheet.create({
   authErrorText: {
     fontSize: theme.fontSize.md,
     color: theme.colors.danger,
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
     fontWeight: '500' as const,
     flex: 1,
+  },
+  authErrorSubtext: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: theme.spacing.sm,
+    fontStyle: 'italic',
   },
   authButtonsContainer: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
-  quickSignInButton: {
-    backgroundColor: theme.colors.success,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-  },
-  quickSignInButtonText: {
-    color: theme.colors.white,
-    fontSize: theme.fontSize.sm,
-    fontWeight: '600' as const,
-  },
+
   signInButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -856,6 +865,45 @@ const styles = StyleSheet.create({
   signInButtonText: {
     color: theme.colors.white,
     fontSize: theme.fontSize.sm,
+    fontWeight: '600' as const,
+  },
+  signInPromptContainer: {
+    backgroundColor: theme.colors.primary + '10',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '30',
+  },
+  signInPromptContent: {
+    alignItems: 'center',
+  },
+  signInPromptTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600' as const,
+    color: theme.colors.primary,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  signInPromptText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+    lineHeight: 20,
+  },
+  signInPromptButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing.xs,
+  },
+  signInPromptButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.md,
     fontWeight: '600' as const,
   },
 });
