@@ -514,11 +514,7 @@ export default function DashboardScreen() {
             </View>
           )}
 
-          {isDriver && recentLoads[0] ? (
-            <View style={styles.analyticsSection}>
-              <LiveAnalyticsDashboard load={recentLoads[0]} compact={false} showTitle={true} enabled={true} />
-            </View>
-          ) : null}
+
 
           {AI_COPILOT_CHIPS_ENABLED && isDriver ? (
             <View style={styles.filtersRow}>
