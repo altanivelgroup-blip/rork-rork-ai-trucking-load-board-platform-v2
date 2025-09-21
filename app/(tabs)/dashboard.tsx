@@ -94,7 +94,7 @@ export default function DashboardScreen() {
   startAudit('dashboard-render');
   console.log('[Dashboard] rendering');
   const { user, isLoading } = useAuth();
-  const { loads: actualLoads, filteredLoads } = useLoads();
+  const { loads: actualLoads, filteredLoads, refreshLoads } = useLoads();
   
   // Track component mount/unmount
   React.useEffect(() => {
@@ -564,9 +564,14 @@ export default function DashboardScreen() {
             <Text style={styles.debugText}>Firebase: {!!user ? 'Connected' : 'Disconnected'}</Text>
             <TouchableOpacity 
               style={styles.refreshButton}
-              onPress={() => {
-                console.log('[DEBUG] Manual refresh triggered');
-                // Add manual refresh logic here
+              onPress={async () => {
+                console.log('[LOADS_RESTORE_FIX] 🔄 Manual refresh triggered - forcing load restoration...');
+                try {
+                  await refreshLoads();
+                  console.log('[LOADS_RESTORE_FIX] ✅ Manual refresh completed');
+                } catch (error) {
+                  console.error('[LOADS_RESTORE_FIX] ❌ Manual refresh failed:', error);
+                }
               }}
             >
               <Text style={styles.refreshButtonText}>🔄 Refresh Loads</Text>
