@@ -21,6 +21,13 @@ const styles = StyleSheet.create({
 export default function Index() {
   const authState = useAuth();
 
+  console.log('[Index] Auth state:', {
+    hasAuthState: !!authState,
+    isLoading: authState?.isLoading,
+    hasUser: !!authState?.user,
+    userRole: authState?.user?.role
+  });
+
   if (!authState || authState.isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -33,9 +40,12 @@ export default function Index() {
   const user = authState.user;
 
   if (!user) {
+    console.log('[Index] No user found, redirecting to login');
     return <Redirect href="/(auth)/login" />;
   }
 
+  console.log('[Index] User found, redirecting based on role:', user.role);
+  
   if (user.role === 'admin' || user.email === 'admin@loadrush.com') {
     return <Redirect href="/(tabs)/admin" />;
   }
