@@ -421,23 +421,42 @@ export default function DashboardScreen() {
       <Stack.Screen 
         options={{
           headerRight: () => (
-            <TouchableOpacity
-              onPress={async () => {
-                try {
-                  console.log('[Dashboard] Sign out pressed');
-                  await signOut(auth);
-                  router.replace('/signin');
-                } catch (e) {
-                  console.warn('[Dashboard] Sign out failed', e);
-                }
-              }}
-              style={{ paddingHorizontal: 12, paddingVertical: 6, marginRight: 12, backgroundColor: theme.colors.primary, borderRadius: 8 }}
-              testID="btnSignOutHeader"
-              accessibilityRole="button"
-              accessibilityLabel="Sign out"
-            >
-              <Text style={{ color: theme.colors.white, fontWeight: '700', fontSize: 14 }}>Sign out</Text>
-            </TouchableOpacity>
+            user ? (
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    console.log('[Dashboard] Sign out pressed');
+                    await signOut(auth);
+                    router.replace('/signin');
+                  } catch (e) {
+                    console.warn('[Dashboard] Sign out failed', e);
+                  }
+                }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, marginRight: 12, backgroundColor: theme.colors.primary, borderRadius: 8 }}
+                testID="btnSignOutHeader"
+                accessibilityRole="button"
+                accessibilityLabel="Sign out"
+              >
+                <Text style={{ color: theme.colors.white, fontWeight: '700', fontSize: 14 }}>Sign out</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => {
+                  try {
+                    console.log('[Dashboard] Sign in pressed');
+                    router.push('/signin');
+                  } catch (e) {
+                    console.warn('[Dashboard] Sign in navigation failed', e);
+                  }
+                }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, marginRight: 12, backgroundColor: theme.colors.primary, borderRadius: 8 }}
+                testID="btnSignInHeader"
+                accessibilityRole="button"
+                accessibilityLabel="Sign in"
+              >
+                <Text style={{ color: theme.colors.white, fontWeight: '700', fontSize: 14 }}>Sign In</Text>
+              </TouchableOpacity>
+            )
           )
         }} 
       />
