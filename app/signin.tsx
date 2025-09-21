@@ -174,7 +174,7 @@ export default function SignInScreen() {
             <TouchableOpacity
               style={[styles.signInButton, isLoading && styles.signInButtonDisabled]}
               onPress={handleSignIn}
-              disabled={isLoading || !(email?.trim() && password?.trim())}
+              disabled={isLoading}
               testID="signin-submit"
             >
               {isLoading ? (
@@ -187,7 +187,7 @@ export default function SignInScreen() {
             <TouchableOpacity
               style={[styles.signInButtonOrange, isLoading && styles.signInButtonDisabled]}
               onPress={handleSignIn}
-              disabled={isLoading || !(email?.trim() && password?.trim())}
+              disabled={isLoading}
               testID="signin-submit-orange"
             >
               {isLoading ? (
