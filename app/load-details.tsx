@@ -19,6 +19,7 @@ import { Driver } from '@/types';
 import { formatCurrency } from '@/utils/fuel';
 import { DriverNavigation } from '@/components/DriverNavigation';
 import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
+import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
 
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
@@ -619,6 +620,17 @@ export default function LoadDetailsScreen() {
             </View>
           </View>
 
+          {/* Live Analytics Dashboard - Always show for drivers */}
+          {user?.role === 'driver' && (
+            <LiveAnalyticsDashboard
+              load={loadNorm}
+              compact={false}
+              showTitle={true}
+              enabled={true}
+              title="Live Analytics"
+            />
+          )}
+
           {/* Driver-specific Analytics Card - Feature Flag Controlled */}
           {ENABLE_LOAD_ANALYTICS && user?.role === 'driver' && (
             <LoadAnalyticsCard
@@ -695,21 +707,21 @@ export default function LoadDetailsScreen() {
               <Fuel size={20} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Fuel Cost</Text>
               <Text style={styles.detailValue} testID="fuel-cost-value">
-                {fuelLoading ? 'calculating…' : fuelError ? 'N/A' : typeof financials.fuelCost === 'number' ? formatCurrency(financials.fuelCost) : '—'}
+                {fuelLoading ? 'calculating…' : fuelError ? 'N/A' : typeof financials.fuelCost === 'number' && Number.isFinite(financials.fuelCost) ? formatCurrency(financials.fuelCost) : '—'}
               </Text>
             </View>
             <View style={styles.detailRow}>
               <DollarSign size={20} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Net After Fuel</Text>
               <Text style={styles.detailValue} testID="net-after-fuel-value">
-                {typeof financials.netAfterFuel === 'number' ? formatCurrency(financials.netAfterFuel) : '—'}
+                {typeof financials.netAfterFuel === 'number' && Number.isFinite(financials.netAfterFuel) ? formatCurrency(financials.netAfterFuel) : '—'}
               </Text>
             </View>
             <View style={styles.detailRow}>
               <DollarSign size={20} color={theme.colors.gray} />
               <Text style={styles.detailLabel}>Profit per Mile</Text>
               <Text style={styles.detailValue} testID="profit-per-mile-value">
-                {typeof financials.profitPerMile === 'number' ? `${financials.profitPerMile.toFixed(2)}/mi` : '—'}
+                {typeof financials.profitPerMile === 'number' && Number.isFinite(financials.profitPerMile) ? `${financials.profitPerMile.toFixed(2)}/mi` : '—'}
               </Text>
             </View>
           </View>
