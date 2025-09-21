@@ -600,7 +600,10 @@ export default function CSVBulkUploadScreen() {
   }, []);
 
   const processCSVData = useCallback(async () => {
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      console.error('[CSV PROCESSING] No selected file');
+      throw new Error('No file selected. Please select a file first.');
+    }
     
     try {
       console.log('[CSV PROCESSING] Starting row parsing and validation...');
@@ -610,6 +613,11 @@ export default function CSVBulkUploadScreen() {
         hasUri: !!selectedFile.uri,
         platform: Platform.OS
       });
+      
+      // Reset state before processing
+      setNormalizedRows([]);
+      setCurrentPage(0);
+      setExpandedErrors(new Set());
       
       let headers: string[];
       let rows: CSVRow[];
@@ -1562,14 +1570,26 @@ export default function CSVBulkUploadScreen() {
                   selectedFile: !!selectedFile,
                   fileName: selectedFile?.name,
                   headerValidation: headerValidation?.ok,
-                  isLoading
+                  isLoading,
+                  selectedTemplate
                 });
+                
+                if (!selectedFile) {
+                  showToast('Please select a file first', 'error');
+                  return;
+                }
+                
+                if (!headerValidation?.ok) {
+                  showToast('Please fix header validation errors first', 'error');
+                  return;
+                }
+                
                 try {
                   setIsLoading(true);
                   console.log('[PREVIEW BUTTON] Starting processCSVData...');
                   await processCSVData();
                   console.log('[PREVIEW BUTTON] processCSVData completed successfully');
-                  showToast('Rows parsed and validated successfully', 'success');
+                  showToast('✅ Preview loaded successfully', 'success');
                 } catch (error: any) {
                   console.error('[PREVIEW BUTTON] Error in processCSVData:', error);
                   console.error('[PREVIEW BUTTON] Error stack:', error.stack);
