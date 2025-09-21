@@ -141,6 +141,13 @@ export default function DashboardScreen() {
   }, [hasLocationPerm, sortOptionsBase, setSortOrder]);
 
   console.log('[Dashboard] user:', user?.name, 'isLoading:', isLoading);
+  console.log('[Dashboard] 🔍 LOADS DEBUG:', {
+    actualLoadsCount: actualLoads?.length ?? 0,
+    filteredLoadsCount: filteredLoads?.length ?? 0,
+    userRole: user?.role,
+    isAuthenticated: !!user,
+    loadsSample: actualLoads?.slice(0, 3).map(l => ({ id: l.id, origin: l.origin?.city, rate: l.rate }))
+  });
 
   // PERMANENT FIX: Enhanced analytics initialization with comprehensive logging
   useEffect(() => {
@@ -545,6 +552,26 @@ export default function DashboardScreen() {
               ))}
             </View>
           )}
+
+          {/* LOADS DEBUG CARD */}
+          <View style={styles.debugCard}>
+            <Text style={styles.debugTitle}>🔍 LOADS DEBUG INFO</Text>
+            <Text style={styles.debugText}>Total Loads: {actualLoads?.length ?? 0}</Text>
+            <Text style={styles.debugText}>Filtered: {filteredLoads?.length ?? 0}</Text>
+            <Text style={styles.debugText}>User: {user?.name ?? 'Not logged in'}</Text>
+            <Text style={styles.debugText}>Role: {user?.role ?? 'None'}</Text>
+            <Text style={styles.debugText}>Auth: {!!user ? '✅ Yes' : '❌ No'}</Text>
+            <Text style={styles.debugText}>Firebase: {!!user ? 'Connected' : 'Disconnected'}</Text>
+            <TouchableOpacity 
+              style={styles.refreshButton}
+              onPress={() => {
+                console.log('[DEBUG] Manual refresh triggered');
+                // Add manual refresh logic here
+              }}
+            >
+              <Text style={styles.refreshButtonText}>🔄 Refresh Loads</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.statsRow}>
             {isDriver ? (
@@ -1124,5 +1151,39 @@ const styles = StyleSheet.create({
     fontSize: font(14),
     fontWeight: '600',
     color: theme.colors.dark,
+  },
+  debugCard: {
+    backgroundColor: '#FFE4E1',
+    marginHorizontal: moderateScale(theme.spacing.lg),
+    marginTop: moderateScale(theme.spacing.sm),
+    padding: moderateScale(theme.spacing.md),
+    borderRadius: moderateScale(theme.borderRadius.md),
+    borderWidth: 2,
+    borderColor: '#FF6B6B',
+  },
+  debugTitle: {
+    fontSize: font(16),
+    fontWeight: '700',
+    color: '#D63031',
+    marginBottom: moderateScale(theme.spacing.sm),
+  },
+  debugText: {
+    fontSize: font(14),
+    color: '#2D3436',
+    marginBottom: moderateScale(4),
+    fontWeight: '500',
+  },
+  refreshButton: {
+    backgroundColor: '#00B894',
+    paddingHorizontal: moderateScale(12),
+    paddingVertical: moderateScale(8),
+    borderRadius: moderateScale(8),
+    marginTop: moderateScale(theme.spacing.sm),
+    alignItems: 'center',
+  },
+  refreshButtonText: {
+    color: theme.colors.white,
+    fontSize: font(14),
+    fontWeight: '600',
   },
 });

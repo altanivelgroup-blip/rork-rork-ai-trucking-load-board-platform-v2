@@ -35,8 +35,8 @@ useEffect(() => {
 
   const q = query(
     collection(db, 'loads'),
-    orderBy('createdAt', 'desc'),
-    limit(25)
+    orderBy('createdAt', 'desc')
+    // UNLIMITED LOADS: Removed limit(25) to show ALL loads
   );
 
   const unsub = onSnapshot(
