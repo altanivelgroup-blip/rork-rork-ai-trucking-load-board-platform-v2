@@ -366,12 +366,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const login = useCallback(async (email: string, password: string, role: UserRole = 'driver') => {
-    console.log('[auth] 🎯 PERMANENT SIGN IN FIX - Login attempt for', email, 'as', role);
+    console.log('[auth] 🎯 REAL FIREBASE LOGIN - Login attempt for', email, 'as', role);
     
     // Enhanced input validation with user-friendly messages
     if (!email || !password) {
       const error = new Error('Email and password are required');
-      console.error('[auth] ❌ Auth optimization - Login failed: missing credentials');
+      console.error('[auth] ❌ Login failed: missing credentials');
       throw error;
     }
     
@@ -379,9 +379,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const trimmedEmail = email.trim();
     
-    if (trimmedEmail !== 'guest@example.com' && !emailRegex.test(trimmedEmail)) {
+    if (!emailRegex.test(trimmedEmail)) {
       console.error('[auth] ❌ Invalid email format:', trimmedEmail);
-      console.error('[auth] Email must contain @ symbol and domain with dot (e.g., user@domain.com)');
       
       // Provide specific feedback based on common issues
       let errorMessage = 'Please enter a valid email address.';
@@ -400,50 +399,65 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
     
     try {
-      // FIXED: Enhanced Firebase auth integration with proper error handling
-      console.log('[auth] Auth optimized - Ensuring Firebase authentication...');
-      const firebaseAuthSuccess = await ensureFirebaseAuth();
-      if (!firebaseAuthSuccess) {
-        console.warn('[auth] ⚠️ Firebase authentication failed, but continuing with local auth');
-      } else {
-        console.log('[auth] ✅ Firebase authentication successful');
+      // REAL FIREBASE AUTHENTICATION - Use existing Firebase users
+      console.log('[auth] 🔥 REAL FIREBASE LOGIN - Authenticating with Firebase...');
+      await ensureFirebaseAuth();
+      
+      if (!auth) {
+        throw new Error('Firebase authentication not available');
       }
       
+      // Use Firebase signInWithEmailAndPassword with REAL credentials
+      const { signInWithEmailAndPassword } = await import('firebase/auth');
+      console.log('[auth] 🔥 REAL FIREBASE LOGIN - Signing in with email and password...');
+      
+      const userCredential = await signInWithEmailAndPassword(auth as any, trimmedEmail, password.trim());
+      const firebaseUser = userCredential.user;
+      
+      console.log('[auth] ✅ REAL FIREBASE LOGIN - Firebase authentication successful!');
+      console.log('[auth] Firebase UID:', firebaseUser.uid);
+      console.log('[auth] Firebase Email:', firebaseUser.email);
+      
       // Check if this is an admin login
-      const isAdminLogin = email === 'admin@loadrush.com' || role === 'admin';
+      const isAdminLogin = trimmedEmail === 'admin@loadrush.com' || role === 'admin';
       const finalRole = isAdminLogin ? 'admin' : role;
       
-      // Enhanced caching logic with better error handling
+      // Try to get cached user data first, then create if needed
       const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
-      let mockUser: Driver | Shipper | Admin;
+      let userData: Driver | Shipper | Admin;
       
       if (cached) {
         try {
           const cachedUser = JSON.parse(cached);
-          if (cachedUser.email === email && cachedUser.role === finalRole) {
-            console.log('[auth] ✅ Auth optimized - Using cached user data for', email);
-            mockUser = cachedUser;
+          if (cachedUser.email === trimmedEmail && cachedUser.role === finalRole) {
+            console.log('[auth] ✅ Using cached user data for', trimmedEmail);
+            userData = cachedUser;
+            // Update the ID to match Firebase UID
+            userData.id = firebaseUser.uid;
           } else {
-            console.log('[auth] Auth optimized - Cached user mismatch, creating new user');
-            mockUser = await createNewUser(email, finalRole as UserRole);
+            console.log('[auth] Cached user mismatch, creating new user profile');
+            userData = await createNewUser(trimmedEmail, finalRole as UserRole);
+            userData.id = firebaseUser.uid;
           }
         } catch (parseError) {
-          console.warn('[auth] ⚠️ Auth optimization - Cached data corrupted, creating new user');
-          mockUser = await createNewUser(email, finalRole as UserRole);
+          console.warn('[auth] Cached data corrupted, creating new user profile');
+          userData = await createNewUser(trimmedEmail, finalRole as UserRole);
+          userData.id = firebaseUser.uid;
         }
       } else {
-        console.log('[auth] Auth optimized - No cached data, creating new user');
-        mockUser = await createNewUser(email, finalRole as UserRole);
+        console.log('[auth] No cached data, creating new user profile');
+        userData = await createNewUser(trimmedEmail, finalRole as UserRole);
+        userData.id = firebaseUser.uid;
       }
       
-      setUser(mockUser);
-      setUserId(mockUser.id);
-      setIsAnonymous(email === 'guest@example.com');
+      setUser(userData);
+      setUserId(userData.id);
+      setIsAnonymous(false);
       setHasSignedInThisSession(true);
       
       // PERMANENT FIX: Enhanced storage with comprehensive backup on login
       try {
-        const userDataString = JSON.stringify(mockUser);
+        const userDataString = JSON.stringify(userData);
         
         // Save to all storage locations immediately on login
         const loginStoragePromises = [
@@ -452,8 +466,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           AsyncStorage.setItem(`profile:cache`, userDataString),
           AsyncStorage.setItem(`profile:persistent`, userDataString),
           AsyncStorage.setItem(`auth:user:persistent`, userDataString),
-          AsyncStorage.setItem(`login:${mockUser.role}:${Date.now()}`, userDataString),
-          AsyncStorage.setItem(`user:${mockUser.email}:backup`, userDataString)
+          AsyncStorage.setItem(`login:${userData.role}:${Date.now()}`, userDataString),
+          AsyncStorage.setItem(`user:${userData.email}:backup`, userDataString)
         ];
         
         const results = await Promise.allSettled(loginStoragePromises);
@@ -462,15 +476,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Login data cached:', {
           successful: successCount,
           total: loginStoragePromises.length,
-          userRole: mockUser.role,
-          userEmail: mockUser.email
+          userRole: userData.role,
+          userEmail: userData.email
         });
         
         // Mark successful login for analytics
         await AsyncStorage.setItem('auth:last-successful-login', JSON.stringify({
           timestamp: new Date().toISOString(),
-          userId: mockUser.id,
-          userRole: mockUser.role,
+          userId: userData.id,
+          userRole: userData.role,
           storageSuccess: successCount
         }));
         
@@ -479,7 +493,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         
         // Emergency login storage
         try {
-          await AsyncStorage.setItem(`emergency:login:${Date.now()}`, JSON.stringify(mockUser));
+          await AsyncStorage.setItem(`emergency:login:${Date.now()}`, JSON.stringify(userData));
           console.log('[auth] ✅ Emergency login storage successful');
         } catch (emergencyError) {
           console.error('[auth] ❌ Even emergency login storage failed:', emergencyError);
@@ -490,7 +504,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       setInitError(null);
       setRetryAttempts(0);
       
-      console.log('[auth] ✅ PERMANENT SIGN IN FIX - Login successful as', finalRole);
+      console.log('[auth] ✅ REAL FIREBASE LOGIN - Login successful as', finalRole);
       console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Loading complete - Profile data secured');
       console.log('[auth] 📊 PERMANENT ANALYTICS - Live analytics will activate for drivers');
       console.log('[auth] 💰 PERMANENT WALLET - Post-delivery analytics ready');
@@ -503,9 +517,25 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         console.log('[auth] 📊 Profile persistence: Driver data will never be lost');
       }
     } catch (error: any) {
-      console.error('[auth] ❌ PERMANENT SIGN IN FIX - Login failed:', error?.message || error);
-      setInitError(error?.message || 'Login failed');
-      throw error;
+      console.error('[auth] ❌ REAL FIREBASE LOGIN - Login failed:', error?.code, error?.message || error);
+      
+      // Handle specific Firebase auth errors
+      if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password') {
+        const friendlyError = new Error('Invalid email or password. Please check your credentials.');
+        setInitError(friendlyError.message);
+        throw friendlyError;
+      } else if (error?.code === 'auth/user-not-found') {
+        const friendlyError = new Error('No account found with this email address.');
+        setInitError(friendlyError.message);
+        throw friendlyError;
+      } else if (error?.code === 'auth/too-many-requests') {
+        const friendlyError = new Error('Too many failed attempts. Please try again later.');
+        setInitError(friendlyError.message);
+        throw friendlyError;
+      } else {
+        setInitError(error?.message || 'Login failed');
+        throw error;
+      }
     }
   }, [createNewUser]);
 
