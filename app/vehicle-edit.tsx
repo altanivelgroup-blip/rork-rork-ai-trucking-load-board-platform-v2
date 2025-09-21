@@ -99,9 +99,10 @@ export default function VehicleEditScreen() {
         // Try to ensure authentication
         const authSuccess = await ensureFirebaseAuth();
         if (!authSuccess || !auth?.currentUser?.uid) {
-          console.error('[VehicleEdit] Authentication failed - cannot load vehicle');
-          toast.show('Please sign in to access vehicle data. Refresh the app and try again.', 'error');
+          console.error('[VehicleEdit] Authentication failed - redirecting to sign in');
+          toast.show('Please sign in to access vehicle data.', 'error');
           setState(prev => ({ ...prev, loading: false }));
+          router.replace('/signin');
           return;
         }
       }
@@ -143,8 +144,12 @@ export default function VehicleEditScreen() {
       
       if (error?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please sign in and try again.';
+        // Redirect to sign in for permission errors
+        setTimeout(() => router.replace('/signin'), 1500);
       } else if (error?.message?.includes('auth') || error?.message?.includes('unauthorized')) {
-        errorMessage = 'Authentication expired. Please refresh the app and sign in again.';
+        errorMessage = 'Authentication expired. Please sign in again.';
+        // Redirect to sign in for auth errors
+        setTimeout(() => router.replace('/signin'), 1500);
       } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.';
       } else if (error?.message) {
@@ -257,7 +262,8 @@ export default function VehicleEditScreen() {
         // Try to ensure authentication
         const authSuccess = await ensureFirebaseAuth();
         if (!authSuccess || !auth?.currentUser?.uid) {
-          toast.show('Please sign in to save vehicle. Refresh the app and try again.', 'error');
+          toast.show('Please sign in to save vehicle.', 'error');
+          setTimeout(() => router.replace('/signin'), 1500);
           return;
         }
       }
@@ -321,8 +327,12 @@ export default function VehicleEditScreen() {
       
       if (error?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please sign in and try again.';
+        // Redirect to sign in for permission errors
+        setTimeout(() => router.replace('/signin'), 1500);
       } else if (error?.message?.includes('auth') || error?.message?.includes('unauthorized')) {
-        errorMessage = 'Authentication expired. Please refresh the app and sign in again.';
+        errorMessage = 'Authentication expired. Please sign in again.';
+        // Redirect to sign in for auth errors
+        setTimeout(() => router.replace('/signin'), 1500);
       } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.';
       } else if (error?.message) {
@@ -553,6 +563,8 @@ export default function VehicleEditScreen() {
             </View>
           </View>
         )}
+        
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -738,5 +750,32 @@ const styles = StyleSheet.create({
   },
   typeSelectorContainer: {
     marginTop: theme.spacing.sm,
+  },
+  authErrorContainer: {
+    backgroundColor: theme.colors.danger + '20',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+  },
+  authErrorText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.danger,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
+    fontWeight: '500' as const,
+  },
+  signInButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    minWidth: 120,
+  },
+  signInButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.md,
+    fontWeight: '600' as const,
+    textAlign: 'center',
   },
 });
