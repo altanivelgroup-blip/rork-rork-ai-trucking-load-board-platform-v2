@@ -19,9 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { moderateScale } from '@/src/ui/scale';
 import { UserRole } from '@/types';
 import { 
-  signInWithEmailAndPassword, 
-  EmailAuthProvider, 
-  linkWithCredential 
+  signInWithEmailAndPassword 
 } from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -41,62 +39,30 @@ export default function LoginScreen() {
   const isValidEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const trimmedEmail = email.trim();
-    
-    // Allow guest email for development
-    if (trimmedEmail === 'guest@example.com') {
-      return true;
-    }
-    
     const isValid = emailRegex.test(trimmedEmail);
     if (!isValid) {
       console.log('[login] Invalid email format detected:', trimmedEmail);
       console.log('[login] Email must contain @ symbol and domain with dot (e.g., user@domain.com)');
     }
-    
     return isValid;
   };
 
   const loginOrLink = useCallback(async (email: string, password: string) => {
     const { auth } = getFirebase();
-
-    // Guard: validate email format and password
     if (!email?.trim() || !password?.trim()) {
       throw new Error('Email and password required.');
     }
-
     if (!isValidEmail(email)) {
       throw new Error('Please enter a valid email address.');
     }
-
-    const u = auth.currentUser;
     try {
-      if (u && u.isAnonymous) {
-        // ✅ Convert the *current* anon user into an email user (keeps the UID)
-        console.log('[login] linking anonymous user to email/password, uid:', u.uid);
-        const cred = EmailAuthProvider.credential(email.trim(), password.trim());
-        const res = await linkWithCredential(u, cred);
-        console.log('[login] linked anon → email, uid:', res.user.uid);
-        return res.user;
-      } else {
-        // ✅ Normal email sign-in
-        console.log('[login] normal email sign-in for:', email);
-        const res = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
-        console.log('[login] signed in with email, uid:', res.user.uid);
-        return res.user;
-      }
+      console.log('[login] email sign-in for:', email);
+      const res = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      console.log('[login] signed in with email, uid:', res.user.uid);
+      return res.user;
     } catch (e: any) {
       console.warn('[login] Firebase auth failed:', e?.code, e?.message);
-      // For development, allow any email/password combination to work
-      if (e?.code === 'auth/invalid-credential' || e?.code === 'auth/user-not-found') {
-        console.log('[login] Using mock authentication for development');
-        // Return a mock user object that matches Firebase user structure
-        return {
-          uid: `mock-${Date.now()}`,
-          email: email.trim(),
-          isAnonymous: false
-        };
-      }
-      throw e; // Re-throw other errors
+      throw e;
     }
   }, []);
 
@@ -114,7 +80,8 @@ export default function LoginScreen() {
         try {
           await loginOrLink(email, password);
         } catch (error: any) {
-          console.warn('[login] Firebase authentication failed, using mock auth:', error?.code);
+          console.warn('[login] Firebase authentication error:', error?.code);
+          throw error;
         }
         const isAdminLogin = email.trim() === 'admin@loadrush.com' || selectedRole === 'admin';
         const initialRole: UserRole = isAdminLogin ? 'admin' : selectedRole;
@@ -267,15 +234,13 @@ export default function LoginScreen() {
                 console.log('[Login] Is loading:', isLoading);
                 handleLogin();
               }}
-              disabled={isLoading}
+              disabled={isLoading || !(email?.trim() && password?.trim())}
               testID="login-submit"
             >
               {isLoading ? (
                 <ActivityIndicator color={theme.colors.white} />
               ) : (
-                <Text style={styles.loginButtonText}>
-                  {email?.trim() && password?.trim() ? `Login as ${selectedRole}` : `Continue as Guest ${selectedRole}`}
-                </Text>
+                <Text style={styles.loginButtonText}>Sign In</Text>
               )}
             </TouchableOpacity>
             
