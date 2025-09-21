@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/hooks/useAuth';
 import { Driver } from '@/types';
 import { fetchFuelEstimate } from '@/utils/fuelApi';
@@ -269,7 +270,7 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
             cachePromises.push(AsyncStorage.setItem(cacheKey, JSON.stringify(analyticsLog)));
             cachePromises.push(AsyncStorage.setItem('analytics:latest', JSON.stringify(analyticsLog)));
             cachePromises.push(AsyncStorage.setItem(`analytics:driver:${user?.id}:latest`, JSON.stringify(analyticsLog)));
-          } catch (asyncError) {
+          } catch {
             console.warn('[useLiveAnalytics] AsyncStorage caching failed, trying web fallbacks...');
             
             // Web fallbacks
