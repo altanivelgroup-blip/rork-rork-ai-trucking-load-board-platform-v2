@@ -45,7 +45,7 @@ interface AuthState {
 const USER_STORAGE_KEY = 'auth:user:profile';
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
-  // Always call all hooks in the same order - never conditionally
+  // CRITICAL FIX: Always call all hooks in the same order - never conditionally
   const [user, setUser] = useState<Driver | Shipper | Admin | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -53,13 +53,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [hasSignedInThisSession, setHasSignedInThisSession] = useState<boolean>(false);
-  
-  console.log('[useAuth] 🎯 PERMANENT SIGN IN FIX - Hook called with enhanced error handling and consistent hook order');
-  
-  // PERMANENT FIX: Add comprehensive error tracking and recovery
   const [initError, setInitError] = useState<string | null>(null);
   const [retryAttempts, setRetryAttempts] = useState<number>(0);
   const [lastSuccessfulAuth, setLastSuccessfulAuth] = useState<Date | null>(null);
+  
+  console.log('[useAuth] 🎯 CRITICAL AUTH FIX - Hook called with consistent order and enhanced error handling');
 
   // Email/Password only auth initialization - no anonymous auth
   useEffect(() => {
@@ -930,14 +928,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
 
 
-  // Always compute the same value structure to maintain consistency
+  // CRITICAL FIX: Always compute the same value structure to maintain consistency
   const value = useMemo(() => {
     const result: AuthState = {
       user,
       userId,
       isLoading,
-      // PERMANENT FIX: Keep drivers authenticated indefinitely while browsing loads
-      isAuthenticated: !!user, // Removed hasSignedInThisSession requirement
+      // CRITICAL FIX: User is authenticated if they have a valid user object
+      isAuthenticated: !!user && !!user.id && !!user.email,
       isFirebaseAuthenticated,
       hasSignedInThisSession,
       login,
@@ -947,11 +945,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       updateProfile,
       hardReset,
     };
-    console.log('[useAuth] 🎯 PERMANENT SIGN IN FIX - Auth state computed:', {
+    console.log('[useAuth] 🎯 CRITICAL AUTH STATE - Auth computed:', {
       hasUser: !!user,
       userRole: user?.role,
+      userEmail: user?.email,
+      userId: user?.id,
       isAuthenticated: result.isAuthenticated,
-      isLoading
+      isLoading,
+      hasSignedInThisSession
     });
     return result;
   }, [user, userId, isLoading, isFirebaseAuthenticated, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile, hardReset]);

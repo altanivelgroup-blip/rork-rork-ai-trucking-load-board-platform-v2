@@ -46,6 +46,7 @@ import { theme } from '@/constants/theme';
 import { prepareForUpload, isImageMime, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 import { platformAlert } from '@/utils/platformAlert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/hooks/useAuth';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -470,6 +471,8 @@ export function PhotoUploader({
   loadType = 'other',
   onChange,
 }: PhotoUploaderProps) {
+  // CRITICAL FIX: Get authentication state from context
+  const authState = useAuth();
   // Determine minimum and maximum photos based on load type
   const effectiveMinPhotos = useMemo(() => {
     if (minPhotos !== undefined) return minPhotos;
@@ -693,27 +696,30 @@ export function PhotoUploader({
 
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
-      // ✅ CRITICAL FIX: Enhanced authentication with fallback handling
+      // CRITICAL FIX: Enhanced authentication with proper user context
       console.log('[PhotoUploader] 🔐 Starting photo upload with enhanced auth...');
       
-      // Get Firebase instances first
-      const { auth } = getFirebase();
-      
-      // Check if user is authenticated
-      if (!auth?.currentUser?.uid) {
-        console.warn('[PhotoUploader] ❌ No authenticated user - attempting to ensure auth...');
+      // Check if user is properly authenticated
+      if (!authState?.isAuthenticated || !authState?.user?.id) {
+        console.warn('[PhotoUploader] ❌ User not authenticated:', {
+          isAuthenticated: authState?.isAuthenticated,
+          hasUser: !!authState?.user,
+          userId: authState?.user?.id
+        });
         
-        // Try to ensure authentication
-        const authSuccess = await ensureFirebaseAuth();
-        if (!authSuccess || !auth?.currentUser?.uid) {
-          // CRITICAL FIX: Show user-friendly error and provide recovery option
-          const errorMsg = 'Please sign in to upload photos. Refresh the app and try again.';
-          console.error('[PhotoUploader] ❌ Authentication failed:', errorMsg);
-          throw new Error(errorMsg);
-        }
+        const errorMsg = '❌ Authentication failed: Please sign in to upload photos. Refresh the app and try again.';
+        console.error('[PhotoUploader] ❌ Authentication failed:', errorMsg);
+        throw new Error(errorMsg);
       }
       
-      console.log('[PhotoUploader] ✅ Authentication verified - User ID:', auth.currentUser.uid);
+      console.log('[PhotoUploader] ✅ Authentication verified - User:', {
+        id: authState.user.id,
+        email: authState.user.email,
+        role: authState.user.role
+      });
+      
+      // Get Firebase instances
+      const { auth } = getFirebase();
       
       // CRITICAL FIX: Force fresh token to prevent auth errors
       try {
@@ -724,8 +730,8 @@ export function PhotoUploader({
         console.warn('[PhotoUploader] ⚠️ Token refresh failed, continuing anyway:', tokenError);
       }
 
-      // ✅ PERMANENT FIX: Use simple, consistent path structure
-      const uid = auth.currentUser.uid;
+      // ✅ PERMANENT FIX: Use simple, consistent path structure with app user ID
+      const uid = auth?.currentUser?.uid || authState.user.id;
       const safeId = String(entityId || 'default').trim().replace(/\s+/g, '-');
       const basePath = `loadPhotos/${uid}/${safeId}`;
       
@@ -810,7 +816,7 @@ export function PhotoUploader({
         console.log('[PhotoUploader] ✅ PERMANENT FIX: Photo upload successful!');
         
         // Save metadata (simplified)
-        await savePhotoMetadata(url, entityId, auth.currentUser.uid, 'shipper');
+        await savePhotoMetadata(url, entityId, authState.user.id, 'shipper');
         
         setState(prev => {
           const updatedPhotos = prev.photos.map(p =>
@@ -874,7 +880,7 @@ export function PhotoUploader({
         
         // CRITICAL FIX: Show user-friendly error with recovery instructions
         if (code.includes('unauthorized') || code.includes('unauthenticated') || code.includes('auth')) {
-          toast.show('Authentication expired. Please refresh the app and sign in again.', 'error');
+          toast.show('❌ Authentication failed: Please sign in to upload photos. Refresh the app and try again.', 'error');
         } else {
           toast.show(errorMessage, 'error');
         }
