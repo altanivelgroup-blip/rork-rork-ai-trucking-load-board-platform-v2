@@ -37,6 +37,7 @@ interface VehicleData {
   photos: string[];
   primaryPhoto: string;
   status: 'draft' | 'published';
+  createdBy?: string;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -88,12 +89,28 @@ export default function VehicleEditScreen() {
 
     try {
       console.log('[VehicleEdit] Loading vehicle:', vehicle_id);
+      
+      // Ensure Firebase authentication before accessing data
+      const authSuccess = await ensureFirebaseAuth();
+      if (!authSuccess) {
+        console.error('[VehicleEdit] Authentication failed - cannot load vehicle');
+        toast.show('Authentication required to load vehicle', 'error');
+        setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+      
       const { db } = getFirebase();
       const docRef = doc(db, VEHICLES_COLLECTION, vehicle_id);
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
         const data = docSnap.data() as VehicleData;
+        console.log('[VehicleEdit] Vehicle loaded successfully:', {
+          id: vehicle_id,
+          name: data.name,
+          status: data.status,
+          photos: data.photos?.length || 0
+        });
         setState(prev => ({
           ...prev,
           vehicle: {
@@ -105,12 +122,16 @@ export default function VehicleEditScreen() {
           loading: false,
         }));
       } else {
+        console.warn('[VehicleEdit] Vehicle document not found:', vehicle_id);
         setState(prev => ({ ...prev, loading: false }));
         toast.show('Vehicle not found', 'error');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[VehicleEdit] Error loading vehicle:', error);
-      toast.show('Failed to load vehicle', 'error');
+      const errorMessage = error?.code === 'permission-denied' 
+        ? 'Permission denied - please sign in to access vehicle data'
+        : `Failed to load vehicle: ${error?.message || 'Unknown error'}`;
+      toast.show(errorMessage, 'error');
       setState(prev => ({ ...prev, loading: false }));
     }
   }, [vehicle_id, toast]);
@@ -206,7 +227,12 @@ export default function VehicleEditScreen() {
   // Save vehicle
   const handleSave = useCallback(async (publish = false) => {
     try {
-      await ensureFirebaseAuth();
+      // Ensure Firebase authentication before saving
+      const authSuccess = await ensureFirebaseAuth();
+      if (!authSuccess) {
+        toast.show('Authentication required to save vehicle', 'error');
+        return;
+      }
       
       const validationError = validateVehicle();
       if (validationError) {
@@ -216,13 +242,22 @@ export default function VehicleEditScreen() {
       
       setState(prev => ({ ...prev, saving: true }));
       
-      const { db } = getFirebase();
+      const { db, auth } = getFirebase();
+      const currentUser = auth?.currentUser;
+      
+      if (!currentUser) {
+        toast.show('User not authenticated', 'error');
+        setState(prev => ({ ...prev, saving: false }));
+        return;
+      }
+      
       const vehicleData: VehicleData = {
         ...state.vehicle,
         status: publish ? 'published' : 'draft',
         photos: state.photos,
         primaryPhoto: state.primaryPhoto,
         updatedAt: serverTimestamp(),
+        createdBy: currentUser.uid, // Add user ownership
         ...(vehicle_id ? {} : { createdAt: serverTimestamp() }),
       };
       
@@ -230,11 +265,13 @@ export default function VehicleEditScreen() {
         status: vehicleData.status,
         photos: vehicleData.photos.length,
         primaryPhoto: !!vehicleData.primaryPhoto,
+        createdBy: vehicleData.createdBy,
       });
       
       const docRef = doc(db, VEHICLES_COLLECTION, vehicleData.id);
       await setDoc(docRef, vehicleData, { merge: true });
       
+      console.log('[VehicleEdit] Vehicle saved successfully');
       toast.show(
         publish ? 'Vehicle published successfully!' : 'Vehicle saved as draft',
         'success'
@@ -245,7 +282,10 @@ export default function VehicleEditScreen() {
       
     } catch (error: any) {
       console.error('[VehicleEdit] Save error:', error);
-      toast.show('Failed to save vehicle: ' + (error.message || 'Unknown error'), 'error');
+      const errorMessage = error?.code === 'permission-denied'
+        ? 'Permission denied - please check your authentication'
+        : `Failed to save vehicle: ${error?.message || 'Unknown error'}`;
+      toast.show(errorMessage, 'error');
     } finally {
       setState(prev => ({ ...prev, saving: false }));
     }
@@ -381,7 +421,7 @@ export default function VehicleEditScreen() {
           </View>
 
           {isAddMode && (
-            <View style={{ marginTop: theme.spacing.sm }}>
+            <View style={styles.typeSelectorContainer}>
               <TypeSubtypeSelector
                 type={state.vehicle.type}
                 subtype={state.vehicle.subtype}
@@ -650,5 +690,8 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.warning,
     lineHeight: 18,
+  },
+  typeSelectorContainer: {
+    marginTop: theme.spacing.sm,
   },
 });
