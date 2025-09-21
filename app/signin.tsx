@@ -68,7 +68,9 @@ export default function SignInScreen() {
       console.log('[signin] ✅ IPAD FIX - Inputs valid, calling login...');
       
       // Use the auth hook's login method with enhanced error handling
-      await login(email.trim(), password.trim(), selectedRole);
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log('[signin] ✅ IPAD FIX - Using normalized email:', normalizedEmail);
+      await login(normalizedEmail, password.trim(), selectedRole);
       
       console.log('[signin] ✅ IPAD FIX - Login successful!');
       
@@ -172,7 +174,7 @@ export default function SignInScreen() {
                 placeholder="Email"
                 placeholderTextColor={theme.colors.gray}
                 value={email}
-                onChangeText={(t: string) => { setEmail(t); setErrorText(null); }}
+                onChangeText={(t: string) => { setEmail(t.toLowerCase().trim()); setErrorText(null); }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -240,7 +242,7 @@ export default function SignInScreen() {
                   });
                   
                   // Auto-fill test credentials
-                  setEmail('test@driver.com');
+                  setEmail('driver@truck.com');
                   setPassword('password123');
                   setSelectedRole('driver');
                   
@@ -278,27 +280,27 @@ export default function SignInScreen() {
               style={styles.testButton}
               onPress={() => {
                 console.log('[signin] 🎯 IPAD FIX - Driver test account selected');
-                setEmail('test@driver.com');
+                setEmail('driver@truck.com');
                 setPassword('password123');
                 setSelectedRole('driver');
               }}
               activeOpacity={0.7}
               hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
-              <Text style={styles.testButtonText}>Driver Test Account</Text>
+              <Text style={styles.testButtonText}>driver@truck.com</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.testButton}
               onPress={() => {
                 console.log('[signin] 🎯 IPAD FIX - Shipper test account selected');
-                setEmail('test@shipper.com');
+                setEmail('enterprise@shipper.com');
                 setPassword('password123');
                 setSelectedRole('shipper');
               }}
               activeOpacity={0.7}
               hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
-              <Text style={styles.testButtonText}>Shipper Test Account</Text>
+              <Text style={styles.testButtonText}>enterprise@shipper.com</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.testButton}
@@ -311,7 +313,7 @@ export default function SignInScreen() {
               activeOpacity={0.7}
               hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
-              <Text style={styles.testButtonText}>Admin Test Account</Text>
+              <Text style={styles.testButtonText}>admin@loadrush.com</Text>
             </TouchableOpacity>
           </View>
 
