@@ -965,8 +965,11 @@ export default function CSVBulkUploadScreen() {
       
       // Preflight: ensure write permission before we start
       try {
+        console.log('[BULK UPLOAD] Starting permission check...');
         const { checkFirebasePermissions } = await import('@/utils/firebase');
         const perms = await checkFirebasePermissions();
+        console.log('[BULK UPLOAD] Permission check result:', perms);
+        
         if (!perms.canWrite) {
           const errorMsg = `❌ Missing write permissions to Firestore. ${perms.error ?? 'Please check your account permissions.'}`.trim();
           console.error('[BULK UPLOAD] Permission check failed:', perms);
@@ -975,6 +978,7 @@ export default function CSVBulkUploadScreen() {
         
         console.log('[BULK UPLOAD] Permission check passed - can write to Firestore');
       } catch (preErr: any) {
+        console.error('[BULK UPLOAD] Permission check error:', preErr);
         throw new Error(preErr?.message || 'Permission check failed');
       }
 
@@ -1001,6 +1005,7 @@ export default function CSVBulkUploadScreen() {
           }
           
           try {
+            console.log(`[BULK UPLOAD] Committing batch with ${batchValidRows.length} rows...`);
             await batch.commit();
             imported += batchValidRows.length;
             console.log(`[BULK UPLOAD] Batch completed: ${imported}/${validRows.length}, skipped ${batchDuplicates.length} duplicates`);
@@ -1011,18 +1016,22 @@ export default function CSVBulkUploadScreen() {
               total: validRows.length,
               batchSize: batchValidRows.length,
               errorName: error.name,
-              errorCode: error.code
+              errorCode: error.code,
+              errorMessage: error.message
             });
             
             let batchErrorMsg = `❌ Import failed after ${imported} rows. `;
-            if (error.message.includes('permission-denied')) {
+            if (error.message?.includes('permission-denied') || error.code === 'permission-denied') {
               batchErrorMsg += 'Permission denied - check account access.';
-            } else if (error.message.includes('quota')) {
+            } else if (error.message?.includes('quota') || error.code?.includes('quota')) {
               batchErrorMsg += 'Storage quota exceeded.';
+            } else if (error.message?.includes('network') || error.code?.includes('network')) {
+              batchErrorMsg += 'Network error - check connection.';
             } else {
-              batchErrorMsg += error.message || 'Unknown batch error.';
+              batchErrorMsg += error.message || error.code || 'Unknown batch error.';
             }
             
+            console.error('[BULK UPLOAD] Throwing batch error:', batchErrorMsg);
             throw new Error(batchErrorMsg);
           }
         }
@@ -1146,6 +1155,12 @@ export default function CSVBulkUploadScreen() {
         errorMessage = errorMessage.substring(0, 97) + '...';
       }
       
+      // Show error in alert for better visibility
+      Alert.alert(
+        'Import Failed',
+        errorMessage,
+        [{ text: 'OK', style: 'default' }]
+      );
       showToast(errorMessage, 'error');
     } finally {
       setIsImporting(false);
@@ -1154,19 +1169,39 @@ export default function CSVBulkUploadScreen() {
   }, [normalizedRows, selectedTemplate, generateBulkImportId, generateLoadId, toFirestoreDoc, showToast, checkForDuplicates]);
 
   const handleImport = useCallback(async () => {
+    console.log('[HANDLE IMPORT] Starting import process...');
+    console.log('[HANDLE IMPORT] User:', !!user);
+    console.log('[HANDLE IMPORT] Normalized rows:', normalizedRows.length);
+    
     if (!user) {
+      console.error('[HANDLE IMPORT] No user found');
+      Alert.alert('Authentication Required', 'Please sign in to import loads.');
       showToast('Sign in required', 'error');
       return;
     }
 
     const validRows = normalizedRows.filter(row => row.status === 'valid');
+    console.log('[HANDLE IMPORT] Valid rows:', validRows.length);
     
     if (validRows.length === 0) {
+      console.error('[HANDLE IMPORT] No valid rows to import');
+      Alert.alert('No Valid Data', 'No valid rows found to import. Please check your data and try again.');
       showToast('No valid rows to import', 'error');
       return;
     }
 
-    await performImport(false);
+    console.log('[HANDLE IMPORT] Calling performImport...');
+    try {
+      await performImport(false);
+      console.log('[HANDLE IMPORT] performImport completed successfully');
+    } catch (error: any) {
+      console.error('[HANDLE IMPORT] performImport failed:', error);
+      Alert.alert(
+        'Import Failed', 
+        error.message || 'An unexpected error occurred during import.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    }
   }, [user, normalizedRows, showToast, performImport]);
 
   const downloadSkippedRows = useCallback(async (rowsToDownload?: NormalizedPreviewRow[]) => {
