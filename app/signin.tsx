@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Users, Truck, Settings } from 'lucide-react-native';
@@ -43,45 +44,54 @@ export default function SignInScreen() {
   };
 
   const handleSignIn = useCallback(async () => {
-    console.log('[signin] 🎯 SIGN IN BUTTON PRESSED - Starting login process...');
+    console.log('[signin] 🎯 IPAD SIGN IN FIX - Button pressed, starting login process...');
+    console.log('[signin] Platform:', Platform.OS);
+    console.log('[signin] Inputs:', { email: email?.trim(), hasPassword: !!password?.trim(), role: selectedRole });
+    
     setIsLoading(true);
     setErrorText(null);
     
     try {
-      console.log('[signin] Validating inputs...', { email: email?.trim(), hasPassword: !!password?.trim(), role: selectedRole });
-      
+      // Enhanced validation with better logging
       if (!email?.trim() || !password?.trim()) {
-        console.log('[signin] ❌ Missing credentials');
+        console.log('[signin] ❌ IPAD FIX - Missing credentials');
         setErrorText('Email and password are required.');
         return;
       }
       
       if (!isValidEmail(email.trim())) {
-        console.log('[signin] ❌ Invalid email format');
+        console.log('[signin] ❌ IPAD FIX - Invalid email format');
         setErrorText('Please enter a valid email address.');
         return;
       }
       
-      console.log('[signin] ✅ Inputs valid, calling login...');
+      console.log('[signin] ✅ IPAD FIX - Inputs valid, calling login...');
       
-      // Use the auth hook's login method
+      // Use the auth hook's login method with enhanced error handling
       await login(email.trim(), password.trim(), selectedRole);
       
-      console.log('[signin] ✅ Login successful! Navigation will be handled automatically');
+      console.log('[signin] ✅ IPAD FIX - Login successful!');
       
-      // Force navigation if needed
-      setTimeout(() => {
+      // Immediate navigation without timeout for better iPad experience
+      try {
         if (selectedRole === 'admin') {
+          console.log('[signin] 🎯 IPAD FIX - Navigating to admin dashboard');
           router.replace('/(tabs)/admin');
         } else if (selectedRole === 'shipper') {
+          console.log('[signin] 🎯 IPAD FIX - Navigating to shipper dashboard');
           router.replace('/(tabs)/shipper');
         } else {
+          console.log('[signin] 🎯 IPAD FIX - Navigating to driver dashboard');
           router.replace('/(tabs)/dashboard');
         }
-      }, 100);
+      } catch (navError) {
+        console.error('[signin] ❌ IPAD FIX - Navigation error:', navError);
+        // Fallback navigation
+        router.replace('/');
+      }
       
     } catch (error: any) {
-      console.error('[signin] ❌ Sign in failed:', error?.code, error?.message);
+      console.error('[signin] ❌ IPAD FIX - Sign in failed:', error?.code, error?.message);
       
       if (
         error?.code === 'auth/invalid-credential' ||
@@ -190,9 +200,17 @@ export default function SignInScreen() {
 
             <TouchableOpacity
               style={[styles.signInButton, isLoading && styles.signInButtonDisabled]}
-              onPress={handleSignIn}
+              onPress={() => {
+                console.log('[signin] 🎯 IPAD SIGN IN FIX - TouchableOpacity onPress triggered');
+                handleSignIn();
+              }}
               disabled={isLoading}
               testID="signin-submit"
+              activeOpacity={0.8}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in to your account"
+              accessibilityHint="Tap to sign in with your email and password"
             >
               {isLoading ? (
                 <ActivityIndicator color={theme.colors.white} />
@@ -208,6 +226,35 @@ export default function SignInScreen() {
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
+            
+            {/* iPad Debug Button */}
+            <TouchableOpacity
+              style={[styles.signInButton, { backgroundColor: '#FF6B35', marginTop: 12 }]}
+              onPress={async () => {
+                console.log('[signin] 🎯 IPAD DEBUG - Direct login attempt');
+                console.log('[signin] Platform:', Platform.OS);
+                console.log('[signin] Device info:', { 
+                  width: Dimensions.get('window').width,
+                  height: Dimensions.get('window').height
+                });
+                
+                // Auto-fill test credentials
+                setEmail('test@driver.com');
+                setPassword('password123');
+                setSelectedRole('driver');
+                
+                // Wait a moment for state to update
+                setTimeout(() => {
+                  console.log('[signin] 🎯 IPAD DEBUG - Triggering login with test credentials');
+                  handleSignIn();
+                }, 100);
+              }}
+              testID="ipad-debug-login"
+              activeOpacity={0.8}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Text style={styles.signInButtonText}>iPad Debug Login</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.testCredentials}>
@@ -215,30 +262,39 @@ export default function SignInScreen() {
             <TouchableOpacity 
               style={styles.testButton}
               onPress={() => {
+                console.log('[signin] 🎯 IPAD FIX - Driver test account selected');
                 setEmail('test@driver.com');
                 setPassword('password123');
                 setSelectedRole('driver');
               }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
               <Text style={styles.testButtonText}>Driver Test Account</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.testButton}
               onPress={() => {
+                console.log('[signin] 🎯 IPAD FIX - Shipper test account selected');
                 setEmail('test@shipper.com');
                 setPassword('password123');
                 setSelectedRole('shipper');
               }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
               <Text style={styles.testButtonText}>Shipper Test Account</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.testButton}
               onPress={() => {
+                console.log('[signin] 🎯 IPAD FIX - Admin test account selected');
                 setEmail('admin@loadrush.com');
                 setPassword('admin123');
                 setSelectedRole('admin');
               }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
               <Text style={styles.testButtonText}>Admin Test Account</Text>
             </TouchableOpacity>
@@ -321,9 +377,17 @@ const styles = StyleSheet.create({
   signInButton: {
     backgroundColor: theme.colors.primary,
     borderRadius: theme.borderRadius.md,
-    paddingVertical: theme.spacing.md,
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: theme.spacing.sm,
+    minHeight: 50,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   signInButtonDisabled: {
     opacity: 0.7,
