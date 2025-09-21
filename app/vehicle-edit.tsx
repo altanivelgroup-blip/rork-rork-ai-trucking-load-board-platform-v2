@@ -20,7 +20,7 @@ import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { VEHICLES_COLLECTION } from '@/lib/loadSchema';
-import { Save, AlertCircle } from 'lucide-react-native';
+import { Save, AlertCircle, LogIn } from 'lucide-react-native';
 import uuid from 'react-native-uuid';
 
 interface VehicleData {
@@ -79,6 +79,8 @@ export default function VehicleEditScreen() {
     loading: !!vehicle_id,
     saving: false,
   });
+  
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Load existing vehicle data
   const loadVehicle = useCallback(async () => {
@@ -99,10 +101,9 @@ export default function VehicleEditScreen() {
         // Try to ensure authentication
         const authSuccess = await ensureFirebaseAuth();
         if (!authSuccess || !auth?.currentUser?.uid) {
-          console.error('[VehicleEdit] Authentication failed - redirecting to sign in');
-          toast.show('Please sign in to access vehicle data.', 'error');
+          console.error('[VehicleEdit] Authentication failed - showing sign in option');
+          setAuthError('Please sign in to access vehicle data.');
           setState(prev => ({ ...prev, loading: false }));
-          router.replace('/signin');
           return;
         }
       }
@@ -144,12 +145,10 @@ export default function VehicleEditScreen() {
       
       if (error?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please sign in and try again.';
-        // Redirect to sign in for permission errors
-        setTimeout(() => router.replace('/signin'), 1500);
+        setAuthError(errorMessage);
       } else if (error?.message?.includes('auth') || error?.message?.includes('unauthorized')) {
         errorMessage = 'Authentication expired. Please sign in again.';
-        // Redirect to sign in for auth errors
-        setTimeout(() => router.replace('/signin'), 1500);
+        setAuthError(errorMessage);
       } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.';
       } else if (error?.message) {
@@ -262,8 +261,8 @@ export default function VehicleEditScreen() {
         // Try to ensure authentication
         const authSuccess = await ensureFirebaseAuth();
         if (!authSuccess || !auth?.currentUser?.uid) {
+          setAuthError('Please sign in to save vehicle.');
           toast.show('Please sign in to save vehicle.', 'error');
-          setTimeout(() => router.replace('/signin'), 1500);
           return;
         }
       }
@@ -327,12 +326,10 @@ export default function VehicleEditScreen() {
       
       if (error?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please sign in and try again.';
-        // Redirect to sign in for permission errors
-        setTimeout(() => router.replace('/signin'), 1500);
+        setAuthError(errorMessage);
       } else if (error?.message?.includes('auth') || error?.message?.includes('unauthorized')) {
         errorMessage = 'Authentication expired. Please sign in again.';
-        // Redirect to sign in for auth errors
-        setTimeout(() => router.replace('/signin'), 1500);
+        setAuthError(errorMessage);
       } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.';
       } else if (error?.message) {
@@ -549,8 +546,29 @@ export default function VehicleEditScreen() {
           />
         </View>
         
+        {/* Authentication Error */}
+        {authError && (
+          <View style={styles.authErrorContainer}>
+            <AlertCircle color={theme.colors.danger} size={20} />
+            <View style={styles.statusTextContainer}>
+              <Text style={styles.authErrorText}>{authError}</Text>
+              <TouchableOpacity
+                style={styles.signInButton}
+                onPress={() => {
+                  console.log('[VehicleEdit] Navigating to sign in');
+                  router.push('/signin');
+                }}
+                testID="vehicle-edit-signin"
+              >
+                <LogIn size={16} color={theme.colors.white} />
+                <Text style={styles.signInButtonText}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        
         {/* Status Information */}
-        {!canPublish && (
+        {!canPublish && !authError && (
           <View style={styles.statusContainer}>
             <AlertCircle color={theme.colors.warning} size={20} />
             <View style={styles.statusTextContainer}>
@@ -752,30 +770,32 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
   },
   authErrorContainer: {
+    flexDirection: 'row',
     backgroundColor: theme.colors.danger + '20',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
   authErrorText: {
     fontSize: theme.fontSize.md,
     color: theme.colors.danger,
-    textAlign: 'center',
     marginBottom: theme.spacing.sm,
     fontWeight: '500' as const,
+    flex: 1,
   },
   signInButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.borderRadius.md,
-    minWidth: 120,
+    gap: theme.spacing.xs,
   },
   signInButtonText: {
     color: theme.colors.white,
-    fontSize: theme.fontSize.md,
+    fontSize: theme.fontSize.sm,
     fontWeight: '600' as const,
-    textAlign: 'center',
   },
 });

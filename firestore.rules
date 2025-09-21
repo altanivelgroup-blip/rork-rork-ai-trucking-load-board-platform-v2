@@ -73,7 +73,7 @@ service cloud.firestore {
     match /vehicles/{docId} {
       // CRITICAL FIX: Allow both authenticated and anonymous users to preserve vehicle data
       allow read: if true;
-      allow write, create, update, delete: if request.auth != null;
+      allow write, create, update, delete: if request.auth != null && request.auth.uid != null;
     }
     
     match /carrierPublic/{dot} {
