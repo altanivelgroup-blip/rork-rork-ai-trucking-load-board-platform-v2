@@ -858,13 +858,13 @@ Output schema:
           <View style={styles.pillText}>
             <Text style={styles.pillTitle}>
               {isGeneratingAI ? 'AI analyzing backhauls...' : 
-               aiSuggestions.length > 0 ? `Smart Backhaul (${Math.round((allBackhauls[0]?.distanceFromDelivery || 0))}mi, ${Math.round((allBackhauls[0]?.rate || 0))})` :
-               `Backhaul near delivery (${Math.round((allBackhauls[0]?.distanceFromDelivery || 0))}mi)`}
+               aiSuggestions.length > 0 && allBackhauls[0] ? `Smart Backhaul (${Math.round(allBackhauls[0].distanceFromDelivery || 0)}mi, ${Math.round(allBackhauls[0].rate || 0)})` :
+               allBackhauls[0] ? `Backhaul near delivery (${Math.round(allBackhauls[0].distanceFromDelivery || 0)}mi)` : 'Searching for backhauls...'}
             </Text>
             <Text style={styles.pillSubtitle}>
               {isGeneratingAI ? 'Analyzing market trends & driver profile' :
                aiSuggestions.length > 0 ? `${aiSuggestions.length} smart match${aiSuggestions.length !== 1 ? 'es' : ''} found` :
-               `${allBackhauls.length} option${allBackhauls.length !== 1 ? 's' : ''} available`}
+               allBackhauls.length > 0 ? `${allBackhauls.length} option${allBackhauls.length !== 1 ? 's' : ''} available` : 'Loading options...'}
             </Text>
           </View>
           {isLoading || isGeneratingAI ? (
