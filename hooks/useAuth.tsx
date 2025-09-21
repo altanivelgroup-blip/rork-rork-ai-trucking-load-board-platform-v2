@@ -39,7 +39,7 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Driver | Shipper | Admin>) => Promise<void>;
-
+  hardReset: () => Promise<void>;
 }
 
 const USER_STORAGE_KEY = 'auth:user:profile';
@@ -644,6 +644,96 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     console.log('[auth] ✅ PERMANENT SIGN IN FIX - Logout successful');
   }, []);
 
+  const hardReset = useCallback(async () => {
+    console.log('[auth] 🔥 HARD RESET - Starting complete authentication reset...');
+    
+    try {
+      // Firebase logout first
+      try {
+        const { signOut } = await import('firebase/auth');
+        if (auth) {
+          await signOut(auth as any);
+        }
+      } catch (e) {
+        console.warn('[auth] HARD RESET - Firebase signOut failed:', e);
+      }
+      
+      // Clear ALL possible auth storage keys
+      const keysToRemove = [
+        USER_STORAGE_KEY,
+        `${USER_STORAGE_KEY}_backup`,
+        'profile:cache',
+        'profile:persistent',
+        'auth:user:persistent',
+        'analytics:initialized',
+        'analytics:driver-profile',
+        'analytics:backup',
+        'live-analytics:enabled',
+        'post-delivery:analytics:enabled',
+        'auth:last-successful-login',
+        'profile:history',
+        'profile:recovery',
+        'session:profile',
+        'driver:profile:backup',
+        'emergency:login',
+        'profile:emergency',
+        'profile:fallback',
+        'backup:critical'
+      ];
+      
+      // Remove specific keys
+      await Promise.all(keysToRemove.map(key => 
+        AsyncStorage.removeItem(key).catch(() => {})
+      ));
+      
+      // Get all keys and remove auth-related patterns
+      try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const authKeys = allKeys.filter(key => 
+          key.includes('auth:') || 
+          key.includes('profile:') || 
+          key.includes('user:') ||
+          key.includes('login:') ||
+          key.includes('analytics:') ||
+          key.includes('session:') ||
+          key.includes('driver:') ||
+          key.includes('shipper:') ||
+          key.includes('emergency:')
+        );
+        
+        await Promise.all(authKeys.map(key => 
+          AsyncStorage.removeItem(key).catch(() => {})
+        ));
+        
+        console.log('[auth] ✅ HARD RESET - Cleared storage keys:', {
+          specificKeys: keysToRemove.length,
+          patternKeys: authKeys.length,
+          total: keysToRemove.length + authKeys.length
+        });
+      } catch (storageError) {
+        console.warn('[auth] HARD RESET - Storage cleanup failed:', storageError);
+      }
+      
+      // Reset all state
+      setUser(null);
+      setUserId(null);
+      setIsLoading(false);
+      setIsFirebaseAuthenticated(false);
+      setIsAnonymous(true);
+      setIsInitialized(true);
+      setHasSignedInThisSession(false);
+      setInitError(null);
+      setRetryAttempts(0);
+      setLastSuccessfulAuth(null);
+      
+      console.log('[auth] ✅ HARD RESET - Complete authentication reset successful');
+      
+    } catch (error) {
+      console.error('[auth] ❌ HARD RESET - Reset failed:', error);
+      throw error;
+    }
+  }, []);
+
   const resetPassword = useCallback(async (email: string) => {
     console.log('Password reset requested for:', email);
     if (!email?.trim()) throw new Error('Email required');
@@ -855,6 +945,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       resetPassword,
       logout,
       updateProfile,
+      hardReset,
     };
     console.log('[useAuth] 🎯 PERMANENT SIGN IN FIX - Auth state computed:', {
       hasUser: !!user,
@@ -869,7 +960,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       isInitialized
     });
     return result;
-  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile, initError, retryAttempts, lastSuccessfulAuth, isInitialized]);
+  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile, hardReset, initError, retryAttempts, lastSuccessfulAuth, isInitialized]);
 
   return value;
 });
