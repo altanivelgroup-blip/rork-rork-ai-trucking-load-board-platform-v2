@@ -41,38 +41,15 @@ export default function LoadsScreen() {
 
   
   const loads = useMemo(() => {
-    console.log('[PERF_AUDIT] UNLIMITED LOADS - Loads screen filtering - start', { 
-      filteredLoadsCount: filteredLoads.length,
-      showBulkOnly,
-      showLastImportOnly,
-      lastBulkImportId
-    });
-    const startTime = performance.now();
-    
     let filtered = filteredLoads;
     
-    // Apply bulk filter if enabled (but still no limits)
     if (showBulkOnly) {
-      const bulkFiltered = filtered.filter(load => load.bulkImportId);
-      console.log('[UNLIMITED LOADS] Bulk filtered count:', bulkFiltered.length);
-      filtered = bulkFiltered;
+      filtered = filtered.filter(load => load.bulkImportId);
     }
     
-    // Apply last import filter if enabled (but still no limits)
     if (showLastImportOnly && lastBulkImportId) {
-      const lastImportFiltered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
-      console.log('[UNLIMITED LOADS] Last import filtered count:', lastImportFiltered.length);
-      filtered = lastImportFiltered;
+      filtered = filtered.filter(load => load.bulkImportId === lastBulkImportId);
     }
-    
-    const endTime = performance.now();
-    console.log('[PERF_AUDIT] UNLIMITED LOADS - Loads screen filtering - complete', { 
-      duration: `${(endTime - startTime).toFixed(2)}ms`,
-      inputCount: filteredLoads.length,
-      outputCount: filtered.length
-    });
-    
-    console.log('[UNLIMITED LOADS] Fixed: All users can now see unlimited loads matching their filters');
     
     return filtered;
   }, [filteredLoads, showBulkOnly, showLastImportOnly, lastBulkImportId]);
@@ -323,29 +300,7 @@ export default function LoadsScreen() {
 
         </View>
         
-        <View style={styles.debugSection}>
-          <Text style={styles.debugBanner}>
-            {isDriver ? `${loads.length} available loads` : `${loads.length} posted loads`}
-          </Text>
-          <TouchableOpacity 
-            style={styles.clearFiltersButton}
-            onPress={() => {
-              console.log('[LOADS_DEBUG] Clearing all filters to show all loads');
-              setFilters({});
-            }}
-          >
-            <Text style={styles.clearFiltersText}>Clear All Filters</Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* LIVE ANALYTICS STATUS */}
-        {user?.role === 'driver' && (
-          <View style={styles.analyticsStatus}>
-            <Text style={styles.analyticsStatusText}>
-              🔥 Live analytics active - showing fuel cost, net profit, $/mi, and ETA on all loads
-            </Text>
-          </View>
-        )}
+
         
         <ScrollView 
           contentContainerStyle={styles.content}
@@ -507,45 +462,7 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
   },
 
-  debugSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.lightGray,
-  },
-  debugBanner: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    flex: 1,
-  },
-  clearFiltersButton: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-  },
-  clearFiltersText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.white,
-    fontWeight: '600',
-  },
-  analyticsStatus: {
-    backgroundColor: '#ECFDF5',
-    padding: theme.spacing.md,
-    marginHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  analyticsStatusText: {
-    fontSize: theme.fontSize.sm,
-    color: '#065F46',
-    textAlign: 'center',
-    fontWeight: '600',
-  },
+
 
   content: {
     paddingHorizontal: theme.spacing.lg,
