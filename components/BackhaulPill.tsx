@@ -315,6 +315,7 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
   const [aiSuggestions, setAiSuggestions] = useState<AIBackhaulSuggestion[]>([]);
   const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
   const [hasTriggeredAI, setHasTriggeredAI] = useState<boolean>(false);
+  const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle');
 
   const nearbyBackhauls = useMemo(() => {
     const radiusMiles = 50;
@@ -342,10 +343,15 @@ export default function BackhaulPill({ deliveryLocation, onLoadSelect }: Backhau
   }, [loads, deliveryLocation]);
 
   const generateAIBackhauls = useCallback(async () => {
+    if (!user) {
+      console.log('[BackhaulPill] Skipping AI generation until auth is established');
+      return;
+    }
     if (isGeneratingAI || hasTriggeredAI) return;
     
     setIsGeneratingAI(true);
     setHasTriggeredAI(true);
+    setAiStatus('loading');
     
     try {
       console.log('[BackhaulPill] Generating AI suggestions for delivery location:', deliveryLocation);
@@ -407,9 +413,9 @@ Output schema:
       try {
         // Set timeout with proper cleanup
         timeoutId = setTimeout(() => {
-          console.log('[BackhaulPill] ❌ Request timeout - aborting after 10 seconds');
+          console.info('[BackhaulPill] AI service timeout after 5s - aborting and using fallback');
           controller.abort();
-        }, 10000); // Reduced to 10 seconds for faster fallback
+        }, 5000);
 
         const response = await fetch('https://toolkit.rork.com/text/llm/', {
           method: 'POST',
@@ -425,7 +431,7 @@ Output schema:
         }
         
         if (!response.ok) {
-          console.error('[BackhaulPill] API error response:', response.status, response.statusText);
+          console.info('[BackhaulPill] API error response:', response.status, response.statusText);
           throw new Error(`API responded with status: ${response.status}`);
         }
         
@@ -585,7 +591,7 @@ Output schema:
         // PERMANENT FIX: UNBREAKABLE RESPONSE PROCESSING with comprehensive error handling
         const processingSuccess = processResponse(rawCompletion);
         if (!processingSuccess) {
-          console.log('[BackhaulPill] ⚠️ PERMANENT UNBREAKABLE FIX: AI processing failed, generating fallback suggestions');
+          console.info('[BackhaulPill] AI processing failed - going offline');
           throw new Error('AI response processing failed - using fallback');
         } else {
           console.log('[BackhaulPill] ✅ PERMANENT UNBREAKABLE JSON FIX: AI processing successful - Permanently Fixed: BackhaulPill JSON Parse Error');
@@ -601,74 +607,34 @@ Output schema:
         
         // Enhanced error handling with specific error types
         if (fetchError.name === 'AbortError') {
-          console.log('[BackhaulPill] ❌ Request was aborted (timeout after 10s)');
+          console.info('[BackhaulPill] AI service timeout - using fallback suggestions');
           throw new Error('AI service timeout - using fallback suggestions');
         } else if (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('fetch')) {
-          console.error('[BackhaulPill] ❌ Network fetch failed:', fetchError.message);
+          console.info('[BackhaulPill] Network fetch failed:', fetchError.message);
           throw new Error('Network connection failed - using fallback suggestions');
         } else if (fetchError.message?.includes('signal is aborted')) {
-          console.error('[BackhaulPill] ❌ Signal aborted:', fetchError.message);
+          console.info('[BackhaulPill] Signal aborted:', fetchError.message);
           throw new Error('Request cancelled - using fallback suggestions');
         } else {
-          console.error('[BackhaulPill] ❌ Unexpected fetch error:', fetchError);
+          console.info('[BackhaulPill] Unexpected fetch error:', fetchError);
           throw new Error(`AI service error: ${fetchError.message || 'Unknown error'}`);
         }
       }
 
     } catch (error: any) {
       const errorMsg = error?.message || 'Unknown error';
-      console.error('[BackhaulPill] ❌ AI generation failed:', errorMsg);
-      
-      // Always generate fallback suggestions when AI fails
-      try {
-        console.log('[BackhaulPill] ⚙️ Generating fallback suggestions due to AI failure...');
-        const fallbackSuggestions = generateFallbackSuggestions(deliveryLocation, user as Driver);
-        if (fallbackSuggestions.length > 0) {
-          console.log('[BackhaulPill] ✅ Using', fallbackSuggestions.length, 'fallback suggestions');
-          setAiSuggestions(fallbackSuggestions);
-        } else {
-          // If even fallback fails, create minimal suggestions
-          console.log('[BackhaulPill] ⚙️ Creating minimal suggestions as last resort...');
-          const minimalSuggestions = [{
-            id: `minimal-${Date.now()}`,
-            origin: {
-              city: deliveryLocation.city,
-              state: deliveryLocation.state,
-              lat: deliveryLocation.lat + 0.1,
-              lng: deliveryLocation.lng + 0.1
-            },
-            destination: {
-              city: 'Atlanta',
-              state: 'GA',
-              lat: 33.7490,
-              lng: -84.3880
-            },
-            distance: 250,
-            weight: 25000,
-            vehicleType: 'truck',
-            rate: 1800,
-            ratePerMile: 2.4,
-            pickupDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-            description: 'Standard freight - AI service unavailable',
-            aiScore: 75,
-            shipperName: 'Regional Transport',
-            distanceFromDelivery: 25,
-            priority: 'optimal' as const,
-            marketTrend: 'stable' as const
-          }];
-          console.log('[BackhaulPill] ✅ Using minimal fallback suggestions');
-          setAiSuggestions(minimalSuggestions);
-        }
-      } catch (fallbackError) {
-        console.error('[BackhaulPill] ❌ Even fallback generation failed:', fallbackError);
-        // Set empty array but don't block the UI
-        setAiSuggestions([]);
-      }
+      console.info('[BackhaulPill] AI generation unavailable:', errorMsg);
+      setAiSuggestions([]);
+      setAiStatus('offline');
     } finally {
       setIsGeneratingAI(false);
+      if (aiSuggestions.length > 0) {
+        setAiStatus('ready');
+      } else if (aiStatus !== 'offline') {
+        setAiStatus('idle');
+      }
     }
-  }, [deliveryLocation, user, isGeneratingAI, hasTriggeredAI]);
+  }, [deliveryLocation, user, isGeneratingAI, hasTriggeredAI, aiStatus, aiSuggestions.length]);
 
   const handlePillPress = async () => {
     setIsLoading(true);
@@ -692,12 +658,11 @@ Output schema:
 
   // Auto-trigger AI generation after load acceptance (simulated)
   useEffect(() => {
+    if (!user) return;
     if (user?.role === 'driver' && !hasTriggeredAI) {
-      // Simulate auto-trigger after load acceptance with a delay
       const timer = setTimeout(() => {
         generateAIBackhauls();
       }, 2000);
-      
       return () => clearTimeout(timer);
     }
   }, [user, generateAIBackhauls, hasTriggeredAI]);
@@ -752,8 +717,12 @@ Output schema:
     });
   }, [nearbyBackhauls, aiSuggestions]);
 
+  // Do not render until after auth is established
+  if (!user) {
+    return null;
+  }
   // Show pill if we have backhauls OR if AI is generating suggestions
-  if (allBackhauls.length === 0 && !isGeneratingAI && !hasTriggeredAI) {
+  if (allBackhauls.length === 0 && !isGeneratingAI && !hasTriggeredAI && aiStatus !== 'offline') {
     return null;
   }
 
@@ -927,7 +896,17 @@ Output schema:
               </View>
             )}
 
-            {!isGeneratingAI && allBackhauls.length === 0 && (
+            {!isGeneratingAI && aiStatus === 'offline' && (
+              <View style={styles.emptyState}>
+                <Truck size={48} color={theme.colors.gray} />
+                <Text style={styles.emptyTitle}>No backhaul suggestions right now</Text>
+                <Text style={styles.emptySubtitle}>
+                  AI is offline or timed out. Please try again later.
+                </Text>
+              </View>
+            )}
+
+            {!isGeneratingAI && aiStatus !== 'offline' && allBackhauls.length === 0 && (
               <View style={styles.emptyState}>
                 <Truck size={48} color={theme.colors.gray} />
                 <Text style={styles.emptyTitle}>No backhauls found</Text>
