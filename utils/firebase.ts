@@ -118,7 +118,8 @@ const initAuthListener = () => {
 // Initialize auth listener
 initAuthListener();
 
-console.log("[FIREBASE] Startup without auto anonymous authentication");
+console.log("[FIREBASE] ✅ Startup complete - Email/Password authentication only");
+console.log("[FIREBASE] 🚫 Anonymous authentication disabled to prevent admin-restricted-operation errors");
 
 // ✅ Top-level exports
 export { app, auth, db, storage };
@@ -218,41 +219,43 @@ export async function testFirebaseConnectivity(): Promise<{
   }
 }
 
-// CRITICAL FIX: Enhanced authentication with automatic anonymous fallback to prevent data loss
+// FIXED: Email/Password only authentication - no anonymous auth
 export async function ensureFirebaseAuth(): Promise<boolean> {
   startAudit('firebase-auth-ensure');
   try {
-    // Check if user is already authenticated
+    // Check if user is already authenticated with email/password
     if (auth?.currentUser && !auth.currentUser.isAnonymous) {
       console.log('[auth] ✅ User already authenticated:', auth.currentUser.uid);
       endAudit('firebase-auth-ensure', { success: true, cached: true });
       return true;
     }
     
-    // If no user or anonymous user, create anonymous auth to prevent data loss
-    if (!auth?.currentUser) {
-      console.log('[auth] 🔐 No user found - creating anonymous auth to preserve data...');
+    // If anonymous user exists, sign them out to prevent conflicts
+    if (auth?.currentUser && auth.currentUser.isAnonymous) {
+      console.log('[auth] 🔄 Signing out anonymous user to prevent conflicts...');
       try {
-        const { signInAnonymously } = await import('firebase/auth');
-        const result = await signInAnonymously(auth);
-        console.log('[auth] ✅ Anonymous authentication successful:', result.user.uid);
-        console.log('[auth] 🛡️ Driver profile data will be preserved');
-        endAudit('firebase-auth-ensure', { success: true, cached: false, anonymous: true });
-        return true;
-      } catch (anonError: any) {
-        console.error('[auth] ❌ Anonymous authentication failed:', anonError);
-        endAudit('firebase-auth-ensure', { success: false, error: anonError.message });
-        return false;
+        const { signOut } = await import('firebase/auth');
+        await signOut(auth);
+        console.log('[auth] ✅ Anonymous user signed out');
+      } catch (signOutError) {
+        console.warn('[auth] ⚠️ Failed to sign out anonymous user:', signOutError);
       }
     }
     
-    // User exists (anonymous or authenticated)
-    console.log('[auth] ✅ User authenticated:', auth.currentUser.uid, auth.currentUser.isAnonymous ? '(anonymous)' : '(email/password)');
+    // No authentication available - user needs to sign in
+    if (!auth?.currentUser) {
+      console.log('[auth] ❌ No authenticated user - user must sign in with email/password');
+      endAudit('firebase-auth-ensure', { success: false, error: 'No authenticated user' });
+      return false;
+    }
+    
+    // User exists and is authenticated
+    console.log('[auth] ✅ User authenticated:', auth.currentUser.uid);
     endAudit('firebase-auth-ensure', { success: true, cached: true });
     return true;
     
   } catch (error: any) {
-    console.error('[auth] ❌ Authentication failed:', error);
+    console.error('[auth] ❌ Authentication check failed:', error);
     endAudit('firebase-auth-ensure', { success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     return false;
   }
