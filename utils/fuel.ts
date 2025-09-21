@@ -49,9 +49,12 @@ export function estimateFuelForLoad(load: Load, driver?: Driver | null, opts?: {
 
 export function formatCurrency(n: number): string {
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+    // Ensure we have a valid number
+    const num = typeof n === 'number' && !isNaN(n) ? n : 0;
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
   } catch {
-    return `${Math.round(n).toLocaleString()}`;
+    const num = typeof n === 'number' && !isNaN(n) ? n : 0;
+    return `${Math.round(num).toLocaleString()}`;
   }
 }
 

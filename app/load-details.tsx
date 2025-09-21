@@ -886,7 +886,7 @@ export default function LoadDetailsScreen() {
               )}
             </View>
             {fuelEstimate?.regionLabel ? (
-              <View style={[styles.detailRow, { marginTop: -8 }]}> 
+              <View style={[styles.detailRow, { marginTop: -8 }]}>
                 <View style={{ width: 20 }} />
                 <Text style={[styles.detailLabel, { color: theme.colors.gray }]}>Price Source</Text>
                 <Text style={[styles.detailValue, { color: theme.colors.gray }]} testID="fuel-price-source">

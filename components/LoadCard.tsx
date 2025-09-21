@@ -165,24 +165,24 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
               <View style={styles.analyticsPill}>
                 <Fuel size={14} color={theme.colors.warning} />
                 <Text style={styles.analyticsLabel}>Fuel Cost</Text>
-                <Text style={styles.analyticsValue}>{formatCurrency(analytics.fuelCost)}</Text>
+                <Text style={styles.analyticsValue}>{formatCurrency(analytics.fuelCost || 0)}</Text>
               </View>
               <View style={styles.analyticsPill}>
                 <DollarSign size={14} color={analytics.netAfterFuel >= 0 ? theme.colors.success : theme.colors.danger} />
                 <Text style={styles.analyticsLabel}>Net Profit</Text>
-                <Text style={[styles.analyticsValue, { color: analytics.netAfterFuel >= 0 ? theme.colors.success : theme.colors.danger }]}>
-                  {formatCurrency(analytics.netAfterFuel)}
+                <Text style={[styles.analyticsValue, { color: (analytics.netAfterFuel || 0) >= 0 ? theme.colors.success : theme.colors.danger }]}>
+                  {formatCurrency(analytics.netAfterFuel || 0)}
                 </Text>
               </View>
               <View style={styles.analyticsPill}>
                 <DollarSign size={14} color={theme.colors.primary} />
                 <Text style={styles.analyticsLabel}>Profit/Mile</Text>
-                <Text style={styles.analyticsValue}>${analytics.profitPerMile.toFixed(2)}</Text>
+                <Text style={styles.analyticsValue}>${(analytics.profitPerMile || 0).toFixed(2)}</Text>
               </View>
               <View style={styles.analyticsPill}>
                 <Clock size={14} color={theme.colors.secondary} />
                 <Text style={styles.analyticsLabel}>ETA</Text>
-                <Text style={styles.analyticsValue}>{analytics.eta}</Text>
+                <Text style={styles.analyticsValue}>{analytics.eta || 'Calculating...'}</Text>
               </View>
             </View>
           ) : (
@@ -198,7 +198,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
           {__DEV__ && analytics && (
             <View style={styles.debugInfo}>
               <Text style={styles.debugText}>
-                {analytics.estimatedMiles}mi • {analytics.gallonsNeeded.toFixed(1)}gal • {analytics.mpg.toFixed(1)}mpg
+                {analytics.estimatedMiles || 0}mi • {(analytics.gallonsNeeded || 0).toFixed(1)}gal • {(analytics.mpg || 0).toFixed(1)}mpg
               </Text>
             </View>
           )}
