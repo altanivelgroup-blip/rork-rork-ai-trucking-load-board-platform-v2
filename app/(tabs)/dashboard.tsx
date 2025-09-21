@@ -553,36 +553,7 @@ export default function DashboardScreen() {
             </View>
           )}
 
-          {/* LOADS DEBUG CARD */}
-          <View style={styles.debugCard}>
-            <Text style={styles.debugTitle}>🔍 LOADS DEBUG INFO</Text>
-            <Text style={styles.debugText}>Total Loads: {actualLoads?.length ?? 0}</Text>
-            <Text style={styles.debugText}>Filtered: {filteredLoads?.length ?? 0}</Text>
-            <Text style={styles.debugText}>User: {user?.name ?? 'Not logged in'}</Text>
-            <Text style={styles.debugText}>Role: {user?.role ?? 'None'}</Text>
-            <Text style={styles.debugText}>Auth: {!!user ? '✅ Yes' : '❌ No'}</Text>
-            <Text style={styles.debugText}>Firebase: {!!user ? 'Connected' : 'Disconnected'}</Text>
-            <TouchableOpacity 
-              style={styles.refreshButton}
-              onPress={async () => {
-                console.log('[LOADS_RESTORE_FIX] 🔄 Manual refresh triggered - forcing load restoration...');
-                try {
-                  await refreshLoads();
-                  console.log('[LOADS_RESTORE_FIX] ✅ Manual refresh completed');
-                } catch (error) {
-                  console.error('[LOADS_RESTORE_FIX] ❌ Manual refresh failed:', error);
-                }
-              }}
-            >
-              <Text style={styles.refreshButtonText}>🔄 Refresh Loads</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.findLoadsButton}
-              onPress={() => router.push('/find-missing-loads')}
-            >
-              <Text style={styles.findLoadsButtonText}>🔍 Find Missing Loads</Text>
-            </TouchableOpacity>
-          </View>
+
 
           <View style={styles.statsRow}>
             {isDriver ? (
@@ -1163,51 +1134,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.dark,
   },
-  debugCard: {
-    backgroundColor: '#FFE4E1',
-    marginHorizontal: moderateScale(theme.spacing.lg),
-    marginTop: moderateScale(theme.spacing.sm),
-    padding: moderateScale(theme.spacing.md),
-    borderRadius: moderateScale(theme.borderRadius.md),
-    borderWidth: 2,
-    borderColor: '#FF6B6B',
-  },
-  debugTitle: {
-    fontSize: font(16),
-    fontWeight: '700',
-    color: '#D63031',
-    marginBottom: moderateScale(theme.spacing.sm),
-  },
-  debugText: {
-    fontSize: font(14),
-    color: '#2D3436',
-    marginBottom: moderateScale(4),
-    fontWeight: '500',
-  },
-  refreshButton: {
-    backgroundColor: '#00B894',
-    paddingHorizontal: moderateScale(12),
-    paddingVertical: moderateScale(8),
-    borderRadius: moderateScale(8),
-    marginTop: moderateScale(theme.spacing.sm),
-    alignItems: 'center',
-  },
-  refreshButtonText: {
-    color: theme.colors.white,
-    fontSize: font(14),
-    fontWeight: '600',
-  },
-  findLoadsButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: moderateScale(12),
-    paddingVertical: moderateScale(8),
-    borderRadius: moderateScale(8),
-    marginTop: moderateScale(theme.spacing.sm),
-    alignItems: 'center',
-  },
-  findLoadsButtonText: {
-    color: theme.colors.white,
-    fontSize: font(14),
-    fontWeight: '600',
-  },
+
 });
