@@ -693,21 +693,36 @@ export function PhotoUploader({
 
   const uploadFile = useCallback(async (input: AnyImage) => {
     try {
-      // ✅ PERMANENT FIX: Simplified authentication with better error handling
-      console.log('[PhotoUploader] 🔐 Starting photo upload...');
+      // ✅ CRITICAL FIX: Enhanced authentication with fallback handling
+      console.log('[PhotoUploader] 🔐 Starting photo upload with enhanced auth...');
       
-      // Ensure Firebase authentication
-      const authSuccess = await ensureFirebaseAuth();
-      if (!authSuccess) {
-        throw new Error('Authentication required. Please refresh and try again.');
-      }
-      
+      // Get Firebase instances first
       const { auth } = getFirebase();
+      
+      // Check if user is authenticated
       if (!auth?.currentUser?.uid) {
-        throw new Error('No authenticated user found. Please refresh and try again.');
+        console.warn('[PhotoUploader] ❌ No authenticated user - attempting to ensure auth...');
+        
+        // Try to ensure authentication
+        const authSuccess = await ensureFirebaseAuth();
+        if (!authSuccess || !auth?.currentUser?.uid) {
+          // CRITICAL FIX: Show user-friendly error and provide recovery option
+          const errorMsg = 'Please sign in to upload photos. Refresh the app and try again.';
+          console.error('[PhotoUploader] ❌ Authentication failed:', errorMsg);
+          throw new Error(errorMsg);
+        }
       }
       
       console.log('[PhotoUploader] ✅ Authentication verified - User ID:', auth.currentUser.uid);
+      
+      // CRITICAL FIX: Force fresh token to prevent auth errors
+      try {
+        console.log('[PhotoUploader] 🔑 Refreshing authentication token...');
+        const freshToken = await auth.currentUser.getIdToken(true);
+        console.log('[PhotoUploader] ✅ Fresh token obtained:', !!freshToken);
+      } catch (tokenError) {
+        console.warn('[PhotoUploader] ⚠️ Token refresh failed, continuing anyway:', tokenError);
+      }
 
       // ✅ PERMANENT FIX: Use simple, consistent path structure
       const uid = auth.currentUser.uid;
@@ -856,7 +871,13 @@ export function PhotoUploader({
             p.id === fileId ? { ...p, uploading: false, error: errorMessage, originalFile: input } : p
           ),
         }));
-        toast.show(errorMessage, 'error');
+        
+        // CRITICAL FIX: Show user-friendly error with recovery instructions
+        if (code.includes('unauthorized') || code.includes('unauthenticated') || code.includes('auth')) {
+          toast.show('Authentication expired. Please refresh the app and sign in again.', 'error');
+        } else {
+          toast.show(errorMessage, 'error');
+        }
         try {
           // Queue local files for retry
           const shouldQueue = typeof input === 'object' && (input as any)?.uri;

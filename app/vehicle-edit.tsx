@@ -90,14 +90,23 @@ export default function VehicleEditScreen() {
     try {
       console.log('[VehicleEdit] Loading vehicle:', vehicle_id);
       
-      // Ensure Firebase authentication before accessing data
-      const authSuccess = await ensureFirebaseAuth();
-      if (!authSuccess) {
-        console.error('[VehicleEdit] Authentication failed - cannot load vehicle');
-        toast.show('Authentication required to load vehicle', 'error');
-        setState(prev => ({ ...prev, loading: false }));
-        return;
+      // CRITICAL FIX: Enhanced authentication check with fallback
+      const { auth } = getFirebase();
+      
+      if (!auth?.currentUser?.uid) {
+        console.warn('[VehicleEdit] No authenticated user - attempting to ensure auth...');
+        
+        // Try to ensure authentication
+        const authSuccess = await ensureFirebaseAuth();
+        if (!authSuccess || !auth?.currentUser?.uid) {
+          console.error('[VehicleEdit] Authentication failed - cannot load vehicle');
+          toast.show('Please sign in to access vehicle data. Refresh the app and try again.', 'error');
+          setState(prev => ({ ...prev, loading: false }));
+          return;
+        }
       }
+      
+      console.log('[VehicleEdit] ✅ Authentication verified - User ID:', auth.currentUser.uid);
       
       const { db } = getFirebase();
       const docRef = doc(db, VEHICLES_COLLECTION, vehicle_id);
@@ -128,9 +137,21 @@ export default function VehicleEditScreen() {
       }
     } catch (error: any) {
       console.error('[VehicleEdit] Error loading vehicle:', error);
-      const errorMessage = error?.code === 'permission-denied' 
-        ? 'Permission denied - please sign in to access vehicle data'
-        : `Failed to load vehicle: ${error?.message || 'Unknown error'}`;
+      
+      // CRITICAL FIX: Enhanced error handling with user-friendly messages
+      let errorMessage = 'Failed to load vehicle data';
+      
+      if (error?.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Please sign in and try again.';
+      } else if (error?.message?.includes('auth') || error?.message?.includes('unauthorized')) {
+        errorMessage = 'Authentication expired. Please refresh the app and sign in again.';
+      } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error?.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
+      console.error('[VehicleEdit] User-friendly error:', errorMessage);
       toast.show(errorMessage, 'error');
       setState(prev => ({ ...prev, loading: false }));
     }
@@ -227,12 +248,21 @@ export default function VehicleEditScreen() {
   // Save vehicle
   const handleSave = useCallback(async (publish = false) => {
     try {
-      // Ensure Firebase authentication before saving
-      const authSuccess = await ensureFirebaseAuth();
-      if (!authSuccess) {
-        toast.show('Authentication required to save vehicle', 'error');
-        return;
+      // CRITICAL FIX: Enhanced authentication check with fallback
+      const { auth } = getFirebase();
+      
+      if (!auth?.currentUser?.uid) {
+        console.warn('[VehicleEdit] No authenticated user - attempting to ensure auth...');
+        
+        // Try to ensure authentication
+        const authSuccess = await ensureFirebaseAuth();
+        if (!authSuccess || !auth?.currentUser?.uid) {
+          toast.show('Please sign in to save vehicle. Refresh the app and try again.', 'error');
+          return;
+        }
       }
+      
+      console.log('[VehicleEdit] ✅ Authentication verified for save - User ID:', auth.currentUser.uid);
       
       const validationError = validateVehicle();
       if (validationError) {
@@ -242,13 +272,16 @@ export default function VehicleEditScreen() {
       
       setState(prev => ({ ...prev, saving: true }));
       
-      const { db, auth } = getFirebase();
-      const currentUser = auth?.currentUser;
+      const { db } = getFirebase();
+      const currentUser = auth.currentUser; // We already verified auth above
       
-      if (!currentUser) {
-        toast.show('User not authenticated', 'error');
-        setState(prev => ({ ...prev, saving: false }));
-        return;
+      // CRITICAL FIX: Force fresh token to prevent permission errors
+      try {
+        console.log('[VehicleEdit] 🔑 Refreshing authentication token...');
+        const freshToken = await currentUser.getIdToken(true);
+        console.log('[VehicleEdit] ✅ Fresh token obtained:', !!freshToken);
+      } catch (tokenError) {
+        console.warn('[VehicleEdit] ⚠️ Token refresh failed, continuing anyway:', tokenError);
       }
       
       const vehicleData: VehicleData = {
@@ -282,9 +315,21 @@ export default function VehicleEditScreen() {
       
     } catch (error: any) {
       console.error('[VehicleEdit] Save error:', error);
-      const errorMessage = error?.code === 'permission-denied'
-        ? 'Permission denied - please check your authentication'
-        : `Failed to save vehicle: ${error?.message || 'Unknown error'}`;
+      
+      // CRITICAL FIX: Enhanced error handling with user-friendly messages
+      let errorMessage = 'Failed to save vehicle';
+      
+      if (error?.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Please sign in and try again.';
+      } else if (error?.message?.includes('auth') || error?.message?.includes('unauthorized')) {
+        errorMessage = 'Authentication expired. Please refresh the app and sign in again.';
+      } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error?.message) {
+        errorMessage = `Save failed: ${error.message}`;
+      }
+      
+      console.error('[VehicleEdit] User-friendly save error:', errorMessage);
       toast.show(errorMessage, 'error');
     } finally {
       setState(prev => ({ ...prev, saving: false }));
