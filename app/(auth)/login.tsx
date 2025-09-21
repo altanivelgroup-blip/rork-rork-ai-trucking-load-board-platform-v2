@@ -255,13 +255,13 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={[styles.loginButton, { backgroundColor: '#FF9500', marginTop: 12 }, isLoading && styles.loginButtonDisabled]}
               onPress={async () => {
-                console.log('[Login] Orange Sign In button pressed');
+                console.log('[Login] Orange Simple Login button pressed');
                 setErrorText(null);
                 if (!(email?.trim() && password?.trim())) return;
                 try {
                   const { auth } = getFirebase();
                   await signInWithEmailAndPassword(auth, email.trim(), password.trim());
-                  console.log('[Login] Orange Sign In success, navigating Home');
+                  console.log('[Login] Orange Simple Login success, navigating Home');
                   try { router.replace('/(tabs)/dashboard'); } catch (e) { console.warn('nav error', e); }
                 } catch (error: any) {
                   if (
@@ -281,7 +281,7 @@ export default function LoginScreen() {
               {isLoading ? (
                 <ActivityIndicator color={theme.colors.white} />
               ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
+                <Text style={styles.loginButtonText}>Simple Login</Text>
               )}
             </TouchableOpacity>
 
