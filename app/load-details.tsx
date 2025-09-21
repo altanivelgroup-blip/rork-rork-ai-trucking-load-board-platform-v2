@@ -19,6 +19,7 @@ import { Driver } from '@/types';
 import { formatCurrency } from '@/utils/fuel';
 import { DriverNavigation } from '@/components/DriverNavigation';
 import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
+import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
 import { computeDistanceMiles } from '@/src/services/distance';
@@ -633,6 +634,12 @@ export default function LoadDetailsScreen() {
               loading={distLoading && !adaptedLoad.distanceMiles && !derivedMiles}
             />
           )}
+
+          {user?.role === 'driver' ? (
+            <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }}>
+              <LiveAnalyticsDashboard load={loadNorm} compact={false} showTitle={true} enabled={true} />
+            </View>
+          ) : null}
 
           <View style={styles.financeCard} testID="financials-card">
             <Text style={styles.sectionTitle}>Financials</Text>

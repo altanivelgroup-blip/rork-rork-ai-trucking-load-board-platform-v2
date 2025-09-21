@@ -17,6 +17,7 @@ import { font, moderateScale } from '@/src/ui/scale';
 import { trpcClient } from '@/lib/trpc';
 import { OPENWEATHER_API_KEY, ORS_API_KEY, MAPBOX_TOKEN } from '@/utils/env';
 import { startAudit, endAudit } from '@/utils/performanceAudit';
+import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
 import { Stack } from 'expo-router';
 import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
 import { signOut } from 'firebase/auth';
@@ -513,6 +514,12 @@ export default function DashboardScreen() {
             </View>
           )}
 
+          {isDriver && recentLoads[0] ? (
+            <View style={styles.analyticsSection}>
+              <LiveAnalyticsDashboard load={recentLoads[0]} compact={false} showTitle={true} enabled={true} />
+            </View>
+          ) : null}
+
           {AI_COPILOT_CHIPS_ENABLED && isDriver ? (
             <View style={styles.filtersRow}>
               <TouchableOpacity onPress={() => void applyChip('highest')} style={[styles.sortChip]} accessibilityRole="button" testID="chipHighest">
@@ -526,8 +533,6 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
-
-
 
           {GEO_SORT_ENABLED && hasLocationPerm && sort === 'Nearest' && (
             <View style={styles.filtersRow}>

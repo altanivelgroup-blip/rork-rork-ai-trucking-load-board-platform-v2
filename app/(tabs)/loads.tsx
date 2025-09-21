@@ -342,6 +342,11 @@ export default function LoadsScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
         >
+          {isDriver && loads[0] ? (
+            <View style={{ marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.md }}>
+              <LiveAnalyticsDashboard load={loads[0]} compact={false} showTitle={true} enabled={true} />
+            </View>
+          ) : null}
           {isLoading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
