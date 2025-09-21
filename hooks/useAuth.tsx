@@ -61,86 +61,36 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [retryAttempts, setRetryAttempts] = useState<number>(0);
   const [lastSuccessfulAuth, setLastSuccessfulAuth] = useState<Date | null>(null);
 
-  // PERMANENT FIX: UNBREAKABLE PROFILE PERSISTENCE - Enhanced auth initialization with comprehensive profile recovery
+  // Email/Password only auth initialization - no anonymous auth
   useEffect(() => {
     const initAuth = async () => {
       try {
-        console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Starting UNBREAKABLE auth initialization, attempt:', retryAttempts + 1);
+        console.log('[auth] Starting email/password auth initialization...');
         
-        // PERMANENT FIX: COMPREHENSIVE storage recovery with IndexedDB/localStorage fallback for web
-        const storageKeys = [
-          USER_STORAGE_KEY,
-          `${USER_STORAGE_KEY}_backup`,
-          `profile:cache`,
-          `profile:persistent`,
-          `driver:profile:backup`,
-          `auth:user:persistent`,
-          `profile:emergency`,
-          `profile:recovery`,
-          `user:session:backup`,
-          `auth:permanent:cache`
-        ];
-        
+        // Check for cached user data
         let cachedUser = null;
-        let recoverySource = null;
-        
-        // PERMANENT FIX: Enhanced recovery with web-specific fallbacks
-        for (const key of storageKeys) {
-          try {
-            let cached = null;
-            
-            // Try AsyncStorage first
-            try {
-              cached = await AsyncStorage.getItem(key);
-            } catch (asyncError) {
-              console.warn('[auth] AsyncStorage failed for key:', key, 'trying web fallbacks...');
-              
-              // Web fallback: try localStorage
-              if (typeof window !== 'undefined' && window.localStorage) {
-                try {
-                  cached = window.localStorage.getItem(key);
-                  console.log('[auth] 🌐 PERMANENT WEB FALLBACK - Found data in localStorage:', key);
-                } catch (localStorageError) {
-                  console.warn('[auth] localStorage also failed for key:', key);
-                }
-              }
-              
-              // Web fallback: try sessionStorage
-              if (!cached && typeof window !== 'undefined' && window.sessionStorage) {
-                try {
-                  cached = window.sessionStorage.getItem(key);
-                  console.log('[auth] 🌐 PERMANENT WEB FALLBACK - Found data in sessionStorage:', key);
-                } catch (sessionStorageError) {
-                  console.warn('[auth] sessionStorage also failed for key:', key);
-                }
-              }
+        try {
+          const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
+          if (cached) {
+            const parsedUser = JSON.parse(cached);
+            // Only use cached user if it's not a guest user
+            if (parsedUser.id && parsedUser.role && parsedUser.email && parsedUser.email !== 'guest@example.com') {
+              cachedUser = parsedUser;
+              console.log('[auth] Found valid cached user:', parsedUser.email);
+            } else {
+              console.log('[auth] Cached user is guest or invalid, clearing...');
+              await AsyncStorage.removeItem(USER_STORAGE_KEY);
             }
-            
-            if (cached) {
-              const parsedUser = JSON.parse(cached);
-              if (parsedUser.id && parsedUser.role && parsedUser.email) {
-                cachedUser = parsedUser;
-                recoverySource = key;
-                console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Found valid user data in:', key);
-                break;
-              }
-            }
-          } catch (parseError) {
-            console.warn('[auth] Failed to parse data from key:', key, parseError);
-            continue;
           }
+        } catch (error) {
+          console.warn('[auth] Failed to load cached user:', error);
         }
         
         if (cachedUser) {
-          // PERMANENT FIX: Comprehensive profile migration and enhancement
-          let profileUpdated = false;
-          
-          // Ensure all required fields exist for drivers
+          // Enhance cached user with required fields
           if (cachedUser.role === 'driver') {
-            // Core driver fields
             if (!cachedUser.name || cachedUser.name.trim() === '') {
-              cachedUser.name = cachedUser.email === 'guest@example.com' ? 'Guest Driver' : 'Driver User';
-              profileUpdated = true;
+              cachedUser.name = 'Driver User';
             }
             if (!cachedUser.completedLoads) cachedUser.completedLoads = 24;
             if (!cachedUser.rating) cachedUser.rating = 4.8;
@@ -150,7 +100,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             if (!cachedUser.vehicleTypes) cachedUser.vehicleTypes = [];
             if (!cachedUser.cdlNumber) cachedUser.cdlNumber = '';
             
-            // Wallet - CRITICAL for driver functionality
             if (!cachedUser.wallet) {
               cachedUser.wallet = {
                 balance: 2450,
@@ -158,11 +107,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 totalEarnings: 12500,
                 transactions: [],
               };
-              profileUpdated = true;
-              console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Added wallet to driver');
             }
             
-            // Fuel Profile - CRITICAL for analytics
             if (!cachedUser.fuelProfile) {
               cachedUser.fuelProfile = {
                 vehicleType: 'truck',
@@ -171,189 +117,46 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 fuelType: 'diesel',
                 tankCapacity: 150,
               };
-              profileUpdated = true;
-              console.log('[auth] ✅ PERMANENT PROFILE PERSISTENCE - Added fuel profile to driver');
             }
-            
-            // Vehicle profile fields for comprehensive driver data
-            if (!cachedUser.truckType) cachedUser.truckType = 'truck';
-            if (!cachedUser.tankSize) cachedUser.tankSize = 150;
-            if (!cachedUser.fuelTypePreference) cachedUser.fuelTypePreference = 'diesel';
-            if (!cachedUser.yearsExperience) cachedUser.yearsExperience = 5;
-            if (!cachedUser.vehicleMake) cachedUser.vehicleMake = '';
-            if (!cachedUser.vehicleModel) cachedUser.vehicleModel = '';
-            if (!cachedUser.fuelType) cachedUser.fuelType = 'diesel';
-            if (!cachedUser.mpgRated) cachedUser.mpgRated = 8.5;
-            if (!cachedUser.tankGallons) cachedUser.tankGallons = 150;
-            
-            profileUpdated = true;
           }
           
-          // Ensure all required fields exist for shippers
           if (cachedUser.role === 'shipper') {
             if (!cachedUser.name || cachedUser.name.trim() === '') {
-              cachedUser.name = cachedUser.email === 'guest@example.com' ? 'Guest Shipper' : 'Shipper User';
-              profileUpdated = true;
+              cachedUser.name = 'Shipper User';
             }
             if (!cachedUser.companyName) cachedUser.companyName = 'Test Logistics';
-            if (!cachedUser.mcNumber) cachedUser.mcNumber = 'MC123456';
-            if (!cachedUser.dotNumber) cachedUser.dotNumber = 'DOT789012';
             if (!cachedUser.verificationStatus) cachedUser.verificationStatus = 'verified';
-            if (!cachedUser.totalLoadsPosted) cachedUser.totalLoadsPosted = 45;
-            if (!cachedUser.activeLoads) cachedUser.activeLoads = 12;
-            if (!cachedUser.completedLoads) cachedUser.completedLoads = 33;
-            if (!cachedUser.totalRevenue) cachedUser.totalRevenue = 125000;
-            if (!cachedUser.avgRating) cachedUser.avgRating = 4.6;
-            profileUpdated = true;
           }
           
-          // Common fields for all users
-          if (!cachedUser.createdAt) {
-            cachedUser.createdAt = new Date();
-            profileUpdated = true;
-          }
-          if (!cachedUser.membershipTier) {
-            cachedUser.membershipTier = 'basic';
-            profileUpdated = true;
-          }
+          if (!cachedUser.createdAt) cachedUser.createdAt = new Date();
+          if (!cachedUser.membershipTier) cachedUser.membershipTier = 'basic';
           if (!cachedUser.phone) cachedUser.phone = '';
           
-          // PERMANENT FIX: UNBREAKABLE STORAGE - Save to ALL possible storage locations including web fallbacks
-          if (profileUpdated || recoverySource !== USER_STORAGE_KEY) {
-            const userDataString = JSON.stringify(cachedUser);
-            
-            // PERMANENT FIX: Cross-platform storage with web fallbacks
-            const saveToStorage = async (key: string, data: string) => {
-              const results = [];
-              
-              // Try AsyncStorage
-              try {
-                await AsyncStorage.setItem(key, data);
-                results.push({ storage: 'AsyncStorage', success: true });
-              } catch (asyncError) {
-                results.push({ storage: 'AsyncStorage', success: false, error: asyncError });
-                
-                // Web fallback: localStorage
-                if (typeof window !== 'undefined' && window.localStorage) {
-                  try {
-                    window.localStorage.setItem(key, data);
-                    results.push({ storage: 'localStorage', success: true });
-                  } catch (localError) {
-                    results.push({ storage: 'localStorage', success: false, error: localError });
-                  }
-                }
-                
-                // Web fallback: sessionStorage
-                if (typeof window !== 'undefined' && window.sessionStorage) {
-                  try {
-                    window.sessionStorage.setItem(key, data);
-                    results.push({ storage: 'sessionStorage', success: true });
-                  } catch (sessionError) {
-                    results.push({ storage: 'sessionStorage', success: false, error: sessionError });
-                  }
-                }
-                
-                // Web fallback: IndexedDB (simplified)
-                if (typeof window !== 'undefined' && window.indexedDB) {
-                  try {
-                    const dbName = 'LoadRushProfileDB';
-                    const request = window.indexedDB.open(dbName, 1);
-                    request.onupgradeneeded = () => {
-                      const db = request.result;
-                      if (!db.objectStoreNames.contains('profiles')) {
-                        db.createObjectStore('profiles');
-                      }
-                    };
-                    request.onsuccess = () => {
-                      const db = request.result;
-                      const transaction = db.transaction(['profiles'], 'readwrite');
-                      const store = transaction.objectStore('profiles');
-                      store.put(data, key);
-                      results.push({ storage: 'IndexedDB', success: true });
-                    };
-                  } catch (idbError) {
-                    results.push({ storage: 'IndexedDB', success: false, error: idbError });
-                  }
-                }
-              }
-              
-              return results;
-            };
-            
-            const storageKeys = [
-              USER_STORAGE_KEY,
-              `${USER_STORAGE_KEY}_backup`,
-              `profile:cache`,
-              `profile:persistent`,
-              `driver:profile:backup`,
-              `auth:user:persistent`,
-              `profile:emergency`,
-              `profile:recovery`,
-              `profile:timestamp:${Date.now()}`,
-              `user:${cachedUser.email}:backup`,
-              `auth:permanent:cache`,
-              `profile:unbreakable:${cachedUser.id}`
-            ];
-            
-            const allSaveResults = [];
-            for (const key of storageKeys) {
-              const results = await saveToStorage(key, userDataString);
-              allSaveResults.push(...results);
-            }
-            
-            const successCount = allSaveResults.filter(r => r.success).length;
-            const totalAttempts = allSaveResults.length;
-            
-            console.log('[auth] ✅ PERMANENT UNBREAKABLE STORAGE - Profile saved:', {
-              successful: successCount,
-              total: totalAttempts,
-              successRate: `${Math.round((successCount / totalAttempts) * 100)}%`,
-              storageTypes: [...new Set(allSaveResults.filter(r => r.success).map(r => r.storage))]
-            });
-          }
+          // Save updated user data
+          await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cachedUser));
           
           setUser(cachedUser);
           setUserId(cachedUser.id);
-          setIsAnonymous(cachedUser.email === 'guest@example.com');
+          setIsAnonymous(false);
           setHasSignedInThisSession(false);
           setLastSuccessfulAuth(new Date());
           setInitError(null);
           
-          console.log('[auth] ✅ PERMANENT CROSS-PLATFORM PERSISTENCE - User loaded successfully:', {
+          console.log('[auth] User loaded successfully:', {
             role: cachedUser.role,
             email: cachedUser.email,
-            name: cachedUser.name,
-            platform: CURRENT_PLATFORM,
-            isAnonymous: cachedUser.email === 'guest@example.com',
-            hasWallet: !!(cachedUser as any).wallet,
-            hasFuelProfile: !!(cachedUser as any).fuelProfile,
-            hasVehicleData: !!(cachedUser as any).truckType || !!(cachedUser as any).vehicleMake,
-            profileComplete: true,
-            recoveredFrom: recoverySource,
-            crossPlatformEnabled: true
+            name: cachedUser.name
           });
-          
-          console.log('[auth] 🎯 Permanently Fixed: Driver Data Saving - ' + CURRENT_PLATFORM);
         } else {
-          console.log('[auth] ⚠️ PERMANENT CROSS-PLATFORM PERSISTENCE - No cached user found');
-          console.log('[auth] This is expected for first-time users');
+          console.log('[auth] No cached user found - user needs to sign in');
         }
       } catch (error: any) {
-        console.error('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Auth initialization error:', error);
+        console.error('[auth] Auth initialization error:', error);
         setInitError(error?.message || 'Unknown initialization error');
-        
-        // Retry logic for critical failures
-        if (retryAttempts < 3) {
-          console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Retrying initialization in 2 seconds...');
-          setTimeout(() => {
-            setRetryAttempts(prev => prev + 1);
-          }, 2000);
-          return; // Don't set loading to false yet
-        }
       } finally {
         setIsLoading(false);
         setIsInitialized(true);
-        console.log('[auth] 🎯 PERMANENT PROFILE PERSISTENCE - Auth initialization completed');
+        console.log('[auth] Auth initialization completed');
       }
     };
     
