@@ -637,7 +637,7 @@ export default function LoadDetailsScreen() {
 
           {user?.role === 'driver' ? (
             <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }}>
-              <LiveAnalyticsDashboard load={loadNorm} compact={false} showTitle={true} enabled={true} />
+              <LiveAnalyticsDashboard load={loadNorm} compact={false} showTitle={true} enabled={true} title="Fuel Analytics" />
             </View>
           ) : null}
 
