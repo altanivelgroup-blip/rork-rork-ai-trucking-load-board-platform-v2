@@ -10,13 +10,15 @@ interface LiveAnalyticsDashboardProps {
   compact?: boolean;
   showTitle?: boolean;
   enabled?: boolean;
+  title?: string;
 }
 
 export default function LiveAnalyticsDashboard({ 
   load, 
   compact = false, 
   showTitle = true,
-  enabled = true 
+  enabled = true,
+  title = 'Live Analytics'
 }: LiveAnalyticsDashboardProps) {
   const { analytics, loading, error } = useLiveAnalytics(load, enabled);
 
@@ -27,7 +29,7 @@ export default function LiveAnalyticsDashboard({
   if (loading) {
     return (
       <View style={[styles.container, compact && styles.containerCompact]}>
-        {showTitle && <Text style={styles.title}>Live Analytics</Text>}
+        {showTitle && <Text style={styles.title}>{title}</Text>}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Calculating analytics...</Text>
@@ -39,7 +41,7 @@ export default function LiveAnalyticsDashboard({
   if (error || !analytics) {
     return (
       <View style={[styles.container, compact && styles.containerCompact]}>
-        {showTitle && <Text style={styles.title}>Live Analytics</Text>}
+        {showTitle && <Text style={styles.title}>{title}</Text>}
         <View style={styles.errorContainer}>
           <AlertCircle size={20} color={theme.colors.warning} />
           <Text style={styles.errorText}>
@@ -57,7 +59,7 @@ export default function LiveAnalyticsDashboard({
 
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
-      {showTitle && <Text style={styles.title}>🔥 Live Analytics ({Platform.OS})</Text>}
+      {showTitle && <Text style={styles.title}>{title}</Text>}
       
       <View style={[styles.metricsGrid, compact && styles.metricsGridCompact]}>
         {/* Fuel Cost */}
