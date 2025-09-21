@@ -182,6 +182,46 @@ export default function FindMissingLoadsScreen() {
     }
   };
 
+  const forceResetLoads = async () => {
+    Alert.alert(
+      'Reset All Loads',
+      'This will clear all cached data and restore the full load dataset. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Clear all load-related storage
+              await AsyncStorage.multiRemove([
+                'userPostedLoads',
+                'cache:loads:open:v1',
+                'acceptedLoads',
+                'loads',
+                'persistedLoads',
+                'firebaseLoads',
+                'bulkImportLoads'
+              ]);
+              
+              // Clear cache
+              await clearCache('cache:loads:open:v1');
+              
+              // Force refresh loads
+              await refreshLoads();
+              
+              Alert.alert('Success', 'All loads have been reset and restored!');
+              scanAllStorage(); // Refresh the storage scan
+            } catch (error) {
+              console.error('Reset failed:', error);
+              Alert.alert('Error', 'Failed to reset loads');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const clearStorageItem = async (key: string) => {
     Alert.alert(
       'Clear Storage',
@@ -305,6 +345,14 @@ export default function FindMissingLoadsScreen() {
           >
             <RefreshCw size={20} color={theme.colors.white} />
             <Text style={styles.refreshButtonText}>Force Refresh Loads</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.refreshButton, { backgroundColor: '#EF4444', marginTop: theme.spacing.md }]}
+            onPress={forceResetLoads}
+          >
+            <Database size={20} color={theme.colors.white} />
+            <Text style={styles.refreshButtonText}>Reset All Loads</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
