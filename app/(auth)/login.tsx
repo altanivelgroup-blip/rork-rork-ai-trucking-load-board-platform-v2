@@ -31,33 +31,31 @@ export default function LoginScreen() {
   const [password, setPassword] = useState<string>('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('driver');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
   const router = useRouter();
   const { login } = useAuth();
 
-
-
-  const isValidEmail = (email: string): boolean => {
+  const isValidEmail = (emailValue: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const trimmedEmail = email.trim();
+    const trimmedEmail = emailValue.trim();
     const isValid = emailRegex.test(trimmedEmail);
     if (!isValid) {
       console.log('[login] Invalid email format detected:', trimmedEmail);
-      console.log('[login] Email must contain @ symbol and domain with dot (e.g., user@domain.com)');
     }
     return isValid;
   };
 
-  const loginOrLink = useCallback(async (email: string, password: string) => {
+  const loginOrLink = useCallback(async (emailValue: string, passwordValue: string) => {
     const { auth } = getFirebase();
-    if (!email?.trim() || !password?.trim()) {
+    if (!emailValue?.trim() || !passwordValue?.trim()) {
       throw new Error('Email and password required.');
     }
-    if (!isValidEmail(email)) {
+    if (!isValidEmail(emailValue)) {
       throw new Error('Please enter a valid email address.');
     }
     try {
-      console.log('[login] email sign-in for:', email);
-      const res = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      console.log('[login] email sign-in for:', emailValue);
+      const res = await signInWithEmailAndPassword(auth, emailValue.trim(), passwordValue.trim());
       console.log('[login] signed in with email, uid:', res.user.uid);
       return res.user;
     } catch (e: any) {
@@ -68,20 +66,30 @@ export default function LoginScreen() {
 
   const handleLogin = useCallback(async () => {
     setIsLoading(true);
+    setErrorText(null);
     try {
       const { auth, db } = getFirebase();
       const hasCredentials = email?.trim() && password?.trim();
       if (hasCredentials) {
         if (!isValidEmail(email.trim())) {
           console.error('[login] Invalid email format:', email);
-          alert('Please enter a valid email address.\n\nExample: user@domain.com\n\nMake sure your email contains @ and a domain with a dot.');
+          setErrorText('Please enter a valid email address.');
           return;
         }
         try {
           await loginOrLink(email, password);
         } catch (error: any) {
           console.warn('[login] Firebase authentication error:', error?.code);
-          throw error;
+          if (
+            error?.code === 'auth/invalid-credential' ||
+            error?.code === 'auth/wrong-password' ||
+            error?.code === 'auth/user-not-found'
+          ) {
+            setErrorText('Invalid email or password.');
+            return;
+          }
+          setErrorText(error?.message ?? 'Login failed. Please try again.');
+          return;
         }
         const isAdminLogin = email.trim() === 'admin@loadrush.com' || selectedRole === 'admin';
         const initialRole: UserRole = isAdminLogin ? 'admin' : selectedRole;
@@ -123,10 +131,10 @@ export default function LoginScreen() {
         }
         return;
       }
-      alert('Please enter email and password to continue.');
+      setErrorText('Email and password are required.');
     } catch (error: any) {
       console.error('[login] failed:', error?.code, error?.message);
-      alert(error?.message || 'Login failed. Please try again.');
+      setErrorText(error?.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +210,7 @@ export default function LoginScreen() {
                 placeholder="Email"
                 placeholderTextColor={theme.colors.gray}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(t: string) => { setEmail(t); setErrorText(null); }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -217,21 +225,21 @@ export default function LoginScreen() {
                 placeholder="Password"
                 placeholderTextColor={theme.colors.gray}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(t: string) => { setPassword(t); setErrorText(null); }}
                 secureTextEntry
                 autoComplete="password"
                 testID="login-password"
               />
             </View>
 
+            {!!errorText && (
+              <Text style={styles.errorText} testID="login-error">{errorText}</Text>
+            )}
+
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
               onPress={() => {
-                console.log('[Login] 🎯 PERMANENT SIGN IN NAV FIX - Login button pressed!');
-                console.log('[Login] Email:', email);
-                console.log('[Login] Password length:', password?.length || 0);
-                console.log('[Login] Selected role:', selectedRole);
-                console.log('[Login] Is loading:', isLoading);
+                console.log('[Login] Sign In button pressed');
                 handleLogin();
               }}
               disabled={isLoading || !(email?.trim() && password?.trim())}
@@ -243,23 +251,39 @@ export default function LoginScreen() {
                 <Text style={styles.loginButtonText}>Sign In</Text>
               )}
             </TouchableOpacity>
-            
+
             <TouchableOpacity
-              style={[styles.loginButton, { backgroundColor: '#FF9500', marginTop: 12 }]}
-              onPress={() => {
-                console.log('[Login] 🚀 Simple Login button pressed!');
+              style={[styles.loginButton, { backgroundColor: '#FF9500', marginTop: 12 }, isLoading && styles.loginButtonDisabled]}
+              onPress={async () => {
+                console.log('[Login] Orange Sign In button pressed');
+                setErrorText(null);
+                if (!(email?.trim() && password?.trim())) return;
                 try {
-                  router.replace('/simple-login');
-                } catch (e) {
-                  console.error('Failed to navigate to simple login:', e);
+                  const { auth } = getFirebase();
+                  await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+                  console.log('[Login] Orange Sign In success, navigating Home');
+                  try { router.replace('/(tabs)/dashboard'); } catch (e) { console.warn('nav error', e); }
+                } catch (error: any) {
+                  if (
+                    error?.code === 'auth/invalid-credential' ||
+                    error?.code === 'auth/wrong-password' ||
+                    error?.code === 'auth/user-not-found'
+                  ) {
+                    setErrorText('Invalid email or password.');
+                  } else {
+                    setErrorText(error?.message ?? 'Login failed. Please try again.');
+                  }
                 }
               }}
+              disabled={isLoading || !(email?.trim() && password?.trim())}
               testID="simple-login"
             >
-              <Text style={styles.loginButtonText}>🚀 Simple Login</Text>
+              {isLoading ? (
+                <ActivityIndicator color={theme.colors.white} />
+              ) : (
+                <Text style={styles.loginButtonText}>Sign In</Text>
+              )}
             </TouchableOpacity>
-            
-
 
             <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/(auth)/reset-password')} testID="forgot-password-link">
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
@@ -419,5 +443,11 @@ const styles = StyleSheet.create({
     color: theme.colors.danger,
     fontSize: theme.fontSize.md,
   },
-
+  errorText: {
+    color: theme.colors.danger,
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+    fontSize: theme.fontSize.sm,
+    textAlign: 'center',
+  },
 });
