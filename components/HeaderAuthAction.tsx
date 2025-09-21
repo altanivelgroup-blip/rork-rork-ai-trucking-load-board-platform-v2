@@ -1,15 +1,19 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { getFirebase } from '@/utils/firebase';
 import { theme } from '@/constants/theme';
 
 export default function HeaderAuthAction() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const label = useMemo(() => (user ? 'Account' : 'Sign In'), [user]);
-  const target = useMemo(() => (user ? '/account' : '/signin'), [user]);
+  const { auth } = getFirebase();
+  const isFirebaseSignedIn = !!auth?.currentUser;
+  const showAccount = !!user && isFirebaseSignedIn;
+  const label = showAccount ? 'Account' : 'Sign In';
+  const target = showAccount ? '/account' : '/signin';
 
   return (
     <TouchableOpacity
