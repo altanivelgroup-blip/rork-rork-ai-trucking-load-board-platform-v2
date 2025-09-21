@@ -81,9 +81,9 @@ export default function ToastHost() {
   if (!msg) return null;
 
   return (
-    <View style={[styles.wrapper, { bottom: 24 + Math.max(insets.bottom, 0) + 84 }]} pointerEvents="none" testID="toastWrapper">
+    <View style={[styles.wrapper, { top: 60 + Math.max(insets.top, 0) }]} pointerEvents="none" testID="toastWrapper">
       <Animated.View style={[styles.toast, { backgroundColor: bg, opacity, transform: [{ translateY }] }]} pointerEvents="none" testID="toast">
-        <Text style={styles.text} numberOfLines={3}>{msg.text}</Text>
+        <Text style={styles.text} numberOfLines={5}>{msg.text}</Text>
       </Animated.View>
     </View>
   );
@@ -92,27 +92,29 @@ export default function ToastHost() {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    bottom: 24,
+    top: 60,
     left: 16,
     right: 16,
     alignItems: 'center',
-    zIndex: 1,
+    zIndex: 9999,
   },
   toast: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 3,
-    maxWidth: '90%',
+    elevation: 8,
+    maxWidth: '95%',
+    minHeight: 60,
   },
   text: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

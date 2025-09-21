@@ -604,37 +604,91 @@ export default function CSVBulkUploadScreen() {
     
     try {
       console.log('[CSV PROCESSING] Starting row parsing and validation...');
+      console.log('[CSV PROCESSING] File details:', {
+        name: selectedFile.name,
+        hasWebFile: !!selectedFile.webFile,
+        hasUri: !!selectedFile.uri,
+        platform: Platform.OS
+      });
       
       let headers: string[];
       let rows: CSVRow[];
       
       if (Platform.OS === 'web' && selectedFile.webFile) {
         // Web path: use the File object directly
+        console.log('[CSV PROCESSING] Reading web file:', selectedFile.webFile.size, 'bytes');
         const text = await selectedFile.webFile.text();
+        console.log('[CSV PROCESSING] File content length:', text.length, 'characters');
+        console.log('[CSV PROCESSING] First 200 chars:', text.substring(0, 200));
+        
         const parsed = parseCSV(text);
         headers = parsed.headers;
         rows = parsed.rows;
+        
+        console.log('[CSV PROCESSING] Web parsing complete:', {
+          headers: headers.length,
+          rows: rows.length,
+          firstHeader: headers[0],
+          lastHeader: headers[headers.length - 1]
+        });
       } else if (selectedFile.uri) {
         // Native path: use FileSystem or parseFileContent
+        console.log('[CSV PROCESSING] Reading native file from URI:', selectedFile.uri);
         const parsed = await parseFileContent(selectedFile.uri, selectedFile.name);
         headers = parsed.headers;
         rows = parsed.rows;
+        
+        console.log('[CSV PROCESSING] Native parsing complete:', {
+          headers: headers.length,
+          rows: rows.length,
+          firstHeader: headers[0],
+          lastHeader: headers[headers.length - 1]
+        });
       } else {
         throw new Error('No file data available for processing');
       }
       
       console.log(`[CSV PROCESSING] Parsed ${rows.length} rows`);
       
-      // Check row limit
-      if (rows.length > MAX_ROWS) {
-        throw new Error(`File too large. Please split into smaller batches (≤${MAX_ROWS.toLocaleString()} rows).`);
+      // Validate we have data
+      if (rows.length === 0) {
+        throw new Error('❌ No data rows found in CSV file. Please check your file format.');
       }
       
+      // Check row limit
+      if (rows.length > MAX_ROWS) {
+        const errorMsg = `❌ File too large: ${rows.length.toLocaleString()} rows. Please split into smaller batches (≤${MAX_ROWS.toLocaleString()} rows).`;
+        console.error('[BULK UPLOAD] Row limit exceeded:', { rows: rows.length, limit: MAX_ROWS });
+        throw new Error(errorMsg);
+      }
+      
+      console.log(`[BULK UPLOAD] Processing ${rows.length} rows within limit`);
+      
+      // Log sample of first few rows for debugging
+      console.log('[CSV PROCESSING] Sample rows:', rows.slice(0, 3).map((row, i) => ({
+        rowIndex: i,
+        keys: Object.keys(row),
+        values: Object.values(row).slice(0, 5) // First 5 values only
+      })));
+      
       // Normalize and validate all rows
-      const normalized = rows.map(row => normalizeRowForPreview(row, selectedTemplate));
+      console.log('[CSV PROCESSING] Starting normalization of', rows.length, 'rows...');
+      const normalized = rows.map((row, index) => {
+        try {
+          return normalizeRowForPreview(row, selectedTemplate);
+        } catch (error: any) {
+          console.error(`[CSV PROCESSING] Error normalizing row ${index + 1}:`, error);
+          console.error(`[CSV PROCESSING] Problematic row data:`, row);
+          throw new Error(`❌ Error processing row ${index + 1}: ${error.message}`);
+        }
+      });
+      
+      console.log('[CSV PROCESSING] Normalization complete');
       
       // Check for duplicates
+      console.log('[CSV PROCESSING] Starting duplicate check...');
       const normalizedWithDuplicateCheck = await checkForDuplicates(normalized);
+      console.log('[CSV PROCESSING] Duplicate check complete');
       
       setNormalizedRows(normalizedWithDuplicateCheck);
       setCurrentPage(0);
@@ -667,6 +721,23 @@ export default function CSVBulkUploadScreen() {
       
     } catch (error: any) {
       console.error('[CSV PROCESSING] Error:', error);
+      console.error('[CSV PROCESSING] Error stack:', error.stack);
+      console.error('[CSV PROCESSING] File details on error:', {
+        fileName: selectedFile?.name,
+        hasWebFile: !!selectedFile?.webFile,
+        hasUri: !!selectedFile?.uri,
+        selectedTemplate
+      });
+      
+      // Provide more specific error messages
+      if (error.message.includes('Cannot read properties')) {
+        throw new Error('❌ File parsing error. Please ensure your CSV file is properly formatted.');
+      } else if (error.message.includes('out of memory') || error.message.includes('Maximum call stack')) {
+        throw new Error('❌ File too large to process. Please split into smaller files.');
+      } else if (error.message.includes('permission') || error.message.includes('access')) {
+        throw new Error('❌ Cannot access file. Please try selecting the file again.');
+      }
+      
       throw error;
     }
   }, [selectedFile, selectedTemplate, normalizeRowForPreview, checkForDuplicates]);
@@ -851,8 +922,12 @@ export default function CSVBulkUploadScreen() {
       const skippedRows = [...invalidRows, ...duplicateRows];
       
       if (validRows.length === 0) {
-        throw new Error('No valid rows to import');
+        const errorMsg = `❌ No valid rows to import. Found ${invalidRows.length} invalid and ${duplicateRows.length} duplicate rows.`;
+        console.error('[BULK UPLOAD] No valid rows:', { invalid: invalidRows.length, duplicates: duplicateRows.length });
+        throw new Error(errorMsg);
       }
+      
+      console.log(`[BULK UPLOAD] Ready to import ${validRows.length} valid rows`);
       
       setImportProgress({ current: 0, total: validRows.length });
       
@@ -893,8 +968,12 @@ export default function CSVBulkUploadScreen() {
         const { checkFirebasePermissions } = await import('@/utils/firebase');
         const perms = await checkFirebasePermissions();
         if (!perms.canWrite) {
-          throw new Error(`Missing or insufficient permissions to write to Firestore. ${perms.error ?? ''}`.trim());
+          const errorMsg = `❌ Missing write permissions to Firestore. ${perms.error ?? 'Please check your account permissions.'}`.trim();
+          console.error('[BULK UPLOAD] Permission check failed:', perms);
+          throw new Error(errorMsg);
         }
+        
+        console.log('[BULK UPLOAD] Permission check passed - can write to Firestore');
       } catch (preErr: any) {
         throw new Error(preErr?.message || 'Permission check failed');
       }
@@ -927,7 +1006,24 @@ export default function CSVBulkUploadScreen() {
             console.log(`[BULK UPLOAD] Batch completed: ${imported}/${validRows.length}, skipped ${batchDuplicates.length} duplicates`);
           } catch (error: any) {
             console.error(`[BULK UPLOAD] Batch failed at ${imported}/${validRows.length}:`, error);
-            throw new Error(`Import failed after ${imported} rows. ${error.message}`);
+            console.error('[BULK UPLOAD] Batch error details:', {
+              imported,
+              total: validRows.length,
+              batchSize: batchValidRows.length,
+              errorName: error.name,
+              errorCode: error.code
+            });
+            
+            let batchErrorMsg = `❌ Import failed after ${imported} rows. `;
+            if (error.message.includes('permission-denied')) {
+              batchErrorMsg += 'Permission denied - check account access.';
+            } else if (error.message.includes('quota')) {
+              batchErrorMsg += 'Storage quota exceeded.';
+            } else {
+              batchErrorMsg += error.message || 'Unknown batch error.';
+            }
+            
+            throw new Error(batchErrorMsg);
           }
         }
         
@@ -1025,8 +1121,31 @@ export default function CSVBulkUploadScreen() {
       }, 150);
       
     } catch (error: any) {
-      console.error('Import error:', error);
-      const errorMessage = error.message || `${dryRun ? 'Simulation' : 'Import'} failed. Please try again.`;
+      console.error('[BULK UPLOAD] Import error:', error);
+      console.error('[BULK UPLOAD] Error stack:', error.stack);
+      console.error('[BULK UPLOAD] Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        cause: error.cause
+      });
+      
+      let errorMessage = error.message || `${dryRun ? 'Simulation' : 'Import'} failed. Please try again.`;
+      
+      // Make error message more readable
+      if (errorMessage.includes('permission-denied')) {
+        errorMessage = '❌ Permission denied. Please check your account permissions and try again.';
+      } else if (errorMessage.includes('network')) {
+        errorMessage = '❌ Network error. Please check your connection and try again.';
+      } else if (errorMessage.includes('quota')) {
+        errorMessage = '❌ Storage quota exceeded. Please contact support.';
+      } else if (errorMessage.includes('timeout')) {
+        errorMessage = '❌ Request timeout. File too large or slow connection. Try smaller batches.';
+      } else if (errorMessage.length > 100) {
+        // Truncate very long error messages
+        errorMessage = errorMessage.substring(0, 97) + '...';
+      }
+      
       showToast(errorMessage, 'error');
     } finally {
       setIsImporting(false);
