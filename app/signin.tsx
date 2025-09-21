@@ -18,10 +18,7 @@ import { theme } from '@/constants/theme';
 
 import { moderateScale } from '@/src/ui/scale';
 import { UserRole } from '@/types';
-import { 
-  signInWithEmailAndPassword 
-} from 'firebase/auth';
-import { getFirebase } from '@/utils/firebase';
+import { useAuth } from '@/hooks/useAuth';
 
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
@@ -33,7 +30,7 @@ export default function SignInScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const router = useRouter();
-
+  const { login } = useAuth();
 
   const isValidEmail = (emailValue: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,8 +47,6 @@ export default function SignInScreen() {
     setErrorText(null);
     
     try {
-      const { auth } = getFirebase();
-      
       if (!email?.trim() || !password?.trim()) {
         setErrorText('Email and password are required.');
         return;
@@ -62,18 +57,11 @@ export default function SignInScreen() {
         return;
       }
       
-      // Sign in with Firebase
-      await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      // Use the auth hook's login method
+      await login(email.trim(), password.trim(), selectedRole);
       
-      // Navigate to home/dashboard
-      const isAdminLogin = email.trim() === 'admin@loadrush.com' || selectedRole === 'admin';
-      if (isAdminLogin) {
-        router.replace('/(tabs)/admin');
-      } else if (selectedRole === 'shipper') {
-        router.replace('/(tabs)/shipper');
-      } else {
-        router.replace('/(tabs)/dashboard');
-      }
+      // Navigation will be handled by the index.tsx redirect logic
+      console.log('[signin] Login successful, navigation will be handled automatically');
       
     } catch (error: any) {
       console.error('[signin] Sign in failed:', error?.code, error?.message);
@@ -90,7 +78,7 @@ export default function SignInScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, selectedRole, router]);
+  }, [email, password, selectedRole, login]);
 
   return (
     <SafeAreaView style={styles.container} testID="signin-safe">
@@ -196,6 +184,19 @@ export default function SignInScreen() {
               )}
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={[styles.signInButtonOrange, isLoading && styles.signInButtonDisabled]}
+              onPress={handleSignIn}
+              disabled={isLoading || !(email?.trim() && password?.trim())}
+              testID="signin-submit-orange"
+            >
+              {isLoading ? (
+                <ActivityIndicator color={theme.colors.white} />
+              ) : (
+                <Text style={styles.signInButtonText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
+
             <TouchableOpacity 
               style={styles.forgotPassword} 
               onPress={() => router.push('/(auth)/reset-password')} 
@@ -293,6 +294,13 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
+  },
+  signInButtonOrange: {
+    backgroundColor: '#FF8C00',
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
   },
   forgotPassword: {
     alignItems: 'center',
