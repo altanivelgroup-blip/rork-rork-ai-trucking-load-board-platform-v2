@@ -733,30 +733,7 @@ export default function LoadDetailsScreen() {
             </View>
           )}
 
-          <View style={styles.financeCard} testID="financials-card">
-            <Text style={styles.sectionTitle}>Financials</Text>
-            <View style={styles.detailRow}>
-              <Fuel size={20} color={theme.colors.gray} />
-              <Text style={styles.detailLabel}>Fuel Cost</Text>
-              <Text style={styles.detailValue} testID="fuel-cost-value">
-                {fuelLoading ? 'calculating…' : fuelError ? 'N/A' : typeof financials.fuelCost === 'number' && Number.isFinite(financials.fuelCost) ? formatCurrency(financials.fuelCost) : '—'}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <DollarSign size={20} color={theme.colors.gray} />
-              <Text style={styles.detailLabel}>Net After Fuel</Text>
-              <Text style={styles.detailValue} testID="net-after-fuel-value">
-                {typeof financials.netAfterFuel === 'number' && Number.isFinite(financials.netAfterFuel) ? formatCurrency(financials.netAfterFuel) : '—'}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <DollarSign size={20} color={theme.colors.gray} />
-              <Text style={styles.detailLabel}>Profit per Mile</Text>
-              <Text style={styles.detailValue} testID="profit-per-mile-value">
-                {typeof financials.profitPerMile === 'number' && Number.isFinite(financials.profitPerMile) ? `${financials.profitPerMile.toFixed(2)}/mi` : '—'}
-              </Text>
-            </View>
-          </View>
+
 
           <View style={styles.routeSection}>
             <Text style={styles.sectionTitle}>Route Details</Text>
