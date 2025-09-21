@@ -576,6 +576,12 @@ export default function DashboardScreen() {
             >
               <Text style={styles.refreshButtonText}>🔄 Refresh Loads</Text>
             </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.findLoadsButton}
+              onPress={() => router.push('/find-missing-loads')}
+            >
+              <Text style={styles.findLoadsButtonText}>🔍 Find Missing Loads</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.statsRow}>
@@ -1187,6 +1193,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   refreshButtonText: {
+    color: theme.colors.white,
+    fontSize: font(14),
+    fontWeight: '600',
+  },
+  findLoadsButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: moderateScale(12),
+    paddingVertical: moderateScale(8),
+    borderRadius: moderateScale(8),
+    marginTop: moderateScale(theme.spacing.sm),
+    alignItems: 'center',
+  },
+  findLoadsButtonText: {
     color: theme.colors.white,
     fontSize: font(14),
     fontWeight: '600',
