@@ -875,9 +875,12 @@ export default function LoadDetailsScreen() {
               ) : fuelError ? (
                 <Text style={styles.detailValue} testID="fuel-estimate-error">N/A</Text>
               ) : fuelEstimate ? (
-                <Text style={styles.detailValue} testID="fuel-estimate-value">
-                  {fuelEstimate.gallons.toFixed(1)} gal • {formatCurrency(fuelEstimate.cost)} (@ {fuelEstimate.mpg.toFixed(1)} mpg)
-                </Text>
+                <View style={styles.analyticsValueContainer}>
+                  <Text style={styles.detailValue} testID="fuel-estimate-value">
+                    {fuelEstimate.gallons.toFixed(1)} gal • {formatCurrency(fuelEstimate.cost)} (@ {fuelEstimate.mpg.toFixed(1)} mpg)
+                  </Text>
+                  <Text style={styles.analyticsIndicator}>📊 Live Analytics</Text>
+                </View>
               ) : (
                 <Text style={styles.detailValue} testID="fuel-estimate-pending">—</Text>
               )}
@@ -912,11 +915,17 @@ export default function LoadDetailsScreen() {
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Trip Fuel</Text>
-                <Text style={styles.detailValue} testID="driver-fuel-gallons">{fuelEstimate ? `${fuelEstimate.gallons.toFixed(1)} gal` : '—'}</Text>
+                <View style={styles.analyticsValueContainer}>
+                  <Text style={styles.detailValue} testID="driver-fuel-gallons">{fuelEstimate ? `${fuelEstimate.gallons.toFixed(1)} gal` : '—'}</Text>
+                  {fuelEstimate && <Text style={styles.analyticsIndicator}>📊 Live Analytics</Text>}
+                </View>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Trip Fuel Cost</Text>
-                <Text style={styles.detailValue} testID="driver-fuel-cost">{fuelEstimate ? formatCurrency(fuelEstimate.cost) : '—'}</Text>
+                <View style={styles.analyticsValueContainer}>
+                  <Text style={styles.detailValue} testID="driver-fuel-cost">{fuelEstimate ? formatCurrency(fuelEstimate.cost) : '—'}</Text>
+                  {fuelEstimate && <Text style={styles.analyticsIndicator}>📊 Live Analytics</Text>}
+                </View>
               </View>
             </View>
 
@@ -1575,5 +1584,14 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: theme.colors.gray,
     fontStyle: 'italic',
+  },
+  analyticsValueContainer: {
+    alignItems: 'flex-end',
+  },
+  analyticsIndicator: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.success,
+    fontWeight: '500',
+    marginTop: 2,
   },
 });
