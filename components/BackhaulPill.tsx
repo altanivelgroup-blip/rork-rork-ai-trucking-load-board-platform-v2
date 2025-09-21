@@ -858,8 +858,8 @@ Output schema:
           <View style={styles.pillText}>
             <Text style={styles.pillTitle}>
               {isGeneratingAI ? 'AI analyzing backhauls...' : 
-               aiSuggestions.length > 0 && allBackhauls[0] ? `Smart Backhaul (${Math.round(Number(allBackhauls[0].distanceFromDelivery) || 0)}mi, ${Math.round(Number(allBackhauls[0].rate) || 0)})` :
-               allBackhauls[0] ? `Backhaul near delivery (${Math.round(Number(allBackhauls[0].distanceFromDelivery) || 0)}mi)` : 'Searching for backhauls...'}
+               aiSuggestions.length > 0 && allBackhauls[0] ? `Smart Backhaul (${Math.round(allBackhauls[0].distanceFromDelivery || 0)}mi, ${Math.round(allBackhauls[0].rate || 0)})` :
+               allBackhauls[0] ? `Backhaul near delivery (${Math.round(allBackhauls[0].distanceFromDelivery || 0)}mi)` : 'Searching for backhauls...'}
             </Text>
             <Text style={styles.pillSubtitle}>
               {isGeneratingAI ? 'Analyzing market trends & driver profile' :
@@ -926,7 +926,7 @@ Output schema:
                     <ArrowRight size={16} color={theme.colors.gray} />
                     <Text style={styles.loadDestination}>{load.destination.city}, {load.destination.state}</Text>
                   </View>
-                  <Text style={styles.loadDistance}>{Math.round(Number(load.distanceFromDelivery) || 0)}mi away</Text>
+                  <Text style={styles.loadDistance}>{Math.round(load.distanceFromDelivery)}mi away</Text>
                 </View>
 
                 <View style={styles.loadDetails}>
@@ -948,14 +948,14 @@ Output schema:
                         </Text>
                       </View>
                     )}
-                    <Text style={styles.loadWeight}>{((Number(load.weight) || 0) / 1000).toFixed(1)}k lbs</Text>
+                    <Text style={styles.loadWeight}>{(load.weight / 1000).toFixed(1)}k lbs</Text>
                   </View>
 
                   <View style={styles.loadFinancials}>
                     <View style={styles.rateInfo}>
                       <DollarSign size={16} color={theme.colors.success} />
-                      <Text style={styles.rateAmount}>{formatCurrency(Number(load.rate) || 0)}</Text>
-                      <Text style={styles.ratePerMile}>${(Number(load.ratePerMile) || 0).toFixed(2)}/mi</Text>
+                      <Text style={styles.rateAmount}>{formatCurrency(load.rate)}</Text>
+                      <Text style={styles.ratePerMile}>${load.ratePerMile.toFixed(2)}/mi</Text>
                       {(load as any).marketTrend && (
                         <View style={[styles.trendIndicator,
                           (load as any).marketTrend === 'rising' ? styles.trendRising :
@@ -968,7 +968,7 @@ Output schema:
                         </View>
                       )}
                     </View>
-                    <Text style={styles.loadMiles}>{Number(load.distance) || 0} miles</Text>
+                    <Text style={styles.loadMiles}>{load.distance} miles</Text>
                   </View>
                 </View>
 
@@ -994,7 +994,7 @@ Output schema:
                     )}
                     {load.aiScore && (
                       <View style={styles.aiScore}>
-                        <Text style={styles.aiScoreText}>{Math.round(Number(load.aiScore) || 0)}% match</Text>
+                        <Text style={styles.aiScoreText}>{load.aiScore}% match</Text>
                       </View>
                     )}
                   </View>
