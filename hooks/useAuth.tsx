@@ -161,7 +161,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     };
     
     initAuth();
-  }, [retryAttempts]);
+  }, []);
 
   // Firebase setup
   useEffect(() => {
@@ -950,17 +950,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     console.log('[useAuth] 🎯 PERMANENT SIGN IN FIX - Auth state computed:', {
       hasUser: !!user,
       userRole: user?.role,
-      isAnonymous,
-      hasSignedInThisSession,
       isAuthenticated: result.isAuthenticated,
-      isLoading,
-      initError,
-      retryAttempts,
-      lastSuccessfulAuth: lastSuccessfulAuth?.toISOString(),
-      isInitialized
+      isLoading
     });
     return result;
-  }, [user, userId, isLoading, isFirebaseAuthenticated, isAnonymous, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile, hardReset, initError, retryAttempts, lastSuccessfulAuth, isInitialized]);
+  }, [user, userId, isLoading, isFirebaseAuthenticated, hasSignedInThisSession, login, register, resetPassword, logout, updateProfile, hardReset]);
 
   return value;
 });
