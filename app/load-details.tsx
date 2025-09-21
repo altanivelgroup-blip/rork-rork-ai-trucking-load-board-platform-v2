@@ -19,7 +19,7 @@ import { Driver } from '@/types';
 import { formatCurrency } from '@/utils/fuel';
 import { DriverNavigation } from '@/components/DriverNavigation';
 import LoadAnalyticsCard from '@/components/LoadAnalyticsCard';
-import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
+
 import { fetchFuelEstimate, FuelApiResponse } from '@/utils/fuelApi';
 import { estimateMileageFromZips, estimateAvgSpeedForRoute, estimateDurationHours, formatDurationHours, estimateArrivalTimestamp } from '@/utils/distance';
 import { computeDistanceMiles } from '@/src/services/distance';
@@ -635,9 +635,57 @@ export default function LoadDetailsScreen() {
             />
           )}
 
-          {user?.role === 'driver' ? (
-            <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }}>
-              <LiveAnalyticsDashboard load={loadNorm} compact={false} showTitle={true} enabled={true} title="Fuel Analytics" />
+          {user?.role === 'driver' && fuelEstimate ? (
+            <View style={styles.fuelAnalyticsSection}>
+              <Text style={styles.sectionTitle}>Fuel Analytics</Text>
+              
+              <View style={styles.analyticsGrid}>
+                <View style={styles.analyticsRow}>
+                  <View style={styles.analyticsItem}>
+                    <Text style={styles.analyticsLabel}>Miles</Text>
+                    <Text style={styles.analyticsValue}>{typeof distanceDisplayMiles === 'number' ? distanceDisplayMiles : '—'}</Text>
+                  </View>
+                  <View style={styles.analyticsItem}>
+                    <Text style={styles.analyticsLabel}>MPG</Text>
+                    <Text style={styles.analyticsValue}>{fuelEstimate.mpg.toFixed(1)}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.analyticsRow}>
+                  <View style={styles.analyticsItem}>
+                    <Text style={styles.analyticsLabel}>Fuel Type</Text>
+                    <Text style={styles.analyticsValue}>Diesel</Text>
+                  </View>
+                  <View style={styles.analyticsItem}>
+                    <Text style={styles.analyticsLabel}>Fuel $/gal</Text>
+                    <Text style={styles.analyticsValue}>${fuelEstimate.pricePerGallon.toFixed(2)}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.analyticsRow}>
+                  <View style={styles.analyticsItem}>
+                    <Text style={styles.analyticsLabel}>Gallons Needed</Text>
+                    <Text style={styles.analyticsValue}>{fuelEstimate.gallons.toFixed(1)}</Text>
+                  </View>
+                  <View style={styles.analyticsItem}>
+                    <Text style={styles.analyticsLabel}>Fuel Cost</Text>
+                    <Text style={styles.analyticsValue}>{formatCurrency(fuelEstimate.cost)}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.analyticsRow}>
+                  <View style={styles.analyticsItem}>
+                    <Text style={styles.analyticsLabel}>Gross</Text>
+                    <Text style={styles.analyticsValue}>{formatCurrency(Number(loadNorm.rate ?? 0))}</Text>
+                  </View>
+                  <View style={styles.analyticsItem}>
+                    <Text style={styles.analyticsLabel}>Net</Text>
+                    <Text style={[styles.analyticsValue, { color: theme.colors.success }]}>
+                      {typeof financials.netAfterFuel === 'number' ? formatCurrency(financials.netAfterFuel) : '—'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
             </View>
           ) : null}
 
@@ -1467,5 +1515,32 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.white,
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
+  },
+  fuelAnalyticsSection: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+  },
+  analyticsGrid: {
+    gap: theme.spacing.md,
+  },
+  analyticsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: theme.spacing.lg,
+  },
+  analyticsItem: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  analyticsLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: 4,
+  },
+  analyticsValue: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
+    color: theme.colors.dark,
   },
 });
