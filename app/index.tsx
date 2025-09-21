@@ -2,7 +2,7 @@ import { Redirect } from "expo-router";
 import { ActivityIndicator, StyleSheet, Text } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useEffect, useState } from "react";
+
 
 const styles = StyleSheet.create({
   container: {
@@ -21,33 +21,23 @@ const styles = StyleSheet.create({
 });
 
 export default function Index() {
-  const [isHydrated, setIsHydrated] = useState(false);
   const authState = useAuth();
-
-  // Prevent hydration timeout by ensuring client-side rendering
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsHydrated(true);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
 
   console.log('[Index] Auth state:', {
     hasAuthState: !!authState,
     isLoading: authState?.isLoading,
     hasUser: !!authState?.user,
     userRole: authState?.user?.role,
-    userEmail: authState?.user?.email,
-    isHydrated
+    userEmail: authState?.user?.email
   });
 
-  // Show loading while hydrating or auth is initializing
-  if (!isHydrated || !authState || authState.isLoading) {
+  // Show loading while auth is initializing
+  if (!authState || authState.isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator size="large" color="#007AFF" />
         <Text style={styles.loadingText}>
-          {!isHydrated ? 'Starting...' : 'Loading...'}
+          Loading...
         </Text>
       </SafeAreaView>
     );

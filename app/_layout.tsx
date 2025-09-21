@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
-import React, { useMemo, useCallback, useEffect, useState } from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
+import React, { useMemo, useCallback } from "react";
+import { View, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -222,28 +222,6 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  // Prevent hydration timeout by ensuring client-side rendering
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsHydrated(true);
-    }, 50); // Very short delay to prevent hydration mismatch
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Show loading while hydrating
-  if (!isHydrated) {
-    return (
-      <GestureHandlerRootView style={styles.rootContainer}>
-        <SafeAreaProvider>
-          <View style={[styles.appContainer, { justifyContent: 'center', alignItems: 'center' }]}>
-            <ActivityIndicator size="large" color="#007AFF" />
-          </View>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    );
-  }
 
   return (
     <GestureHandlerRootView style={styles.rootContainer}>
