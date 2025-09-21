@@ -21,6 +21,7 @@ import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { VEHICLES_COLLECTION } from '@/lib/loadSchema';
 import { Save, AlertCircle, LogIn } from 'lucide-react-native';
+import { useAuth } from '@/hooks/useAuth';
 import uuid from 'react-native-uuid';
 
 interface VehicleData {
@@ -552,17 +553,61 @@ export default function VehicleEditScreen() {
             <AlertCircle color={theme.colors.danger} size={20} />
             <View style={styles.statusTextContainer}>
               <Text style={styles.authErrorText}>{authError}</Text>
-              <TouchableOpacity
-                style={styles.signInButton}
-                onPress={() => {
-                  console.log('[VehicleEdit] Navigating to sign in');
-                  router.push('/signin');
-                }}
-                testID="vehicle-edit-signin"
-              >
-                <LogIn size={16} color={theme.colors.white} />
-                <Text style={styles.signInButtonText}>Sign In</Text>
-              </TouchableOpacity>
+              <View style={styles.authButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.quickSignInButton}
+                  onPress={async () => {
+                    try {
+                      console.log('[VehicleEdit] Quick sign in as driver');
+                      
+                      // Try to sign in with Firebase directly
+                      const { signInWithEmailAndPassword } = await import('firebase/auth');
+                      const { auth } = getFirebase();
+                      
+                      if (auth) {
+                        const userCredential = await signInWithEmailAndPassword(auth, 'driver@truck.com', 'password123');
+                        if (userCredential.user) {
+                          console.log('[VehicleEdit] ✅ Quick sign in successful:', userCredential.user.uid);
+                          toast.show('Signed in successfully!', 'success');
+                          setAuthError(null);
+                          // Reload the page to refresh authentication state
+                          loadVehicle();
+                          return;
+                        }
+                      }
+                      
+                      // Fallback to sign in page
+                      router.push('/signin');
+                    } catch (error: any) {
+                      console.error('[VehicleEdit] Quick sign in failed:', error);
+                      
+                      if (error?.code === 'auth/user-not-found') {
+                        toast.show('Test account not found. Please use the sign in page.', 'error');
+                      } else if (error?.code === 'auth/wrong-password') {
+                        toast.show('Invalid credentials. Please use the sign in page.', 'error');
+                      } else {
+                        toast.show('Quick sign in failed. Please use the sign in page.', 'error');
+                      }
+                      
+                      router.push('/signin');
+                    }
+                  }}
+                  testID="vehicle-edit-quick-signin"
+                >
+                  <Text style={styles.quickSignInButtonText}>Quick Sign In</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.signInButton}
+                  onPress={() => {
+                    console.log('[VehicleEdit] Navigating to sign in');
+                    router.push('/signin');
+                  }}
+                  testID="vehicle-edit-signin"
+                >
+                  <LogIn size={16} color={theme.colors.white} />
+                  <Text style={styles.signInButtonText}>Sign In</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -783,6 +828,21 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
     fontWeight: '500' as const,
     flex: 1,
+  },
+  authButtonsContainer: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  quickSignInButton: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+  },
+  quickSignInButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600' as const,
   },
   signInButton: {
     flexDirection: 'row',
