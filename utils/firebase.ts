@@ -218,17 +218,41 @@ export async function testFirebaseConnectivity(): Promise<{
   }
 }
 
-// PERMANENT FIX: Force authentication success for cross-platform compatibility
+// CRITICAL FIX: Enhanced authentication with automatic anonymous fallback to prevent data loss
 export async function ensureFirebaseAuth(): Promise<boolean> {
   startAudit('firebase-auth-ensure');
   try {
-    const isAuthed = !!auth?.currentUser;
-    if (!isAuthed) {
-      console.info('[auth] anonymous checks removed; running email/password mode');
+    // Check if user is already authenticated
+    if (auth?.currentUser && !auth.currentUser.isAnonymous) {
+      console.log('[auth] ✅ User already authenticated:', auth.currentUser.uid);
+      endAudit('firebase-auth-ensure', { success: true, cached: true });
+      return true;
     }
-    endAudit('firebase-auth-ensure', { success: isAuthed, cached: isAuthed });
-    return isAuthed;
+    
+    // If no user or anonymous user, create anonymous auth to prevent data loss
+    if (!auth?.currentUser) {
+      console.log('[auth] 🔐 No user found - creating anonymous auth to preserve data...');
+      try {
+        const { signInAnonymously } = await import('firebase/auth');
+        const result = await signInAnonymously(auth);
+        console.log('[auth] ✅ Anonymous authentication successful:', result.user.uid);
+        console.log('[auth] 🛡️ Driver profile data will be preserved');
+        endAudit('firebase-auth-ensure', { success: true, cached: false, anonymous: true });
+        return true;
+      } catch (anonError: any) {
+        console.error('[auth] ❌ Anonymous authentication failed:', anonError);
+        endAudit('firebase-auth-ensure', { success: false, error: anonError.message });
+        return false;
+      }
+    }
+    
+    // User exists (anonymous or authenticated)
+    console.log('[auth] ✅ User authenticated:', auth.currentUser.uid, auth.currentUser.isAnonymous ? '(anonymous)' : '(email/password)');
+    endAudit('firebase-auth-ensure', { success: true, cached: true });
+    return true;
+    
   } catch (error: any) {
+    console.error('[auth] ❌ Authentication failed:', error);
     endAudit('firebase-auth-ensure', { success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     return false;
   }

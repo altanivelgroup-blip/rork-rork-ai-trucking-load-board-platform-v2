@@ -1,10 +1,15 @@
-// ULTIMATE CROSS-PLATFORM FIX: Zero-restriction storage rules for universal access
+// CRITICAL FIX: Enhanced storage rules to prevent driver profile data loss
+// FIXED: Support both authenticated and anonymous users for photo uploads
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // ULTIMATE FIX: Universal access for all storage operations
+    // CRITICAL FIX: Allow all authenticated users (including anonymous) to upload photos
+    // This prevents driver profile data loss during photo uploads
     match /{allPaths=**} {
-      allow read, write, create, update, delete: if true;
+      // Allow read access to all users
+      allow read: if true;
+      // CRITICAL FIX: Allow both authenticated and anonymous users to upload
+      allow write, create, update, delete: if request.auth != null;
     }
   }
 }
