@@ -1522,18 +1522,29 @@ export default function CSVBulkUploadScreen() {
             <TouchableOpacity
               style={[styles.actionButton, styles.previewButton]}
               onPress={async () => {
+                console.log('[PREVIEW BUTTON] Preview button pressed');
+                console.log('[PREVIEW BUTTON] Current state:', {
+                  selectedFile: !!selectedFile,
+                  fileName: selectedFile?.name,
+                  headerValidation: headerValidation?.ok,
+                  isLoading
+                });
                 try {
                   setIsLoading(true);
+                  console.log('[PREVIEW BUTTON] Starting processCSVData...');
                   await processCSVData();
+                  console.log('[PREVIEW BUTTON] processCSVData completed successfully');
                   showToast('Rows parsed and validated successfully', 'success');
                 } catch (error: any) {
-                  console.warn(error);
+                  console.error('[PREVIEW BUTTON] Error in processCSVData:', error);
+                  console.error('[PREVIEW BUTTON] Error stack:', error.stack);
                   showToast(error.message || 'Failed to process CSV data', 'error');
                 } finally {
                   setIsLoading(false);
+                  console.log('[PREVIEW BUTTON] Preview process finished');
                 }
               }}
-              disabled={isLoading}
+              disabled={isLoading || !selectedFile || !headerValidation?.ok}
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color={theme.colors.white} />
