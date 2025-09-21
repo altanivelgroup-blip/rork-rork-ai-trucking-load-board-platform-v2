@@ -116,32 +116,68 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
 
   const filteredLoads = useMemo(() => {
     console.log('[PERF_AUDIT] Filtering loads - start', { loadsCount: loads.length, filtersCount: Object.keys(filters).length });
+    console.log('[LOADS_DEBUG] Current filters:', filters);
     const startTime = performance.now();
     
     const result = loads.filter(load => {
-      if (filters.vehicleType && load.vehicleType !== filters.vehicleType) return false;
-      if (filters.minRate && load.rate < filters.minRate) return false;
-      if (filters.maxDistance && load.distance > filters.maxDistance) return false;
-      if (filters.origin && !load.origin.city.toLowerCase().includes((filters.origin ?? '').toLowerCase())) return false;
-      if (filters.destination && !load.destination.city.toLowerCase().includes((filters.destination ?? '').toLowerCase())) return false;
-      if (filters.showBackhaul !== undefined && load.isBackhaul !== filters.showBackhaul) return false;
+      // Log each filter check for debugging
+      if (filters.vehicleType && load.vehicleType !== filters.vehicleType) {
+        console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by vehicleType: ${load.vehicleType} !== ${filters.vehicleType}`);
+        return false;
+      }
+      if (filters.minRate && load.rate < filters.minRate) {
+        console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by minRate: ${load.rate} < ${filters.minRate}`);
+        return false;
+      }
+      if (filters.maxDistance && load.distance > filters.maxDistance) {
+        console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by maxDistance: ${load.distance} > ${filters.maxDistance}`);
+        return false;
+      }
+      if (filters.origin && !load.origin.city.toLowerCase().includes((filters.origin ?? '').toLowerCase())) {
+        console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by origin: ${load.origin.city} doesn't include ${filters.origin}`);
+        return false;
+      }
+      if (filters.destination && !load.destination.city.toLowerCase().includes((filters.destination ?? '').toLowerCase())) {
+        console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by destination: ${load.destination.city} doesn't include ${filters.destination}`);
+        return false;
+      }
+      if (filters.showBackhaul !== undefined && load.isBackhaul !== filters.showBackhaul) {
+        console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by backhaul: ${load.isBackhaul} !== ${filters.showBackhaul}`);
+        return false;
+      }
       if (filters.backhaulCenter) {
         const radius = filters.backhaulRadiusMiles ?? 50;
         const miles = haversineMiles(
           { lat: load.origin.lat, lng: load.origin.lng },
           { lat: filters.backhaulCenter.lat, lng: filters.backhaulCenter.lng }
         );
-        if (miles > radius) return false;
+        if (miles > radius) {
+          console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by backhaul radius: ${miles} > ${radius}`);
+          return false;
+        }
       }
-      return load.status === 'available';
+      
+      // LOADS_RESTORE_FIX: Show all loads regardless of status for debugging
+      // Only filter by status if explicitly set
+      const statusCheck = load.status === 'available' || load.status === 'pending' || load.status === 'posted';
+      if (!statusCheck) {
+        console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by status: ${load.status}`);
+        return false;
+      }
+      
+      console.log(`[LOADS_DEBUG] Load ${load.id} passed all filters`);
+      return true;
     });
     
     const endTime = performance.now();
     console.log('[PERF_AUDIT] Filtering loads - complete', { 
       duration: `${(endTime - startTime).toFixed(2)}ms`,
       inputCount: loads.length,
-      outputCount: result.length
+      outputCount: result.length,
+      filtersApplied: Object.keys(filters).length
     });
+    
+    console.log(`[LOADS_RESTORE_FIX] 📊 Filtering result: ${loads.length} total → ${result.length} filtered`);
     
     return result;
   }, [loads, filters, haversineMiles]);

@@ -323,9 +323,20 @@ export default function LoadsScreen() {
 
         </View>
         
-        <Text style={styles.debugBanner}>
-          {isDriver ? `${loads.length} available loads` : `${loads.length} posted loads`}
-        </Text>
+        <View style={styles.debugSection}>
+          <Text style={styles.debugBanner}>
+            {isDriver ? `${loads.length} available loads` : `${loads.length} posted loads`}
+          </Text>
+          <TouchableOpacity 
+            style={styles.clearFiltersButton}
+            onPress={() => {
+              console.log('[LOADS_DEBUG] Clearing all filters to show all loads');
+              setFilters({});
+            }}
+          >
+            <Text style={styles.clearFiltersText}>Clear All Filters</Text>
+          </TouchableOpacity>
+        </View>
         
         {/* LIVE ANALYTICS STATUS */}
         {user?.role === 'driver' && (
@@ -496,12 +507,29 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
   },
 
+  debugSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.lightGray,
+  },
   debugBanner: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
-    textAlign: 'center',
+    flex: 1,
+  },
+  clearFiltersButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.xs,
-    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.sm,
+  },
+  clearFiltersText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.white,
+    fontWeight: '600',
   },
   analyticsStatus: {
     backgroundColor: '#ECFDF5',
