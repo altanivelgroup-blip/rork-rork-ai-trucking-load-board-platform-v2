@@ -2,7 +2,7 @@
 // Real Firebase implementation
 
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { startAudit, endAudit } from './performanceAudit';
@@ -118,34 +118,7 @@ const initAuthListener = () => {
 // Initialize auth listener
 initAuthListener();
 
-// PERMANENT FIX: Immediate authentication for cross-platform compatibility
-console.log("[PERMANENT_FIX] 🚀 Starting immediate authentication for cross-platform access...");
-
-// PERMANENT FIX: Auto-authenticate immediately (no delay) to prevent permission issues
-(async () => {
-  try {
-    console.log("[PERMANENT_FIX] 🔄 Auto-authenticating immediately on startup...");
-    const success = await ensureFirebaseAuth();
-    if (success) {
-      console.log("[PERMANENT_FIX] ✅ Immediate authentication successful");
-      console.log("[PERMANENT_FIX] ✅ All platforms now have unlimited Firestore access");
-      console.log("[PERMANENT_FIX] ♾️ Load limits removed - showing all available loads");
-    } else {
-      console.warn("[PERMANENT_FIX] ❌ Immediate authentication failed - retrying...");
-      // Retry immediately if first attempt fails
-      const retrySuccess = await retryFirebaseAuth(3);
-      if (retrySuccess) {
-        console.log("[PERMANENT_FIX] ✅ Retry authentication successful");
-      } else {
-        console.error("[PERMANENT_FIX] ❌ All authentication attempts failed");
-      }
-    }
-  } catch (error) {
-    console.error("[PERMANENT_FIX] ❌ Critical authentication error:", error);
-  }
-})();
-
-console.log("[ULTIMATE_FIX] Firebase initialized with auto-authentication enabled.");
+console.log("[FIREBASE] Startup without auto anonymous authentication");
 
 // ✅ Top-level exports
 export { app, auth, db, storage };
@@ -251,10 +224,8 @@ export async function testFirebaseConnectivity(): Promise<{
         details.authWorking = true;
         console.log('[FIREBASE_TEST] Auth: Already authenticated');
       } else {
-        // TIMEOUT DISABLED: Allow unlimited time for auth to complete
-        const authResult = await signInAnonymously(auth);
-        details.authWorking = true;
-        console.log('[FIREBASE_TEST] Auth: Successfully authenticated');
+        details.authWorking = false;
+        console.log('[FIREBASE_TEST] Auth: No current user (anonymous disabled)');
       }
     } catch (e: any) {
       console.warn('[FIREBASE_TEST] Auth: FAILED', e?.code, e?.message);
@@ -482,15 +453,13 @@ export async function checkFirebasePermissions(): Promise<{ canRead: boolean; ca
   console.log('[PERMANENT_PERMISSION_TEST] ♾️ Testing unlimited load access across all platforms...');
   
   try {
-    // Force authentication first
-    console.log('[PERMANENT_PERMISSION_TEST] 🔐 Ensuring authentication...');
-    const authSuccess = await ensureFirebaseAuth();
+    // Skip forcing authentication; anonymous auth disabled
+    const authSuccess = !!auth?.currentUser;
     if (!authSuccess) {
-      console.error('[PERMANENT_PERMISSION_TEST] ❌ Authentication failed');
-      return { canRead: false, canWrite: false, error: 'Authentication failed - cannot test permissions' };
+      console.warn('[PERMANENT_PERMISSION_TEST] Auth not available; running limited checks');
     }
     
-    console.log('[PERMANENT_PERMISSION_TEST] ✅ Authentication successful, testing unlimited access...');
+    console.log('[PERMANENT_PERMISSION_TEST] Proceeding with permission checks...');
 
     // Test read permissions with unlimited query (no limit)
     let loadCount = 0;

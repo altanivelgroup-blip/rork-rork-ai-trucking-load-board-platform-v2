@@ -3,6 +3,8 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, Platform } from 
 import { useAuth } from "@/hooks/useAuth";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState, useCallback } from "react";
+import { onAuthStateChanged } from 'firebase/auth';
+import { getFirebase } from '@/utils/firebase';
 
 const styles = StyleSheet.create({
   container: {
@@ -68,6 +70,24 @@ export default function Index() {
   }, [retryCount]);
   
   const authState = useAuth();
+
+  const [checkingSession, setCheckingSession] = useState<boolean>(true);
+
+  useEffect(() => {
+    const { auth } = getFirebase();
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      try {
+        if (firebaseUser) {
+          router.replace('/(tabs)/dashboard');
+        } else {
+          router.replace('/(auth)/login');
+        }
+      } finally {
+        setCheckingSession(false);
+      }
+    });
+    return () => unsub();
+  }, [router]);
   
   // PERMANENT FIX: Enhanced retry mechanism with manual navigation
   const handleManualRetry = useCallback(() => {
@@ -85,6 +105,15 @@ export default function Index() {
   }, [router]);
   
   // PERMANENT FIX: Enhanced error handling with manual navigation option
+  if (checkingSession) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Checking session…</Text>
+      </SafeAreaView>
+    );
+  }
+
   if (!authState) {
     console.error('[Index] ❌ PERMANENT SIGN IN NAV FIX - Auth hook returned null/undefined');
     if (initializationTimeout) {

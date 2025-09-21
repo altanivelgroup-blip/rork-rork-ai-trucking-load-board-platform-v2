@@ -20,7 +20,6 @@ import { moderateScale } from '@/src/ui/scale';
 import { UserRole } from '@/types';
 import { 
   signInWithEmailAndPassword, 
-  signInAnonymously, 
   EmailAuthProvider, 
   linkWithCredential 
 } from 'firebase/auth';
@@ -149,31 +148,7 @@ export default function LoginScreen() {
         return;
       }
       
-      // If no credentials provided, allow guest access
-      console.log('[login] no credentials provided, signing in anonymously');
-      try {
-        const result = await signInAnonymously(auth);
-        console.log('[login] signed in anonymously. uid:', result.user.uid);
-      } catch (error: any) {
-        console.warn('[login] Anonymous sign-in failed, continuing with mock auth:', error?.code);
-      }
-      
-      // Update local auth state with anonymous user
-      await login('guest@example.com', 'guest', selectedRole);
-      
-      console.log('[login] ✅ SIGN IN NAV FIX: Anonymous login success, navigating based on role:', selectedRole);
-      
-      // Navigate immediately after successful anonymous login
-      if (selectedRole === 'admin') {
-        console.log('[login] 🔄 Redirecting to admin dashboard (anonymous)');
-        router.replace('/(tabs)/admin');
-      } else if (selectedRole === 'shipper') {
-        console.log('[login] 🔄 Redirecting to shipper dashboard (anonymous)');
-        router.replace('/(tabs)/shipper');
-      } else {
-        console.log('[login] 🔄 Redirecting to driver dashboard (anonymous)');
-        router.replace('/(tabs)/dashboard');
-      }
+      alert('Please enter email and password to continue.');
     } catch (error: any) {
       console.error('[login] failed:', error?.code, error?.message);
       // Show user-friendly error message
