@@ -43,28 +43,45 @@ export default function SignInScreen() {
   };
 
   const handleSignIn = useCallback(async () => {
+    console.log('[signin] 🎯 SIGN IN BUTTON PRESSED - Starting login process...');
     setIsLoading(true);
     setErrorText(null);
     
     try {
+      console.log('[signin] Validating inputs...', { email: email?.trim(), hasPassword: !!password?.trim(), role: selectedRole });
+      
       if (!email?.trim() || !password?.trim()) {
+        console.log('[signin] ❌ Missing credentials');
         setErrorText('Email and password are required.');
         return;
       }
       
       if (!isValidEmail(email.trim())) {
+        console.log('[signin] ❌ Invalid email format');
         setErrorText('Please enter a valid email address.');
         return;
       }
       
+      console.log('[signin] ✅ Inputs valid, calling login...');
+      
       // Use the auth hook's login method
       await login(email.trim(), password.trim(), selectedRole);
       
-      // Navigation will be handled by the index.tsx redirect logic
-      console.log('[signin] Login successful, navigation will be handled automatically');
+      console.log('[signin] ✅ Login successful! Navigation will be handled automatically');
+      
+      // Force navigation if needed
+      setTimeout(() => {
+        if (selectedRole === 'admin') {
+          router.replace('/(tabs)/admin');
+        } else if (selectedRole === 'shipper') {
+          router.replace('/(tabs)/shipper');
+        } else {
+          router.replace('/(tabs)/dashboard');
+        }
+      }, 100);
       
     } catch (error: any) {
-      console.error('[signin] Sign in failed:', error?.code, error?.message);
+      console.error('[signin] ❌ Sign in failed:', error?.code, error?.message);
       
       if (
         error?.code === 'auth/invalid-credential' ||
@@ -78,7 +95,7 @@ export default function SignInScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, selectedRole, login]);
+  }, [email, password, selectedRole, login, router]);
 
   return (
     <SafeAreaView style={styles.container} testID="signin-safe">
@@ -184,25 +201,46 @@ export default function SignInScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.signInButtonOrange, isLoading && styles.signInButtonDisabled]}
-              onPress={handleSignIn}
-              disabled={isLoading}
-              testID="signin-submit-orange"
-            >
-              {isLoading ? (
-                <ActivityIndicator color={theme.colors.white} />
-              ) : (
-                <Text style={styles.signInButtonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
-
             <TouchableOpacity 
               style={styles.forgotPassword} 
               onPress={() => router.push('/(auth)/reset-password')} 
               testID="forgot-password-link"
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.testCredentials}>
+            <Text style={styles.testCredentialsTitle}>Quick Test Login:</Text>
+            <TouchableOpacity 
+              style={styles.testButton}
+              onPress={() => {
+                setEmail('test@driver.com');
+                setPassword('password123');
+                setSelectedRole('driver');
+              }}
+            >
+              <Text style={styles.testButtonText}>Driver Test Account</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.testButton}
+              onPress={() => {
+                setEmail('test@shipper.com');
+                setPassword('password123');
+                setSelectedRole('shipper');
+              }}
+            >
+              <Text style={styles.testButtonText}>Shipper Test Account</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.testButton}
+              onPress={() => {
+                setEmail('admin@loadrush.com');
+                setPassword('admin123');
+                setSelectedRole('admin');
+              }}
+            >
+              <Text style={styles.testButtonText}>Admin Test Account</Text>
             </TouchableOpacity>
           </View>
 
@@ -295,13 +333,7 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
   },
-  signInButtonOrange: {
-    backgroundColor: '#FF8C00',
-    borderRadius: theme.borderRadius.md,
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-    marginTop: theme.spacing.sm,
-  },
+
   forgotPassword: {
     alignItems: 'center',
     marginTop: theme.spacing.md,
@@ -371,6 +403,34 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xs,
     marginBottom: theme.spacing.xs,
     fontSize: theme.fontSize.sm,
+    textAlign: 'center',
+  },
+  testCredentials: {
+    marginBottom: theme.spacing.lg,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+  },
+  testCredentialsTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  testButton: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.sm,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  testButtonText: {
+    color: theme.colors.primary,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '500',
     textAlign: 'center',
   },
 });
