@@ -1,11 +1,11 @@
 import React, { useMemo, useCallback, useState, memo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, TextInput, Button } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, Switch, TextInput } from 'react-native';
 import Screen from '@/src/ui/Screen';
 import { theme } from '@/constants/theme';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
-import { Truck, Star, Package, ArrowRight, MapPin, Mic, Cloud, Sun, CloudRain, CloudLightning, Snowflake, LogOut } from 'lucide-react-native';
+import { Truck, Star, Package, ArrowRight, MapPin, Mic, Cloud, Sun, CloudRain, CloudLightning, Snowflake } from 'lucide-react-native';
 import { VoiceCapture } from '@/components/VoiceCapture';
 import { mockLoads } from '@/mocks/loads';
 import { useLoads } from '@/hooks/useLoads';
@@ -19,6 +19,8 @@ import { OPENWEATHER_API_KEY, ORS_API_KEY, MAPBOX_TOKEN } from '@/utils/env';
 import { startAudit, endAudit } from '@/utils/performanceAudit';
 import { Stack } from 'expo-router';
 import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/utils/firebase';
 
 
 interface RecentLoadProps {
@@ -411,20 +413,23 @@ export default function DashboardScreen() {
       <Stack.Screen 
         options={{
           headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 16 }}>
-              <TouchableOpacity 
-                onPress={() => router.push('/permanent-fixes-test')}
-                style={{ padding: 4 }}
-              >
-                <Text style={{ fontSize: 12, color: theme.colors.success, fontWeight: '600' }}>TEST</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={() => router.push('/dev/signout')}
-                style={{ padding: 4 }}
-              >
-                <LogOut size={20} color={theme.colors.dark} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              onPress={async () => {
+                try {
+                  console.log('[Dashboard] Sign out pressed');
+                  await signOut(auth);
+                  router.replace('/signin');
+                } catch (e) {
+                  console.warn('[Dashboard] Sign out failed', e);
+                }
+              }}
+              style={{ paddingHorizontal: 12, paddingVertical: 6, marginRight: 12, backgroundColor: theme.colors.primary, borderRadius: 8 }}
+              testID="btnSignOutHeader"
+              accessibilityRole="button"
+              accessibilityLabel="Sign out"
+            >
+              <Text style={{ color: theme.colors.white, fontWeight: '700', fontSize: 14 }}>Sign out</Text>
+            </TouchableOpacity>
           )
         }} 
       />
