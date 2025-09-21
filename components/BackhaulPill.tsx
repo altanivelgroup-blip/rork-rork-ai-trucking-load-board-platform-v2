@@ -741,7 +741,7 @@ Output schema:
           <View style={styles.pillText}>
             <Text style={styles.pillTitle}>
               {isGeneratingAI ? 'AI analyzing backhauls...' : 
-               aiSuggestions.length > 0 ? `Smart Backhaul (${Math.round(allBackhauls[0]?.distanceFromDelivery || 0)}mi, ${allBackhauls[0]?.rate || 0})` :
+               aiSuggestions.length > 0 ? `Smart Backhaul (${Math.round(allBackhauls[0]?.distanceFromDelivery || 0)}mi, ${Math.round(allBackhauls[0]?.rate || 0)})` :
                `Backhaul near delivery (${Math.round(allBackhauls[0]?.distanceFromDelivery || 0)}mi)`}
             </Text>
             <Text style={styles.pillSubtitle}>
