@@ -227,34 +227,49 @@ export default function SignInScreen() {
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
             
-            {/* iPad Debug Button */}
-            <TouchableOpacity
-              style={[styles.signInButton, { backgroundColor: '#FF6B35', marginTop: 12 }]}
-              onPress={async () => {
-                console.log('[signin] 🎯 IPAD DEBUG - Direct login attempt');
-                console.log('[signin] Platform:', Platform.OS);
-                console.log('[signin] Device info:', { 
-                  width: Dimensions.get('window').width,
-                  height: Dimensions.get('window').height
-                });
-                
-                // Auto-fill test credentials
-                setEmail('test@driver.com');
-                setPassword('password123');
-                setSelectedRole('driver');
-                
-                // Wait a moment for state to update
-                setTimeout(() => {
-                  console.log('[signin] 🎯 IPAD DEBUG - Triggering login with test credentials');
-                  handleSignIn();
-                }, 100);
-              }}
-              testID="ipad-debug-login"
-              activeOpacity={0.8}
-              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            >
-              <Text style={styles.signInButtonText}>iPad Debug Login</Text>
-            </TouchableOpacity>
+            {/* Debug Buttons */}
+            <View style={styles.debugContainer}>
+              <TouchableOpacity
+                style={[styles.debugButton, { backgroundColor: '#FF6B35' }]}
+                onPress={async () => {
+                  console.log('[signin] 🎯 IPAD DEBUG - Direct login attempt');
+                  console.log('[signin] Platform:', Platform.OS);
+                  console.log('[signin] Device info:', { 
+                    width: Dimensions.get('window').width,
+                    height: Dimensions.get('window').height
+                  });
+                  
+                  // Auto-fill test credentials
+                  setEmail('test@driver.com');
+                  setPassword('password123');
+                  setSelectedRole('driver');
+                  
+                  // Wait a moment for state to update
+                  setTimeout(() => {
+                    console.log('[signin] 🎯 IPAD DEBUG - Triggering login with test credentials');
+                    handleSignIn();
+                  }, 100);
+                }}
+                testID="ipad-debug-login"
+                activeOpacity={0.8}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
+                <Text style={styles.debugButtonText}>iPad Debug Login</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.debugButton, { backgroundColor: '#9B59B6' }]}
+                onPress={() => {
+                  console.log('[signin] 🔧 Opening auth test screen');
+                  router.push('/auth-test');
+                }}
+                testID="auth-test-button"
+                activeOpacity={0.8}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
+                <Text style={styles.debugButtonText}>Auth Test</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.testCredentials}>
@@ -496,5 +511,24 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  debugContainer: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+  },
+  debugButton: {
+    flex: 1,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  debugButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
   },
 });
