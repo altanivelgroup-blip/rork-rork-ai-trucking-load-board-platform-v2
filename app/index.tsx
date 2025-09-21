@@ -132,10 +132,10 @@ export default function Index() {
 
   const user = authState.user;
 
-  // If no user or user is guest, redirect to login
+  // If no user or user is guest, redirect to sign in
   if (!user || user.email === 'guest@example.com') {
-    console.log('[Index] No authenticated user found, redirecting to login');
-    return <Redirect href="/(auth)/login" />;
+    console.log('[Index] No authenticated user found, redirecting to sign in');
+    return <Redirect href="/signin" />;
   }
 
   console.log('[Index] Authenticated user found, redirecting based on role:', user.role);
