@@ -484,7 +484,6 @@ export async function postLoad(args: {
     const refDoc = doc(db, LOADS_COLLECTION, args.id);
     const existing = await (await import('firebase/firestore')).getDoc(refDoc);
     const createOnly = existing.exists() ? {} : {
-      createdBy: uid,
       clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2",
     };
 
@@ -505,6 +504,7 @@ export async function postLoad(args: {
     const loadData = {
       ...baseData,
       ...createOnly,
+      createdBy: uid,
       ...(computeExpires != null ? { expiresAtMs: computeExpires } : {}),
       // ENFORCE LOAD RULES: Never touch isArchived/archivedAt here; cron-only
       // Loads remain visible on board until 7-day window passes (regardless of status)

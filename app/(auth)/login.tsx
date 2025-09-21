@@ -24,8 +24,7 @@ import {
   linkWithCredential 
 } from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
-
-
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
@@ -104,54 +103,62 @@ export default function LoginScreen() {
   const handleLogin = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { auth } = getFirebase();
-      
-      // Check if user wants to login with credentials
+      const { auth, db } = getFirebase();
       const hasCredentials = email?.trim() && password?.trim();
-      
       if (hasCredentials) {
-        // Validate email format before attempting Firebase auth
         if (!isValidEmail(email.trim())) {
           console.error('[login] Invalid email format:', email);
           alert('Please enter a valid email address.\n\nExample: user@domain.com\n\nMake sure your email contains @ and a domain with a dot.');
           return;
         }
-        
-        // Use login/link functionality to preserve anonymous UID
         try {
           await loginOrLink(email, password);
         } catch (error: any) {
           console.warn('[login] Firebase authentication failed, using mock auth:', error?.code);
-          // Continue with mock authentication even if Firebase fails
         }
-        
-        // Check if this is an admin login
         const isAdminLogin = email.trim() === 'admin@loadrush.com' || selectedRole === 'admin';
-        const finalRole = isAdminLogin ? 'admin' : selectedRole;
-        
-        // Update local auth state with correct role
-        await login(email.trim(), password.trim(), finalRole);
-        
-        console.log('[login] ✅ SIGN IN NAV FIX: Login success, navigating based on role:', finalRole);
-        
-        // Navigate immediately after successful login
-        if (finalRole === 'admin') {
-          console.log('[login] 🔄 Redirecting to admin dashboard');
+        const initialRole: UserRole = isAdminLogin ? 'admin' : selectedRole;
+        await login(email.trim(), password.trim(), initialRole);
+        const uid = auth.currentUser?.uid ?? null;
+        if (uid && db) {
+          try {
+            const userRef = doc(db, 'users', uid);
+            const snap = await getDoc(userRef);
+            let roleFromDb: UserRole = initialRole;
+            if (!snap.exists()) {
+              await setDoc(userRef, { email: email.trim(), role: initialRole, createdAt: serverTimestamp() }, { merge: true });
+              console.log('[login] users doc created with default role for uid:', uid);
+            } else {
+              const data = snap.data() as { role?: string } | undefined;
+              if (data?.role === 'driver' || data?.role === 'shipper' || data?.role === 'admin') {
+                roleFromDb = data.role as UserRole;
+              }
+            }
+            if (roleFromDb === 'admin') {
+              router.replace('/(tabs)/admin');
+            } else if (roleFromDb === 'shipper') {
+              router.replace('/(tabs)/shipper');
+            } else {
+              router.replace('/(tabs)/dashboard');
+            }
+            console.log('[login] role-based redirect complete:', roleFromDb);
+            return;
+          } catch (firestoreError) {
+            console.warn('[login] users doc fetch/create failed:', firestoreError);
+          }
+        }
+        if (initialRole === 'admin') {
           router.replace('/(tabs)/admin');
-        } else if (finalRole === 'shipper') {
-          console.log('[login] 🔄 Redirecting to shipper dashboard');
+        } else if (initialRole === 'shipper') {
           router.replace('/(tabs)/shipper');
         } else {
-          console.log('[login] 🔄 Redirecting to driver dashboard');
           router.replace('/(tabs)/dashboard');
         }
         return;
       }
-      
       alert('Please enter email and password to continue.');
     } catch (error: any) {
       console.error('[login] failed:', error?.code, error?.message);
-      // Show user-friendly error message
       alert(error?.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
