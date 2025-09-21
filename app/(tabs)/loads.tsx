@@ -185,7 +185,12 @@ export default function LoadsScreen() {
       <View style={styles.container}>
         {/* Header Controls */}
         <View style={styles.headerControls}>
-
+          {/* Load Count */}
+          <View style={styles.loadCountSection}>
+            <Text style={styles.loadCountText}>
+              {isLoading ? 'Loading...' : `${loads.length} load${loads.length !== 1 ? 's' : ''} found`}
+            </Text>
+          </View>
           
           {/* Equipment Type Filters */}
           <View style={styles.equipmentFilters}>
@@ -405,6 +410,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.white,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
+  },
+  loadCountSection: {
+    marginBottom: theme.spacing.md,
+  },
+  loadCountText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
   },
 
   equipmentFilters: {
