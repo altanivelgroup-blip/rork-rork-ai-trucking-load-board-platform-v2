@@ -129,47 +129,10 @@ export function getFirebase() {
   return { app, auth, db, storage };
 }
 
-// PERMANENT FIX: Aggressive retry logic with immediate retries
-export async function retryFirebaseAuth(maxRetries: number = 5): Promise<boolean> {
-  console.log(`[PERMANENT_RETRY] 🚀 Starting aggressive auth retry (${maxRetries} attempts)`);
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[PERMANENT_RETRY] 🔄 Attempt ${attempt}/${maxRetries}`);
-      
-      if (auth?.currentUser) {
-        console.log('[PERMANENT_RETRY] ✅ User already authenticated');
-        console.log('[PERMANENT_RETRY] ✅ Unlimited Firestore access confirmed');
-        return true;
-      }
-      
-      // TIMEOUT DISABLED: Allow unlimited time for Firebase auth to complete
-      // Immediate authentication with extended timeout
-      const result = await signInAnonymously(auth);
-      
-      if (result?.user?.uid) {
-        console.log(`[PERMANENT_RETRY] ✅ SUCCESS on attempt ${attempt}`);
-        console.log(`[PERMANENT_RETRY] ✅ User: ${result.user.uid}`);
-        console.log(`[PERMANENT_RETRY] ✅ Anonymous: ${result.user.isAnonymous}`);
-        console.log(`[PERMANENT_RETRY] ♾️ Unlimited load access enabled`);
-        return true;
-      }
-    } catch (error: any) {
-      const delay = Math.min(1000 * attempt, 5000); // Shorter delays for faster recovery
-      console.warn(`[PERMANENT_RETRY] ❌ Attempt ${attempt} failed:`, error?.code || error?.message);
-      
-      if (attempt === maxRetries) {
-        console.error('[PERMANENT_RETRY] ❌ All retry attempts exhausted');
-        console.error('[PERMANENT_RETRY] 🔧 This will cause permission errors despite open rules');
-        console.error('[PERMANENT_RETRY] 🔧 Check Firebase Console Anonymous Auth settings');
-        return false;
-      }
-      
-      console.log(`[PERMANENT_RETRY] ⏳ Waiting ${delay}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  return false;
+// Email/Password only: disable anonymous auth retries
+export async function retryFirebaseAuth(): Promise<boolean> {
+  console.info('[auth] anonymous checks removed; running email/password mode');
+  return !!auth?.currentUser;
 }
 
 // Enhanced Firebase connection diagnostics
@@ -259,71 +222,13 @@ export async function testFirebaseConnectivity(): Promise<{
 export async function ensureFirebaseAuth(): Promise<boolean> {
   startAudit('firebase-auth-ensure');
   try {
-    console.log("[PERMANENT_FIX] 🚀 Starting permanent authentication fix...");
-    console.log("[PERMANENT_FIX] Project:", firebaseConfig.projectId);
-    console.log("[PERMANENT_FIX] Rules: Zero-restriction (allow all operations)");
-    console.log("[PERMANENT_FIX] Load Limit: Removed (unlimited access)");
-    
-    // Check if already authenticated
-    if (auth?.currentUser) {
-      console.log("[PERMANENT_FIX] ✅ Already authenticated:", auth.currentUser.uid);
-      console.log("[PERMANENT_FIX] ✅ Ready for unlimited Firestore operations");
-      console.log("[PERMANENT_FIX] ♾️ All loads visible across all platforms");
-      endAudit('firebase-auth-ensure', { success: true, cached: true });
-      return true;
+    const isAuthed = !!auth?.currentUser;
+    if (!isAuthed) {
+      console.info('[auth] anonymous checks removed; running email/password mode');
     }
-
-    console.log("[PERMANENT_FIX] 🔄 Attempting immediate anonymous authentication...");
-    
-    // Force authentication with maximum retries and no delays
-    let authAttempts = 0;
-    const maxAttempts = 10; // Increased attempts
-    
-    while (authAttempts < maxAttempts) {
-      authAttempts++;
-      console.log(`[PERMANENT_FIX] Attempt ${authAttempts}/${maxAttempts}`);
-      
-      try {
-        // TIMEOUT DISABLED: Allow unlimited time for auth to complete
-        const result = await signInAnonymously(auth);
-        
-        if (result?.user?.uid) {
-          console.log(`[PERMANENT_FIX] ✅ SUCCESS on attempt ${authAttempts}`);
-          console.log(`[PERMANENT_FIX] ✅ User ID: ${result.user.uid}`);
-          console.log(`[PERMANENT_FIX] ✅ Anonymous: ${result.user.isAnonymous}`);
-          console.log(`[PERMANENT_FIX] ✅ All Firestore operations now permitted`);
-          console.log(`[PERMANENT_FIX] ♾️ Unlimited load access enabled for all platforms`);
-          endAudit('firebase-auth-ensure', { success: true, attempts: authAttempts });
-          return true;
-        }
-      } catch (error: any) {
-        console.warn(`[PERMANENT_FIX] Attempt ${authAttempts} failed:`, error?.code || error?.message);
-        
-        if (authAttempts < maxAttempts) {
-          const delay = Math.min(500 * authAttempts, 2000); // Shorter delays
-          console.log(`[PERMANENT_FIX] Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    }
-    
-    // If all attempts failed, log comprehensive error info
-    console.error(`[PERMANENT_FIX] ❌ All ${maxAttempts} authentication attempts failed`);
-    console.error(`[PERMANENT_FIX] ❌ This will cause permission errors despite zero-restriction rules`);
-    console.error(`[PERMANENT_FIX] 🔧 Check Firebase Console: https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers`);
-    console.error(`[PERMANENT_FIX] 🔧 Ensure Anonymous authentication is enabled`);
-    console.error(`[PERMANENT_FIX] 🔧 This is the root cause of cross-platform load visibility issues`);
-    
-    endAudit('firebase-auth-ensure', { success: false, attempts: authAttempts });
-    return false;
-    
+    endAudit('firebase-auth-ensure', { success: isAuthed, cached: isAuthed });
+    return isAuthed;
   } catch (error: any) {
-    console.error("[PERMANENT_FIX] ❌ Critical authentication error:", {
-      code: error?.code,
-      message: error?.message,
-      projectId: firebaseConfig.projectId
-    });
-    
     endAudit('firebase-auth-ensure', { success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     return false;
   }
@@ -331,34 +236,8 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
 
 // Create a mock authenticated user for development
 export async function ensureFirebaseAuthWithMockUser(): Promise<boolean> {
-  try {
-    // Check if we already have a user
-    if (auth.currentUser) {
-      console.log("[AUTH] Already authenticated:", auth.currentUser.uid);
-      return true;
-    }
-    
-    console.log("[AUTH] Creating mock authenticated user for development...");
-    
-    // For development, we'll use a consistent mock user ID
-    // In production, this would be replaced with proper authentication
-    const mockUserId = 'mock-user-' + Date.now();
-    
-    // Sign in anonymously but treat as authenticated user
-    const result = await signInAnonymously(auth);
-    console.log("[AUTH] Mock user created:", result.user.uid);
-    console.log("[AUTH] This is a development-only authentication method");
-    
-    return true;
-  } catch (error: any) {
-    console.error("[AUTH ERROR] Mock authentication failed:", {
-      code: error.code,
-      message: error.message,
-      projectId: firebaseConfig.projectId
-    });
-    
-    return false;
-  }
+  console.info('[auth] anonymous checks removed; running email/password mode');
+  return !!auth?.currentUser;
 }
 
 // CRITICAL FIX: Utility function to refresh Firebase Storage URLs with fresh authentication tokens
