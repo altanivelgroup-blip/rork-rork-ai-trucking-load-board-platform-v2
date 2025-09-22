@@ -132,6 +132,7 @@ export default function CSVBulkUploadScreen() {
   const [skippedRowsData, setSkippedRowsData] = useState<NormalizedPreviewRow[]>([]);
   const [showDuplicateChecker, setShowDuplicateChecker] = useState(false);
   const [duplicateCheckLoads, setDuplicateCheckLoads] = useState<any[]>([]);
+  const [validIndexMap, setValidIndexMap] = useState<number[]>([]);
   const toast = useToast();
   const { refreshLoads } = useLoads();
   
@@ -692,21 +693,24 @@ export default function CSVBulkUploadScreen() {
       console.log(`[CSV PROCESSING] Processed ${normalizedWithDuplicateCheck.length} rows: ${validCount} valid, ${invalidCount} invalid, ${duplicateCount} duplicates`);
       
       // Prepare data for AI duplicate checker
-      const validLoads = normalizedWithDuplicateCheck
-        .filter(row => row.status === 'valid')
-        .map(row => ({
-          title: row.title || undefined,
-          origin: row.origin || '',
-          destination: row.destination || '',
-          pickupDate: row.pickupDate || undefined,
-          deliveryDate: row.deliveryDate || undefined,
-          rate: row.rate || 0,
-          equipmentType: row.equipmentType || undefined,
-        }));
-      
+      const validRowsWithIndex = normalizedWithDuplicateCheck
+        .map((row, idx) => ({ row, idx }))
+        .filter(({ row }) => row.status === 'valid');
+
+      const validLoads = validRowsWithIndex.map(({ row }) => ({
+        title: row.title || undefined,
+        origin: row.origin || '',
+        destination: row.destination || '',
+        pickupDate: row.pickupDate || undefined,
+        deliveryDate: row.deliveryDate || undefined,
+        rate: row.rate || 0,
+        equipmentType: row.equipmentType || undefined,
+      }));
+
+      const indexMap = validRowsWithIndex.map(({ idx }) => idx);
+      setValidIndexMap(indexMap);
       setDuplicateCheckLoads(validLoads);
       
-      // Auto-show duplicate checker if we have valid loads
       if (validLoads.length > 1) {
         setShowDuplicateChecker(true);
       }
@@ -2020,9 +2024,10 @@ export default function CSVBulkUploadScreen() {
           console.log('[DUPLICATE CHECKER] Resolved:', { resolvedLoads: resolvedLoads.length, removed: removedIndices.length });
           
           try {
-            // Update normalized rows to reflect duplicate resolutions
+            const toMarkDuplicate = new Set<number>(removedIndices.map((i) => validIndexMap[i]));
+
             const updatedRows = normalizedRows.map((row, index) => {
-              if (removedIndices.includes(index)) {
+              if (toMarkDuplicate.has(index)) {
                 return {
                   ...row,
                   status: 'duplicate' as const,
