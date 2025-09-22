@@ -15,12 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Users, Truck, Settings } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { useAuth } from '@/hooks/useAuth';
 import { moderateScale } from '@/src/ui/scale';
 import { UserRole } from '@/types';
-import { 
-  signInWithEmailAndPassword 
-} from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -33,112 +30,100 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const router = useRouter();
-  const { login } = useAuth();
+
 
   const isValidEmail = (emailValue: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const trimmedEmail = emailValue.trim();
-    const isValid = emailRegex.test(trimmedEmail);
-    if (!isValid) {
-      console.log('[login] Invalid email format detected:', trimmedEmail);
-    }
-    return isValid;
+    return emailRegex.test(emailValue.trim());
   };
-
-  const loginOrLink = useCallback(async (emailValue: string, passwordValue: string) => {
-    const { auth } = getFirebase();
-    if (!emailValue?.trim() || !passwordValue?.trim()) {
-      throw new Error('Email and password required.');
-    }
-    if (!isValidEmail(emailValue)) {
-      throw new Error('Please enter a valid email address.');
-    }
-    try {
-      console.log('[login] email sign-in for:', emailValue);
-      const res = await signInWithEmailAndPassword(auth, emailValue.trim(), passwordValue.trim());
-      console.log('[login] signed in with email, uid:', res.user.uid);
-      return res.user;
-    } catch (e: any) {
-      console.warn('[login] Firebase auth failed:', e?.code, e?.message);
-      throw e;
-    }
-  }, []);
 
   const handleLogin = useCallback(async () => {
     setIsLoading(true);
     setErrorText(null);
+    
     try {
-      const { auth, db } = getFirebase();
-      const hasCredentials = email?.trim() && password?.trim();
-      if (hasCredentials) {
-        if (!isValidEmail(email.trim())) {
-          console.error('[login] Invalid email format:', email);
-          setErrorText('Please enter a valid email address.');
-          return;
-        }
-        try {
-          await loginOrLink(email, password);
-        } catch (error: any) {
-          console.warn('[login] Firebase authentication error:', error?.code);
-          if (
-            error?.code === 'auth/invalid-credential' ||
-            error?.code === 'auth/wrong-password' ||
-            error?.code === 'auth/user-not-found'
-          ) {
-            setErrorText('Invalid email or password.');
-            return;
-          }
-          setErrorText(error?.message ?? 'Login failed. Please try again.');
-          return;
-        }
-        const isAdminLogin = email.trim() === 'admin@loadrush.com' || selectedRole === 'admin';
-        const initialRole: UserRole = isAdminLogin ? 'admin' : selectedRole;
-        await login(email.trim(), password.trim(), initialRole);
-        const uid = auth.currentUser?.uid ?? null;
-        if (uid && db) {
-          try {
-            const userRef = doc(db, 'users', uid);
-            const snap = await getDoc(userRef);
-            let roleFromDb: UserRole = initialRole;
-            if (!snap.exists()) {
-              await setDoc(userRef, { email: email.trim(), role: initialRole, createdAt: serverTimestamp() }, { merge: true });
-              console.log('[login] users doc created with default role for uid:', uid);
-            } else {
-              const data = snap.data() as { role?: string } | undefined;
-              if (data?.role === 'driver' || data?.role === 'shipper' || data?.role === 'admin') {
-                roleFromDb = data.role as UserRole;
-              }
-            }
-            if (roleFromDb === 'admin') {
-              router.replace('/(tabs)/admin');
-            } else if (roleFromDb === 'shipper') {
-              router.replace('/(tabs)/shipper');
-            } else {
-              router.replace('/(tabs)/dashboard');
-            }
-            console.log('[login] role-based redirect complete:', roleFromDb);
-            return;
-          } catch (firestoreError) {
-            console.warn('[login] users doc fetch/create failed:', firestoreError);
-          }
-        }
-        if (initialRole === 'admin') {
-          router.replace('/(tabs)/admin');
-        } else if (initialRole === 'shipper') {
-          router.replace('/(tabs)/shipper');
-        } else {
-          router.replace('/(tabs)/dashboard');
-        }
+      // Step 1: Validate input
+      if (!email?.trim() || !password?.trim()) {
+        setErrorText('Email and password are required.');
         return;
       }
-      setErrorText('Email and password are required.');
+      
+      if (!isValidEmail(email.trim())) {
+        setErrorText('Please enter a valid email address.');
+        return;
+      }
+      
+      console.log('[Sign-In Rewritten] Authenticating user:', email.trim());
+      
+      // Step 2: Authenticate with Firebase
+      const { auth, db } = getFirebase();
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      const firebaseUser = userCredential.user;
+      
+      console.log('[Sign-In Rewritten] Firebase authentication successful:', firebaseUser.uid);
+      
+      // Step 3: Load or create profile in Firestore
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+      
+      let userRole: UserRole = selectedRole;
+      
+      if (userSnap.exists()) {
+        // Load existing profile
+        const existingData = userSnap.data();
+        userRole = existingData.role || selectedRole;
+        console.log('[Sign-In Rewritten] Loaded existing profile for role:', userRole);
+      } else {
+        // Create new profile document
+        const newProfileData = {
+          role: selectedRole,
+          profileData: {
+            name: email.split('@')[0], // Default name from email
+            email: email.trim(),
+            phone: '',
+            company: ''
+          },
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+        
+        await setDoc(userRef, newProfileData, { merge: true });
+        userRole = selectedRole;
+        console.log('[Sign-In Rewritten] Created new profile for role:', userRole);
+      }
+      
+      // Step 4: Redirect based on role
+      console.log('[Sign-In Rewritten] Redirecting to dashboard for role:', userRole);
+      
+      if (userRole === 'admin') {
+        router.replace('/(tabs)/admin');
+      } else if (userRole === 'shipper') {
+        router.replace('/(tabs)/shipper');
+      } else {
+        router.replace('/(tabs)/dashboard');
+      }
+      
+      console.log(`Sign-In Rewritten: Success for ${firebaseUser.uid}`);
+      
     } catch (error: any) {
-      console.error('[login] failed:', error?.code, error?.message);
-      setErrorText(error?.message || 'Login failed. Please try again.');
+      console.error('[Sign-In Rewritten] Authentication failed:', error?.code, error?.message);
+      
+      // Handle specific Firebase auth errors
+      if (
+        error?.code === 'auth/invalid-credential' ||
+        error?.code === 'auth/wrong-password' ||
+        error?.code === 'auth/user-not-found'
+      ) {
+        setErrorText('Invalid credentials');
+      } else if (error?.code === 'auth/too-many-requests') {
+        setErrorText('Too many failed attempts. Please try again later.');
+      } else {
+        setErrorText(error?.message || 'Sign-in failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, selectedRole, login, router, loginOrLink]);
+  }, [email, password, selectedRole, router]);
 
   return (
     <SafeAreaView style={styles.container} testID="login-safe">
@@ -238,10 +223,7 @@ export default function LoginScreen() {
 
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-              onPress={() => {
-                console.log('[Login] Sign In button pressed');
-                handleLogin();
-              }}
+              onPress={handleLogin}
               disabled={isLoading || !(email?.trim() && password?.trim())}
               testID="login-submit"
             >
@@ -252,38 +234,7 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.loginButton, { backgroundColor: '#FF9500', marginTop: 12 }, isLoading && styles.loginButtonDisabled]}
-              onPress={async () => {
-                console.log('[Login] Orange Simple Login button pressed');
-                setErrorText(null);
-                if (!(email?.trim() && password?.trim())) return;
-                try {
-                  const { auth } = getFirebase();
-                  await signInWithEmailAndPassword(auth, email.trim(), password.trim());
-                  console.log('[Login] Orange Simple Login success, navigating Home');
-                  try { router.replace('/(tabs)/dashboard'); } catch (e) { console.warn('nav error', e); }
-                } catch (error: any) {
-                  if (
-                    error?.code === 'auth/invalid-credential' ||
-                    error?.code === 'auth/wrong-password' ||
-                    error?.code === 'auth/user-not-found'
-                  ) {
-                    setErrorText('Invalid email or password.');
-                  } else {
-                    setErrorText(error?.message ?? 'Login failed. Please try again.');
-                  }
-                }
-              }}
-              disabled={isLoading || !(email?.trim() && password?.trim())}
-              testID="simple-login"
-            >
-              {isLoading ? (
-                <ActivityIndicator color={theme.colors.white} />
-              ) : (
-                <Text style={styles.loginButtonText}>Simple Login</Text>
-              )}
-            </TouchableOpacity>
+
 
             <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/(auth)/reset-password')} testID="forgot-password-link">
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>

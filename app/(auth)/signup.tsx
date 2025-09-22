@@ -1,17 +1,18 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Image, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserPlus, Mail, Lock, Phone, Building, Users, Truck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-
 import { theme } from '@/constants/theme';
-import { useAuth } from '@/hooks/useAuth';
 import { moderateScale } from '@/src/ui/scale';
 import { UserRole } from '@/types';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { getFirebase } from '@/utils/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // Move dimensions inside component to avoid module-scope issues
 const getIsTablet = () => {
-  const { width } = require('react-native').Dimensions.get('window');
+  const { width } = Dimensions.get('window');
   return width >= 768;
 };
 
@@ -19,7 +20,6 @@ const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attac
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const { register } = useAuth();
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [name, setName] = useState<string>('');
@@ -27,38 +27,91 @@ export default function SignUpScreen() {
   const [company, setCompany] = useState<string>('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('driver');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const isValidEmail = (emailValue: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(emailValue.trim());
+  };
 
   const handleSignUp = useCallback(async () => {
-    if (!email || !password) {
-      Alert.alert('Missing info', 'Please enter your email and password.');
-      return;
-    }
     setIsLoading(true);
+    setErrorText(null);
+    
     try {
-      console.log('[signup] creating account for', email, 'as', selectedRole);
-      await register(email, password, selectedRole, { name, phone, company });
+      // Step 1: Validate input
+      if (!email?.trim() || !password?.trim()) {
+        setErrorText('Email and password are required.');
+        return;
+      }
       
-      if (selectedRole === 'shipper') {
-        router.replace('/(tabs)/shipper');
-      } else if (selectedRole === 'admin') {
+      if (!isValidEmail(email.trim())) {
+        setErrorText('Please enter a valid email address.');
+        return;
+      }
+      
+      if (password.length < 6) {
+        setErrorText('Password must be at least 6 characters.');
+        return;
+      }
+      
+      console.log('[Sign-Up Rewritten] Creating account for:', email.trim(), 'as', selectedRole);
+      
+      // Step 2: Create user with Firebase Auth
+      const { auth, db } = getFirebase();
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password.trim());
+      const firebaseUser = userCredential.user;
+      
+      console.log('[Sign-Up Rewritten] Firebase user created:', firebaseUser.uid);
+      
+      // Step 3: Save basic profile in Firestore 'users' collection
+      const profileData = {
+        role: selectedRole,
+        profileData: {
+          name: name.trim() || email.split('@')[0], // Use provided name or default from email
+          email: email.trim(),
+          phone: phone.trim() || '',
+          company: company.trim() || ''
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      await setDoc(userRef, profileData, { merge: true });
+      
+      console.log('[Sign-Up Rewritten] Profile saved to Firestore for role:', selectedRole);
+      
+      // Step 4: Redirect based on role
+      console.log('[Sign-Up Rewritten] Redirecting to dashboard for role:', selectedRole);
+      
+      if (selectedRole === 'admin') {
         router.replace('/(tabs)/admin');
+      } else if (selectedRole === 'shipper') {
+        router.replace('/(tabs)/shipper');
       } else {
         router.replace('/(tabs)/dashboard');
       }
-    } catch (e) {
-      console.error('[signup] error', e);
-      // In development, continue with mock authentication system
-      if (selectedRole === 'shipper') {
-        router.replace('/(tabs)/shipper');
-      } else if (selectedRole === 'admin') {
-        router.replace('/(tabs)/admin');
+      
+      console.log(`Sign-Up Rewritten: Success for ${firebaseUser.uid}`);
+      
+    } catch (error: any) {
+      console.error('[Sign-Up Rewritten] Account creation failed:', error?.code, error?.message);
+      
+      // Handle specific Firebase auth errors
+      if (error?.code === 'auth/email-already-in-use') {
+        setErrorText('An account with this email already exists.');
+      } else if (error?.code === 'auth/weak-password') {
+        setErrorText('Password is too weak. Please choose a stronger password.');
+      } else if (error?.code === 'auth/invalid-email') {
+        setErrorText('Please enter a valid email address.');
       } else {
-        router.replace('/(tabs)/dashboard');
+        setErrorText(error?.message || 'Account creation failed. Please try again.');
       }
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, name, phone, company, selectedRole, register, router]);
+  }, [email, password, name, phone, company, selectedRole, router]);
 
   return (
     <>
@@ -105,19 +158,53 @@ export default function SignUpScreen() {
 
             <View style={styles.inputContainer}>
               <Mail size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput style={styles.input} placeholder="Email" placeholderTextColor={theme.colors.gray} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Email" 
+                placeholderTextColor={theme.colors.gray} 
+                value={email} 
+                onChangeText={(t: string) => { setEmail(t); setErrorText(null); }}
+                keyboardType="email-address" 
+                autoCapitalize="none" 
+                autoComplete="email" 
+                testID="signup-email"
+              />
             </View>
             <View style={styles.inputContainer}>
               <Lock size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput style={styles.input} placeholder="Password" placeholderTextColor={theme.colors.gray} value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Password (min 6 characters)" 
+                placeholderTextColor={theme.colors.gray} 
+                value={password} 
+                onChangeText={(t: string) => { setPassword(t); setErrorText(null); }}
+                secureTextEntry 
+                autoComplete="new-password" 
+                testID="signup-password"
+              />
             </View>
             <View style={styles.inputContainer}>
               <UserPlus size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput style={styles.input} placeholder="Full Name" placeholderTextColor={theme.colors.gray} value={name} onChangeText={setName} />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Full Name (optional)" 
+                placeholderTextColor={theme.colors.gray} 
+                value={name} 
+                onChangeText={setName} 
+                testID="signup-name"
+              />
             </View>
             <View style={styles.inputContainer}>
               <Phone size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput style={styles.input} placeholder="Phone" placeholderTextColor={theme.colors.gray} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Phone (optional)" 
+                placeholderTextColor={theme.colors.gray} 
+                value={phone} 
+                onChangeText={setPhone} 
+                keyboardType="phone-pad" 
+                testID="signup-phone"
+              />
             </View>
             <View style={styles.inputContainer}>
               <Building size={20} color={theme.colors.gray} style={styles.inputIcon} />
@@ -127,10 +214,24 @@ export default function SignUpScreen() {
                 placeholderTextColor={theme.colors.gray} 
                 value={company} 
                 onChangeText={setCompany} 
+                testID="signup-company"
               />
             </View>
-            <TouchableOpacity style={styles.cta} onPress={handleSignUp} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color={theme.colors.white} /> : <Text style={styles.ctaText}>Create {selectedRole} Account</Text>}
+            
+            {!!errorText && (
+              <Text style={styles.errorText} testID="signup-error">{errorText}</Text>
+            )}
+            <TouchableOpacity 
+              style={[styles.cta, isLoading && styles.ctaDisabled]} 
+              onPress={handleSignUp} 
+              disabled={isLoading || !(email?.trim() && password?.trim())}
+              testID="signup-submit"
+            >
+              {isLoading ? (
+                <ActivityIndicator color={theme.colors.white} />
+              ) : (
+                <Text style={styles.ctaText}>Create {selectedRole} Account</Text>
+              )}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.replace('/(auth)/login')} style={styles.secondary}>
               <Text style={styles.secondaryText}>Already have an account? Log in</Text>
@@ -170,7 +271,15 @@ const styles = StyleSheet.create({
   inputIcon: { marginRight: theme.spacing.sm },
   input: { flex: 1, paddingVertical: theme.spacing.md, fontSize: theme.fontSize.md, color: theme.colors.dark },
   cta: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md, paddingVertical: theme.spacing.md, alignItems: 'center', marginTop: theme.spacing.sm },
+  ctaDisabled: { opacity: 0.7 },
   ctaText: { color: theme.colors.white, fontSize: theme.fontSize.md, fontWeight: '700' },
+  errorText: {
+    color: theme.colors.danger,
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+    fontSize: theme.fontSize.sm,
+    textAlign: 'center',
+  },
   secondary: { alignItems: 'center', marginTop: theme.spacing.md },
   secondaryText: { color: theme.colors.primary },
   roleSelector: {
