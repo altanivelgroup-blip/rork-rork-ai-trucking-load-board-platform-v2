@@ -72,6 +72,8 @@ export default function DriverMpgTestScreen() {
       
       // Refresh analytics to see the change
       setTimeout(() => {
+        TS
+        
         refetch();
       }, 500);
       
