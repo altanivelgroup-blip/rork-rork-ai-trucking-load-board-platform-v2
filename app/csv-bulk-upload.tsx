@@ -180,7 +180,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [BULK_IMPORTS_COLLECTION]);
+  }, []); // FIXED: Removed BULK_IMPORTS_COLLECTION from dependency array as it's a constant
 
   // Create bulk import session record
   const createBulkImportSession = useCallback(async (
@@ -272,10 +272,10 @@ export default function CSVBulkUploadScreen() {
     );
   }, [user?.id, showToast, loadImportHistory]);
 
-  // Load history on component mount
+  // FIXED: Load history on component mount - only run once
   useEffect(() => {
     loadImportHistory();
-  }, []); // Empty dependency array - only run once on mount
+  }, [loadImportHistory]); // FIXED: Include loadImportHistory in dependency array
 
   const generateLoadId = useCallback(() => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
