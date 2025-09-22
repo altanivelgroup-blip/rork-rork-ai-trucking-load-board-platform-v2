@@ -106,20 +106,49 @@ export default function DuplicateCheckerModal({ visible, onClose, loads, onResol
   }, []);
 
   const applyResolutions = useCallback(() => {
-    if (!checkResult) return;
+    console.log('[DuplicateCheckerModal] Apply resolutions called');
+    console.log('[DuplicateCheckerModal] checkResult:', !!checkResult);
+    console.log('[DuplicateCheckerModal] selectedActions:', selectedActions);
+    
+    if (!checkResult) {
+      console.warn('[DuplicateCheckerModal] No check result available');
+      return;
+    }
 
-    const removedIndices: number[] = [];
-    const resolvedLoads = loads.filter((load, index) => {
-      const action = selectedActions[index];
-      if (action === 'skip_new' || action === 'delete_existing') {
-        removedIndices.push(index);
-        return false;
-      }
-      return true;
-    });
+    try {
+      const removedIndices: number[] = [];
+      const resolvedLoads = loads.filter((load, index) => {
+        const action = selectedActions[index];
+        if (action === 'skip_new' || action === 'delete_existing') {
+          removedIndices.push(index);
+          return false;
+        }
+        return true;
+      });
 
-    onResolved(resolvedLoads, removedIndices);
-    onClose();
+      console.log('[DuplicateCheckerModal] Resolution summary:', {
+        originalLoads: loads.length,
+        resolvedLoads: resolvedLoads.length,
+        removedCount: removedIndices.length,
+        removedIndices
+      });
+
+      // Close modal first to prevent UI issues
+      onClose();
+      
+      // Apply resolutions after a small delay to ensure modal is closed
+      setTimeout(() => {
+        try {
+          onResolved(resolvedLoads, removedIndices);
+        } catch (resolveError: any) {
+          console.error('[DuplicateCheckerModal] Error in onResolved callback:', resolveError);
+        }
+      }, 100);
+      
+    } catch (error: any) {
+      console.error('[DuplicateCheckerModal] Error applying resolutions:', error);
+      Alert.alert('Error', 'Failed to apply resolutions. Please try again.');
+    }
   }, [checkResult, loads, selectedActions, onResolved, onClose]);
 
   const getMatchTypeColor = (matchType: string) => {
@@ -143,10 +172,15 @@ export default function DuplicateCheckerModal({ visible, onClose, loads, onResol
 
   const formatSimilarity = (score: number) => `${Math.round(score * 100)}%`;
 
-  // Auto-run check when modal opens
+  // Auto-run check when modal opens and reset state when modal closes
   React.useEffect(() => {
     if (visible && loads.length > 0 && !checkResult && !isChecking) {
       runDuplicateCheck();
+    } else if (!visible) {
+      // Reset state when modal closes
+      setCheckResult(null);
+      setSelectedActions({});
+      setShowDetails({});
     }
   }, [visible, loads.length, checkResult, isChecking, runDuplicateCheck]);
 

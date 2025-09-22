@@ -1956,23 +1956,36 @@ export default function CSVBulkUploadScreen() {
         onResolved={(resolvedLoads, removedIndices) => {
           console.log('[DUPLICATE CHECKER] Resolved:', { resolvedLoads: resolvedLoads.length, removed: removedIndices.length });
           
-          // Update normalized rows to reflect duplicate resolutions
-          const updatedRows = normalizedRows.map((row, index) => {
-            if (removedIndices.includes(index)) {
-              return {
-                ...row,
-                status: 'duplicate' as const,
-                errors: [...row.errors, 'Marked as duplicate by AI checker']
-              };
-            }
-            return row;
-          });
-          
-          setNormalizedRows(updatedRows);
-          setShowDuplicateChecker(false);
-          
-          const remainingValid = updatedRows.filter(r => r.status === 'valid').length;
-          showToast(`AI analysis complete. ${remainingValid} unique loads ready for import.`, 'success');
+          try {
+            // Update normalized rows to reflect duplicate resolutions
+            const updatedRows = normalizedRows.map((row, index) => {
+              if (removedIndices.includes(index)) {
+                return {
+                  ...row,
+                  status: 'duplicate' as const,
+                  errors: [...row.errors, 'Marked as duplicate by AI checker']
+                };
+              }
+              return row;
+            });
+            
+            console.log('[DUPLICATE CHECKER] Updated rows:', {
+              original: normalizedRows.length,
+              updated: updatedRows.length,
+              validBefore: normalizedRows.filter(r => r.status === 'valid').length,
+              validAfter: updatedRows.filter(r => r.status === 'valid').length
+            });
+            
+            setNormalizedRows(updatedRows);
+            setShowDuplicateChecker(false);
+            
+            const remainingValid = updatedRows.filter(r => r.status === 'valid').length;
+            showToast(`AI analysis complete. ${remainingValid} unique loads ready for import.`, 'success');
+          } catch (error: any) {
+            console.error('[DUPLICATE CHECKER] Error updating rows:', error);
+            setShowDuplicateChecker(false);
+            showToast('Error processing duplicate resolutions. Please try again.', 'error');
+          }
         }}
       />
     </View>
