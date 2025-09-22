@@ -44,8 +44,8 @@ export default function Index() {
 
   // If no user, redirect to sign in
   if (!user) {
-    console.log('[Index] 🎯 SIGN IN NAVIGATION - No user found, redirecting to signin');
-    return <Redirect href="/signin" />;
+    console.log('[Index] 🎯 SIGN IN NAVIGATION - No user found, redirecting to login');
+    return <Redirect href="/(auth)/login" />;
   }
 
   // If user is authenticated, redirect to appropriate dashboard

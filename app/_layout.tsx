@@ -216,7 +216,7 @@ function RootLayoutNav() {
       <Stack.Screen name="cross-platform-persistence-test" options={{ title: "Cross-Platform Persistence Test" }} />
       <Stack.Screen name="auth-fix-test" options={{ title: "Auth Fix Test" }} />
       <Stack.Screen name="account" options={{ title: "Account" }} />
-      <Stack.Screen name="signin" options={{ title: "Sign In" }} />
+
       <Stack.Screen name="auth-photo-test" options={{ title: "Auth & Photo Test" }} />
     </Stack>
   );
