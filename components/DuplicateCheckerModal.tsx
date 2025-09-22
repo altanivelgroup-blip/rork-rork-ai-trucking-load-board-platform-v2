@@ -181,15 +181,14 @@ export default function DuplicateCheckerModal({ visible, onClose, loads, onResol
 
   // Auto-run check when modal opens and reset state when modal closes
   React.useEffect(() => {
-    if (visible && loads.length > 0 && !checkResult && !isChecking) {
+    if (visible) {
       runDuplicateCheck();
-    } else if (!visible) {
-      // Reset state when modal closes
+    } else {
       setCheckResult(null);
       setSelectedActions({});
       setShowDetails({});
     }
-  }, [visible, loads.length, checkResult, isChecking, runDuplicateCheck]);
+  }, [visible]);
 
   return (
     <Modal
