@@ -111,13 +111,25 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               transactions: [],
             };
             
+            // PERMANENT FIX: Preserve driver's actual MPG from profile
             cachedUser.fuelProfile = cachedUser.fuelProfile || {
               vehicleType: 'truck',
-              averageMpg: 8.5,
+              averageMpg: cachedUser.mpgRated || 8.5,
               fuelPricePerGallon: 3.85,
               fuelType: 'diesel',
               tankCapacity: 150,
             };
+            // Ensure MPG is synced between fuelProfile and mpgRated
+            if (cachedUser.mpgRated && !cachedUser.fuelProfile.averageMpg) {
+              cachedUser.fuelProfile.averageMpg = cachedUser.mpgRated;
+            } else if (cachedUser.fuelProfile.averageMpg && !cachedUser.mpgRated) {
+              cachedUser.mpgRated = cachedUser.fuelProfile.averageMpg;
+            }
+            console.log('[auth] 🎯 DRIVER MPG SYNC - Cached user MPG:', {
+              mpgRated: cachedUser.mpgRated,
+              fuelProfileMpg: cachedUser.fuelProfile.averageMpg,
+              finalMpg: cachedUser.fuelProfile.averageMpg
+            });
           }
           
           if (cachedUser.role === 'shipper') {
@@ -192,13 +204,20 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         let fuelProfile = driverProfile.fuelProfile;
         if (!fuelProfile || !fuelProfile.averageMpg || !fuelProfile.fuelType) {
           console.log('[auth] 🔧 PERMANENT ANALYTICS - Creating/fixing fuel profile...');
-          fuelProfile = {
+          // PERMANENT FIX: Use driver's actual MPG from profile
+        const driverActualMpg = driverProfile?.mpgRated || driverProfile?.fuelProfile?.averageMpg || 8.5;
+        fuelProfile = {
             vehicleType: fuelProfile?.vehicleType || 'truck',
-            averageMpg: fuelProfile?.averageMpg || 8.5,
+            averageMpg: driverActualMpg,
             fuelPricePerGallon: fuelProfile?.fuelPricePerGallon || 3.85,
             fuelType: fuelProfile?.fuelType || 'diesel',
             tankCapacity: fuelProfile?.tankCapacity || 150,
           };
+          console.log('[auth] 🎯 DRIVER MPG SYNC - Using actual driver MPG:', driverActualMpg, 'from:', {
+            mpgRated: driverProfile?.mpgRated,
+            fuelProfileMpg: driverProfile?.fuelProfile?.averageMpg,
+            finalMpg: driverActualMpg
+          });
           
           // Update user profile with complete fuel profile
           const updatedUser = { ...driverProfile, fuelProfile };
