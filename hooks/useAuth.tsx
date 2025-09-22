@@ -189,120 +189,100 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     setupFirebase();
   }, [isInitialized]);
 
-  // PERMANENT FIX: Enhanced analytics initialization with persistent data recovery
+  // Consolidated side-effects to keep Hooks order absolutely stable across hot reloads
   useEffect(() => {
-    if (!ENABLE_LOAD_ANALYTICS || !user || user.role !== 'driver') return;
-    
-    console.log('[auth] 🔥 PERMANENT ANALYTICS ACTIVATION - Driver signed in:', user.name);
-    
-    // Initialize analytics tracking with comprehensive persistence
-    const initAnalytics = async () => {
+    const run = async () => {
       try {
-        const driverProfile = user as Driver;
-        
-        // PERMANENT FIX: Ensure fuel profile exists with fallback values
-        let fuelProfile = driverProfile.fuelProfile;
-        if (!fuelProfile || !fuelProfile.averageMpg || !fuelProfile.fuelType) {
-          console.log('[auth] 🔧 PERMANENT ANALYTICS - Creating/fixing fuel profile...');
-          // PERMANENT FIX: Use driver's actual MPG from profile
-        const driverActualMpg = driverProfile?.mpgRated || driverProfile?.fuelProfile?.averageMpg || 8.5;
-        fuelProfile = {
-            vehicleType: fuelProfile?.vehicleType || 'truck',
-            averageMpg: driverActualMpg,
-            fuelPricePerGallon: fuelProfile?.fuelPricePerGallon || 3.85,
-            fuelType: fuelProfile?.fuelType || 'diesel',
-            tankCapacity: fuelProfile?.tankCapacity || 150,
-          };
-          console.log('[auth] 🎯 DRIVER MPG SYNC - Using actual driver MPG:', driverActualMpg, 'from:', {
-            mpgRated: driverProfile?.mpgRated,
-            fuelProfileMpg: driverProfile?.fuelProfile?.averageMpg,
-            finalMpg: driverActualMpg
-          });
-          
-          // Update user profile with complete fuel profile
-          const updatedUser = { ...driverProfile, fuelProfile };
-          setUser(updatedUser);
-          
-          // Persist the updated profile
-          try {
-            await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
-            await AsyncStorage.setItem(`${USER_STORAGE_KEY}_backup`, JSON.stringify(updatedUser));
-            console.log('[auth] ✅ PERMANENT ANALYTICS - Fuel profile created and persisted');
-          } catch (persistError) {
-            console.warn('[auth] Failed to persist updated fuel profile:', persistError);
+        if (ENABLE_LOAD_ANALYTICS && user && user.role === 'driver') {
+          console.log('[auth] 🔥 PERMANENT ANALYTICS ACTIVATION - Driver signed in:', user.name);
+          const driverProfile = user as Driver;
+          let fuelProfile = driverProfile.fuelProfile;
+          if (!fuelProfile || !fuelProfile.averageMpg || !fuelProfile.fuelType) {
+            console.log('[auth] 🔧 PERMANENT ANALYTICS - Creating/fixing fuel profile...');
+            const driverActualMpg = driverProfile?.mpgRated || driverProfile?.fuelProfile?.averageMpg || 8.5;
+            fuelProfile = {
+              vehicleType: fuelProfile?.vehicleType || 'truck',
+              averageMpg: driverActualMpg,
+              fuelPricePerGallon: fuelProfile?.fuelPricePerGallon || 3.85,
+              fuelType: fuelProfile?.fuelType || 'diesel',
+              tankCapacity: fuelProfile?.tankCapacity || 150,
+            };
+            console.log('[auth] 🎯 DRIVER MPG SYNC - Using actual driver MPG:', driverActualMpg, 'from:', {
+              mpgRated: driverProfile?.mpgRated,
+              fuelProfileMpg: driverProfile?.fuelProfile?.averageMpg,
+              finalMpg: driverActualMpg,
+            });
+            const updatedUser = { ...driverProfile, fuelProfile };
+            setUser(updatedUser);
+            try {
+              await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
+              await AsyncStorage.setItem(`${USER_STORAGE_KEY}_backup`, JSON.stringify(updatedUser));
+              console.log('[auth] ✅ PERMANENT ANALYTICS - Fuel profile created and persisted');
+            } catch (persistError) {
+              console.warn('[auth] Failed to persist updated fuel profile:', persistError);
+            }
           }
-        }
-        
-        // Log comprehensive analytics initialization
-        console.log('[auth] ⚡ PERMANENT ANALYTICS READY:', {
-          userId: user.id,
-          name: user.name,
-          fuelProfile,
-          vehicleType: fuelProfile.vehicleType,
-          averageMpg: fuelProfile.averageMpg,
-          fuelType: fuelProfile.fuelType,
-          tankCapacity: fuelProfile.tankCapacity,
-          hasSignedInThisSession,
-          analyticsReady: true,
-          walletBalance: driverProfile.wallet?.balance || 0,
-          completedLoads: driverProfile.completedLoads || 0,
-          rating: driverProfile.rating || 0
-        });
-        
-        // Store comprehensive analytics data with multiple backup locations
-        const analyticsData = {
-          lastInitialized: new Date().toISOString(),
-          userId: user.id,
-          userRole: user.role,
-          userName: user.name,
-          fuelProfileComplete: !!(fuelProfile.averageMpg && fuelProfile.fuelType),
-          vehicleConfigured: !!fuelProfile.vehicleType,
-          analyticsEnabled: true,
-          sessionId: `session-${Date.now()}`,
-          capabilities: {
-            fuelCalculation: true,
-            distanceCalculation: true,
-            etaCalculation: true,
-            profitAnalysis: true,
-            walletAnalytics: true,
-            postDeliveryAnalytics: true
-          },
-          driverStats: {
+
+          console.log('[auth] ⚡ PERMANENT ANALYTICS READY:', {
+            userId: user.id,
+            name: user.name,
+            fuelProfile,
+            vehicleType: fuelProfile.vehicleType,
+            averageMpg: fuelProfile.averageMpg,
+            fuelType: fuelProfile.fuelType,
+            tankCapacity: fuelProfile.tankCapacity,
+            hasSignedInThisSession,
+            analyticsReady: true,
+            walletBalance: driverProfile.wallet?.balance || 0,
             completedLoads: driverProfile.completedLoads || 0,
             rating: driverProfile.rating || 0,
-            walletBalance: driverProfile.wallet?.balance || 0,
-            totalEarnings: driverProfile.wallet?.totalEarnings || 0
-          }
-        };
-        
-        // Store in multiple locations for reliability
-        const storagePromises = [
-          AsyncStorage.setItem('analytics:initialized', JSON.stringify(analyticsData)),
-          AsyncStorage.setItem('analytics:driver-profile', JSON.stringify(fuelProfile)),
-          AsyncStorage.setItem(`analytics:${user.id}`, JSON.stringify(analyticsData)),
-          AsyncStorage.setItem('analytics:backup', JSON.stringify(analyticsData)),
-          AsyncStorage.setItem('live-analytics:enabled', 'true'),
-          AsyncStorage.setItem('post-delivery:analytics:enabled', 'true')
-        ];
-        
-        await Promise.allSettled(storagePromises);
-        
-        console.log('[auth] ✅ PERMANENT ANALYTICS FULLY INITIALIZED - Ready for all calculations');
-        console.log('[auth] 🎯 Driver will see live analytics on ALL loads permanently!');
-        console.log('[auth] 💰 Post-delivery wallet analytics are ACTIVE!');
-        console.log('[auth] 📊 ETA, fuel consumption, cost, and ROI calculations are LIVE!');
-        
+          });
+
+          const analyticsData = {
+            lastInitialized: new Date().toISOString(),
+            userId: user.id,
+            userRole: user.role,
+            userName: user.name,
+            fuelProfileComplete: !!(fuelProfile.averageMpg && fuelProfile.fuelType),
+            vehicleConfigured: !!fuelProfile.vehicleType,
+            analyticsEnabled: true,
+            sessionId: `session-${Date.now()}`,
+            capabilities: {
+              fuelCalculation: true,
+              distanceCalculation: true,
+              etaCalculation: true,
+              profitAnalysis: true,
+              walletAnalytics: true,
+              postDeliveryAnalytics: true,
+            },
+            driverStats: {
+              completedLoads: driverProfile.completedLoads || 0,
+              rating: driverProfile.rating || 0,
+              walletBalance: driverProfile.wallet?.balance || 0,
+              totalEarnings: driverProfile.wallet?.totalEarnings || 0,
+            },
+          };
+
+          const storagePromises = [
+            AsyncStorage.setItem('analytics:initialized', JSON.stringify(analyticsData)),
+            AsyncStorage.setItem('analytics:driver-profile', JSON.stringify(fuelProfile)),
+            AsyncStorage.setItem(`analytics:${user.id}`, JSON.stringify(analyticsData)),
+            AsyncStorage.setItem('analytics:backup', JSON.stringify(analyticsData)),
+            AsyncStorage.setItem('live-analytics:enabled', 'true'),
+            AsyncStorage.setItem('post-delivery:analytics:enabled', 'true'),
+          ];
+          await Promise.allSettled(storagePromises);
+          console.log('[auth] ✅ PERMANENT ANALYTICS FULLY INITIALIZED - Ready for all calculations');
+        }
       } catch (error) {
         console.error('[auth] ❌ PERMANENT ANALYTICS - Initialization failed:', error);
-        
-        // Fallback analytics initialization
         try {
           const fallbackData = {
             lastInitialized: new Date().toISOString(),
-            userId: user.id,
+            userId: user?.id,
             analyticsEnabled: true,
             fallbackMode: true,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error instanceof Error ? error.message : 'Unknown error',
           };
           await AsyncStorage.setItem('analytics:fallback', JSON.stringify(fallbackData));
           console.log('[auth] ⚠️ PERMANENT ANALYTICS - Fallback mode activated');
@@ -310,52 +290,46 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           console.error('[auth] ❌ PERMANENT ANALYTICS - Even fallback failed:', fallbackError);
         }
       }
-    };
-    
-    // Run immediately with no delays for instant activation
-    initAnalytics();
-  }, [user, hasSignedInThisSession]);
 
-  // ULTRA-SMALL FIX: After auth user available, hydrate name from Firestore (drivers or users)
-  useEffect(() => {
-    const hydrateName = async () => {
       try {
-        if (!user?.id) return;
-        const uid = user.id;
-        let data: any = null;
-        try {
-          const primaryRef = doc(db as any, user.role === 'driver' ? 'drivers' : user.role === 'shipper' ? 'shippers' : 'users', uid);
-          const snap = await getDoc(primaryRef);
-          if (snap.exists()) data = snap.data();
-        } catch {}
-        if (!data) {
+        if (user?.id) {
+          const uid = user.id;
+          let data: any = null;
           try {
-            const usersRef = doc(db as any, 'users', uid);
-            const snapUsers = await getDoc(usersRef);
-            if (snapUsers.exists()) data = snapUsers.data();
+            const primaryRef = doc(db as any, user.role === 'driver' ? 'drivers' : user.role === 'shipper' ? 'shippers' : 'users', uid);
+            const snap = await getDoc(primaryRef);
+            if (snap.exists()) data = snap.data();
           } catch {}
-        }
-        if (data) {
-          const firestoreName =
-            data.displayName ||
-            data.name ||
-            data.fullName ||
-            data?.profileData?.fullName ||
-            data?.profile?.fullName ||
-            ([data?.firstName, data?.lastName].filter(Boolean).join(' ') || undefined);
-          if (typeof firestoreName === 'string' && firestoreName.trim().length > 0 && firestoreName !== user.name) {
-            const updatedUser = { ...user, name: firestoreName.trim() } as Driver | Shipper | Admin;
-            setUser(updatedUser);
-            await AsyncStorage.setItem('auth:user:profile', JSON.stringify(updatedUser));
-            console.log('[auth] Dashboard Name Synced:', firestoreName.trim());
+          if (!data) {
+            try {
+              const usersRef = doc(db as any, 'users', uid);
+              const snapUsers = await getDoc(usersRef);
+              if (snapUsers.exists()) data = snapUsers.data();
+            } catch {}
+          }
+          if (data) {
+            const firestoreName =
+              data.displayName ||
+              data.name ||
+              data.fullName ||
+              data?.profileData?.fullName ||
+              data?.profile?.fullName ||
+              ([data?.firstName, data?.lastName].filter(Boolean).join(' ') || undefined);
+            if (typeof firestoreName === 'string' && firestoreName.trim().length > 0 && firestoreName !== user.name) {
+              const updatedUser = { ...user, name: firestoreName.trim() } as Driver | Shipper | Admin;
+              setUser(updatedUser);
+              await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
+              console.log('[auth] Dashboard Name Synced:', firestoreName.trim());
+            }
           }
         }
       } catch (e) {
         console.warn('[auth] Name hydration failed', e);
       }
     };
-    hydrateName();
-  }, [user?.id, user?.role]);
+
+    run();
+  }, [user?.id, user?.role, hasSignedInThisSession]);
 
   const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper | Admin> => {
     await ensureFirebaseAuth();
