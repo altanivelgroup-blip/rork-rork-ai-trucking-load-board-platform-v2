@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { parseFileContent, validateCSVHeaders, buildSimpleTemplateCSV, buildCompleteTemplateCSV, buildCanonicalTemplateCSV, validateLoadRow, CSVRow, parseCSV } from '@/utils/csv';
+import { normalizeCsvRow } from '@/utils/csvNormalizer';
 import * as XLSX from 'xlsx';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp, Timestamp, writeBatch, query, where, collection, getDocs, updateDoc, orderBy, limit } from 'firebase/firestore';
@@ -275,7 +276,7 @@ export default function CSVBulkUploadScreen() {
   // FIXED: Load history on component mount - only run once
   useEffect(() => {
     loadImportHistory();
-  }, [loadImportHistory]); // FIXED: Include loadImportHistory in dependencies since it's memoized
+  }, []); // FIXED: Empty dependency array to prevent infinite re-renders
 
   const generateLoadId = useCallback(() => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -497,72 +498,56 @@ export default function CSVBulkUploadScreen() {
     return normalizedRow;
   }, [validateRowData, normalizeNumber, normalizeDate, computeRowHash]);
 
-  // Transform parsed row to Firestore document format
+  // Transform parsed row to Firestore document format using normalized mapping
   const toFirestoreDoc = useCallback((parsedRow: NormalizedPreviewRow, templateType: TemplateType, bulkImportId: string): any => {
-    const deliveryIso = parsedRow.deliveryDate ?? new Date().toISOString().split('T')[0];
-    const deliveryMs = new Date(`${deliveryIso}T00:00:00Z`).getTime();
-    const expiresAtMs = Number.isFinite(deliveryMs) ? deliveryMs + 7 * 24 * 60 * 60 * 1000 : Date.now() + 7 * 24 * 60 * 60 * 1000;
-
-    const baseDoc = {
-      status: 'OPEN',
-      createdBy: user?.id || 'unknown',
-      // Complete shipper tagging for accurate profile counts across devices
-      shipperId: user?.id || 'unknown',
-      shipperName: (user as any)?.name || (user as any)?.email || 'Shipper',
-      createdAt: serverTimestamp(),
+    const uid = user?.id || 'unknown';
+    
+    // Convert NormalizedPreviewRow to the format expected by normalizeCsvRow
+    const csvRowData: any = {
+      title: parsedRow.title,
+      equipmentType: parsedRow.equipmentType,
+      rate: parsedRow.rate?.toString(),
+      pickupDate: parsedRow.pickupDate,
+      deliveryDate: parsedRow.deliveryDate,
+      weight: null, // Not available in preview format
+      description: null,
+      contactName: null,
+      contactEmail: null,
+      contactPhone: null,
+    };
+    
+    // Parse origin and destination from location strings
+    const originParts = parsedRow.origin?.split(',').map(s => s.trim()) || [];
+    const destinationParts = parsedRow.destination?.split(',').map(s => s.trim()) || [];
+    
+    if (originParts.length >= 1) csvRowData.originCity = originParts[0];
+    if (originParts.length >= 2) csvRowData.originState = originParts[1];
+    if (originParts.length >= 3) csvRowData.originZip = originParts[2];
+    
+    if (destinationParts.length >= 1) csvRowData.destCity = destinationParts[0];
+    if (destinationParts.length >= 2) csvRowData.destState = destinationParts[1];
+    if (destinationParts.length >= 3) csvRowData.destZip = destinationParts[2];
+    
+    // Use the normalized mapping
+    const normalizedDoc = normalizeCsvRow(csvRowData, uid);
+    
+    // Add additional fields for compatibility with existing system
+    return {
+      ...normalizedDoc,
+      status: 'OPEN', // Override to match existing system
       bulkImportId,
       isArchived: false,
       clientCreatedAt: Date.now(),
-      expiresAtMs,
-      deliveryDateLocal: `${deliveryIso}T00:00`,
+      expiresAtMs: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
+      deliveryDateLocal: parsedRow.deliveryDate ? `${parsedRow.deliveryDate}T00:00` : null,
+      shipperName: (user as any)?.name || (user as any)?.email || 'Shipper',
+      vehicleCount: null,
+      originCity: normalizedDoc.origin.city,
+      destCity: normalizedDoc.destination.city,
+      rateTotalUSD: normalizedDoc.rate,
+      rowHash: parsedRow.rowHash,
     };
-
-    if (templateType === 'simple') {
-      const originParsed = parseLocationText(parsedRow.origin || '');
-      const destinationParsed = parseLocationText(parsedRow.destination || '');
-      return {
-        ...baseDoc,
-        title: parsedRow.title,
-        description: null,
-        equipmentType: parsedRow.equipmentType,
-        vehicleCount: null,
-        origin: originParsed,
-        destination: destinationParsed,
-        originCity: parsedRow.origin,
-        destCity: parsedRow.destination,
-        pickupDate: toTimestampOrNull(parsedRow.pickupDate),
-        deliveryDate: toTimestampOrNull(parsedRow.deliveryDate),
-        rate: parsedRow.rate,
-        rateTotalUSD: parsedRow.rate,
-        contactName: null,
-        contactEmail: null,
-        contactPhone: null,
-        rowHash: parsedRow.rowHash,
-      };
-    } else {
-      const originParsed = parseLocationText(parsedRow.origin || '');
-      const destinationParsed = parseLocationText(parsedRow.destination || '');
-      return {
-        ...baseDoc,
-        title: parsedRow.title,
-        description: null,
-        equipmentType: parsedRow.equipmentType,
-        vehicleCount: null,
-        origin: originParsed,
-        destination: destinationParsed,
-        originCity: parsedRow.origin,
-        destCity: parsedRow.destination,
-        pickupDate: toTimestampOrNull(parsedRow.pickupDate),
-        deliveryDate: toTimestampOrNull(parsedRow.deliveryDate),
-        rate: parsedRow.rate,
-        rateTotalUSD: parsedRow.rate,
-        contactName: null,
-        contactEmail: null,
-        contactPhone: null,
-        rowHash: parsedRow.rowHash,
-      };
-    }
-  }, [user, parseLocationText, toTimestampOrNull]);
+  }, [user]);
 
   // Check for duplicate rows in Firestore
   const checkForDuplicates = useCallback(async (rows: NormalizedPreviewRow[]): Promise<NormalizedPreviewRow[]> => {
