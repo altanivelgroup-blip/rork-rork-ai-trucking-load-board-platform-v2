@@ -33,83 +33,54 @@ export default function LoginScreen() {
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const router = useRouter();
 
-  const isValidEmail = (emailValue: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(emailValue.trim());
-  };
+
 
   const handleLogin = useCallback(async () => {
     setIsLoading(true);
     setErrorText(null);
     
     try {
-      // Step 1: Relaxed input validation for existing users
       if (!email?.trim() || !password?.trim()) {
         setErrorText('Email and password are required.');
         return;
       }
       
-      // Bypass strict email validation for known test users
-      const testEmails = ['test1@test1.com', 'driver@truck.com', 'admin@loadrun.com', 'shipper@loadrun.com'];
-      const isTestUser = testEmails.includes(email.trim().toLowerCase());
+      console.log(`[Simple Login] Authenticating: ${email.trim()}`);
       
-      if (!isTestUser && !isValidEmail(email.trim())) {
-        setErrorText('Please enter a valid email address.');
-        return;
-      }
-      
-      console.log(`[Access Restored] Authenticating user: ${email.trim()}`);
-      
-      // Step 2: Authenticate with Firebase (relaxed for existing users)
       const { auth, db } = getFirebase();
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
       const firebaseUser = userCredential.user;
       
-      console.log(`[Access Restored] Firebase authentication successful for ${email.trim()}: ${firebaseUser.uid}`);
+      console.log(`[Simple Login] Success: ${firebaseUser.uid}`);
       
-      // Step 3: Bypass Firestore validation for existing users - proceed with minimal profile
+      // Simple profile handling
       let userRole: UserRole = selectedRole;
-      let profileData: any = {
-        fullName: email.split('@')[0].toUpperCase(),
-        email: email.trim(),
-        phone: '',
-        company: ''
-      };
       
       try {
-        // Try to load existing profile but don't fail if it doesn't work
         const userRef = doc(db, 'users', firebaseUser.uid);
         const userSnap = await getDoc(userRef);
         
         if (userSnap.exists()) {
-          const existingData = userSnap.data();
-          userRole = existingData.role || selectedRole;
-          profileData = existingData.profileData || profileData;
-          console.log(`[Access Restored] Loaded existing profile for ${email.trim()}: role=${userRole}`);
+          userRole = userSnap.data().role || selectedRole;
         } else {
-          // Create minimal profile for existing users
-          const newUserDoc = {
+          // Create basic profile
+          await setDoc(userRef, {
             role: selectedRole,
-            profileData,
+            profileData: {
+              fullName: email.split('@')[0].toUpperCase(),
+              email: email.trim(),
+              phone: '',
+              company: ''
+            },
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
-          };
-          
-          try {
-            await setDoc(userRef, newUserDoc, { merge: true });
-            console.log(`[Access Restored] Created minimal profile for ${email.trim()}: role=${selectedRole}`);
-          } catch (profileError) {
-            console.warn(`[Access Restored] Profile creation failed for ${email.trim()}, proceeding anyway:`, profileError);
-          }
+          }, { merge: true });
         }
-      } catch (firestoreError: any) {
-        console.warn(`[Access Restored] Firestore access failed for ${email.trim()}, proceeding with minimal profile:`, firestoreError);
-        // Continue with authentication even if Firestore fails
+      } catch (profileError) {
+        console.warn('[Simple Login] Profile handling failed, continuing:', profileError);
       }
       
-      // Step 4: Always redirect successfully for authenticated users
-      console.log(`[Access Restored] Redirecting ${email.trim()} to dashboard for role: ${userRole}`);
-      
+      // Navigate based on role
       if (userRole === 'admin') {
         router.replace('/(tabs)/admin');
       } else if (userRole === 'shipper') {
@@ -118,98 +89,26 @@ export default function LoginScreen() {
         router.replace('/(tabs)/dashboard');
       }
       
-      console.log(`[Access Restored for ${email.trim()}] Login successful`);
-      
     } catch (error: any) {
-      console.error(`[Handled Auth Error: ${error?.code || 'unknown'} for ${email.trim()}]`, error?.message);
+      console.error('[Simple Login] Error:', error?.code, error?.message);
       
-      // Step 1: Enhanced error handling with prevention measures
-      const newRetryCount = retryCount + 1;
-      setRetryCount(newRetryCount);
-      
-      // Test user bypass - relax validation for known test emails
-      const testEmails = ['test1@test1.com', 'driver@truck.com', 'admin@loadrun.com', 'shipper@loadrun.com'];
-      const isTestUser = testEmails.includes(email.trim().toLowerCase());
-      
-      if (
-        error?.code === 'auth/invalid-credential' ||
-        error?.code === 'auth/wrong-password' ||
-        error?.code === 'auth/user-not-found'
-      ) {
-        console.log(`[Handled Auth Error: invalid-credential for ${email.trim()}]`);
-        if (isTestUser && newRetryCount <= 3) {
-          setErrorText('Invalid credentials. Please check your email and password.');
-        } else {
-          setErrorText('Invalid email or password. Need help? Try "Forgot Password?" below.');
-        }
-      } else if (error?.code === 'auth/too-many-requests') {
-        console.log(`[Handled Auth Error: too-many-requests for ${email.trim()}]`);
+      if (error?.code === 'auth/too-many-requests') {
+        setErrorText('Too many attempts. Please wait a few minutes or reset your password.');
         setIsRateLimited(true);
-        
-        // Enhanced rate limit handling with shorter wait times for test users
-        if (isTestUser) {
-          setErrorText('Rate limited. Please wait 2 minutes before trying again.');
-          // Shorter cooldown for test users
-          setTimeout(() => {
-            setIsRateLimited(false);
-            setRetryCount(0);
-            console.log(`[Auth Error Prevention] Rate limit reset for test user ${email.trim()}`);
-          }, 2 * 60 * 1000); // 2 minutes for test users
-        } else {
-          setErrorText('Too many login attempts. Please wait 5 minutes or use "Forgot Password?" to reset.');
-          // Standard cooldown for regular users
-          setTimeout(() => {
-            setIsRateLimited(false);
-            setRetryCount(0);
-            console.log(`[Auth Error Prevention] Rate limit reset for ${email.trim()}`);
-          }, 5 * 60 * 1000); // 5 minutes for regular users
-        }
-      } else if (error?.code === 'auth/user-disabled') {
-        console.log(`[Handled Auth Error: user-disabled for ${email.trim()}]`);
-        setErrorText('Account temporarily disabled. Please contact support.');
-      } else if (error?.code === 'permission-denied') {
-        console.log(`[Handled Auth Error: permission-denied for ${email.trim()}] - allowing retry`);
-        if (isTestUser) {
-          setErrorText('Access issue detected. Retrying should work.');
-        } else {
-          setErrorText('Temporary access issue. Please try again in a moment.');
-        }
-      } else if (error?.code === 'auth/network-request-failed') {
-        console.log(`[Handled Auth Error: network-request-failed for ${email.trim()}]`);
-        setErrorText('Network error. Please check your internet connection and try again.');
-      } else if (error?.code === 'auth/internal-error') {
-        console.log(`[Handled Auth Error: internal-error for ${email.trim()}]`);
-        setErrorText('Service temporarily unavailable. Please try again in a moment.');
+        setTimeout(() => {
+          setIsRateLimited(false);
+          setRetryCount(0);
+        }, 60 * 1000); // 1 minute cooldown
+      } else if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password' || error?.code === 'auth/user-not-found') {
+        setErrorText('Invalid email or password. Please check your credentials.');
       } else {
-        console.log(`[Handled Auth Error: ${error?.code || 'unknown'} for ${email.trim()}]`, error);
-        setErrorText('Sign-in temporarily unavailable. Please try again.');
-      }
-      
-      // Step 2: Enhanced retry prevention with different limits for test users
-      if (isTestUser && newRetryCount >= 8) {
-        // More lenient for test users
-        setErrorText('Multiple attempts detected. Please wait 1 minute before trying again.');
-        setIsRateLimited(true);
-        setTimeout(() => {
-          setIsRateLimited(false);
-          setRetryCount(0);
-          console.log(`[Auth Error Prevention] Test user retry limit reset for ${email.trim()}`);
-        }, 1 * 60 * 1000); // 1 minute cooldown for test users
-      } else if (!isTestUser && newRetryCount >= 5) {
-        // Standard limits for regular users
-        setErrorText('Multiple failed attempts. Please wait 3 minutes or use "Forgot Password?"');
-        setIsRateLimited(true);
-        setTimeout(() => {
-          setIsRateLimited(false);
-          setRetryCount(0);
-          console.log(`[Auth Error Prevention] Regular user retry limit reset for ${email.trim()}`);
-        }, 3 * 60 * 1000); // 3 minute cooldown for regular users
+        setErrorText('Login failed. Please try again.');
       }
       
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, selectedRole, router, retryCount]);
+  }, [email, password, selectedRole, router]);
 
   return (
     <SafeAreaView style={styles.container} testID="login-safe">
