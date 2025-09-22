@@ -23,8 +23,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, write: if signedIn() && request.auth.uid == userId;
-      allow create: if signedIn() && request.auth.uid == userId;
+      allow read, write, create: if signedIn() && request.auth.uid == userId;
     }
   }
 }
