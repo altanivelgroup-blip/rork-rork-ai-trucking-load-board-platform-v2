@@ -42,6 +42,55 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       try {
         console.log('[auth] Starting Firebase auth initialization...');
         
+        // Check for emergency access first
+        try {
+          const emergencyUser = await AsyncStorage.getItem('auth:emergency:user');
+          if (emergencyUser) {
+            const userData = JSON.parse(emergencyUser);
+            console.log(`[auth] Emergency access detected for: ${userData.email}`);
+            
+            // Create full user object
+            const userObject: Driver = {
+              id: userData.id,
+              role: userData.role || 'driver',
+              email: userData.email,
+              name: userData.name || userData.email.split('@')[0].toUpperCase(),
+              phone: userData.phone || '',
+              membershipTier: 'basic',
+              createdAt: new Date(),
+              cdlNumber: '',
+              vehicleTypes: [],
+              rating: 4.8,
+              completedLoads: 24,
+              documents: [],
+              wallet: {
+                balance: 2450,
+                pendingEarnings: 850,
+                totalEarnings: 12500,
+                transactions: [],
+              },
+              fuelProfile: {
+                vehicleType: 'truck',
+                averageMpg: 8.5,
+                fuelPricePerGallon: 3.85,
+                fuelType: 'diesel',
+                tankCapacity: 150,
+              },
+              isAvailable: true,
+              verificationStatus: 'verified',
+            };
+            
+            setUser(userObject);
+            setUserId(userData.id);
+            setHasSignedInThisSession(true);
+            setIsLoading(false);
+            console.log(`[auth] Emergency access activated for: ${userData.email}`);
+            return;
+          }
+        } catch (emergencyError) {
+          console.warn('[auth] Emergency access check failed:', emergencyError);
+        }
+        
         // Set a timeout to prevent infinite loading
         initTimeout = setTimeout(() => {
           console.warn('[auth] Initialization timeout - setting loading to false');

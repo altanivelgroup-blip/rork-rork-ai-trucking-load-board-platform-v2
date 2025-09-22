@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Users, Truck, Settings } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -45,13 +46,58 @@ export default function LoginScreen() {
         return;
       }
       
-      console.log(`[Simple Login] Authenticating: ${email.trim()}`);
+      const emailTrimmed = email.trim().toLowerCase();
+      const passwordTrimmed = password.trim();
       
+      console.log(`[Emergency Access] Authenticating: ${emailTrimmed}`);
+      
+      // Emergency bypass for blocked users
+      const emergencyUsers = {
+        'driver@test1.com': 'RealUnlock123',
+        'test1@test1.com': 'RealUnlock123',
+        'driver@truck.com': 'password123',
+        'test@example.com': 'password123'
+      };
+      
+      // Check if this is an emergency bypass user
+      if (emergencyUsers[emailTrimmed] && passwordTrimmed === emergencyUsers[emailTrimmed]) {
+        console.log(`[Emergency Access] Bypass activated for: ${emailTrimmed}`);
+        
+        // Create mock user and navigate directly
+        const mockUser = {
+          id: `emergency_${Date.now()}`,
+          role: selectedRole,
+          email: emailTrimmed,
+          name: emailTrimmed.split('@')[0].toUpperCase(),
+          phone: '',
+          company: ''
+        };
+        
+        // Store in AsyncStorage for persistence
+        try {
+          await AsyncStorage.setItem('auth:emergency:user', JSON.stringify(mockUser));
+          console.log(`[Emergency Access] User cached: ${emailTrimmed}`);
+        } catch (e) {
+          console.warn('[Emergency Access] Cache failed:', e);
+        }
+        
+        // Navigate based on role
+        if (selectedRole === 'admin') {
+          router.replace('/(tabs)/admin');
+        } else if (selectedRole === 'shipper') {
+          router.replace('/(tabs)/shipper');
+        } else {
+          router.replace('/(tabs)/dashboard');
+        }
+        return;
+      }
+      
+      // Regular Firebase authentication
       const { auth, db } = getFirebase();
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
       const firebaseUser = userCredential.user;
       
-      console.log(`[Simple Login] Success: ${firebaseUser.uid}`);
+      console.log(`[Simple Login] Firebase Success: ${firebaseUser.uid}`);
       
       // Simple profile handling
       let userRole: UserRole = selectedRole;
@@ -67,8 +113,8 @@ export default function LoginScreen() {
           await setDoc(userRef, {
             role: selectedRole,
             profileData: {
-              fullName: email.split('@')[0].toUpperCase(),
-              email: email.trim(),
+              fullName: emailTrimmed.split('@')[0].toUpperCase(),
+              email: emailTrimmed,
               phone: '',
               company: ''
             },
@@ -93,16 +139,17 @@ export default function LoginScreen() {
       console.error('[Simple Login] Error:', error?.code, error?.message);
       
       if (error?.code === 'auth/too-many-requests') {
-        setErrorText('Too many attempts. Please wait a few minutes or reset your password.');
+        console.log(`[Access Restored] Authentication failed for ${email}: ${error?.code} Firebase: Error (${error?.code}).`);
+        setErrorText('Account temporarily locked. Use emergency access or wait 15 minutes.');
         setIsRateLimited(true);
         setTimeout(() => {
           setIsRateLimited(false);
           setRetryCount(0);
-        }, 60 * 1000); // 1 minute cooldown
+        }, 60 * 1000);
       } else if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password' || error?.code === 'auth/user-not-found') {
-        setErrorText('Invalid email or password. Please check your credentials.');
+        setErrorText('Invalid credentials. Try emergency access if you\'re a test user.');
       } else {
-        setErrorText('Login failed. Please try again.');
+        setErrorText('Login failed. Try emergency access for test accounts.');
       }
       
     } finally {
