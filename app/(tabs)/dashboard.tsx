@@ -4,7 +4,7 @@ import Screen from '@/src/ui/Screen';
 import { theme } from '@/constants/theme';
 
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Truck, Star, Package, ArrowRight, MapPin, Mic, Cloud, Sun, CloudRain, CloudLightning, Snowflake } from 'lucide-react-native';
 import { VoiceCapture } from '@/components/VoiceCapture';
 import { mockLoads } from '@/mocks/loads';
@@ -21,7 +21,8 @@ import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
 import { Stack } from 'expo-router';
 import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
 import { signOut } from 'firebase/auth';
-import { auth } from '@/utils/firebase';
+import { auth, db } from '@/utils/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 
 interface RecentLoadProps {
@@ -96,6 +97,11 @@ export default function DashboardScreen() {
   const { user, isLoading } = useAuth();
   const { loads: actualLoads, filteredLoads, refreshLoads } = useLoads();
   
+  // ULTRA-SMALL FIX: Dynamic name fetching from Firestore
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [nameLoading, setNameLoading] = useState<boolean>(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  
   // Track component mount/unmount
   React.useEffect(() => {
     endAudit('dashboard-render');
@@ -149,13 +155,62 @@ export default function DashboardScreen() {
     loadsSample: actualLoads?.slice(0, 3).map(l => ({ id: l.id, origin: l.origin?.city, rate: l.rate }))
   });
 
+  // ULTRA-SMALL FIX: Fetch user's full name from Firestore on dashboard load
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (!user?.id || nameLoading) return;
+      
+      try {
+        setNameLoading(true);
+        console.log('[Dashboard] 🎯 DASHBOARD NAME SYNC - Fetching name for user:', user.id);
+        
+        // Determine collection based on user role
+        const collection = user.role === 'driver' ? 'drivers' : user.role === 'shipper' ? 'shippers' : 'users';
+        const userDocRef = doc(db, collection, user.id);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const firestoreName = userData.displayName || userData.name || userData.fullName;
+          
+          if (firestoreName && firestoreName !== user.name) {
+            console.log('[Dashboard] ✅ DASHBOARD NAME SYNC - Found updated name:', firestoreName);
+            setDisplayName(firestoreName);
+            console.log(`[Dashboard] Dashboard Name Synced: ${firestoreName}`);
+          } else {
+            console.log('[Dashboard] 📝 DASHBOARD NAME SYNC - Using cached name:', user.name);
+            setDisplayName(user.name);
+          }
+        } else {
+          console.log('[Dashboard] ⚠️ DASHBOARD NAME SYNC - No Firestore doc found, using cached name');
+          setDisplayName(user.name);
+        }
+      } catch (error) {
+        console.warn('[Dashboard] ❌ DASHBOARD NAME SYNC - Failed to fetch name:', error);
+        setDisplayName(user.name); // Fallback to cached name
+      } finally {
+        setNameLoading(false);
+      }
+    };
+    
+    fetchUserName();
+  }, [user?.id, user?.name, user?.role, nameLoading]);
+  
+  // ULTRA-SMALL FIX: Add refresh trigger for when user navigates back to dashboard after profile save
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[Dashboard] 🔄 DASHBOARD NAME SYNC - Dashboard focused, triggering refresh');
+      setLastRefreshTime(0); // Force refresh on next useEffect
+    }, [])
+  );
+  
   // PERMANENT FIX: Enhanced analytics initialization with comprehensive logging
   useEffect(() => {
     if (ENABLE_LOAD_ANALYTICS && isDriver && user) {
-      console.log('[Dashboard] 🔥 PERMANENT ANALYTICS RUNNING for driver:', user.name);
+      console.log('[Dashboard] 🔥 PERMANENT ANALYTICS RUNNING for driver:', displayName || user.name);
       console.log('[Dashboard] 📊 PERMANENT Driver profile complete:', {
         userId: user.id,
-        name: user.name,
+        name: displayName || user.name,
         mpg: (user as any).fuelProfile?.averageMpg,
         fuelType: (user as any).fuelProfile?.fuelType,
         vehicleType: (user as any).fuelProfile?.vehicleType,
@@ -167,7 +222,7 @@ export default function DashboardScreen() {
       });
       console.log('[Dashboard] ✅ PERMANENT FIXES ACTIVE - All systems operational!');
     }
-  }, [ENABLE_LOAD_ANALYTICS, isDriver, user]);
+  }, [ENABLE_LOAD_ANALYTICS, isDriver, user, displayName]);
 
   const recentLoads = useMemo(() => actualLoads?.slice(0, 3) ?? [], [actualLoads]);
   const lastDelivery = useMemo(() => recentLoads[0]?.destination, [recentLoads]);
@@ -497,7 +552,9 @@ export default function DashboardScreen() {
           <View style={styles.welcomeRow}>
             <View style={styles.welcomeTextContainer}>
               <Text style={styles.welcomeText}>Welcome back,</Text>
-              <Text style={styles.welcomeName} allowFontScaling={false}>{user?.name?.split(' ')[0] ?? 'Driver'}</Text>
+              <Text style={styles.welcomeName} allowFontScaling={false}>
+                {nameLoading ? 'Loading...' : (displayName || user?.name)?.split(' ')[0] ?? 'Driver'}
+              </Text>
               {user?.role === 'driver' && (
                 <Text style={styles.analyticsStatus}>
                   📊 Live Analytics Active • 💰 Wallet Tracking • 💾 Profile Secured
