@@ -57,7 +57,7 @@ export default function DriverMpgTestScreen() {
 
     try {
       const driverProfile = user as Driver;
-      const updatedProfile = {
+      const updatedProfile: Partial<Driver> = {
         ...driverProfile,
         mpgRated: testMpg,
         fuelProfile: {
@@ -66,7 +66,7 @@ export default function DriverMpgTestScreen() {
           fuelPricePerGallon: driverProfile.fuelProfile?.fuelPricePerGallon || 3.50,
           fuelType: (driverProfile.fuelProfile?.fuelType || 'diesel') as 'diesel' | 'gasoline',
           tankCapacity: driverProfile.fuelProfile?.tankCapacity || 150
-        }
+        } as FuelProfile
       };
 
       await updateProfile(updatedProfile);
