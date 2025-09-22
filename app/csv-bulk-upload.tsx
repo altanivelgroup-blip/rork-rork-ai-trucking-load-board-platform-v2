@@ -1208,6 +1208,11 @@ export default function CSVBulkUploadScreen() {
     console.log('[HANDLE IMPORT] User:', !!user);
     console.log('[HANDLE IMPORT] User ID:', user?.id);
     console.log('[HANDLE IMPORT] Normalized rows:', normalizedRows.length);
+
+    if (showDuplicateChecker) {
+      console.log('[HANDLE IMPORT] Closing duplicate checker before import');
+      setShowDuplicateChecker(false);
+    }
     
     if (!user) {
       console.error('[HANDLE IMPORT] No user found');
@@ -1238,7 +1243,6 @@ export default function CSVBulkUploadScreen() {
       console.error('[HANDLE IMPORT] Error message:', error.message);
       console.error('[HANDLE IMPORT] Error stack:', error.stack);
       
-      // Show detailed error in alert
       const errorMsg = error.message || 'An unexpected error occurred during import.';
       Alert.alert(
         'Import Failed', 
@@ -1249,7 +1253,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsImporting(false);
     }
-  }, [user, normalizedRows, showToast, performImport]);
+  }, [user, normalizedRows, showToast, performImport, showDuplicateChecker]);
 
   const downloadSkippedRows = useCallback(async (rowsToDownload?: NormalizedPreviewRow[]) => {
     const skippedRows = rowsToDownload || normalizedRows.filter(row => row.status === 'invalid' || row.status === 'duplicate');
