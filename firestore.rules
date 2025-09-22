@@ -21,5 +21,10 @@ service cloud.firestore {
       allow read: if true; // switch to: if isOwnerExisting();  (later if needed)
       allow update, delete: if isOwnerExisting();
     }
+
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+      allow create: if signedIn() && request.auth.uid == userId;
+    }
   }
 }
