@@ -550,6 +550,24 @@ export default function CSVBulkUploadScreen() {
     };
   }, [user]);
 
+  const sanitizeForFirestore = useCallback((input: any): any => {
+    if (input === undefined) return null;
+    if (input === null) return null;
+    if (Array.isArray(input)) return input.map(sanitizeForFirestore);
+    if (typeof input === 'object') {
+      const out: Record<string, any> = {};
+      Object.keys(input).forEach((key) => {
+        const v = (input as Record<string, any>)[key];
+        const sv = sanitizeForFirestore(v);
+        if (sv !== undefined) {
+          out[key] = sv;
+        }
+      });
+      return out;
+    }
+    return input;
+  }, []);
+
   // Check for duplicate rows in Firestore
   const checkForDuplicates = useCallback(async (rows: NormalizedPreviewRow[]): Promise<NormalizedPreviewRow[]> => {
     if (rows.length === 0) return rows;
@@ -1041,14 +1059,15 @@ export default function CSVBulkUploadScreen() {
             const docId = generateLoadId();
             console.log(`[BULK UPLOAD] Converting row to Firestore doc: ${docId}`);
             const docData = toFirestoreDoc(row, selectedTemplate, bulkImportId);
+            const cleanedData = sanitizeForFirestore(docData);
             console.log(`[BULK UPLOAD] Doc data created for ${docId}:`, {
-              title: docData.title,
-              status: docData.status,
-              createdBy: docData.createdBy
+              title: cleanedData.title,
+              status: cleanedData.status,
+              createdBy: cleanedData.createdBy
             });
             const docRef = doc(db, LOADS_COLLECTION, docId);
-            batch.set(docRef, docData);
-            historyForDevice.push({ id: docId, ...docData });
+            batch.set(docRef, cleanedData);
+            historyForDevice.push({ id: docId, ...cleanedData });
           }
           
           try {
