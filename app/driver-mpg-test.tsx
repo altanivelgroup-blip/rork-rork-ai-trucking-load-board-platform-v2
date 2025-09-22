@@ -61,7 +61,7 @@ export default function DriverMpgTestScreen() {
         ...driverProfile,
         mpgRated: testMpg,
         fuelProfile: {
-          vehicleType: (driverProfile.fuelProfile?.vehicleType || driverProfile.vehicleTypes?.[0] || 'truck') as VehicleType,
+          vehicleType: (driverProfile.fuelProfile?.vehicleType || 'truck') as VehicleType,
           averageMpg: testMpg,
           fuelPricePerGallon: driverProfile.fuelProfile?.fuelPricePerGallon || 3.50,
           fuelType: (driverProfile.fuelProfile?.fuelType || 'diesel') as 'diesel' | 'gasoline',
