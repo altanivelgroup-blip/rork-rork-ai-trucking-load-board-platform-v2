@@ -31,36 +31,70 @@ import { doc, getDoc } from 'firebase/firestore';
 import { Image } from 'expo-image';
 import { trpc } from '@/lib/trpc';
 
-// Helper functions for safe load property access
+// Helper functions for safe load property access - handles both old and new shapes
 function getOriginText(load: any): string {
-  if (!load?.origin) return 'Unknown Origin';
+  const origin = typeof load.origin === "object" ? load.origin : {
+    city: load.originCity || "", 
+    state: load.originState || "", 
+    zip: load.originZip || "",
+    address: load.originAddress || ""
+  };
+  
   const parts = [
-    load.origin.address,
-    load.origin.city,
-    load.origin.state,
-    load.origin.zipCode
+    origin.address,
+    origin.city,
+    origin.state,
+    origin.zipCode || origin.zip
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(', ') : 'Unknown Origin';
 }
 
 function getDestText(load: any): string {
-  if (!load?.destination) return 'Unknown Destination';
+  const destination = typeof load.destination === "object" ? load.destination : {
+    city: load.destCity || load.destinationCity || "", 
+    state: load.destState || load.destinationState || "", 
+    zip: load.destZip || load.destinationZip || "",
+    address: load.destAddress || load.destinationAddress || ""
+  };
+  
   const parts = [
-    load.destination.address,
-    load.destination.city,
-    load.destination.state,
-    load.destination.zipCode
+    destination.address,
+    destination.city,
+    destination.state,
+    destination.zipCode || destination.zip
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(', ') : 'Unknown Destination';
 }
 
 function coerceLoad(load: any): any {
   if (!load) return null;
+  
+  // Handle both old and new data shapes
+  const origin = typeof load.origin === "object" ? load.origin : {
+    city: load.originCity || "", 
+    state: load.originState || "", 
+    zip: load.originZip || "",
+    address: load.originAddress || "",
+    lat: load.originLat,
+    lng: load.originLng
+  };
+  
+  const destination = typeof load.destination === "object" ? load.destination : {
+    city: load.destCity || load.destinationCity || "", 
+    state: load.destState || load.destinationState || "", 
+    zip: load.destZip || load.destinationZip || "",
+    address: load.destAddress || load.destinationAddress || "",
+    lat: load.destLat || load.destinationLat,
+    lng: load.destLng || load.destinationLng
+  };
+  
+  const rateVal = load.rate ?? load.rateAmount ?? load.rateTotalUSD ?? 0;
+  
   return {
     ...load,
-    origin: load.origin || {},
-    destination: load.destination || {},
-    rate: load.rate || 0,
+    origin,
+    destination,
+    rate: rateVal,
     distance: load.distance || 0,
     pickupDate: load.pickupDate || Date.now(),
     deliveryDate: load.deliveryDate || Date.now(),
@@ -113,18 +147,19 @@ export default function LoadDetailsScreen() {
   const owmKey = (require('@/utils/env').OPENWEATHER_API_KEY as string | undefined) ?? undefined;
 
   const etaQueryEnabled = useMemo(() => {
-    const o: any = (load as any)?.origin;
-    const d: any = (load as any)?.destination;
+    if (!loadNorm) return false;
+    const o = loadNorm.origin;
+    const d = loadNorm.destination;
     const hasCoords = typeof o?.lat === 'number' && typeof o?.lng === 'number' && typeof d?.lat === 'number' && typeof d?.lng === 'number';
     const hasKey = !!mapboxToken || !!orsKey;
-    return !!load && hasCoords && hasKey;
-  }, [load, mapboxToken, orsKey]);
+    return hasCoords && hasKey;
+  }, [loadNorm, mapboxToken, orsKey]);
 
   const etaQuery = trpc.route.eta.useQuery(
     etaQueryEnabled
       ? {
-          origin: { lat: Number((load as any)?.origin?.lat ?? 0), lon: Number((load as any)?.origin?.lng ?? 0) },
-          destination: { lat: Number((load as any)?.destination?.lat ?? 0), lon: Number((load as any)?.destination?.lng ?? 0) },
+          origin: { lat: Number(loadNorm?.origin?.lat ?? 0), lon: Number(loadNorm?.origin?.lng ?? 0) },
+          destination: { lat: Number(loadNorm?.destination?.lat ?? 0), lon: Number(loadNorm?.destination?.lng ?? 0) },
           provider: mapboxToken ? 'mapbox' : 'ors',
           mapboxToken: mapboxToken,
           orsKey: orsKey,
@@ -134,18 +169,18 @@ export default function LoadDetailsScreen() {
     { enabled: etaQueryEnabled }
   );
 
-  const eiaEnabled = useMemo(() => !!((load as any)?.origin?.state || (load as any)?.destination?.state), [load?.origin?.state, load?.destination?.state]);
+  const eiaEnabled = useMemo(() => !!(loadNorm?.origin?.state || loadNorm?.destination?.state), [loadNorm?.origin?.state, loadNorm?.destination?.state]);
   const eiaQuery = trpc.fuel.eiaDiesel.useQuery(
     eiaEnabled
-      ? { state: ((load as any)?.origin?.state ?? (load as any)?.destination?.state) as string, eiaApiKey: eiaKey }
+      ? { state: (loadNorm?.origin?.state ?? loadNorm?.destination?.state) as string, eiaApiKey: eiaKey }
       : (undefined as unknown as any),
     { enabled: eiaEnabled }
   );
 
   const financials = useMemo(() => {
     try {
-      const rate = Number((load as any)?.rate ?? 0);
-      const milesBase = Number((load as any)?.distance ?? 0);
+      const rate = Number(loadNorm?.rate ?? 0);
+      const milesBase = Number(loadNorm?.distance ?? 0);
       const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? etaQuery.data.distanceMeters / 1609.34 : undefined;
       const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : milesBase;
       const cost = typeof fuelEstimate?.cost === 'number' ? fuelEstimate.cost : undefined;
@@ -160,19 +195,19 @@ export default function LoadDetailsScreen() {
       console.log('[LoadDetails] financials calc error', e);
       return { fuelCost: undefined as unknown as number, netAfterFuel: undefined as unknown as number, profitPerMile: undefined as unknown as number };
     }
-  }, [load?.rate, load?.distance, fuelEstimate?.cost, etaQuery.data?.distanceMeters]);
+  }, [loadNorm?.rate, loadNorm?.distance, fuelEstimate?.cost, etaQuery.data?.distanceMeters]);
 
   const etaInfo = useMemo(() => {
     try {
       const milesFromRoute = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
-      const miles = Number.isFinite((milesFromRoute as number)) && (milesFromRoute as number) > 0 ? (milesFromRoute as number) : Number((load as any)?.distance ?? 0);
+      const miles = Number.isFinite((milesFromRoute as number)) && (milesFromRoute as number) > 0 ? (milesFromRoute as number) : Number(loadNorm?.distance ?? 0);
       if (!Number.isFinite(miles) || miles <= 0) return null;
-      const vt = ((user as Driver)?.fuelProfile?.vehicleType ?? (load as any)?.vehicleType ?? 'truck') as string;
-      const avgStateAware = estimateAvgSpeedForRoute((load as any)?.origin?.state, (load as any)?.destination?.state, vt);
+      const vt = ((user as Driver)?.fuelProfile?.vehicleType ?? loadNorm?.vehicleType ?? 'truck') as string;
+      const avgStateAware = estimateAvgSpeedForRoute(loadNorm?.origin?.state, loadNorm?.destination?.state, vt);
       const remoteDurationHours = typeof etaQuery.data?.durationSec === 'number' ? (etaQuery.data.durationSec / 3600) : undefined;
       const hours = typeof remoteDurationHours === 'number' && remoteDurationHours > 0 ? remoteDurationHours : estimateDurationHours(miles, avgStateAware);
       const now = Date.now();
-      const pickupMs = Number((load as any)?.pickupDate ?? now);
+      const pickupMs = Number(loadNorm?.pickupDate ?? now);
       const departAt = Number.isFinite(pickupMs) ? Math.max(now, pickupMs) : now;
       const arrivalTs = estimateArrivalTimestamp(departAt, hours);
       const prettyDur = formatDurationHours(hours);
@@ -182,33 +217,33 @@ export default function LoadDetailsScreen() {
       console.log('[LoadDetails] eta calc error', e);
       return null;
     }
-  }, [etaQuery.data?.distanceMeters, etaQuery.data?.durationSec, load?.distance, load?.pickupDate, load?.vehicleType, load?.origin?.state, load?.destination?.state, (user as Driver)?.fuelProfile?.vehicleType]);
+  }, [etaQuery.data?.distanceMeters, etaQuery.data?.durationSec, loadNorm?.distance, loadNorm?.pickupDate, loadNorm?.vehicleType, loadNorm?.origin?.state, loadNorm?.destination?.state, (user as Driver)?.fuelProfile?.vehicleType]);
 
   const adaptedLoad = useMemo(() => ({
-    ...load,
-    distanceMiles: load?.distanceMiles ?? load?.distance ?? null,
-    rateTotalUSD: load?.rateTotalUSD ?? load?.rateAmount ?? load?.total ?? load?.rate ?? null,
-    rpm: load?.rpm ?? load?.ratePerMile ?? null,
-    rate: load?.rate ?? null,
-  }), [load]);
+    ...loadNorm,
+    distanceMiles: loadNorm?.distanceMiles ?? loadNorm?.distance ?? null,
+    rateTotalUSD: loadNorm?.rateTotalUSD ?? loadNorm?.rateAmount ?? loadNorm?.total ?? loadNorm?.rate ?? null,
+    rpm: loadNorm?.rpm ?? loadNorm?.ratePerMile ?? null,
+    rate: loadNorm?.rate ?? null,
+  }), [loadNorm]);
 
   const distanceDisplayMiles = useMemo(() => {
     const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
-    const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : (derivedMiles ?? Number(load?.distance ?? 0));
+    const miles = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : (derivedMiles ?? Number(loadNorm?.distance ?? 0));
     return Number.isFinite(miles) && miles > 0 ? Math.round(miles) : undefined;
-  }, [etaQuery.data?.distanceMeters, load?.distance, derivedMiles]);
+  }, [etaQuery.data?.distanceMeters, loadNorm?.distance, derivedMiles]);
 
   const weatherEnabled = useMemo(() => {
-    const d: any = (load as any)?.destination;
+    const d = loadNorm?.destination;
     const hasCoords = typeof d?.lat === 'number' && typeof d?.lng === 'number';
     return !!etaInfo?.arrivalTs && hasCoords && !!owmKey;
-  }, [etaInfo?.arrivalTs, load?.destination?.lat, load?.destination?.lng, owmKey]);
+  }, [etaInfo?.arrivalTs, loadNorm?.destination?.lat, loadNorm?.destination?.lng, owmKey]);
 
   const weatherAtEtaQuery = trpc.weather.forecastAt.useQuery(
     weatherEnabled
       ? {
-          lat: Number((load as any)?.destination?.lat ?? 0),
-          lon: Number((load as any)?.destination?.lng ?? 0),
+          lat: Number(loadNorm?.destination?.lat ?? 0),
+          lon: Number(loadNorm?.destination?.lng ?? 0),
           etaTs: Number(etaInfo?.arrivalTs ?? Date.now()),
           openWeatherKey: owmKey,
         }
@@ -225,9 +260,9 @@ export default function LoadDetailsScreen() {
 
   const selectedVehicleType = useMemo(() => {
     const fromUser = ((user as Driver)?.fuelProfile?.vehicleType ?? '') as string;
-    const fromLoad = (load?.vehicleType ?? '') as string;
+    const fromLoad = (loadNorm?.vehicleType ?? '') as string;
     return (fromUser || fromLoad) as any;
-  }, [(user as Driver)?.fuelProfile?.vehicleType, load?.vehicleType]);
+  }, [(user as Driver)?.fuelProfile?.vehicleType, loadNorm?.vehicleType]);
 
   const [mpgInput, setMpgInput] = useState<string>(() => {
     const val = (user as Driver)?.fuelProfile?.averageMpg ?? undefined;
@@ -243,7 +278,7 @@ export default function LoadDetailsScreen() {
     try {
       const cap = Number((user as Driver)?.fuelProfile?.tankCapacity ?? 0);
       const avg = Number((user as Driver)?.fuelProfile?.averageMpg ?? (fuelEstimate?.mpg ?? 0));
-      const miles = typeof distanceDisplayMiles === 'number' ? distanceDisplayMiles : Number(load?.distance ?? 0);
+      const miles = typeof distanceDisplayMiles === 'number' ? distanceDisplayMiles : Number(loadNorm?.distance ?? 0);
       if (!Number.isFinite(cap) || cap <= 0 || !Number.isFinite(avg) || avg <= 0 || !Number.isFinite(miles) || miles <= 0) return null;
       const range = cap * avg;
       const margin = range * 0.1;
@@ -258,7 +293,7 @@ export default function LoadDetailsScreen() {
       console.log('[LoadDetails] tankAlert error', e);
       return null;
     }
-  }, [(user as Driver)?.fuelProfile?.tankCapacity, (user as Driver)?.fuelProfile?.averageMpg, fuelEstimate?.mpg, distanceDisplayMiles, load?.distance]);
+  }, [(user as Driver)?.fuelProfile?.tankCapacity, (user as Driver)?.fuelProfile?.averageMpg, fuelEstimate?.mpg, distanceDisplayMiles, loadNorm?.distance]);
 
   // Move all useCallback hooks to the top to ensure consistent order
   const handlePickupConfirmed = useCallback(() => {
@@ -372,9 +407,9 @@ export default function LoadDetailsScreen() {
     const run = async () => {
       try {
         setFuelError(null);
-        if (!load || !user) return;
+        if (!loadNorm || !user) return;
         const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
-        const distanceNum = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : Number(load.distance ?? 0);
+        const distanceNum = Number.isFinite((routeMiles as number)) && (routeMiles as number) > 0 ? (routeMiles as number) : Number(loadNorm.distance ?? 0);
         if (!Number.isFinite(distanceNum) || distanceNum <= 0) return;
         setFuelLoading(true);
 
@@ -392,10 +427,10 @@ export default function LoadDetailsScreen() {
         const res = await fetchFuelEstimate({
           load: {
             distance: distanceNum,
-            vehicleType: (load.vehicleType as any) ?? ((user as Driver).fuelProfile?.vehicleType as any),
-            weight: Number(load.weight ?? 0),
-            origin: load.origin,
-            destination: load.destination,
+            vehicleType: (loadNorm.vehicleType as any) ?? ((user as Driver).fuelProfile?.vehicleType as any),
+            weight: Number(loadNorm.weight ?? 0),
+            origin: loadNorm.origin,
+            destination: loadNorm.destination,
           },
           driver: driverForEstimate as any,
         });
@@ -413,7 +448,7 @@ export default function LoadDetailsScreen() {
     return () => {
       active = false;
     };
-  }, [etaQuery.data?.distanceMeters, eiaQuery.data?.price, eiaQuery.data?.source, load?.id, load?.distance, load?.vehicleType, load?.weight, load?.origin?.state, load?.destination?.state, user?.id, (user as Driver)?.fuelProfile?.averageMpg, (user as Driver)?.fuelProfile?.fuelPricePerGallon, (user as Driver)?.fuelProfile?.vehicleType]);
+  }, [etaQuery.data?.distanceMeters, eiaQuery.data?.price, eiaQuery.data?.source, loadNorm?.id, loadNorm?.distance, loadNorm?.vehicleType, loadNorm?.weight, loadNorm?.origin?.state, loadNorm?.destination?.state, user?.id, (user as Driver)?.fuelProfile?.averageMpg, (user as Driver)?.fuelProfile?.fuelPricePerGallon, (user as Driver)?.fuelProfile?.vehicleType]);
 
   // Auto-derive distance using robust endpoint extraction
   useEffect(() => {
@@ -444,15 +479,15 @@ export default function LoadDetailsScreen() {
     let active = true;
     const run = async () => {
       try {
-        const originZip = String(load?.origin?.zipCode ?? '').slice(0, 5);
-        const destZip = String(load?.destination?.zipCode ?? '').slice(0, 5);
-        const currentDistance = Number((load as any)?.distance ?? 0);
-        if (!load || !originZip || !destZip) return;
+        const originZip = String(loadNorm?.origin?.zipCode ?? loadNorm?.origin?.zip ?? '').slice(0, 5);
+        const destZip = String(loadNorm?.destination?.zipCode ?? loadNorm?.destination?.zip ?? '').slice(0, 5);
+        const currentDistance = Number(loadNorm?.distance ?? 0);
+        if (!loadNorm || !originZip || !destZip) return;
         if (Number.isFinite(currentDistance) && currentDistance > 0) return;
 
         const routeMiles = typeof etaQuery.data?.distanceMeters === 'number' ? (etaQuery.data.distanceMeters / 1609.34) : undefined;
         if (typeof routeMiles === 'number' && routeMiles > 0) {
-          const rate = Number(load?.rate ?? 0);
+          const rate = Number(loadNorm?.rate ?? 0);
           const rpm = routeMiles > 0 ? rate / routeMiles : 0;
           setLoad((prev: any) => (prev ? { ...prev, distance: routeMiles, ratePerMile: rpm } : prev));
           return;
@@ -462,7 +497,7 @@ export default function LoadDetailsScreen() {
         const miles = await estimateMileageFromZips(originZip, destZip);
         if (!active) return;
         if (miles && miles > 0) {
-          const rate = Number(load.rate ?? 0);
+          const rate = Number(loadNorm.rate ?? 0);
           const rpm = miles > 0 ? rate / miles : 0;
           setLoad((prev: any) => (prev ? { ...prev, distance: miles, ratePerMile: rpm } : prev));
         }
@@ -474,7 +509,7 @@ export default function LoadDetailsScreen() {
     return () => {
       active = false;
     };
-  }, [etaQuery.data?.distanceMeters, load?.origin?.zipCode, load?.destination?.zipCode, load?.rate]);
+  }, [etaQuery.data?.distanceMeters, loadNorm?.origin?.zipCode, loadNorm?.origin?.zip, loadNorm?.destination?.zipCode, loadNorm?.destination?.zip, loadNorm?.rate]);
 
   if (loading) {
     return (
