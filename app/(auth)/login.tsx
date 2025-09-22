@@ -29,6 +29,8 @@ export default function LoginScreen() {
   const [selectedRole, setSelectedRole] = useState<UserRole>('driver');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState<number>(0);
+  const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const router = useRouter();
 
   const isValidEmail = (emailValue: string): boolean => {
@@ -119,33 +121,72 @@ export default function LoginScreen() {
       console.log(`[Access Restored for ${email.trim()}] Login successful`);
       
     } catch (error: any) {
-      console.error(`[Access Restored] Authentication failed for ${email.trim()}:`, error?.code, error?.message);
+      console.error(`[Handled Auth Error: ${error?.code || 'unknown'} for ${email.trim()}]`, error?.message);
       
-      // Relaxed error handling - log rejections but provide helpful messages
+      // Step 1: Enhanced error handling with prevention measures
+      const newRetryCount = retryCount + 1;
+      setRetryCount(newRetryCount);
+      
+      // Test user bypass - relax validation for known test emails
+      const testEmails = ['test1@test1.com', 'driver@truck.com', 'admin@loadrun.com', 'shipper@loadrun.com'];
+      const isTestUser = testEmails.includes(email.trim().toLowerCase());
+      
       if (
         error?.code === 'auth/invalid-credential' ||
         error?.code === 'auth/wrong-password' ||
         error?.code === 'auth/user-not-found'
       ) {
-        console.log(`[Access Restored] Invalid credentials rejected for ${email.trim()}`);
-        setErrorText('Invalid email or password. Please check your credentials.');
+        console.log(`[Handled Auth Error: invalid-credential for ${email.trim()}]`);
+        if (isTestUser && newRetryCount <= 3) {
+          setErrorText('Invalid credentials. Please check your email and password.');
+        } else {
+          setErrorText('Invalid email or password. Need help? Try "Forgot Password?" below.');
+        }
       } else if (error?.code === 'auth/too-many-requests') {
-        console.log(`[Access Restored] Rate limit hit for ${email.trim()}`);
-        setErrorText('Too many attempts. Please wait a moment and try again.');
+        console.log(`[Handled Auth Error: too-many-requests for ${email.trim()}]`);
+        setIsRateLimited(true);
+        setErrorText('Too many login attempts. Please wait 5 minutes before trying again.');
+        // Auto-reset rate limit after 5 minutes
+        setTimeout(() => {
+          setIsRateLimited(false);
+          setRetryCount(0);
+          console.log(`[Auth Error Prevention] Rate limit reset for ${email.trim()}`);
+        }, 5 * 60 * 1000);
+      } else if (error?.code === 'auth/user-disabled') {
+        console.log(`[Handled Auth Error: user-disabled for ${email.trim()}]`);
+        setErrorText('Account temporarily disabled. Please contact support.');
       } else if (error?.code === 'permission-denied') {
-        console.log(`[Access Restored] Permission denied for ${email.trim()}, but allowing retry`);
-        setErrorText('Temporary access issue. Please try again.');
+        console.log(`[Handled Auth Error: permission-denied for ${email.trim()}] - allowing retry`);
+        if (isTestUser) {
+          setErrorText('Access issue detected. Retrying should work.');
+        } else {
+          setErrorText('Temporary access issue. Please try again in a moment.');
+        }
       } else if (error?.code === 'auth/network-request-failed') {
-        console.log(`[Access Restored] Network error for ${email.trim()}`);
-        setErrorText('Network error. Please check your connection and try again.');
+        console.log(`[Handled Auth Error: network-request-failed for ${email.trim()}]`);
+        setErrorText('Network error. Please check your internet connection and try again.');
+      } else if (error?.code === 'auth/internal-error') {
+        console.log(`[Handled Auth Error: internal-error for ${email.trim()}]`);
+        setErrorText('Service temporarily unavailable. Please try again in a moment.');
       } else {
-        console.log(`[Access Restored] Unknown error for ${email.trim()}:`, error);
+        console.log(`[Handled Auth Error: ${error?.code || 'unknown'} for ${email.trim()}]`, error);
         setErrorText('Sign-in temporarily unavailable. Please try again.');
       }
+      
+      // Step 2: Prevent excessive retries in app
+      if (newRetryCount >= 5 && !isTestUser) {
+        setErrorText('Multiple failed attempts. Please wait a few minutes or use "Forgot Password?"');
+        setIsRateLimited(true);
+        setTimeout(() => {
+          setIsRateLimited(false);
+          setRetryCount(0);
+        }, 3 * 60 * 1000); // 3 minute cooldown
+      }
+      
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, selectedRole, router]);
+  }, [email, password, selectedRole, router, retryCount]);
 
   return (
     <SafeAreaView style={styles.container} testID="login-safe">
@@ -217,7 +258,12 @@ export default function LoginScreen() {
                 placeholder="Email"
                 placeholderTextColor={theme.colors.gray}
                 value={email}
-                onChangeText={(t: string) => { setEmail(t); setErrorText(null); }}
+                onChangeText={(t: string) => { 
+                  setEmail(t); 
+                  setErrorText(null);
+                  // Reset retry count when user changes input
+                  if (retryCount > 0) setRetryCount(0);
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -232,7 +278,12 @@ export default function LoginScreen() {
                 placeholder="Password"
                 placeholderTextColor={theme.colors.gray}
                 value={password}
-                onChangeText={(t: string) => { setPassword(t); setErrorText(null); }}
+                onChangeText={(t: string) => { 
+                  setPassword(t); 
+                  setErrorText(null);
+                  // Reset retry count when user changes input
+                  if (retryCount > 0) setRetryCount(0);
+                }}
                 secureTextEntry
                 autoComplete="password"
                 testID="login-password"
@@ -244,15 +295,17 @@ export default function LoginScreen() {
             )}
 
             <TouchableOpacity
-              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+              style={[styles.loginButton, (isLoading || isRateLimited) && styles.loginButtonDisabled]}
               onPress={handleLogin}
-              disabled={isLoading || !(email?.trim() && password?.trim())}
+              disabled={isLoading || isRateLimited || !(email?.trim() && password?.trim())}
               testID="login-submit"
             >
               {isLoading ? (
                 <ActivityIndicator color={theme.colors.white} />
               ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
+                <Text style={styles.loginButtonText}>
+                  {isRateLimited ? 'Please Wait...' : 'Sign In'}
+                </Text>
               )}
             </TouchableOpacity>
 
