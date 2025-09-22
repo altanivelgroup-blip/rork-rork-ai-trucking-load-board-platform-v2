@@ -275,7 +275,7 @@ export default function CSVBulkUploadScreen() {
   // FIXED: Load history on component mount - only run once
   useEffect(() => {
     loadImportHistory();
-  }, [loadImportHistory]); // FIXED: Include loadImportHistory in dependency array
+  }, []); // FIXED: Empty dependency array to run only once on mount
 
   const generateLoadId = useCallback(() => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
