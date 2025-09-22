@@ -23,8 +23,8 @@ export default function ShipperLoadsScreen() {
   const insets = useSafeAreaInsets();
   const { show } = useToast();
   const { user } = useAuth();
-  const { loads: allLoads, isLoading, refreshLoads, filters, setFilters } = useLoads();
-  const { deleteLoadWithToast } = useLoadsWithToast();
+  const { loads: allLoads, isLoading, refreshLoads, refreshMyPostedLoads, filters, setFilters } = useLoads();
+  const { deleteLoadWithToast, refreshMyPostedLoadsWithToast } = useLoadsWithToast();
   
   const [showFiltersModal, setShowFiltersModal] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -82,18 +82,27 @@ export default function ShipperLoadsScreen() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      console.log('[ShipperLoads] Refreshing live data...');
-      await refreshLoads();
-      setLastRefresh(new Date());
-      console.log('[ShipperLoads] ✅ Fixed: refreshed. Visible loads now =', (viewMode === 'my-loads' ? 'my ' : 'live '), 'count:', (typeof loads?.length === 'number' ? loads.length : 'n/a'));
-      show('Live data updated', 'success', 1500);
+      console.log('[ShipperLoads] Refreshing data for mode:', viewMode);
+      
+      if (viewMode === 'my-loads') {
+        // Use ownership-filtered query for "My Post History"
+        await refreshMyPostedLoadsWithToast();
+        console.log('[ShipperLoads] ✅ My posted loads refreshed with ownership filter');
+      } else {
+        // Use general loads query for live market
+        await refreshLoads();
+        setLastRefresh(new Date());
+        show('Live data updated', 'success', 1500);
+      }
+      
+      console.log('[ShipperLoads] ✅ Refresh complete. Mode:', viewMode, 'Count:', loads?.length || 0);
     } catch (error) {
       console.error('[ShipperLoads] Refresh failed:', error);
       show('Failed to refresh loads', 'error');
     } finally {
       setRefreshing(false);
     }
-  }, [refreshLoads, show]);
+  }, [viewMode, refreshLoads, refreshMyPostedLoadsWithToast, show, loads?.length]);
   
   const handleDeleteLoad = useCallback(async (loadId: string) => {
     try {
@@ -113,27 +122,40 @@ export default function ShipperLoadsScreen() {
   }, []);
   
   const loads = useMemo(() => {
-    console.log('[ShipperLoads] UNLIMITED LOADS - Processing loads for shipper visibility');
+    console.log('[ShipperLoads] Processing loads for shipper visibility');
     console.log('[ShipperLoads] Input allLoads count:', allLoads.length);
     console.log('[ShipperLoads] ViewMode:', viewMode);
     console.log('[ShipperLoads] User ID:', user?.id);
     
-    // Start from ALL loads (board) + local history to bypass 7-day board filter for shipper view
-    const mergeMap = new Map<string, any>();
-    (allLoads as any[]).forEach((l: any) => mergeMap.set(String(l.id), l));
-    myHistoryLoads.forEach((l: any) => mergeMap.set(String(l.id), { ...mergeMap.get(String(l.id)), ...l }));
-    let base: any[] = Array.from(mergeMap.values());
-
+    let base: any[];
+    
     if (viewMode === 'my-loads') {
-      // Show ALL loads posted by this shipper (includes bulk + manual; any status)
-      const myLoads = base.filter((load: any) => (load.shipperId === user?.id) || (load.createdBy === user?.id));
-      console.log('[ShipperLoads] FIXED - My loads count (all statuses, incl. history):', myLoads.length);
-      base = myLoads;
+      // For "My Post History", the loads are already filtered by ownership in refreshMyPostedLoads
+      // This uses the Firestore query: where("createdBy", "==", user.id)
+      // Plus defensive filtering for any local loads
+      const ownershipFiltered = allLoads.filter((load: any) => 
+        (load.shipperId === user?.id) || ((load as any).createdBy === user?.id)
+      );
+      
+      // Merge with local history for complete coverage
+      const mergeMap = new Map<string, any>();
+      ownershipFiltered.forEach((l: any) => mergeMap.set(String(l.id), l));
+      myHistoryLoads.forEach((l: any) => {
+        const existing = mergeMap.get(String(l.id));
+        if (!existing || (l.shipperId === user?.id || (l as any).createdBy === user?.id)) {
+          mergeMap.set(String(l.id), { ...existing, ...l });
+        }
+      });
+      
+      base = Array.from(mergeMap.values());
+      console.log('[ShipperLoads] ✅ My Post History (ownership filtered):', base.length);
     } else {
-      // Live market: keep as-is
-      console.log('[ShipperLoads] Live loads count (board filtered elsewhere):', base.length);
+      // Live market: show all available loads
+      base = [...allLoads];
+      console.log('[ShipperLoads] Live market loads:', base.length);
     }
 
+    // Apply additional filters
     if (showBulkOnly) {
       const bulkFiltered = base.filter((load: any) => !!load.bulkImportId);
       console.log('[ShipperLoads] Filter: Bulk only ->', bulkFiltered.length);
@@ -146,7 +168,7 @@ export default function ShipperLoadsScreen() {
       base = lastImportFiltered;
     }
 
-    console.log('[ShipperLoads] ✅ FIXED - Final visible count:', base.length);
+    console.log('[ShipperLoads] ✅ Final filtered count:', base.length);
     return base;
   }, [allLoads, myHistoryLoads, viewMode, user?.id, showBulkOnly, showLastImportOnly, lastBulkImportId]);
   
@@ -263,7 +285,7 @@ export default function ShipperLoadsScreen() {
             </View>
             <Text style={styles.toggleSubtext}>
               {viewMode === 'my-loads' 
-                ? 'Loads you have posted and their status' 
+                ? 'My Post History - loads I created (createdBy filter)' 
                 : 'Available loads from other shippers'
               }
             </Text>
@@ -337,7 +359,7 @@ export default function ShipperLoadsScreen() {
           <View style={styles.liveDataInfo}>
             <Text style={styles.debugBanner}>
               {viewMode === 'my-loads' 
-                ? `${loads.length} posted loads (all, incl. bulk/history)` 
+                ? `${loads.length} my posted loads (ownership filtered)` 
                 : `${loads.length} available loads`
               }
             </Text>

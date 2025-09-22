@@ -39,6 +39,7 @@ interface LoadsState {
   setFilters: (filters: LoadFilters) => void;
   acceptLoad: (loadId: string) => Promise<void>;
   refreshLoads: () => Promise<void>;
+  refreshMyPostedLoads: () => Promise<void>;
   addLoad: (load: Load) => Promise<void>;
   addLoadsBulk: (incoming: Load[]) => Promise<void>;
   deleteLoad: (loadId: string) => Promise<void>;
@@ -51,6 +52,7 @@ interface LoadsState {
 export interface LoadsWithToast {
   acceptLoadWithToast: (loadId: string) => Promise<void>;
   refreshLoadsWithToast: () => Promise<void>;
+  refreshMyPostedLoadsWithToast: () => Promise<void>;
   addLoadWithToast: (load: Load) => Promise<void>;
   addLoadsBulkWithToast: (incoming: Load[]) => Promise<void>;
   deleteLoadWithToast: (loadId: string) => Promise<void>;
@@ -351,6 +353,114 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       setIsLoading(false);
     }
   }, [mergeUniqueById, readPersisted]);
+
+  const refreshMyPostedLoads = useCallback(async () => {
+    console.log('[MY_POSTED_LOADS] 🚀 Starting my posted loads query...');
+    setIsLoading(true);
+    setSyncStatus('syncing');
+    
+    try {
+      const authed = await ensureFirebaseAuth();
+      const { db } = getFirebase();
+      
+      if (!authed || !db || !user?.id) {
+        console.warn('[MY_POSTED_LOADS] Auth failed or no user, falling back to persisted data');
+        const persisted = await readPersisted();
+        const myLoads = persisted.filter(load => 
+          load.shipperId === user?.id || (load as any).createdBy === user?.id
+        );
+        setLoads(myLoads);
+        setLastSyncTime(new Date());
+        setSyncStatus('idle');
+        return;
+      }
+      
+      // Query loads created by current user, newest first
+      const myLoadsQuery = query(
+        collection(db, LOADS_COLLECTION),
+        where("createdBy", "==", user.id),
+        orderBy("createdAt", "desc")
+      );
+      
+      const snap = await getDocs(myLoadsQuery);
+      console.log(`[MY_POSTED_LOADS] 📊 Found ${snap.docs.length} loads created by user`);
+      
+      const docs = snap.docs.map((doc) => {
+        const d: any = doc.data();
+        
+        // Skip archived loads
+        if (d?.isArchived === true) return null;
+        
+        const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
+        const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+        
+        // Handle multiple field formats for cross-platform compatibility - tolerant to old docs
+        const originText = typeof d?.origin === "object"
+          ? d.origin?.city
+          : (d?.originCity || '');
+        const originState = typeof d?.origin === "object"
+          ? d.origin?.state
+          : (d?.originState || '');
+        const destText = typeof d?.destination === "object"
+          ? d.destination?.city
+          : (d?.destCity || '');
+        const destState = typeof d?.destination === "object"
+          ? d.destination?.state
+          : (d?.destState || '');
+        
+        const rateVal = d?.rate ?? d?.rateAmount ?? d?.rateTotalUSD ?? 0;
+        
+        const mapped: Load = {
+          id: String(doc.id),
+          shipperId: String(d?.createdBy ?? 'unknown'),
+          shipperName: '',
+          origin: { address: '', city: originText, state: originState, zipCode: '', lat: 0, lng: 0 },
+          destination: { address: '', city: destText, state: destState, zipCode: '', lat: 0, lng: 0 },
+          distance: Number(d?.distance ?? d?.distanceMi ?? 0),
+          weight: Number(d?.weight ?? d?.weightLbs ?? 0),
+          vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'cargo-van',
+          rate: Number(rateVal),
+          ratePerMile: 0,
+          pickupDate: pickup,
+          deliveryDate: delivery,
+          status: d?.status || 'available',
+          description: String(d?.title ?? d?.description ?? ''),
+          special_requirements: undefined,
+          isBackhaul: false,
+          bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
+        };
+        return mapped;
+      }).filter((x): x is Load => x !== null);
+      
+      // Merge with persisted loads to ensure we have complete history
+      const persisted = await readPersisted();
+      const myPersistedLoads = persisted.filter(load => 
+        load.shipperId === user.id || (load as any).createdBy === user.id
+      );
+      
+      const mergedLoads = mergeUniqueById(docs, myPersistedLoads);
+      
+      console.log(`[MY_POSTED_LOADS] ✅ Successfully loaded ${mergedLoads.length} my posted loads`);
+      setLoads(mergedLoads);
+      setLastSyncTime(new Date());
+      setSyncStatus('idle');
+      
+    } catch (error: any) {
+      console.warn('[MY_POSTED_LOADS] Error during query, using persisted data:', error);
+      try {
+        const persisted = await readPersisted();
+        const myLoads = persisted.filter(load => 
+          load.shipperId === user?.id || (load as any).createdBy === user?.id
+        );
+        setLoads(myLoads);
+      } catch {
+        setLoads([]);
+      }
+      setSyncStatus('idle');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [mergeUniqueById, readPersisted, user]);
 
   const addLoad = useCallback(async (load: Load) => {
     setIsLoading(true);
@@ -801,6 +911,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       setFilters: setFiltersCallback,
       acceptLoad,
       refreshLoads,
+      refreshMyPostedLoads,
       addLoad,
       addLoadsBulk,
       deleteLoad,
@@ -810,7 +921,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
       updateLoadStatus,
     };
     return result;
-  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad, lastSyncTime, syncStatus, updateLoadStatus]);
+  }, [loads, filters, isLoading, filteredLoads, aiRecommendedLoads, currentLoad, favorites, isFavorited, toggleFavorite, setFiltersCallback, acceptLoad, refreshLoads, refreshMyPostedLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad, lastSyncTime, syncStatus, updateLoadStatus]);
 
   return value;
 });
@@ -844,6 +955,7 @@ function getDefaultLoadsState(): LoadsState {
     setFilters: () => {},
     acceptLoad: async () => {},
     refreshLoads: async () => {},
+    refreshMyPostedLoads: async () => {},
     addLoad: async () => {},
     addLoadsBulk: async () => {},
     deleteLoad: async () => {},
@@ -856,7 +968,7 @@ function getDefaultLoadsState(): LoadsState {
 
 export function useLoadsWithToast(): LoadsWithToast {
   // Always call hooks in the same order
-  const { acceptLoad, refreshLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad } = useLoads();
+  const { acceptLoad, refreshLoads, refreshMyPostedLoads, addLoad, addLoadsBulk, deleteLoad, deleteCompletedLoad } = useLoads();
   const { show } = useToast();
   const { online } = useOnlineStatus();
 
@@ -884,6 +996,19 @@ export function useLoadsWithToast(): LoadsWithToast {
       throw error;
     }
   }, [refreshLoads, show, online]);
+
+  const refreshMyPostedLoadsWithToast = useCallback(async () => {
+    try {
+      if (!online) {
+        show('Offline: showing cached loads', 'warning', 2200);
+      }
+      await refreshMyPostedLoads();
+      show('My posted loads updated', 'success', 1500);
+    } catch (error) {
+      show('Failed to refresh my loads', 'error', 2500);
+      throw error;
+    }
+  }, [refreshMyPostedLoads, show, online]);
 
   const addLoadWithToast = useCallback(async (load: Load) => {
     try {
@@ -928,6 +1053,7 @@ export function useLoadsWithToast(): LoadsWithToast {
   return {
     acceptLoadWithToast,
     refreshLoadsWithToast,
+    refreshMyPostedLoadsWithToast,
     addLoadWithToast,
     addLoadsBulkWithToast,
     deleteLoadWithToast,
