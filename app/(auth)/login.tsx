@@ -251,6 +251,13 @@ export default function LoginScreen() {
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
+          
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => router.push('/test-signin-debug')}
+          >
+            <Text style={styles.debugButtonText}>🔧 Debug Sign-In Issues</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -404,5 +411,18 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
     fontSize: theme.fontSize.sm,
     textAlign: 'center',
+  },
+  debugButton: {
+    backgroundColor: '#e74c3c',
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    marginTop: theme.spacing.lg,
+  },
+  debugButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
   },
 });
