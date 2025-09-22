@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { FileText, CheckCircle, AlertCircle } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { normalizeCsvRow } from '@/utils/csvNormalizer';
 import { addDoc, collection } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getFirebase } from '@/utils/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 
@@ -97,6 +97,7 @@ export default function BulkUploadTestScreen() {
       const normalizedDoc = normalizeCsvRow(testRow, user.id);
       
       // Add to Firestore
+      const { db } = getFirebase();
       const docRef = await addDoc(collection(db, 'loads'), {
         ...normalizedDoc,
         status: 'OPEN', // Override for compatibility
