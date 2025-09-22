@@ -66,19 +66,33 @@ export default function LoginScreen() {
       
       // Step 3: Load or create profile in Firestore 'users' collection
       const userRef = doc(db, 'users', firebaseUser.uid);
-      let userSnap;
+      let userSnap: any = null;
       
-      try {
-        userSnap = await getDoc(userRef);
-      } catch (firestoreError: any) {
-        console.error('[Sign-In Rewritten] Firestore access failed:', firestoreError);
-        if (firestoreError?.code === 'permission-denied') {
-          // Wait longer for auth to propagate and retry
-          await new Promise(resolve => setTimeout(resolve, 1000));
+      // Retry logic for Firestore access with exponential backoff
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
           userSnap = await getDoc(userRef);
-        } else {
-          throw firestoreError;
+          break; // Success, exit retry loop
+        } catch (firestoreError: any) {
+          console.error(`[Sign-In Rewritten] Firestore access failed (attempt ${retryCount + 1}):`, firestoreError);
+          
+          if (firestoreError?.code === 'permission-denied' && retryCount < maxRetries - 1) {
+            // Wait with exponential backoff before retrying
+            const waitTime = Math.pow(2, retryCount) * 500; // 500ms, 1s, 2s
+            console.log(`[Sign-In Rewritten] Retrying in ${waitTime}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            retryCount++;
+          } else {
+            throw firestoreError;
+          }
         }
+      }
+      
+      if (!userSnap) {
+        throw new Error('Failed to access user profile after multiple attempts');
       }
       
       let userRole: UserRole = selectedRole;
@@ -123,7 +137,7 @@ export default function LoginScreen() {
         router.replace('/(tabs)/dashboard');
       }
       
-      console.log(`Sign-In Rewritten: Success for ${firebaseUser.uid}`);
+      console.log(`[Sign-In Rewritten] Success for ${firebaseUser.uid}`);
       
     } catch (error: any) {
       console.error('[Sign-In Rewritten] Authentication failed:', error?.code, error?.message);
@@ -134,11 +148,13 @@ export default function LoginScreen() {
         error?.code === 'auth/wrong-password' ||
         error?.code === 'auth/user-not-found'
       ) {
-        setErrorText('Invalid credentials');
+        setErrorText('Invalid email or password');
       } else if (error?.code === 'auth/too-many-requests') {
         setErrorText('Too many failed attempts. Please try again later.');
       } else if (error?.code === 'permission-denied') {
-        setErrorText('Authentication error. Please try again.');
+        setErrorText('Database access error. Please try signing in again.');
+      } else if (error?.code === 'auth/network-request-failed') {
+        setErrorText('Network error. Please check your connection.');
       } else {
         setErrorText(error?.message || 'Sign-in failed. Please try again.');
       }
