@@ -603,6 +603,7 @@ export default function CSVBulkUploadScreen() {
       setNormalizedRows([]);
       setCurrentPage(0);
       setExpandedErrors(new Set());
+      setShowDuplicateChecker(false); // Reset duplicate checker state
       
       let headers: string[];
       let rows: CSVRow[];
@@ -692,27 +693,37 @@ export default function CSVBulkUploadScreen() {
       
       console.log(`[CSV PROCESSING] Processed ${normalizedWithDuplicateCheck.length} rows: ${validCount} valid, ${invalidCount} invalid, ${duplicateCount} duplicates`);
       
-      // Prepare data for AI duplicate checker
-      const validRowsWithIndex = normalizedWithDuplicateCheck
-        .map((row, idx) => ({ row, idx }))
-        .filter(({ row }) => row.status === 'valid');
+      // Prepare data for AI duplicate checker - only if we have valid rows
+      if (validCount > 1) {
+        console.log('[CSV PROCESSING] Preparing AI duplicate checker data...');
+        const validRowsWithIndex = normalizedWithDuplicateCheck
+          .map((row, idx) => ({ row, idx }))
+          .filter(({ row }) => row.status === 'valid');
 
-      const validLoads = validRowsWithIndex.map(({ row }) => ({
-        title: row.title || undefined,
-        origin: row.origin || '',
-        destination: row.destination || '',
-        pickupDate: row.pickupDate || undefined,
-        deliveryDate: row.deliveryDate || undefined,
-        rate: row.rate || 0,
-        equipmentType: row.equipmentType || undefined,
-      }));
+        const validLoads = validRowsWithIndex.map(({ row }) => ({
+          title: row.title || undefined,
+          origin: row.origin || '',
+          destination: row.destination || '',
+          pickupDate: row.pickupDate || undefined,
+          deliveryDate: row.deliveryDate || undefined,
+          rate: row.rate || 0,
+          equipmentType: row.equipmentType || undefined,
+        }));
 
-      const indexMap = validRowsWithIndex.map(({ idx }) => idx);
-      setValidIndexMap(indexMap);
-      setDuplicateCheckLoads(validLoads);
-      
-      if (validLoads.length > 1) {
-        setShowDuplicateChecker(true);
+        const indexMap = validRowsWithIndex.map(({ idx }) => idx);
+        setValidIndexMap(indexMap);
+        setDuplicateCheckLoads(validLoads);
+        
+        console.log('[CSV PROCESSING] AI duplicate checker will be shown for', validLoads.length, 'valid loads');
+        
+        // Show duplicate checker after a small delay to ensure state is updated
+        setTimeout(() => {
+          setShowDuplicateChecker(true);
+        }, 100);
+      } else {
+        console.log('[CSV PROCESSING] Skipping AI duplicate checker - not enough valid rows:', validCount);
+        setValidIndexMap([]);
+        setDuplicateCheckLoads([]);
       }
       
       return normalizedWithDuplicateCheck;
@@ -1645,8 +1656,20 @@ export default function CSVBulkUploadScreen() {
                   console.log('[PREVIEW BUTTON] processCSVData completed successfully');
                   
                   const validPreviewCount = processed.filter(r => r.status === 'valid').length;
+                  const invalidCount = processed.filter(r => r.status === 'invalid').length;
+                  const duplicateCount = processed.filter(r => r.status === 'duplicate').length;
+                  
                   if (processed.length > 0) {
-                    showToast(`✅ Preview loaded: ${processed.length} rows (${validPreviewCount} valid)`, 'success');
+                    let message = `✅ Preview loaded: ${processed.length} rows (${validPreviewCount} valid`;
+                    if (invalidCount > 0) message += `, ${invalidCount} invalid`;
+                    if (duplicateCount > 0) message += `, ${duplicateCount} duplicates`;
+                    message += ')';
+                    
+                    if (validPreviewCount > 1) {
+                      message += '. AI duplicate checker will analyze your data.';
+                    }
+                    
+                    showToast(message, 'success');
                   } else {
                     showToast('✅ Preview loaded successfully', 'success');
                   }
@@ -1688,10 +1711,10 @@ export default function CSVBulkUploadScreen() {
                 style={[
                   styles.actionButton, 
                   styles.importButton, 
-                  (normalizedRows.length > 0 && validCount > 0) ? { opacity: 1 } : { opacity: 0.5 }
+                  (normalizedRows.length > 0 && validCount > 0 && !showDuplicateChecker) ? { opacity: 1 } : { opacity: 0.5 }
                 ]}
                 onPress={handleImport}
-                disabled={normalizedRows.length === 0 || validCount === 0 || isImporting}
+                disabled={normalizedRows.length === 0 || validCount === 0 || isImporting || showDuplicateChecker}
               >
                 {isImporting ? (
                   <ActivityIndicator size="small" color={theme.colors.white} />
@@ -1700,6 +1723,7 @@ export default function CSVBulkUploadScreen() {
                 )}
                 <Text style={styles.actionButtonText}>
                   {isImporting ? 'Processing...' : 
+                   showDuplicateChecker ? 'Complete AI Check First' :
                    normalizedRows.length === 0 ? 'Import Valid Rows' :
                    `Import ${validCount} Valid Rows`}
                 </Text>
@@ -2035,6 +2059,7 @@ export default function CSVBulkUploadScreen() {
           console.log('[DUPLICATE CHECKER] Resolved:', { resolvedLoads: resolvedLoads.length, removed: removedIndices.length });
           
           try {
+            // Map removed indices from the valid loads array back to the full normalized rows array
             const toMarkDuplicate = new Set<number>(removedIndices.map((i) => validIndexMap[i]));
 
             const updatedRows = normalizedRows.map((row, index) => {
@@ -2052,14 +2077,21 @@ export default function CSVBulkUploadScreen() {
               original: normalizedRows.length,
               updated: updatedRows.length,
               validBefore: normalizedRows.filter(r => r.status === 'valid').length,
-              validAfter: updatedRows.filter(r => r.status === 'valid').length
+              validAfter: updatedRows.filter(r => r.status === 'valid').length,
+              markedAsDuplicate: toMarkDuplicate.size
             });
             
             setNormalizedRows(updatedRows);
             setShowDuplicateChecker(false);
             
             const remainingValid = updatedRows.filter(r => r.status === 'valid').length;
-            showToast(`AI analysis complete. ${remainingValid} unique loads ready for import.`, 'success');
+            const markedDuplicates = toMarkDuplicate.size;
+            
+            if (markedDuplicates > 0) {
+              showToast(`✅ AI analysis complete. ${remainingValid} unique loads ready for import (${markedDuplicates} duplicates removed).`, 'success');
+            } else {
+              showToast(`✅ AI analysis complete. ${remainingValid} unique loads ready for import.`, 'success');
+            }
           } catch (error: any) {
             console.error('[DUPLICATE CHECKER] Error updating rows:', error);
             setShowDuplicateChecker(false);

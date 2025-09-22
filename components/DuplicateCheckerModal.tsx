@@ -117,20 +117,27 @@ export default function DuplicateCheckerModal({ visible, onClose, loads, onResol
 
     try {
       const removedIndices: number[] = [];
+      
+      // If there are duplicates, process the selected actions
+      if (checkResult.duplicates.length > 0) {
+        checkResult.duplicates.forEach((duplicate) => {
+          const action = selectedActions[duplicate.loadIndex] || duplicate.recommendation;
+          if (action === 'skip_new' || action === 'delete_existing') {
+            removedIndices.push(duplicate.loadIndex);
+          }
+        });
+      }
+      
       const resolvedLoads = loads.filter((load, index) => {
-        const action = selectedActions[index];
-        if (action === 'skip_new' || action === 'delete_existing') {
-          removedIndices.push(index);
-          return false;
-        }
-        return true;
+        return !removedIndices.includes(index);
       });
 
       console.log('[DuplicateCheckerModal] Resolution summary:', {
         originalLoads: loads.length,
         resolvedLoads: resolvedLoads.length,
         removedCount: removedIndices.length,
-        removedIndices
+        removedIndices,
+        duplicatesFound: checkResult.duplicates.length
       });
 
       // Close modal first to prevent UI issues
@@ -395,7 +402,15 @@ export default function DuplicateCheckerModal({ visible, onClose, loads, onResol
               </TouchableOpacity>
             </>
           ) : checkResult ? (
-            <TouchableOpacity testID="duplicate-check-continue" style={styles.primaryButton} onPress={onClose}>
+            <TouchableOpacity 
+              testID="duplicate-check-continue" 
+              style={styles.primaryButton} 
+              onPress={() => {
+                console.log('[DuplicateCheckerModal] No duplicates found, continuing with upload');
+                // Call onResolved with all loads and no removed indices
+                onResolved(loads, []);
+              }}
+            >
               <Text style={styles.primaryButtonText}>Continue with Upload</Text>
             </TouchableOpacity>
           ) : (
