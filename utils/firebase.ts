@@ -388,96 +388,67 @@ export async function refreshMultipleStorageUrls(urls: string[]): Promise<string
 
 // PERMANENT FIX: Comprehensive Firebase access verification with unlimited load testing
 export async function checkFirebasePermissions(): Promise<{ canRead: boolean; canWrite: boolean; error?: string; loadCount?: number }> {
-  console.log('[PERMANENT_PERMISSION_TEST] 🧪 Starting comprehensive permission verification...');
-  console.log('[PERMANENT_PERMISSION_TEST] ♾️ Testing unlimited load access across all platforms...');
-  
-  try {
-    // Skip forcing authentication; anonymous auth disabled
-    const authSuccess = !!auth?.currentUser;
-    if (!authSuccess) {
-      console.warn('[PERMANENT_PERMISSION_TEST] Auth not available; running limited checks');
-    }
-    
-    console.log('[PERMANENT_PERMISSION_TEST] Proceeding with permission checks...');
+  const toErr = (e: any): string => {
+    if (!e) return 'Unknown error';
+    if (typeof e === 'string') return e;
+    const code = (e.code ?? e.name ?? '').toString();
+    const msg = (e.message ?? '').toString();
+    if (msg.includes('Failed to fetch')) return 'Network error (Failed to fetch). Check connection, CORS, or ad/tracker blockers.';
+    if (code === 'permission-denied') return 'permission-denied';
+    return [code, msg].filter(Boolean).join(': ') || 'Unknown error';
+  };
 
-    // Test read permissions with unlimited query (no limit)
+  console.log('[PERMANENT_PERMISSION_TEST] 🧪 Starting comprehensive permission verification...');
+
+  try {
+    const isAuthed = !!auth?.currentUser;
+    if (!isAuthed) {
+      console.warn('[PERMANENT_PERMISSION_TEST] No authenticated user. Skipping write test. Read test will still run.');
+    }
+
     let loadCount = 0;
     try {
-      console.log('[PERMANENT_PERMISSION_TEST] 📖 Testing unlimited read permissions...');
-      const { collection, getDocs, query } = await import('firebase/firestore');
-      
-      // Test with unlimited query (no limit) to match production usage
-      const testQuery = query(collection(db, 'loads'));
+      console.log('[PERMANENT_PERMISSION_TEST] 📖 Testing read permissions (limit 1)...');
+      const { collection, getDocs, query, limit } = await import('firebase/firestore');
+      const testQuery = query(collection(db, 'loads'), limit(1));
       const snapshot = await getDocs(testQuery);
       loadCount = snapshot.docs.length;
-      
-      console.log(`[PERMANENT_PERMISSION_TEST] ✅ Unlimited read test successful - found ${loadCount} documents`);
-      console.log('[PERMANENT_PERMISSION_TEST] ✅ All loads accessible across all platforms');
-      console.log('[PERMANENT_PERMISSION_TEST] ♾️ No load limits enforced - showing all available loads');
+      console.log(`[PERMANENT_PERMISSION_TEST] ✅ Read test successful (${loadCount})`);
     } catch (readError: any) {
-      console.error('[PERMANENT_PERMISSION_TEST] ❌ Read test failed:', readError.code, readError.message);
+      const errStr = toErr(readError);
+      console.error('[PERMANENT_PERMISSION_TEST] ❌ Read test failed:', errStr);
       console.error('[PERMANENT_PERMISSION_TEST] 🔧 This is the root cause of cross-platform load visibility issues');
-      return {
-        canRead: false,
-        canWrite: false,
-        error: `Read permission denied: ${readError.message}`,
-        loadCount: 0
-      };
+      return { canRead: false, canWrite: false, error: `Read permission denied: ${errStr}`, loadCount: 0 };
     }
 
-    // Test write permissions
+    if (!isAuthed) {
+      return { canRead: true, canWrite: false, error: 'Not signed in. Write requires authentication.', loadCount };
+    }
+
     try {
       console.log('[PERMANENT_PERMISSION_TEST] ✏️ Testing write permissions...');
       const { doc, setDoc, deleteDoc, serverTimestamp } = await import('firebase/firestore');
       const testDocId = 'permanent-permission-test-' + Date.now();
       const testDoc = doc(db, 'loads', testDocId);
-      
-      // Test write
       await setDoc(testDoc, {
         test: true,
         testType: 'permanent-permission-verification',
         createdAt: serverTimestamp(),
         createdBy: auth.currentUser?.uid,
-        platform: 'cross-platform-test',
-        unlimited: true,
-        crossPlatformVisible: true
+        platform: 'cross-platform-test'
       });
-      
-      console.log('[PERMANENT_PERMISSION_TEST] ✅ Write test successful');
-      
-      // Test delete
       await deleteDoc(testDoc);
-      console.log('[PERMANENT_PERMISSION_TEST] ✅ Delete test successful');
-      
-      console.log('[PERMANENT_PERMISSION_TEST] 🎉 ALL PERMISSIONS VERIFIED');
-      console.log('[PERMANENT_PERMISSION_TEST] 🎉 Cross-platform unlimited access confirmed');
-      console.log(`[PERMANENT_PERMISSION_TEST] 🎉 ${loadCount} loads accessible across all platforms`);
-      
-      return {
-        canRead: true,
-        canWrite: true,
-        error: undefined,
-        loadCount
-      };
+      console.log('[PERMANENT_PERMISSION_TEST] ✅ Write/delete test successful');
+      return { canRead: true, canWrite: true, loadCount };
     } catch (writeError: any) {
-      console.error('[PERMANENT_PERMISSION_TEST] ❌ Write test failed:', writeError.code, writeError.message);
-      console.error('[PERMANENT_PERMISSION_TEST] 🔧 Write permissions may be restricted');
-      
-      return {
-        canRead: true,
-        canWrite: false,
-        error: `Write permission denied: ${writeError.message}`,
-        loadCount
-      };
+      const errStr = toErr(writeError);
+      console.error('[PERMANENT_PERMISSION_TEST] ❌ Write test failed:', errStr);
+      return { canRead: true, canWrite: false, error: `Write permission denied: ${errStr}`, loadCount };
     }
   } catch (error: any) {
-    console.error('[PERMANENT_PERMISSION_TEST] ❌ Permission test failed:', error);
-    return {
-      canRead: false,
-      canWrite: false,
-      error: error.message || 'Unknown permission error',
-      loadCount: 0
-    };
+    const errStr = toErr(error);
+    console.error('[PERMANENT_PERMISSION_TEST] ❌ Permission test failed:', errStr);
+    return { canRead: false, canWrite: false, error: errStr, loadCount: 0 };
   }
 }
 

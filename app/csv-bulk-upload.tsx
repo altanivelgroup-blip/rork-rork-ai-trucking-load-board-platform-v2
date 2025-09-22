@@ -968,30 +968,37 @@ export default function CSVBulkUploadScreen() {
       
       console.log(`[BULK UPLOAD] Processing ${validRows.length} valid rows with bulk ID: ${bulkImportId}`);
       
-      // Preflight: ensure write permission before we start
+      // Preflight: ensure auth & permissions before we start
       try {
+        console.log('[BULK UPLOAD] Ensuring Firebase auth before permission check...');
+        const { ensureFirebaseAuth, checkFirebasePermissions } = await import('@/utils/firebase');
+        const authed = await ensureFirebaseAuth();
+        console.log('[BULK UPLOAD] ensureFirebaseAuth ->', authed);
+
         console.log('[BULK UPLOAD] Starting permission check...');
-        const { checkFirebasePermissions } = await import('@/utils/firebase');
-        console.log('[BULK UPLOAD] Imported checkFirebasePermissions function');
-        
         const perms = await checkFirebasePermissions();
         console.log('[BULK UPLOAD] Permission check result:', perms);
-        
-        if (!perms.canWrite) {
-          const errorMsg = `❌ Missing write permissions to Firestore. ${perms.error ?? 'Please check your account permissions.'}`.trim();
-          console.error('[BULK UPLOAD] Permission check failed:', perms);
-          throw new Error(errorMsg);
+
+        if (!perms.canRead) {
+          const msg = perms.error || 'Read permission failed.';
+          throw new Error(`❌ Firestore read check failed: ${msg}`);
         }
-        
-        console.log('[BULK UPLOAD] Permission check passed - can write to Firestore');
+        if (!perms.canWrite) {
+          const base = perms.error || 'Write permission denied.';
+          const hint = base.includes('Failed to fetch') ? ' Check network/CORS or try disabling ad/tracker blockers.' : '';
+          throw new Error(`❌ Missing write permissions to Firestore. ${base}${hint}`.trim());
+        }
+
+        console.log('[BULK UPLOAD] Permission check passed - can read/write to Firestore');
       } catch (preErr: any) {
-        console.error('[BULK UPLOAD] Permission check error:', preErr);
-        console.error('[BULK UPLOAD] Permission check error details:', {
-          name: preErr.name,
-          message: preErr.message,
-          stack: preErr.stack
-        });
-        throw new Error(preErr?.message || 'Permission check failed');
+        const msg = typeof preErr?.message === 'string' ? preErr.message : 'Permission check failed';
+        console.error('[BULK UPLOAD] Permission check error:', msg);
+        console.error('[BULK UPLOAD] Permission check error details:', JSON.stringify({
+          name: preErr?.name,
+          message: preErr?.message,
+          stack: preErr?.stack
+        }));
+        throw new Error(msg);
       }
 
       // Process in batches with duplicate checking
