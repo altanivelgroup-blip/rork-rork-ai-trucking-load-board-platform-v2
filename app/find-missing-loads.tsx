@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,7 +7,12 @@ import { useLoads } from '@/hooks/useLoads';
 import { mockLoads } from '@/mocks/loads';
 import { getCache, setCache, clearCache } from '@/utils/simpleCache';
 import { Load } from '@/types';
-import { RefreshCw, Search, Database, Upload } from 'lucide-react-native';
+import { RefreshCw, Search, Database, Upload, FileText, Clock, MapPin } from 'lucide-react-native';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/components/Toast';
+import HeaderBack from '@/components/HeaderBack';
 
 interface StorageInfo {
   key: string;
@@ -16,12 +21,98 @@ interface StorageInfo {
   source: string;
 }
 
+interface FirestoreSearchResult {
+  id: string;
+  title?: string;
+  origin?: any;
+  destination?: any;
+  rate?: number;
+  createdAt?: any;
+  bulkImportId?: string;
+  status?: string;
+  createdBy?: string;
+}
+
 export default function FindMissingLoadsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { show } = useToast();
   const { loads: currentLoads, refreshLoads, addLoadsBulk } = useLoads();
   const [storageInfo, setStorageInfo] = useState<StorageInfo[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [totalFound, setTotalFound] = useState(0);
+  const [firestoreResults, setFirestoreResults] = useState<FirestoreSearchResult[]>([]);
+  const [isSearchingFirestore, setIsSearchingFirestore] = useState(false);
+  const [lastBulkImportId, setLastBulkImportId] = useState<string | null>(null);
+
+  const searchFirestore = async () => {
+    setIsSearchingFirestore(true);
+    const results: FirestoreSearchResult[] = [];
+    
+    try {
+      console.log('[FIND LOADS] 🔍 Starting Firestore search...');
+      
+      const { db } = getFirebase();
+      
+      // Search for all loads (no user filter first)
+      console.log('[FIND LOADS] Searching all loads in Firestore...');
+      const allLoadsQuery = query(
+        collection(db, 'loads'),
+        orderBy('createdAt', 'desc'),
+        limit(100)
+      );
+      const allLoadsSnap = await getDocs(allLoadsQuery);
+      console.log('[FIND LOADS] Found', allLoadsSnap.docs.length, 'total loads in Firestore');
+      
+      allLoadsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        results.push({
+          id: doc.id,
+          title: data.title,
+          origin: data.origin || data.originCity,
+          destination: data.destination || data.destCity,
+          rate: data.rate || data.rateTotalUSD,
+          createdAt: data.createdAt,
+          bulkImportId: data.bulkImportId,
+          status: data.status,
+          createdBy: data.createdBy
+        });
+      });
+      
+      // Search for bulk import loads specifically
+      if (lastBulkImportId) {
+        console.log('[FIND LOADS] Searching for bulk import loads with ID:', lastBulkImportId);
+        const bulkLoadsQuery = query(
+          collection(db, 'loads'),
+          where('bulkImportId', '==', lastBulkImportId)
+        );
+        const bulkLoadsSnap = await getDocs(bulkLoadsQuery);
+        console.log('[FIND LOADS] Found', bulkLoadsSnap.docs.length, 'loads with bulk import ID');
+      }
+      
+      // If we have a user, also search for user-specific loads
+      if (user?.id) {
+        console.log('[FIND LOADS] Searching user-specific loads for:', user.id);
+        const userLoadsQuery = query(
+          collection(db, 'loads'),
+          where('createdBy', '==', user.id),
+          orderBy('createdAt', 'desc'),
+          limit(50)
+        );
+        const userLoadsSnap = await getDocs(userLoadsQuery);
+        console.log('[FIND LOADS] Found', userLoadsSnap.docs.length, 'user-specific loads');
+      }
+      
+      setFirestoreResults(results);
+      show(`Found ${results.length} loads in Firestore`, 'success');
+      
+    } catch (error: any) {
+      console.warn('[FIND LOADS] Firestore search failed:', error);
+      show(`Firestore search failed: ${error.message}`, 'error');
+    } finally {
+      setIsSearchingFirestore(false);
+    }
+  };
 
   const scanAllStorage = async () => {
     setIsScanning(true);
@@ -29,6 +120,10 @@ export default function FindMissingLoadsScreen() {
     let total = 0;
 
     try {
+      // Get last bulk import ID
+      const bulkId = await AsyncStorage.getItem('lastBulkImportId');
+      setLastBulkImportId(bulkId);
+      
       // Check all possible storage keys
       const keysToCheck = [
         'userPostedLoads',
@@ -102,6 +197,10 @@ export default function FindMissingLoadsScreen() {
 
       setStorageInfo(info);
       setTotalFound(total);
+      
+      // Also search Firestore
+      await searchFirestore();
+      
     } catch (error) {
       console.error('Storage scan failed:', error);
       Alert.alert('Error', 'Failed to scan storage');
@@ -252,21 +351,92 @@ export default function FindMissingLoadsScreen() {
     scanAllStorage();
   }, []);
 
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return 'Unknown';
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
+  const formatLocation = (location: any) => {
+    if (typeof location === 'string') return location;
+    if (location?.city && location?.state) return `${location.city}, ${location.state}`;
+    if (location?.city) return location.city;
+    return 'Unknown';
+  };
+
+  const restoreFirestoreLoads = async () => {
+    if (firestoreResults.length === 0) {
+      Alert.alert('No Data', 'No Firestore loads found to restore.');
+      return;
+    }
+    
+    try {
+      // Transform Firestore results to Load format
+      const transformedLoads = firestoreResults.map((item: any) => ({
+        id: item.id,
+        shipperId: item.createdBy || 'unknown',
+        shipperName: '',
+        origin: {
+          address: '',
+          city: formatLocation(item.origin),
+          state: '',
+          zipCode: '',
+          lat: 0,
+          lng: 0,
+        },
+        destination: {
+          address: '',
+          city: formatLocation(item.destination),
+          state: '',
+          zipCode: '',
+          lat: 0,
+          lng: 0,
+        },
+        distance: 0,
+        weight: 0,
+        vehicleType: 'cargo-van' as any,
+        rate: Number(item.rate || 0),
+        ratePerMile: 0,
+        pickupDate: new Date(),
+        deliveryDate: new Date(),
+        status: 'available' as any,
+        description: String(item.title || ''),
+        isBackhaul: false,
+        bulkImportId: item.bulkImportId,
+      }));
+      
+      await addLoadsBulk(transformedLoads);
+      Alert.alert(
+        'Success', 
+        `Restored ${transformedLoads.length} loads from Firestore`,
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (error) {
+      console.error('Firestore restore failed:', error);
+      Alert.alert('Error', 'Failed to restore loads from Firestore');
+    }
+  };
+
   return (
     <>
       <Stack.Screen 
         options={{ 
           title: 'Find Missing Loads',
+          headerLeft: () => <HeaderBack />,
           headerRight: () => (
             <TouchableOpacity 
               onPress={scanAllStorage}
-              disabled={isScanning}
+              disabled={isScanning || isSearchingFirestore}
               style={{ padding: 8 }}
             >
               <RefreshCw 
                 size={20} 
                 color={theme.colors.primary}
-                style={isScanning ? { transform: [{ rotate: '180deg' }] } : undefined}
+                style={(isScanning || isSearchingFirestore) ? { transform: [{ rotate: '180deg' }] } : undefined}
               />
             </TouchableOpacity>
           )
@@ -274,6 +444,7 @@ export default function FindMissingLoadsScreen() {
       />
       <ScrollView style={styles.container}>
         <View style={styles.header}>
+          <Search size={32} color={theme.colors.primary} />
           <Text style={styles.title}>🔍 Load Recovery Tool</Text>
           <Text style={styles.subtitle}>
             Current loads in memory: {currentLoads.length}
@@ -281,14 +452,85 @@ export default function FindMissingLoadsScreen() {
           <Text style={styles.subtitle}>
             Total found in storage: {totalFound}
           </Text>
+          <Text style={styles.subtitle}>
+            Firestore loads found: {firestoreResults.length}
+          </Text>
+          {lastBulkImportId && (
+            <Text style={styles.subtitle}>
+              Last bulk import ID: {lastBulkImportId}
+            </Text>
+          )}
         </View>
 
-        {isScanning ? (
+        {(isScanning || isSearchingFirestore) ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Scanning storage...</Text>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={styles.loadingText}>
+              {isScanning ? 'Scanning storage...' : 'Searching Firestore...'}
+            </Text>
           </View>
         ) : (
           <View style={styles.storageList}>
+            {/* Firestore Results Section */}
+            {firestoreResults.length > 0 && (
+              <View style={styles.storageItem}>
+                <View style={styles.storageHeader}>
+                  <View style={styles.storageInfo}>
+                    <Text style={styles.storageKey}>🔥 Firestore Loads</Text>
+                    <Text style={styles.storageSource}>Firebase Firestore</Text>
+                    <Text style={styles.storageCount}>{firestoreResults.length} loads found</Text>
+                    {lastBulkImportId && (
+                      <Text style={styles.bulkImportInfo}>
+                        Bulk imports with ID: {lastBulkImportId}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.storageActions}>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={restoreFirestoreLoads}
+                    >
+                      <Upload size={16} color={theme.colors.white} />
+                      <Text style={styles.actionButtonText}>Restore All</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: theme.colors.success }]}
+                      onPress={() => router.push('/(tabs)/loads')}
+                    >
+                      <Database size={16} color={theme.colors.white} />
+                      <Text style={styles.actionButtonText}>View</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                {/* Show sample Firestore loads */}
+                <View style={styles.sampleData}>
+                  <Text style={styles.sampleTitle}>Recent Firestore loads:</Text>
+                  {firestoreResults.slice(0, 3).map((load, idx) => (
+                    <View key={idx} style={styles.loadPreview}>
+                      <View style={styles.loadPreviewHeader}>
+                        <Text style={styles.loadPreviewTitle}>{load.title || load.id}</Text>
+                        {load.bulkImportId && (
+                          <View style={styles.bulkBadge}>
+                            <Text style={styles.bulkBadgeText}>BULK</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.loadPreviewDetails}>
+                        <MapPin size={12} color={theme.colors.gray} />
+                        <Text style={styles.loadPreviewText}>
+                          {formatLocation(load.origin)} → {formatLocation(load.destination)}
+                        </Text>
+                      </View>
+                      <Text style={styles.loadPreviewText}>Rate: ${load.rate || 0}</Text>
+                      <Text style={styles.loadPreviewText}>Created: {formatDate(load.createdAt)}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+            
+            {/* Local Storage Results */}
             {storageInfo.map((item, index) => (
               <View key={index} style={styles.storageItem}>
                 <View style={styles.storageHeader}>
@@ -366,6 +608,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.lightGray,
   },
   header: {
+    alignItems: 'center',
     padding: theme.spacing.lg,
     backgroundColor: theme.colors.white,
     borderBottomWidth: 1,
@@ -469,6 +712,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.gray,
     fontFamily: 'monospace',
+  },
+  bulkImportInfo: {
+    fontSize: 12,
+    color: '#FF6B35',
+    fontWeight: '600',
+    marginTop: theme.spacing.xs,
+  },
+  loadPreview: {
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.xs,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.primary,
+  },
+  loadPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  loadPreviewTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    flex: 1,
+  },
+  bulkBadge: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  bulkBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  loadPreviewDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+  },
+  loadPreviewText: {
+    fontSize: 12,
+    color: theme.colors.gray,
   },
   actions: {
     padding: theme.spacing.lg,
