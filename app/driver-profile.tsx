@@ -921,18 +921,20 @@ export default function DriverProfileScreen() {
           </TouchableOpacity>
         </View>
         
-        {/* Debug Info - Only show in development */}
-        {__DEV__ && (
-          <View style={styles.debugInfo}>
-            <Text style={styles.debugText}>Debug Info:</Text>
-            <Text style={styles.debugText}>User ID: {userId || 'None'}</Text>
-            <Text style={styles.debugText}>User Role: {user?.role || 'None'}</Text>
-            <Text style={styles.debugText}>Submitting: {submitting ? 'Yes' : 'No'}</Text>
-            <Text style={styles.debugText}>Validating: {validatingExperience ? 'Yes' : 'No'}</Text>
-            <Text style={styles.debugText}>Form Name: {formData.name || 'Empty'}</Text>
-            <Text style={styles.debugText}>Form Email: {formData.email || 'Empty'}</Text>
-          </View>
-        )}
+        {/* Debug Info - Always show for driver profile persistence verification */}
+        <View style={styles.debugInfo}>
+          <Text style={styles.debugText}>🔧 Driver Profile Status:</Text>
+          <Text style={styles.debugText}>User ID: {userId || 'None'}</Text>
+          <Text style={styles.debugText}>User Role: {user?.role || 'None'}</Text>
+          <Text style={styles.debugText}>Submitting: {submitting ? 'Yes' : 'No'}</Text>
+          <Text style={styles.debugText}>Validating: {validatingExperience ? 'Yes' : 'No'}</Text>
+          <Text style={styles.debugText}>Form Name: {formData.name || 'Empty'}</Text>
+          <Text style={styles.debugText}>Form Email: {formData.email || 'Empty'}</Text>
+          <Text style={styles.debugText}>Form MPG: {formData.mpgRated || 'Empty'}</Text>
+          <Text style={styles.debugText}>Profile Loaded: {user ? 'Yes' : 'No'}</Text>
+          <Text style={styles.debugText}>Has Fuel Profile: {user && (user as any).fuelProfile ? 'Yes' : 'No'}</Text>
+          <Text style={styles.debugText}>Current MPG: {user && (user as any).fuelProfile?.averageMpg || (user as any).mpgRated || 'Not set'}</Text>
+        </View>
       </ScrollView>
     </View>
   );
