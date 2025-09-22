@@ -169,25 +169,51 @@ export default function DashboardScreen() {
       const cacheKey = `cache:userProfile:${user.id}`;
       console.log('[Dashboard] ⏳ Fetching profile with timeout for user:', user.id);
       try {
-        const collection = user.role === 'driver' ? 'drivers' : user.role === 'shipper' ? 'shippers' : 'users';
-        const userDocRef = doc(db, collection, user.id);
-        const fetchPromise = getDoc(userDocRef);
+        const primaryCollection = user.role === 'driver' ? 'drivers' : user.role === 'shipper' ? 'shippers' : 'users';
+        const primaryRef = doc(db, primaryCollection, user.id);
+        const fetchPrimary = getDoc(primaryRef);
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
         const timeoutPromise = new Promise((_, reject) => {
-          const id = setTimeout(() => {
-            clearTimeout(id as unknown as number);
+          timeoutId = setTimeout(() => {
             reject(new Error('Profile fetch timeout after 5s'));
           }, 5000);
         });
-        const snap = (await Promise.race([fetchPromise, timeoutPromise])) as Awaited<ReturnType<typeof getDoc>>;
-        if (snap && 'exists' in snap && snap.exists()) {
-          const data = snap.data() as Record<string, unknown>;
+        const snapPrimary = (await Promise.race([fetchPrimary, timeoutPromise])) as Awaited<ReturnType<typeof getDoc>>;
+        if (timeoutId) clearTimeout(timeoutId);
+
+        let data: Record<string, unknown> | null = null;
+        if (snapPrimary && 'exists' in snapPrimary && snapPrimary.exists()) {
+          data = snapPrimary.data() as Record<string, unknown>;
+        } else {
+          console.log('[Dashboard] ⚠️ Primary profile doc missing in', primaryCollection, '— trying users/ fallback');
+          const usersRef = doc(db, 'users', user.id);
+          let fallbackTimeout: ReturnType<typeof setTimeout> | null = null;
+          const fetchUsers = getDoc(usersRef);
+          const timeoutUsers = new Promise((_, reject) => {
+            fallbackTimeout = setTimeout(() => reject(new Error('Users fallback timeout after 5s')), 5000);
+          });
+          const snapUsers = (await Promise.race([fetchUsers, timeoutUsers])) as Awaited<ReturnType<typeof getDoc>>;
+          if (fallbackTimeout) clearTimeout(fallbackTimeout);
+          if (snapUsers && 'exists' in snapUsers && snapUsers.exists()) {
+            data = snapUsers.data() as Record<string, unknown>;
+          }
+        }
+
+        if (data) {
           setProfileDoc(data);
-          const firestoreName = (data as any).displayName || (data as any).name || (data as any).fullName || user.name;
-          setDisplayName(firestoreName ?? user.name);
+          const firestoreName =
+            (data as any).displayName ||
+            (data as any).name ||
+            (data as any).fullName ||
+            (data as any)?.profileData?.fullName ||
+            (data as any)?.profile?.fullName ||
+            ([ (data as any)?.firstName, (data as any)?.lastName].filter(Boolean).join(' ') || undefined) ||
+            user.name;
+          setDisplayName((firestoreName as string | undefined) ?? user.name);
           await permanentSave(cacheKey, data);
           console.log('[Dashboard] Dashboard Loaded: Success');
         } else {
-          console.log('[Dashboard] ⚠️ No profile doc, using cached user');
+          console.log('[Dashboard] ⚠️ No profile doc anywhere, using cached user');
           setDisplayName(user.name);
           setProfileDoc(null);
           console.log('[Dashboard] Fallback Used');
@@ -199,8 +225,15 @@ export default function DashboardScreen() {
           if (loaded) {
             const data = loaded as Record<string, unknown>;
             setProfileDoc(data);
-            const firestoreName = (data as any).displayName || (data as any).name || (data as any).fullName || user.name;
-            setDisplayName(firestoreName ?? user.name);
+            const firestoreName =
+              (data as any).displayName ||
+              (data as any).name ||
+              (data as any).fullName ||
+              (data as any)?.profileData?.fullName ||
+              (data as any)?.profile?.fullName ||
+              ([ (data as any)?.firstName, (data as any)?.lastName].filter(Boolean).join(' ') || undefined) ||
+              user.name;
+            setDisplayName((firestoreName as string | undefined) ?? user.name);
             console.log('[Dashboard] Fallback Used (cache)');
           } else {
             setDisplayName(user.name);
@@ -579,7 +612,7 @@ export default function DashboardScreen() {
             <View style={styles.welcomeTextContainer}>
               <Text style={styles.welcomeText}>Welcome back,</Text>
               <Text style={styles.welcomeName} allowFontScaling={false}>
-                {nameLoading ? 'Loading...' : (displayName || user?.name)?.split(' ')[0] ?? 'Driver'}
+                {(displayName || user?.name || 'Driver').toString().split(' ')[0]}
               </Text>
               {user?.role === 'driver' && (
                 <Text style={styles.analyticsStatus}>

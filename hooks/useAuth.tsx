@@ -7,7 +7,7 @@ import { auth, ensureFirebaseAuth, db } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { crossPlatformStorage, permanentSave, permanentLoad, getPlatformOptimizedKeys } from '@/utils/crossPlatformStorage';
 
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
 
 // PERMANENT FIX: Platform detection with fallbacks
@@ -315,6 +315,47 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     // Run immediately with no delays for instant activation
     initAnalytics();
   }, [user, hasSignedInThisSession]);
+
+  // ULTRA-SMALL FIX: After auth user available, hydrate name from Firestore (drivers or users)
+  useEffect(() => {
+    const hydrateName = async () => {
+      try {
+        if (!user?.id) return;
+        const uid = user.id;
+        let data: any = null;
+        try {
+          const primaryRef = doc(db as any, user.role === 'driver' ? 'drivers' : user.role === 'shipper' ? 'shippers' : 'users', uid);
+          const snap = await getDoc(primaryRef);
+          if (snap.exists()) data = snap.data();
+        } catch {}
+        if (!data) {
+          try {
+            const usersRef = doc(db as any, 'users', uid);
+            const snapUsers = await getDoc(usersRef);
+            if (snapUsers.exists()) data = snapUsers.data();
+          } catch {}
+        }
+        if (data) {
+          const firestoreName =
+            data.displayName ||
+            data.name ||
+            data.fullName ||
+            data?.profileData?.fullName ||
+            data?.profile?.fullName ||
+            ([data?.firstName, data?.lastName].filter(Boolean).join(' ') || undefined);
+          if (typeof firestoreName === 'string' && firestoreName.trim().length > 0 && firestoreName !== user.name) {
+            const updatedUser = { ...user, name: firestoreName.trim() } as Driver | Shipper | Admin;
+            setUser(updatedUser);
+            await AsyncStorage.setItem('auth:user:profile', JSON.stringify(updatedUser));
+            console.log('[auth] Dashboard Name Synced:', firestoreName.trim());
+          }
+        }
+      } catch (e) {
+        console.warn('[auth] Name hydration failed', e);
+      }
+    };
+    hydrateName();
+  }, [user?.id, user?.role]);
 
   const createNewUser = useCallback(async (email: string, role: UserRole): Promise<Driver | Shipper | Admin> => {
     await ensureFirebaseAuth();
