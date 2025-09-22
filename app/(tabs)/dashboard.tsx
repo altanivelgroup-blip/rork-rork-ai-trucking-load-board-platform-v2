@@ -23,6 +23,7 @@ import { ENABLE_LOAD_ANALYTICS } from '@/src/config/runtime';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { permanentLoad, permanentSave } from '@/utils/crossPlatformStorage';
 
 
 interface RecentLoadProps {
@@ -101,6 +102,9 @@ export default function DashboardScreen() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [nameLoading, setNameLoading] = useState<boolean>(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  const [profileLoading, setProfileLoading] = useState<boolean>(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileDoc, setProfileDoc] = useState<Record<string, unknown> | null>(null);
   
   // Track component mount/unmount
   React.useEffect(() => {
@@ -155,52 +159,74 @@ export default function DashboardScreen() {
     loadsSample: actualLoads?.slice(0, 3).map(l => ({ id: l.id, origin: l.origin?.city, rate: l.rate }))
   });
 
-  // ULTRA-SMALL FIX: Fetch user's full name from Firestore on dashboard load
+  // ULTRA-SMALL FIX: Robust profile fetch with 5s timeout + AsyncStorage fallback
   useEffect(() => {
-    const fetchUserName = async () => {
-      if (!user?.id || nameLoading) return;
-      
+    const fetchProfile = async () => {
+      if (!user?.id || profileLoading) return;
+      setProfileError(null);
+      setProfileLoading(true);
+      setNameLoading(true);
+      const cacheKey = `cache:userProfile:${user.id}`;
+      console.log('[Dashboard] ⏳ Fetching profile with timeout for user:', user.id);
       try {
-        setNameLoading(true);
-        console.log('[Dashboard] 🎯 DASHBOARD NAME SYNC - Fetching name for user:', user.id);
-        
-        // Determine collection based on user role
         const collection = user.role === 'driver' ? 'drivers' : user.role === 'shipper' ? 'shippers' : 'users';
         const userDocRef = doc(db, collection, user.id);
-        const userDoc = await getDoc(userDocRef);
-        
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          const firestoreName = userData.displayName || userData.name || userData.fullName;
-          
-          if (firestoreName && firestoreName !== user.name) {
-            console.log('[Dashboard] ✅ DASHBOARD NAME SYNC - Found updated name:', firestoreName);
-            setDisplayName(firestoreName);
-            console.log(`[Dashboard] Dashboard Name Synced: ${firestoreName}`);
-          } else {
-            console.log('[Dashboard] 📝 DASHBOARD NAME SYNC - Using cached name:', user.name);
-            setDisplayName(user.name);
-          }
+        const fetchPromise = getDoc(userDocRef);
+        const timeoutPromise = new Promise((_, reject) => {
+          const id = setTimeout(() => {
+            clearTimeout(id as unknown as number);
+            reject(new Error('Profile fetch timeout after 5s'));
+          }, 5000);
+        });
+        const snap = (await Promise.race([fetchPromise, timeoutPromise])) as Awaited<ReturnType<typeof getDoc>>;
+        if (snap && 'exists' in snap && snap.exists()) {
+          const data = snap.data() as Record<string, unknown>;
+          setProfileDoc(data);
+          const firestoreName = (data as any).displayName || (data as any).name || (data as any).fullName || user.name;
+          setDisplayName(firestoreName ?? user.name);
+          await permanentSave(cacheKey, data);
+          console.log('[Dashboard] Dashboard Loaded: Success');
         } else {
-          console.log('[Dashboard] ⚠️ DASHBOARD NAME SYNC - No Firestore doc found, using cached name');
+          console.log('[Dashboard] ⚠️ No profile doc, using cached user');
           setDisplayName(user.name);
+          setProfileDoc(null);
+          console.log('[Dashboard] Fallback Used');
         }
-      } catch (error) {
-        console.warn('[Dashboard] ❌ DASHBOARD NAME SYNC - Failed to fetch name:', error);
-        setDisplayName(user.name); // Fallback to cached name
+      } catch (err) {
+        console.warn('[Dashboard] ❌ Profile fetch failed, trying cache', err);
+        try {
+          const loaded = await permanentLoad(`cache:userProfile:${user.id}`);
+          if (loaded) {
+            const data = loaded as Record<string, unknown>;
+            setProfileDoc(data);
+            const firestoreName = (data as any).displayName || (data as any).name || (data as any).fullName || user.name;
+            setDisplayName(firestoreName ?? user.name);
+            console.log('[Dashboard] Fallback Used (cache)');
+          } else {
+            setDisplayName(user.name);
+            setProfileDoc(null);
+            console.log('[Dashboard] Fallback Used (no cache)');
+          }
+        } catch (cacheErr) {
+          console.warn('[Dashboard] Cache read failed', cacheErr);
+          setDisplayName(user.name);
+          setProfileDoc(null);
+          console.log('[Dashboard] Fallback Used (cache error)');
+        }
+        setProfileError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
+        setProfileLoading(false);
         setNameLoading(false);
       }
     };
-    
-    fetchUserName();
-  }, [user?.id, user?.name, user?.role, nameLoading]);
+    fetchProfile();
+  }, [user?.id, user?.name, user?.role, profileLoading, lastRefreshTime]);
   
   // ULTRA-SMALL FIX: Add refresh trigger for when user navigates back to dashboard after profile save
   useFocusEffect(
     React.useCallback(() => {
       console.log('[Dashboard] 🔄 DASHBOARD NAME SYNC - Dashboard focused, triggering refresh');
-      setLastRefreshTime(0); // Force refresh on next useEffect
+      setLastRefreshTime(Date.now());
     }, [])
   );
   
@@ -560,6 +586,9 @@ export default function DashboardScreen() {
                   📊 Live Analytics Active • 💰 Wallet Tracking • 💾 Profile Secured
                 </Text>
               )}
+              {profileError ? (
+                <Text style={[styles.analyticsStatus, { color: theme.colors.warning }]}>Using fallback • Tap refresh</Text>
+              ) : null}
             </View>
             {isDriver && (
               <View style={styles.welcomeActions}>
@@ -576,6 +605,25 @@ export default function DashboardScreen() {
                   <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>
                     AI LOADS
                   </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      console.log('[Dashboard] Manual refresh pressed');
+                      // Trigger refetch by toggling loading state
+                      setDisplayName(user?.name ?? null);
+                      setProfileError(null);
+                      // simple re-run effect by temp setting profileLoading false then true
+                      // safer: call a local fetch function via state toggle
+                      setLastRefreshTime(Date.now());
+                    } catch (e) {
+                      console.warn('[Dashboard] Manual refresh failed', e);
+                    }
+                  }}
+                  testID="btnRefreshDashboard"
+                  accessibilityRole="button"
+                  style={[styles.aiLoadsButton, { backgroundColor: theme.colors.dark }]}>
+                  <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>{profileLoading ? 'Refreshing…' : 'Refresh'}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -641,12 +689,12 @@ export default function DashboardScreen() {
                 </View>
                 <View style={styles.statCard} testID="stat-rating">
                   <Star size={moderateScale(20)} color={theme.colors.warning} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{user?.rating?.toString() ?? '4.8'}</Text>
+                  <Text style={styles.statValue} allowFontScaling={false}>{(profileDoc as any)?.rating?.toString?.() ?? user?.rating?.toString() ?? '4.8'}</Text>
                   <Text style={styles.statLabel} allowFontScaling={false}>Your Rating</Text>
                 </View>
                 <View style={styles.statCard} testID="stat-completed">
                   <Package size={moderateScale(20)} color={theme.colors.gray} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{user?.completedLoads ?? 24}</Text>
+                  <Text style={styles.statValue} allowFontScaling={false}>{(profileDoc as any)?.completedLoads ?? user?.completedLoads ?? 24}</Text>
                   <Text style={styles.statLabel} allowFontScaling={false}>Completed</Text>
                 </View>
               </>
@@ -654,17 +702,17 @@ export default function DashboardScreen() {
               <>
                 <View style={styles.statCard} testID="stat-posted-loads">
                   <Package size={moderateScale(20)} color={theme.colors.primary} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{(user as any)?.totalLoadsPosted ?? 0}</Text>
+                  <Text style={styles.statValue} allowFontScaling={false}>{(profileDoc as any)?.totalLoadsPosted ?? (user as any)?.totalLoadsPosted ?? 0}</Text>
                   <Text style={styles.statLabel} allowFontScaling={false}>Posted Loads</Text>
                 </View>
                 <View style={styles.statCard} testID="stat-active-loads">
                   <Truck size={moderateScale(20)} color={theme.colors.warning} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{(user as any)?.activeLoads ?? 0}</Text>
+                  <Text style={styles.statValue} allowFontScaling={false}>{(profileDoc as any)?.activeLoads ?? (user as any)?.activeLoads ?? 0}</Text>
                   <Text style={styles.statLabel} allowFontScaling={false}>Active Loads</Text>
                 </View>
                 <View style={styles.statCard} testID="stat-revenue">
                   <Star size={moderateScale(20)} color={theme.colors.gray} />
-                  <Text style={styles.statValue} allowFontScaling={false}>{formatUSD((user as any)?.totalRevenue ?? 0)}</Text>
+                  <Text style={styles.statValue} allowFontScaling={false}>{formatUSD((profileDoc as any)?.totalRevenue ?? (user as any)?.totalRevenue ?? 0)}</Text>
                   <Text style={styles.statLabel} allowFontScaling={false}>Revenue</Text>
                 </View>
               </>
