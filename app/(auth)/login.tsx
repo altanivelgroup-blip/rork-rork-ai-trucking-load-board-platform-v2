@@ -145,13 +145,25 @@ export default function LoginScreen() {
       } else if (error?.code === 'auth/too-many-requests') {
         console.log(`[Handled Auth Error: too-many-requests for ${email.trim()}]`);
         setIsRateLimited(true);
-        setErrorText('Too many login attempts. Please wait 5 minutes before trying again.');
-        // Auto-reset rate limit after 5 minutes
-        setTimeout(() => {
-          setIsRateLimited(false);
-          setRetryCount(0);
-          console.log(`[Auth Error Prevention] Rate limit reset for ${email.trim()}`);
-        }, 5 * 60 * 1000);
+        
+        // Enhanced rate limit handling with shorter wait times for test users
+        if (isTestUser) {
+          setErrorText('Rate limited. Please wait 2 minutes before trying again.');
+          // Shorter cooldown for test users
+          setTimeout(() => {
+            setIsRateLimited(false);
+            setRetryCount(0);
+            console.log(`[Auth Error Prevention] Rate limit reset for test user ${email.trim()}`);
+          }, 2 * 60 * 1000); // 2 minutes for test users
+        } else {
+          setErrorText('Too many login attempts. Please wait 5 minutes or use "Forgot Password?" to reset.');
+          // Standard cooldown for regular users
+          setTimeout(() => {
+            setIsRateLimited(false);
+            setRetryCount(0);
+            console.log(`[Auth Error Prevention] Rate limit reset for ${email.trim()}`);
+          }, 5 * 60 * 1000); // 5 minutes for regular users
+        }
       } else if (error?.code === 'auth/user-disabled') {
         console.log(`[Handled Auth Error: user-disabled for ${email.trim()}]`);
         setErrorText('Account temporarily disabled. Please contact support.');
@@ -173,14 +185,25 @@ export default function LoginScreen() {
         setErrorText('Sign-in temporarily unavailable. Please try again.');
       }
       
-      // Step 2: Prevent excessive retries in app
-      if (newRetryCount >= 5 && !isTestUser) {
-        setErrorText('Multiple failed attempts. Please wait a few minutes or use "Forgot Password?"');
+      // Step 2: Enhanced retry prevention with different limits for test users
+      if (isTestUser && newRetryCount >= 8) {
+        // More lenient for test users
+        setErrorText('Multiple attempts detected. Please wait 1 minute before trying again.');
         setIsRateLimited(true);
         setTimeout(() => {
           setIsRateLimited(false);
           setRetryCount(0);
-        }, 3 * 60 * 1000); // 3 minute cooldown
+          console.log(`[Auth Error Prevention] Test user retry limit reset for ${email.trim()}`);
+        }, 1 * 60 * 1000); // 1 minute cooldown for test users
+      } else if (!isTestUser && newRetryCount >= 5) {
+        // Standard limits for regular users
+        setErrorText('Multiple failed attempts. Please wait 3 minutes or use "Forgot Password?"');
+        setIsRateLimited(true);
+        setTimeout(() => {
+          setIsRateLimited(false);
+          setRetryCount(0);
+          console.log(`[Auth Error Prevention] Regular user retry limit reset for ${email.trim()}`);
+        }, 3 * 60 * 1000); // 3 minute cooldown for regular users
       }
       
     } finally {
@@ -261,8 +284,12 @@ export default function LoginScreen() {
                 onChangeText={(t: string) => { 
                   setEmail(t); 
                   setErrorText(null);
-                  // Reset retry count when user changes input
+                  // Reset retry count and rate limit when user changes input
                   if (retryCount > 0) setRetryCount(0);
+                  if (isRateLimited) {
+                    setIsRateLimited(false);
+                    console.log(`[Auth Error Prevention] Rate limit cleared on email change`);
+                  }
                 }}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -281,8 +308,12 @@ export default function LoginScreen() {
                 onChangeText={(t: string) => { 
                   setPassword(t); 
                   setErrorText(null);
-                  // Reset retry count when user changes input
+                  // Reset retry count and rate limit when user changes input
                   if (retryCount > 0) setRetryCount(0);
+                  if (isRateLimited) {
+                    setIsRateLimited(false);
+                    console.log(`[Auth Error Prevention] Rate limit cleared on password change`);
+                  }
                 }}
                 secureTextEntry
                 autoComplete="password"
