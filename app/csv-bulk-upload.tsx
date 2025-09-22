@@ -1596,32 +1596,56 @@ export default function CSVBulkUploadScreen() {
                   fileName: selectedFile?.name,
                   headerValidation: headerValidation?.ok,
                   isLoading,
-                  selectedTemplate
+                  selectedTemplate,
+                  normalizedRowsLength: normalizedRows.length
                 });
                 
                 if (!selectedFile) {
+                  console.error('[PREVIEW BUTTON] No selected file');
                   showToast('Please select a file first', 'error');
                   return;
                 }
                 
                 if (!headerValidation?.ok) {
+                  console.error('[PREVIEW BUTTON] Header validation failed');
                   showToast('Please fix header validation errors first', 'error');
                   return;
                 }
                 
                 try {
+                  console.log('[PREVIEW BUTTON] Starting preview process...');
                   setIsLoading(true);
-                  console.log('[PREVIEW BUTTON] Starting processCSVData...');
+                  
+                  // Clear any existing preview data
+                  setNormalizedRows([]);
+                  setCurrentPage(0);
+                  setExpandedErrors(new Set());
+                  
+                  console.log('[PREVIEW BUTTON] Calling processCSVData...');
                   await processCSVData();
+                  
                   console.log('[PREVIEW BUTTON] processCSVData completed successfully');
+                  console.log('[PREVIEW BUTTON] Normalized rows after processing:', normalizedRows.length);
+                  
                   showToast('✅ Preview loaded successfully', 'success');
                 } catch (error: any) {
                   console.error('[PREVIEW BUTTON] Error in processCSVData:', error);
+                  console.error('[PREVIEW BUTTON] Error name:', error.name);
+                  console.error('[PREVIEW BUTTON] Error message:', error.message);
                   console.error('[PREVIEW BUTTON] Error stack:', error.stack);
-                  showToast(error.message || 'Failed to process CSV data', 'error');
+                  
+                  // Show more specific error messages
+                  let errorMessage = error.message || 'Failed to process CSV data';
+                  if (errorMessage.includes('Cannot read properties')) {
+                    errorMessage = 'File parsing error. Please check your CSV format.';
+                  } else if (errorMessage.includes('permission')) {
+                    errorMessage = 'File access error. Please try selecting the file again.';
+                  }
+                  
+                  showToast(errorMessage, 'error');
                 } finally {
                   setIsLoading(false);
-                  console.log('[PREVIEW BUTTON] Preview process finished');
+                  console.log('[PREVIEW BUTTON] Preview process finished, isLoading set to false');
                 }
               }}
               disabled={isLoading || !selectedFile || !headerValidation?.ok}
