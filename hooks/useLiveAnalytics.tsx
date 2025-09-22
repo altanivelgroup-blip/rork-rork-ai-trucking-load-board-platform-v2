@@ -238,7 +238,7 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
         profitPerMile: Number.isFinite(profitPerMile) ? profitPerMile : 0,
         estimatedMiles: Number.isFinite(miles) ? Math.round(miles) : 0,
         eta: eta || 'Calculating...',
-        mpg: Number.isFinite(fuelEstimate.mpg) ? fuelEstimate.mpg : 8,
+        mpg: Number.isFinite(driverActualMpg) ? driverActualMpg : 8.5, // FIXED: Use driver's actual MPG
         gallonsNeeded: Number.isFinite(fuelEstimate.gallons) ? fuelEstimate.gallons : 0,
         loading: false,
         error: null
