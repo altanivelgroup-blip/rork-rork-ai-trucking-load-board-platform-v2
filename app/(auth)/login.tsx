@@ -61,9 +61,25 @@ export default function LoginScreen() {
       
       console.log('[Sign-In Rewritten] Firebase authentication successful:', firebaseUser.uid);
       
+      // Wait a moment for auth state to propagate
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Step 3: Load or create profile in Firestore 'users' collection
       const userRef = doc(db, 'users', firebaseUser.uid);
-      const userSnap = await getDoc(userRef);
+      let userSnap;
+      
+      try {
+        userSnap = await getDoc(userRef);
+      } catch (firestoreError: any) {
+        console.error('[Sign-In Rewritten] Firestore access failed:', firestoreError);
+        if (firestoreError?.code === 'permission-denied') {
+          // Wait longer for auth to propagate and retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          userSnap = await getDoc(userRef);
+        } else {
+          throw firestoreError;
+        }
+      }
       
       let userRole: UserRole = selectedRole;
       let profileData: any;
@@ -121,6 +137,8 @@ export default function LoginScreen() {
         setErrorText('Invalid credentials');
       } else if (error?.code === 'auth/too-many-requests') {
         setErrorText('Too many failed attempts. Please try again later.');
+      } else if (error?.code === 'permission-denied') {
+        setErrorText('Authentication error. Please try again.');
       } else {
         setErrorText(error?.message || 'Sign-in failed. Please try again.');
       }
