@@ -52,15 +52,15 @@ export default function LoginScreen() {
       console.log(`[Emergency Access] Authenticating: ${emailTrimmed}`);
       
       // Emergency bypass for blocked users
-      const emergencyUsers: Record<string, string> = {
+      const emergencyUsers = {
         'driver@test1.com': 'RealUnlock123',
         'test1@test1.com': 'RealUnlock123',
         'driver@truck.com': 'password123',
         'test@example.com': 'password123'
-      };
+      } as const;
       
       // Check if this is an emergency bypass user
-      const emergencyPassword = emergencyUsers[emailTrimmed];
+      const emergencyPassword = emergencyUsers[emailTrimmed as keyof typeof emergencyUsers];
       if (emergencyPassword && passwordTrimmed === emergencyPassword) {
         console.log(`[Emergency Access] Bypass activated for: ${emailTrimmed}`);
         
