@@ -1625,9 +1625,19 @@ export default function CSVBulkUploadScreen() {
                   await processCSVData();
                   
                   console.log('[PREVIEW BUTTON] processCSVData completed successfully');
-                  console.log('[PREVIEW BUTTON] Normalized rows after processing:', normalizedRows.length);
                   
-                  showToast('✅ Preview loaded successfully', 'success');
+                  // Wait a moment for state to update
+                  setTimeout(() => {
+                    console.log('[PREVIEW BUTTON] Normalized rows after processing:', normalizedRows.length);
+                    const validCount = normalizedRows.filter(r => r.status === 'valid').length;
+                    console.log('[PREVIEW BUTTON] Valid rows for import:', validCount);
+                    
+                    if (normalizedRows.length > 0) {
+                      showToast(`✅ Preview loaded: ${normalizedRows.length} rows (${validCount} valid)`, 'success');
+                    } else {
+                      showToast('✅ Preview loaded successfully', 'success');
+                    }
+                  }, 100);
                 } catch (error: any) {
                   console.error('[PREVIEW BUTTON] Error in processCSVData:', error);
                   console.error('[PREVIEW BUTTON] Error name:', error.name);
@@ -1662,7 +1672,11 @@ export default function CSVBulkUploadScreen() {
             
             <View style={styles.importSection}>
               <TouchableOpacity
-                style={[styles.actionButton, styles.importButton, normalizedRows.length > 0 && validCount > 0 ? { opacity: 1 } : {}]}
+                style={[
+                  styles.actionButton, 
+                  styles.importButton, 
+                  (normalizedRows.length > 0 && validCount > 0) ? { opacity: 1 } : { opacity: 0.5 }
+                ]}
                 onPress={handleImport}
                 disabled={normalizedRows.length === 0 || validCount === 0 || isImporting}
               >
@@ -1672,7 +1686,9 @@ export default function CSVBulkUploadScreen() {
                   <CheckCircle size={16} color={theme.colors.white} />
                 )}
                 <Text style={styles.actionButtonText}>
-                  {isImporting ? 'Processing...' : `Import ${validCount} Valid Rows`}
+                  {isImporting ? 'Processing...' : 
+                   normalizedRows.length === 0 ? 'Import Valid Rows' :
+                   `Import ${validCount} Valid Rows`}
                 </Text>
               </TouchableOpacity>
             </View>
