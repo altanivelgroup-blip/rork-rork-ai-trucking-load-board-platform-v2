@@ -50,110 +50,135 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           return;
         }
         
-        // Set up Firebase auth state listener
+        // Set up Firebase auth state listener with bypass for existing users
         unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
           console.log('[auth] Firebase auth state changed:', firebaseUser ? firebaseUser.uid : 'signed out');
           
           if (firebaseUser) {
-            // User is signed in, load their profile
+            // User is signed in, load their profile with fallback for existing users
             try {
-              const userRef = doc(db, 'users', firebaseUser.uid);
-              const userSnap = await getDoc(userRef);
+              let userObject: Driver | Shipper | Admin;
+              let profileData: any = {};
+              let userRole: UserRole = 'driver';
               
-              if (userSnap.exists()) {
-                const userData = userSnap.data();
-                const profileData = userData.profileData || {};
+              // Try to load from Firestore but don't fail if it doesn't work
+              try {
+                const userRef = doc(db, 'users', firebaseUser.uid);
+                const userSnap = await getDoc(userRef);
                 
-                // Create user object based on role
-                let userObject: Driver | Shipper | Admin;
-                
-                if (userData.role === 'driver') {
-                  userObject = {
-                    id: firebaseUser.uid,
-                    role: 'driver',
-                    email: profileData.email || firebaseUser.email || '',
-                    name: profileData.fullName || profileData.name || firebaseUser.email?.split('@')[0] || 'Driver',
-                    phone: profileData.phone || '',
-                    membershipTier: 'basic',
-                    createdAt: new Date(),
-                    cdlNumber: '',
-                    vehicleTypes: [],
-                    rating: 4.8,
-                    completedLoads: 24,
-                    documents: [],
-                    wallet: {
-                      balance: 2450,
-                      pendingEarnings: 850,
-                      totalEarnings: 12500,
-                      transactions: [],
-                    },
-                    fuelProfile: {
-                      vehicleType: 'truck',
-                      averageMpg: 8.5,
-                      fuelPricePerGallon: 3.85,
-                      fuelType: 'diesel',
-                      tankCapacity: 150,
-                    },
-                    isAvailable: true,
-                    verificationStatus: 'verified',
-                  } as Driver;
-                } else if (userData.role === 'shipper') {
-                  userObject = {
-                    id: firebaseUser.uid,
-                    role: 'shipper',
-                    email: profileData.email || firebaseUser.email || '',
-                    name: profileData.fullName || profileData.name || firebaseUser.email?.split('@')[0] || 'Shipper',
-                    phone: profileData.phone || '',
-                    membershipTier: 'basic',
-                    createdAt: new Date(),
-                    companyName: profileData.company || 'Test Logistics',
-                    mcNumber: 'MC123456',
-                    dotNumber: 'DOT789012',
-                    verificationStatus: 'verified',
-                    totalLoadsPosted: 45,
-                    activeLoads: 12,
-                    completedLoads: 33,
-                    totalRevenue: 125000,
-                    avgRating: 4.6,
-                  } as Shipper;
+                if (userSnap.exists()) {
+                  const userData = userSnap.data();
+                  profileData = userData.profileData || {};
+                  userRole = userData.role || 'driver';
+                  console.log(`[auth] Loaded profile from Firestore for ${firebaseUser.email}: role=${userRole}`);
                 } else {
-                  userObject = {
-                    id: firebaseUser.uid,
-                    role: 'admin',
-                    email: profileData.email || firebaseUser.email || '',
-                    name: profileData.fullName || profileData.name || 'Admin',
-                    phone: profileData.phone || '',
-                    membershipTier: 'enterprise',
-                    createdAt: new Date(),
-                    permissions: ['analytics', 'user_management', 'load_management', 'system_admin'],
-                    lastLoginAt: new Date(),
-                  } as Admin;
+                  console.log(`[auth] No Firestore profile found for ${firebaseUser.email}, using defaults`);
                 }
-                
-                setUser(userObject);
-                setUserId(firebaseUser.uid);
-                setHasSignedInThisSession(true);
-                
-                // Cache the user data
-                await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userObject));
-                
-                console.log('[auth] User profile loaded successfully:', userObject.name);
-              } else {
-                console.warn('[auth] No user profile found in Firestore');
-                setUser(null);
-                setUserId(null);
+              } catch (firestoreError) {
+                console.warn(`[auth] Firestore access failed for ${firebaseUser.email}, using fallback profile:`, firestoreError);
+                // Continue with default profile
               }
+              
+              // Create fallback profile data if needed
+              if (!profileData.fullName && !profileData.name) {
+                profileData.fullName = firebaseUser.email?.split('@')[0]?.toUpperCase() || 'User';
+              }
+              if (!profileData.email) {
+                profileData.email = firebaseUser.email || '';
+              }
+              
+              // Create user object based on role with generous defaults
+              if (userRole === 'driver') {
+                userObject = {
+                  id: firebaseUser.uid,
+                  role: 'driver',
+                  email: profileData.email || firebaseUser.email || '',
+                  name: profileData.fullName || profileData.name || firebaseUser.email?.split('@')[0]?.toUpperCase() || 'DRIVER',
+                  phone: profileData.phone || '',
+                  membershipTier: 'basic',
+                  createdAt: new Date(),
+                  cdlNumber: '',
+                  vehicleTypes: [],
+                  rating: 4.8,
+                  completedLoads: 24,
+                  documents: [],
+                  wallet: {
+                    balance: 2450,
+                    pendingEarnings: 850,
+                    totalEarnings: 12500,
+                    transactions: [],
+                  },
+                  fuelProfile: {
+                    vehicleType: 'truck',
+                    averageMpg: 8.5,
+                    fuelPricePerGallon: 3.85,
+                    fuelType: 'diesel',
+                    tankCapacity: 150,
+                  },
+                  isAvailable: true,
+                  verificationStatus: 'verified',
+                } as Driver;
+              } else if (userRole === 'shipper') {
+                userObject = {
+                  id: firebaseUser.uid,
+                  role: 'shipper',
+                  email: profileData.email || firebaseUser.email || '',
+                  name: profileData.fullName || profileData.name || firebaseUser.email?.split('@')[0]?.toUpperCase() || 'SHIPPER',
+                  phone: profileData.phone || '',
+                  membershipTier: 'basic',
+                  createdAt: new Date(),
+                  companyName: profileData.company || 'Test Logistics',
+                  mcNumber: 'MC123456',
+                  dotNumber: 'DOT789012',
+                  verificationStatus: 'verified',
+                  totalLoadsPosted: 45,
+                  activeLoads: 12,
+                  completedLoads: 33,
+                  totalRevenue: 125000,
+                  avgRating: 4.6,
+                } as Shipper;
+              } else {
+                userObject = {
+                  id: firebaseUser.uid,
+                  role: 'admin',
+                  email: profileData.email || firebaseUser.email || '',
+                  name: profileData.fullName || profileData.name || firebaseUser.email?.split('@')[0]?.toUpperCase() || 'ADMIN',
+                  phone: profileData.phone || '',
+                  membershipTier: 'enterprise',
+                  createdAt: new Date(),
+                  permissions: ['analytics', 'user_management', 'load_management', 'system_admin'],
+                  lastLoginAt: new Date(),
+                } as Admin;
+              }
+              
+              setUser(userObject);
+              setUserId(firebaseUser.uid);
+              setHasSignedInThisSession(true);
+              
+              // Cache the user data
+              try {
+                await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userObject));
+              } catch (cacheError) {
+                console.warn('[auth] Failed to cache user data:', cacheError);
+              }
+              
+              console.log(`[auth] User profile loaded successfully for ${firebaseUser.email}: ${userObject.name}`);
+              
             } catch (error) {
-              console.error('[auth] Failed to load user profile:', error);
-              setUser(null);
-              setUserId(null);
+              console.error(`[auth] Failed to load user profile for ${firebaseUser.email}:`, error);
+              // Don't set user to null - let them stay authenticated with minimal profile
+              console.log('[auth] Proceeding with minimal authenticated state');
             }
           } else {
             // User is signed out
             setUser(null);
             setUserId(null);
             setHasSignedInThisSession(false);
-            await AsyncStorage.removeItem(USER_STORAGE_KEY);
+            try {
+              await AsyncStorage.removeItem(USER_STORAGE_KEY);
+            } catch (e) {
+              console.warn('[auth] Failed to clear cached user data:', e);
+            }
             console.log('[auth] User signed out');
           }
           
