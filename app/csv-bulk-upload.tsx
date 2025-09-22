@@ -1725,7 +1725,7 @@ export default function CSVBulkUploadScreen() {
                   (normalizedRows.length > 0 && validCount > 0 && !showDuplicateChecker) ? { opacity: 1 } : { opacity: 0.5 }
                 ]}
                 onPress={handleImport}
-                disabled={normalizedRows.length === 0 || validCount === 0 || isImporting || showDuplicateChecker}
+                disabled={normalizedRows.length === 0 || validCount === 0 || isImporting}
               >
                 {isImporting ? (
                   <ActivityIndicator size="small" color={theme.colors.white} />
@@ -1734,7 +1734,7 @@ export default function CSVBulkUploadScreen() {
                 )}
                 <Text style={styles.actionButtonText}>
                   {isImporting ? 'Importing...' : 
-                   showDuplicateChecker ? 'Complete AI Duplicate Check First' :
+                   showDuplicateChecker ? 'AI Duplicate Check Running...' :
                    normalizedRows.length === 0 ? 'Import Valid Rows' :
                    `Import ${validCount} Valid Rows`}
                 </Text>
