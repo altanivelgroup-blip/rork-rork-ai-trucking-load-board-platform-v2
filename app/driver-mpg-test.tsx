@@ -65,8 +65,8 @@ export default function DriverMpgTestScreen() {
           averageMpg: testMpg,
           fuelPricePerGallon: driverProfile.fuelProfile?.fuelPricePerGallon || 3.50,
           fuelType: (driverProfile.fuelProfile?.fuelType || 'diesel') as 'diesel' | 'gasoline',
-          tankCapacity: driverProfile.fuelProfile?.tankCapacity
-        } as FuelProfile
+          tankCapacity: driverProfile.fuelProfile?.tankCapacity || 150
+        }
       };
 
       await updateProfile(updatedProfile);
