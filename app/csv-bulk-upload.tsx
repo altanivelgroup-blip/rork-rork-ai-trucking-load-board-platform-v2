@@ -716,10 +716,11 @@ export default function CSVBulkUploadScreen() {
         
         console.log('[CSV PROCESSING] AI duplicate checker will be shown for', validLoads.length, 'valid loads');
         
-        // Show duplicate checker after a small delay to ensure state is updated
+        // Show duplicate checker immediately after processing completes
         setTimeout(() => {
+          console.log('[CSV PROCESSING] Opening AI duplicate checker modal...');
           setShowDuplicateChecker(true);
-        }, 100);
+        }, 200);
       } else {
         console.log('[CSV PROCESSING] Skipping AI duplicate checker - not enough valid rows:', validCount);
         setValidIndexMap([]);
@@ -1645,10 +1646,13 @@ export default function CSVBulkUploadScreen() {
                   console.log('[PREVIEW BUTTON] Starting preview process...');
                   setIsLoading(true);
                   
-                  // Clear any existing preview data
+                  // Clear any existing preview data and reset duplicate checker state
                   setNormalizedRows([]);
                   setCurrentPage(0);
                   setExpandedErrors(new Set());
+                  setShowDuplicateChecker(false);
+                  setDuplicateCheckLoads([]);
+                  setValidIndexMap([]);
                   
                   console.log('[PREVIEW BUTTON] Calling processCSVData...');
                   const processed = await processCSVData();
@@ -1722,8 +1726,8 @@ export default function CSVBulkUploadScreen() {
                   <CheckCircle size={16} color={theme.colors.white} />
                 )}
                 <Text style={styles.actionButtonText}>
-                  {isImporting ? 'Processing...' : 
-                   showDuplicateChecker ? 'Complete AI Check First' :
+                  {isImporting ? 'Importing...' : 
+                   showDuplicateChecker ? 'Complete AI Duplicate Check First' :
                    normalizedRows.length === 0 ? 'Import Valid Rows' :
                    `Import ${validCount} Valid Rows`}
                 </Text>
@@ -2088,9 +2092,9 @@ export default function CSVBulkUploadScreen() {
             const markedDuplicates = toMarkDuplicate.size;
             
             if (markedDuplicates > 0) {
-              showToast(`✅ AI analysis complete. ${remainingValid} unique loads ready for import (${markedDuplicates} duplicates removed).`, 'success');
+              showToast(`✅ AI duplicate check complete! ${remainingValid} unique loads ready for import (${markedDuplicates} duplicates removed). You can now click Import.`, 'success');
             } else {
-              showToast(`✅ AI analysis complete. ${remainingValid} unique loads ready for import.`, 'success');
+              showToast(`✅ AI duplicate check complete! ${remainingValid} unique loads ready for import. You can now click Import.`, 'success');
             }
           } catch (error: any) {
             console.error('[DUPLICATE CHECKER] Error updating rows:', error);
