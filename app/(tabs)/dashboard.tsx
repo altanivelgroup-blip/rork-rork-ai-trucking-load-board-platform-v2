@@ -656,7 +656,7 @@ export default function DashboardScreen() {
                   testID="btnRefreshDashboard"
                   accessibilityRole="button"
                   style={[styles.aiLoadsButton, { backgroundColor: theme.colors.dark }]}>
-                  <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>{profileLoading ? 'Refreshing…' : 'Refresh'}</Text>
+                  <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>Refresh</Text>
                 </TouchableOpacity>
               </View>
             )}
