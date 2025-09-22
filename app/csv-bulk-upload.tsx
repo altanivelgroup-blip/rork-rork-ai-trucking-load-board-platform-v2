@@ -717,10 +717,8 @@ export default function CSVBulkUploadScreen() {
         console.log('[CSV PROCESSING] AI duplicate checker will be shown for', validLoads.length, 'valid loads');
         
         // Show duplicate checker immediately after processing completes
-        setTimeout(() => {
-          console.log('[CSV PROCESSING] Opening AI duplicate checker modal...');
-          setShowDuplicateChecker(true);
-        }, 200);
+        console.log('[CSV PROCESSING] Opening AI duplicate checker modal...');
+        setShowDuplicateChecker(true);
       } else {
         console.log('[CSV PROCESSING] Skipping AI duplicate checker - not enough valid rows:', validCount);
         setValidIndexMap([]);
@@ -1647,6 +1645,7 @@ export default function CSVBulkUploadScreen() {
                   setIsLoading(true);
                   
                   // Clear any existing preview data and reset duplicate checker state
+                  console.log('[PREVIEW BUTTON] Clearing previous state...');
                   setNormalizedRows([]);
                   setCurrentPage(0);
                   setExpandedErrors(new Set());
@@ -1662,6 +1661,14 @@ export default function CSVBulkUploadScreen() {
                   const validPreviewCount = processed.filter(r => r.status === 'valid').length;
                   const invalidCount = processed.filter(r => r.status === 'invalid').length;
                   const duplicateCount = processed.filter(r => r.status === 'duplicate').length;
+                  
+                  console.log('[PREVIEW BUTTON] Preview stats:', {
+                    total: processed.length,
+                    valid: validPreviewCount,
+                    invalid: invalidCount,
+                    duplicates: duplicateCount,
+                    showDuplicateChecker: validPreviewCount > 1
+                  });
                   
                   if (processed.length > 0) {
                     let message = `✅ Preview loaded: ${processed.length} rows (${validPreviewCount} valid`;
