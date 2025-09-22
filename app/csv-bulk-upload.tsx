@@ -583,7 +583,7 @@ export default function CSVBulkUploadScreen() {
     }
   }, []);
 
-  const processCSVData = useCallback(async () => {
+  const processCSVData = useCallback(async (): Promise<NormalizedPreviewRow[]> => {
     if (!selectedFile) {
       console.error('[CSV PROCESSING] No selected file');
       throw new Error('No file selected. Please select a file first.');
@@ -710,6 +710,8 @@ export default function CSVBulkUploadScreen() {
       if (validLoads.length > 1) {
         setShowDuplicateChecker(true);
       }
+      
+      return normalizedWithDuplicateCheck;
       
     } catch (error: any) {
       console.error('[CSV PROCESSING] Error:', error);
@@ -1588,6 +1590,7 @@ export default function CSVBulkUploadScreen() {
         {headerValidation?.ok && (
           <View style={styles.actionContainer}>
             <TouchableOpacity
+              testID="csv-preview-button"
               style={[styles.actionButton, styles.previewButton]}
               onPress={async () => {
                 console.log('[PREVIEW BUTTON] Preview button pressed');
@@ -1622,22 +1625,16 @@ export default function CSVBulkUploadScreen() {
                   setExpandedErrors(new Set());
                   
                   console.log('[PREVIEW BUTTON] Calling processCSVData...');
-                  await processCSVData();
+                  const processed = await processCSVData();
                   
                   console.log('[PREVIEW BUTTON] processCSVData completed successfully');
                   
-                  // Wait a moment for state to update
-                  setTimeout(() => {
-                    console.log('[PREVIEW BUTTON] Normalized rows after processing:', normalizedRows.length);
-                    const validCount = normalizedRows.filter(r => r.status === 'valid').length;
-                    console.log('[PREVIEW BUTTON] Valid rows for import:', validCount);
-                    
-                    if (normalizedRows.length > 0) {
-                      showToast(`✅ Preview loaded: ${normalizedRows.length} rows (${validCount} valid)`, 'success');
-                    } else {
-                      showToast('✅ Preview loaded successfully', 'success');
-                    }
-                  }, 100);
+                  const validPreviewCount = processed.filter(r => r.status === 'valid').length;
+                  if (processed.length > 0) {
+                    showToast(`✅ Preview loaded: ${processed.length} rows (${validPreviewCount} valid)`, 'success');
+                  } else {
+                    showToast('✅ Preview loaded successfully', 'success');
+                  }
                 } catch (error: any) {
                   console.error('[PREVIEW BUTTON] Error in processCSVData:', error);
                   console.error('[PREVIEW BUTTON] Error name:', error.name);
@@ -1672,6 +1669,7 @@ export default function CSVBulkUploadScreen() {
             
             <View style={styles.importSection}>
               <TouchableOpacity
+                testID="csv-import-button"
                 style={[
                   styles.actionButton, 
                   styles.importButton, 
