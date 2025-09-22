@@ -104,21 +104,19 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
       const driverProfile = user as Driver;
       let driverActualMpg = 8.5; // Default fallback
       
-      // CRITICAL FIX: Check for fresh profile data from AsyncStorage first (always on force refresh)
+      // CRITICAL FIX: ALWAYS get fresh profile data from AsyncStorage to ensure latest MPG
       let freshProfile = driverProfile;
-      if (forceRefresh || !driverProfile?.fuelProfile?.averageMpg) {
-        try {
-          const cachedProfile = await AsyncStorage.getItem('auth:user:profile');
-          if (cachedProfile) {
-            const parsed = JSON.parse(cachedProfile);
-            if (parsed && parsed.id === user?.id) {
-              freshProfile = { ...driverProfile, ...parsed };
-              console.log('[useLiveAnalytics] 🔄 DRIVER MPG SYNC - Using fresh profile data from cache', forceRefresh ? '(FORCED)' : '(AUTO)');
-            }
+      try {
+        const cachedProfile = await AsyncStorage.getItem('auth:user:profile');
+        if (cachedProfile) {
+          const parsed = JSON.parse(cachedProfile);
+          if (parsed && parsed.id === user?.id) {
+            freshProfile = { ...driverProfile, ...parsed };
+            console.log('[useLiveAnalytics] 🔄 DRIVER MPG SYNC - Using fresh profile data from cache');
           }
-        } catch (cacheError) {
-          console.warn('[useLiveAnalytics] Failed to get fresh profile, using current user data:', cacheError);
         }
+      } catch (cacheError) {
+        console.warn('[useLiveAnalytics] Failed to get fresh profile, using current user data:', cacheError);
       }
       
       // Try to get MPG from multiple profile sources (prioritize fresh data)
