@@ -104,16 +104,22 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
   };
 
   const originText = useMemo(() => {
-    return typeof load.origin === 'string'
-      ? load.origin
-      : `${load.origin?.city ?? 'Dallas'}, ${load.origin?.state ?? 'TX'}`;
-  }, [load.origin]);
+    if (typeof load.origin === "object" && load.origin?.city) {
+      return `${load.origin.city}, ${load.origin.state || ''}`;
+    }
+    return (load as any).originCity || 'Unknown';
+  }, [load.origin, (load as any).originCity]);
   
   const destText = useMemo(() => {
-    return typeof load.destination === 'string'
-      ? load.destination
-      : `${load.destination?.city ?? 'Chicago'}, ${load.destination?.state ?? 'IL'}`;
-  }, [load.destination]);
+    if (typeof load.destination === "object" && load.destination?.city) {
+      return `${load.destination.city}, ${load.destination.state || ''}`;
+    }
+    return (load as any).destCity || 'Unknown';
+  }, [load.destination, (load as any).destCity]);
+  
+  const rateVal = useMemo(() => {
+    return load.rate ?? (load as any).rateAmount ?? (load as any).rateTotalUSD ?? 0;
+  }, [load.rate, (load as any).rateAmount, (load as any).rateTotalUSD]);
 
   const bidsCount = useMemo(() => {
     // Use load ID for consistent demo behavior instead of random
@@ -144,7 +150,7 @@ const LoadCardComponent: React.FC<LoadCardProps> = ({
 
       {/* Load Details */}
       <Text style={styles.statusLine}>Status: {statusText}</Text>
-      <Text style={styles.rate}>Rate: {formatCurrency(load.rate)}</Text>
+      <Text style={styles.rate}>Rate: {formatCurrency(rateVal)}</Text>
       <Text style={styles.route}>Route: {originText} → {destText}</Text>
       
       {showBids && (

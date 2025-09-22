@@ -580,13 +580,14 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         
         console.log('[LOADS_DISAPPEAR_FIX] Starting robust real-time listener...');
         
-        // LOADS_RESTORE_FIX: Use unlimited query for real-time updates
-        const unlimitedRealtimeQuery = query(
-          collection(db, LOADS_COLLECTION)
-          // LOADS_RESTORE_FIX: No limits in real-time listener either
+        // Updated query to read active loads, newest first
+        const activeLoadsQuery = query(
+          collection(db, LOADS_COLLECTION),
+          where("status", "==", "active"),
+          orderBy("createdAt", "desc")
         );
         
-        unsubscribeRef.current = onSnapshot(unlimitedRealtimeQuery, async (snap) => {
+        unsubscribeRef.current = onSnapshot(activeLoadsQuery, async (snap) => {
           try {
             if (!mounted) {
               console.log('[LOADS_DISAPPEAR_FIX] Component unmounted during snapshot processing');
@@ -604,22 +605,32 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
               const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
               const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
               
-              // Handle multiple field formats for cross-platform compatibility
-              const originCity = d?.origin?.city || d?.originCity || d?.title?.split(' to ')[0] || 'Unknown';
-              const originState = d?.origin?.state || d?.originState || '';
-              const destCity = d?.destination?.city || d?.destCity || d?.title?.split(' to ')[1] || 'Unknown';
-              const destState = d?.destination?.state || d?.destState || '';
+              // Handle multiple field formats for cross-platform compatibility - tolerant to old docs
+              const originText = typeof d?.origin === "object"
+                ? d.origin?.city
+                : (d?.originCity || '');
+              const originState = typeof d?.origin === "object"
+                ? d.origin?.state
+                : (d?.originState || '');
+              const destText = typeof d?.destination === "object"
+                ? d.destination?.city
+                : (d?.destCity || '');
+              const destState = typeof d?.destination === "object"
+                ? d.destination?.state
+                : (d?.destState || '');
+              
+              const rateVal = d?.rate ?? d?.rateAmount ?? d?.rateTotalUSD ?? 0;
               
               const mapped: Load = {
                 id: String(doc.id),
                 shipperId: String(d?.createdBy ?? 'unknown'),
                 shipperName: '',
-                origin: { address: '', city: originCity, state: originState, zipCode: '', lat: 0, lng: 0 },
-                destination: { address: '', city: destCity, state: destState, zipCode: '', lat: 0, lng: 0 },
+                origin: { address: '', city: originText, state: originState, zipCode: '', lat: 0, lng: 0 },
+                destination: { address: '', city: destText, state: destState, zipCode: '', lat: 0, lng: 0 },
                 distance: Number(d?.distance ?? d?.distanceMi ?? 0),
                 weight: Number(d?.weight ?? d?.weightLbs ?? 0),
                 vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'cargo-van',
-                rate: Number(d?.rate ?? d?.rateTotalUSD ?? d?.revenueUsd ?? 0),
+                rate: Number(rateVal),
                 ratePerMile: 0,
                 pickupDate: pickup,
                 deliveryDate: delivery,
