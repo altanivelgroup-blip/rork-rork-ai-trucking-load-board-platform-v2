@@ -1,139 +1,25 @@
-// CRITICAL FIX: Enhanced Firestore rules to prevent driver profile data loss
-// FIXED: Support both authenticated and anonymous users to preserve driver profiles
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // CRITICAL FIX: Enhanced permissions to prevent driver profile data loss
-    // This allows both authenticated and anonymous operations to preserve existing data
-    
-    // LOADS COLLECTION: Enhanced access for cross-platform operations with data preservation
-    match /loads/{docId} {
-      // FIXED: Allow all users to read loads (cross-platform visibility)
-      allow read: if true;
-      // CRITICAL FIX: Allow both authenticated and anonymous users to prevent data loss
-      allow write, create, update, delete: if request.auth != null;
+
+    function signedIn() { return request.auth != null; }
+    function isOwnerCreate() {
+      return signedIn() && (
+        request.resource.data.createdBy == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
     }
-    
-    // BULK IMPORTS COLLECTION: Full access for authenticated batch operations
-    match /bulkImports/{docId} {
-      // FIXED: Allow authenticated users to manage bulk import sessions
-      allow read, write, create, update, delete: if request.auth != null;
+    function isOwnerExisting() {
+      return signedIn() && (
+        resource.data.createdBy == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
     }
-    
-    // USER COLLECTIONS: Authenticated access for profile management
-    match /profiles/{uid} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    match /drivers/{uid} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    match /shippers/{uid} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    match /users/{uid} {
-      allow read, write, create, update, delete: if request.auth != null;
-      
-      match /logins/{loginId} {
-        allow read, write, create, update, delete: if request.auth != null;
-      }
-      
-      match /settings/{settingId} {
-        allow read, write, create, update, delete: if request.auth != null;
-      }
-    }
-    
-    // BOARD AND HISTORY: Enhanced access for cross-platform operations
-    match /board/{docId} {
-      allow read: if true;
-      allow write, create, update, delete: if request.auth != null;
-    }
-    
-    match /boards/{docId} {
-      allow read: if true;
-      allow write, create, update, delete: if request.auth != null;
-    }
-    
-    match /history/{docId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    match /posts/{docId} {
-      allow read: if true;
-      allow write, create, update, delete: if request.auth != null;
-    }
-    
-    match /myLoads/{docId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    // CRITICAL FIX: VEHICLE DATA - Enhanced access to prevent driver profile data loss
-    match /vehicles/{docId} {
-      // CRITICAL FIX: Allow both authenticated and anonymous users to preserve vehicle data
-      allow read: if true;
-      allow write, create, update, delete: if request.auth != null && request.auth.uid != null;
-    }
-    
-    match /carrierPublic/{dot} {
-      allow read: if true;
-      allow write, create, update, delete: if request.auth != null;
-    }
-    
-    // NOTIFICATION SETTINGS: Enhanced permissions for cross-platform access
-    match /notificationSettings/{uid} {
-      // FIXED: Allow authenticated users to access their own notification settings
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    // NESTED NOTIFICATION SETTINGS: Support for nested paths
-    match /users/{userId}/settings/notifications {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    match /users/{userId}/notificationSettings/{settingId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    // GENERAL SETTINGS: Broad access for authenticated users
-    match /settings/{settingId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    // ANALYTICS AND REPORTS: Authenticated access
-    match /reports/{docId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    match /reportAnalytics/{docId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    // PHOTO STORAGE: Authenticated access
-    match /photos/{photoId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    match /loadPhotos/{userId}/{loadId}/metadata/{photoId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    // FINANCIAL TRANSACTIONS: Authenticated access
-    match /transactions/{transactionId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    match /adminTransactions/{transactionId} {
-      allow read, write, create, update, delete: if request.auth != null;
-    }
-    
-    // CRITICAL FIX: ENHANCED CATCH-ALL to prevent driver profile data loss
-    // FIXED: This ensures all operations work to preserve existing driver data
-    match /{document=**} {
-      allow read: if true;
-      // CRITICAL FIX: Allow both authenticated and anonymous users to prevent data loss
-      allow write, create, update, delete: if request.auth != null;
+
+    match /loads/{id} {
+      allow create: if isOwnerCreate();
+      allow read: if true; // switch to: if isOwnerExisting();  (later if needed)
+      allow update, delete: if isOwnerExisting();
     }
   }
 }
