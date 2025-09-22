@@ -142,7 +142,7 @@ export default function CSVBulkUploadScreen() {
     toast.show(message, type);
   }, [toast]);
 
-  // Load import history
+  // Load import history - FIXED: Properly memoized to prevent infinite re-renders
   const loadImportHistory = useCallback(async () => {
     try {
       const { auth, db } = getFirebase();
@@ -180,7 +180,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, []); // FIXED: Removed BULK_IMPORTS_COLLECTION from dependency array as it's a constant
+  }, []); // FIXED: Empty dependency array since all dependencies are stable
 
   // Create bulk import session record
   const createBulkImportSession = useCallback(async (
@@ -275,7 +275,7 @@ export default function CSVBulkUploadScreen() {
   // FIXED: Load history on component mount - only run once
   useEffect(() => {
     loadImportHistory();
-  }, []); // FIXED: Empty dependency array to run only once on mount
+  }, [loadImportHistory]); // FIXED: Include loadImportHistory in dependencies since it's memoized
 
   const generateLoadId = useCallback(() => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -902,7 +902,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [onWebFileChange, onPickNativeFile, showToast]);
+  }, [readHeaderLine, handleHeadersLine, onPickNativeFile, showToast]); // FIXED: Use correct dependencies
 
   const removeRow = useCallback((index: number) => {
     setProcessedRows(prev => prev.filter((_, i) => i !== index));
