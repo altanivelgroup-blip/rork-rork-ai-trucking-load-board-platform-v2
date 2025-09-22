@@ -181,7 +181,7 @@ export default function CSVBulkUploadScreen() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, []); // FIXED: Empty dependency array since all dependencies are stable
+  }, []); // FIXED: Empty dependency array since getFirebase() and all other dependencies are stable
 
   // Create bulk import session record
   const createBulkImportSession = useCallback(async (
@@ -276,7 +276,7 @@ export default function CSVBulkUploadScreen() {
   // FIXED: Load history on component mount - only run once
   useEffect(() => {
     loadImportHistory();
-  }, []); // FIXED: Empty dependency array to prevent infinite re-renders
+  }, [loadImportHistory]); // FIXED: Include loadImportHistory in dependencies but it's memoized with empty deps
 
   const generateLoadId = useCallback(() => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -1188,7 +1188,7 @@ export default function CSVBulkUploadScreen() {
       setIsImporting(false);
       setImportProgress({ current: 0, total: 0 });
     }
-  }, [normalizedRows, selectedTemplate, generateBulkImportId, generateLoadId, toFirestoreDoc, showToast, checkForDuplicates]);
+  }, [normalizedRows, selectedTemplate, generateBulkImportId, generateLoadId, toFirestoreDoc, showToast, checkForDuplicates, user?.id, refreshLoads, createBulkImportSession, loadImportHistory]);
 
   const handleImport = useCallback(async () => {
     console.log('[HANDLE IMPORT] Starting import process...');
