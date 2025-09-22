@@ -69,7 +69,7 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
     return available;
   }, [enabled, user, load, ANALYTICS_AUTO_CALCULATE]);
 
-  const calculateAnalytics = useCallback(async () => {
+  const calculateAnalytics = useCallback(async (forceRefresh: boolean = false) => {
     if (!isAnalyticsAvailable) {
       console.log('[useLiveAnalytics] ❌ PERMANENT ANALYTICS - Not available on', Platform.OS, ':', {
         enabled,
@@ -92,7 +92,7 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
     try {
       setLoading(true);
       setError(null);
-      console.log('[useLiveAnalytics] 🔥 PERMANENT CROSS-PLATFORM ANALYTICS CALCULATING on', Platform.OS, 'for load:', load.id);
+      console.log('[useLiveAnalytics] 🔥 PERMANENT CROSS-PLATFORM ANALYTICS CALCULATING on', Platform.OS, 'for load:', load.id, forceRefresh ? '(FORCE REFRESH)' : '');
       console.log('[useLiveAnalytics] 📊 Driver profile:', {
         userId: user?.id,
         fuelProfile: (user as any)?.fuelProfile,
@@ -100,23 +100,55 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
         fuelType: (user as any)?.fuelProfile?.fuelType
       });
 
-      // PERMANENT FIX: DRIVER MPG SYNC - Get driver's actual MPG from multiple sources
+      // PERMANENT FIX: DRIVER MPG SYNC - Get driver's actual MPG from multiple sources with fresh data
       const driverProfile = user as Driver;
       let driverActualMpg = 8.5; // Default fallback
       
-      // Try to get MPG from multiple profile sources
-      if (driverProfile?.fuelProfile?.averageMpg) {
+      // CRITICAL FIX: Check for fresh profile data from AsyncStorage first (always on force refresh)
+      let freshProfile = driverProfile;
+      if (forceRefresh || !driverProfile?.fuelProfile?.averageMpg) {
+        try {
+          const cachedProfile = await AsyncStorage.getItem('auth:user:profile');
+          if (cachedProfile) {
+            const parsed = JSON.parse(cachedProfile);
+            if (parsed && parsed.id === user?.id) {
+              freshProfile = { ...driverProfile, ...parsed };
+              console.log('[useLiveAnalytics] 🔄 DRIVER MPG SYNC - Using fresh profile data from cache', forceRefresh ? '(FORCED)' : '(AUTO)');
+            }
+          }
+        } catch (cacheError) {
+          console.warn('[useLiveAnalytics] Failed to get fresh profile, using current user data:', cacheError);
+        }
+      }
+      
+      // Try to get MPG from multiple profile sources (prioritize fresh data)
+      if (freshProfile?.fuelProfile?.averageMpg) {
+        driverActualMpg = freshProfile.fuelProfile.averageMpg;
+        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using fresh fuelProfile.averageMpg:', driverActualMpg);
+      } else if (freshProfile?.mpgRated) {
+        driverActualMpg = freshProfile.mpgRated;
+        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using fresh mpgRated:', driverActualMpg);
+      } else if (driverProfile?.fuelProfile?.averageMpg) {
         driverActualMpg = driverProfile.fuelProfile.averageMpg;
-        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using fuelProfile.averageMpg:', driverActualMpg);
+        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using cached fuelProfile.averageMpg:', driverActualMpg);
       } else if (driverProfile?.mpgRated) {
         driverActualMpg = driverProfile.mpgRated;
-        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using mpgRated:', driverActualMpg);
+        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using cached mpgRated:', driverActualMpg);
       } else if ((driverProfile as any)?.mpg) {
         driverActualMpg = (driverProfile as any).mpg;
         console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using mpg field:', driverActualMpg);
       } else {
         console.log('[useLiveAnalytics] ⚠️ DRIVER MPG SYNC - No MPG found in profile, using default:', driverActualMpg);
       }
+      
+      console.log('[useLiveAnalytics] 📊 DRIVER MPG SYNC - Profile comparison:', {
+        userId: user?.id,
+        freshProfileMpg: freshProfile?.fuelProfile?.averageMpg,
+        freshProfileMpgRated: freshProfile?.mpgRated,
+        cachedProfileMpg: driverProfile?.fuelProfile?.averageMpg,
+        cachedProfileMpgRated: driverProfile?.mpgRated,
+        finalMpg: driverActualMpg
+      });
       
       console.log('[useLiveAnalytics] 🔥 DRIVER MPG SYNC - Final MPG for calculations:', driverActualMpg, 'from driver:', driverProfile?.name);
 
@@ -373,6 +405,6 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
     analytics,
     loading,
     error,
-    refetch: calculateAnalytics
+    refetch: () => calculateAnalytics(true) // Force refresh on manual refetch
   };
 }

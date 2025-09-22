@@ -66,7 +66,7 @@ export default function DriverMpgTestScreen() {
           fuelPricePerGallon: driverProfile.fuelProfile?.fuelPricePerGallon || 3.50,
           fuelType: (driverProfile.fuelProfile?.fuelType || 'diesel') as 'diesel' | 'gasoline',
           tankCapacity: driverProfile.fuelProfile?.tankCapacity || 150
-        } as FuelProfile
+        }
       };
 
       await updateProfile(updatedProfile);
