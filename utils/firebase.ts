@@ -223,15 +223,22 @@ export async function testFirebaseConnectivity(): Promise<{
 export async function ensureFirebaseAuth(): Promise<boolean> {
   startAudit('firebase-auth-ensure');
   try {
+    // Check if Firebase is properly initialized
+    if (!auth) {
+      console.warn('[auth] ❌ Firebase auth not initialized');
+      endAudit('firebase-auth-ensure', { success: false, error: 'Auth not initialized' });
+      return false;
+    }
+    
     // Check if user is already authenticated with email/password
-    if (auth?.currentUser && !auth.currentUser.isAnonymous) {
+    if (auth.currentUser && !auth.currentUser.isAnonymous) {
       console.log('[auth] ✅ User already authenticated:', auth.currentUser.uid);
       endAudit('firebase-auth-ensure', { success: true, cached: true });
       return true;
     }
     
     // If anonymous user exists, sign them out to prevent conflicts
-    if (auth?.currentUser && auth.currentUser.isAnonymous) {
+    if (auth.currentUser && auth.currentUser.isAnonymous) {
       console.log('[auth] 🔄 Signing out anonymous user to prevent conflicts...');
       try {
         const { signOut } = await import('firebase/auth');
@@ -242,42 +249,9 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
       }
     }
     
-    // CRITICAL FIX: Try to sign in with test credentials if no user is authenticated
-    if (!auth?.currentUser) {
-      console.log('[auth] 🔧 No authenticated user - attempting automatic sign in with test credentials...');
-      
-      try {
-        const { signInWithEmailAndPassword } = await import('firebase/auth');
-        
-        // Try to sign in with test driver account
-        const testCredentials = [
-          { email: 'driver@truck.com', password: 'password123' },
-          { email: 'shipper@logistics.com', password: 'password123' },
-          { email: 'test@example.com', password: 'password123' }
-        ];
-        
-        for (const creds of testCredentials) {
-          try {
-            console.log('[auth] 🔧 Attempting auto sign-in with:', creds.email);
-            const userCredential = await signInWithEmailAndPassword(auth, creds.email, creds.password);
-            
-            if (userCredential.user) {
-              console.log('[auth] ✅ Auto sign-in successful:', userCredential.user.uid);
-              endAudit('firebase-auth-ensure', { success: true, autoSignIn: true });
-              return true;
-            }
-          } catch (signInError: any) {
-            console.warn('[auth] ⚠️ Auto sign-in failed for', creds.email, ':', signInError.code);
-            continue; // Try next credentials
-          }
-        }
-        
-        console.log('[auth] ❌ All auto sign-in attempts failed - user must sign in manually');
-      } catch (importError) {
-        console.warn('[auth] ⚠️ Failed to import Firebase auth methods:', importError);
-      }
-      
-      console.log('[auth] ❌ No authenticated user - user must sign in with email/password');
+    // Don't auto-sign in - let user manually sign in
+    if (!auth.currentUser) {
+      console.log('[auth] ❌ No authenticated user - user must sign in manually');
       endAudit('firebase-auth-ensure', { success: false, error: 'No authenticated user' });
       return false;
     }

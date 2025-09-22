@@ -36,16 +36,31 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   // Firebase auth state listener for real authentication
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let initTimeout: NodeJS.Timeout;
 
     const initAuth = async () => {
       try {
         console.log('[auth] Starting Firebase auth initialization...');
         
+        // Set a timeout to prevent infinite loading
+        initTimeout = setTimeout(() => {
+          console.warn('[auth] Initialization timeout - setting loading to false');
+          setIsLoading(false);
+        }, 10000); // 10 second timeout
+        
         // Initialize Firebase first
-        await ensureFirebaseAuth();
+        const authSuccess = await ensureFirebaseAuth();
         
         if (!auth) {
           console.warn('[auth] Firebase auth not available');
+          clearTimeout(initTimeout);
+          setIsLoading(false);
+          return;
+        }
+        
+        if (!authSuccess) {
+          console.warn('[auth] Firebase auth initialization failed');
+          clearTimeout(initTimeout);
           setIsLoading(false);
           return;
         }
@@ -186,9 +201,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         });
         
         setIsFirebaseAuthenticated(true);
+        clearTimeout(initTimeout);
         
       } catch (error: any) {
         console.error('[auth] Auth initialization error:', error);
+        clearTimeout(initTimeout);
         setIsLoading(false);
       }
     };
@@ -197,6 +214,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     
     return () => {
       if (unsubscribe) unsubscribe();
+      if (initTimeout) clearTimeout(initTimeout);
     };
   }, []);
 

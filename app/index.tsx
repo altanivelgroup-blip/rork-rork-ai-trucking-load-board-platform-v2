@@ -1,7 +1,8 @@
 import { Redirect, useRouter } from "expo-router";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useState } from "react";
 
 const styles = StyleSheet.create({
   container: {
@@ -29,11 +30,29 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
   },
+  emergencyButton: {
+    backgroundColor: '#FF3B30',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  emergencyButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  timeoutText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
 });
 
 export default function Index() {
   const authState = useAuth();
   const router = useRouter();
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
 
   console.log('[Index] Auth state:', {
     hasAuthState: !!authState,
@@ -42,6 +61,23 @@ export default function Index() {
     userRole: authState?.user?.role,
     userEmail: authState?.user?.email,
   });
+
+  // Set a timeout to show emergency bypass if loading takes too long
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!authState || authState.isLoading) {
+        console.log('[Index] Loading timeout - showing emergency bypass');
+        setLoadingTimeout(true);
+      }
+    }, 5000); // 5 second timeout
+
+    return () => clearTimeout(timer);
+  }, [authState]);
+
+  const handleEmergencyBypass = () => {
+    console.log('[Index] Emergency bypass - going to login');
+    router.replace('/(auth)/login');
+  };
 
   // Show loading while auth is initializing
   if (!authState || authState.isLoading) {
@@ -55,6 +91,26 @@ export default function Index() {
         </TouchableOpacity>
         <ActivityIndicator size="large" color="#007AFF" />
         <Text style={styles.loadingText}>Loading...</Text>
+        
+        {loadingTimeout && (
+          <View>
+            <Text style={styles.timeoutText}>
+              App is taking longer than expected to load.
+            </Text>
+            <TouchableOpacity 
+              style={styles.emergencyButton}
+              onPress={handleEmergencyBypass}
+            >
+              <Text style={styles.emergencyButtonText}>Continue to Login</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.emergencyButton, { backgroundColor: '#34C759' }]}
+              onPress={() => router.replace('/emergency-login')}
+            >
+              <Text style={styles.emergencyButtonText}>Emergency Login</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </SafeAreaView>
     );
   }
