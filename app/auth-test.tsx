@@ -1,211 +1,95 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  TextInput,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
 export default function AuthTestScreen() {
-  const [email, setEmail] = useState('test@driver.com');
-  const [password, setPassword] = useState('password123');
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string[]>([]);
-  const { user, login, isAuthenticated } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
-  const addStatus = (message: string) => {
-    console.log('[AuthTest]', message);
-    setStatus(prev => [...prev.slice(-10), `${new Date().toLocaleTimeString()}: ${message}`]);
-  };
-
-  const testDirectFirebaseAuth = async () => {
-    setLoading(true);
-    addStatus('🔥 Testing direct Firebase authentication...');
-    
+  const testSignUp = async () => {
+    setIsLoading(true);
     try {
-      const { auth } = getFirebase();
-      addStatus(`Firebase auth instance: ${!!auth}`);
-      
-      if (!auth) {
-        addStatus('❌ Firebase auth not available');
-        return;
-      }
-      
-      addStatus(`Current user before: ${auth.currentUser?.uid || 'none'}`);
-      
-      // Try to sign in
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      addStatus(`✅ Direct Firebase sign in successful: ${result.user.uid}`);
-      addStatus(`User email: ${result.user.email}`);
-      addStatus(`Is anonymous: ${result.user.isAnonymous}`);
-      
+      // Navigate to sign-up with test data
+      router.push('/(auth)/signup');
     } catch (error: any) {
-      addStatus(`❌ Direct Firebase auth failed: ${error.code} - ${error.message}`);
-      
-      if (error.code === 'auth/user-not-found') {
-        addStatus('🔧 User not found, trying to create account...');
-        try {
-          const { auth } = getFirebase();
-          const createResult = await createUserWithEmailAndPassword(auth, email, password);
-          addStatus(`✅ Account created: ${createResult.user.uid}`);
-        } catch (createError: any) {
-          addStatus(`❌ Account creation failed: ${createError.code} - ${createError.message}`);
-        }
-      }
+      Alert.alert('Sign-Up Test Failed', error.message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const testAuthHook = async () => {
-    setLoading(true);
-    addStatus('🎯 Testing useAuth hook login...');
-    
+  const testSignIn = async () => {
+    setIsLoading(true);
     try {
-      await login(email, password, 'driver');
-      addStatus('✅ Auth hook login successful');
+      // Navigate to sign-in
+      router.push('/(auth)/login');
     } catch (error: any) {
-      addStatus(`❌ Auth hook login failed: ${error.message}`);
+      Alert.alert('Sign-In Test Failed', error.message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const testEnsureAuth = async () => {
-    setLoading(true);
-    addStatus('🔐 Testing ensureFirebaseAuth...');
-    
-    try {
-      const result = await ensureFirebaseAuth();
-      addStatus(`ensureFirebaseAuth result: ${result}`);
-      
-      const { auth } = getFirebase();
-      addStatus(`Current user after: ${auth.currentUser?.uid || 'none'}`);
-      addStatus(`Is anonymous: ${auth.currentUser?.isAnonymous || 'N/A'}`);
-    } catch (error: any) {
-      addStatus(`❌ ensureFirebaseAuth failed: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
+  const goToDashboard = () => {
+    router.push('/(tabs)/dashboard');
   };
-
-  const checkCurrentState = () => {
-    const { auth } = getFirebase();
-    addStatus('📊 Current authentication state:');
-    addStatus(`Firebase user: ${auth.currentUser?.uid || 'none'}`);
-    addStatus(`Firebase email: ${auth.currentUser?.email || 'none'}`);
-    addStatus(`Firebase anonymous: ${auth.currentUser?.isAnonymous || 'N/A'}`);
-    addStatus(`useAuth user: ${user?.id || 'none'}`);
-    addStatus(`useAuth email: ${user?.email || 'none'}`);
-    addStatus(`useAuth role: ${user?.role || 'none'}`);
-    addStatus(`isAuthenticated: ${isAuthenticated}`);
-  };
-
-  useEffect(() => {
-    checkCurrentState();
-  }, [user, isAuthenticated]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ title: 'Authentication Test' }} />
-      
-      <ScrollView style={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Test Credentials</Text>
-          
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email:</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-          
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password:</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
+      <View style={styles.content}>
+        <Text style={styles.title}>Auth Flow Test</Text>
+        
+        <View style={styles.statusCard}>
+          <Text style={styles.statusTitle}>Current Auth Status</Text>
+          <Text style={styles.statusText}>Loading: {authLoading ? 'Yes' : 'No'}</Text>
+          <Text style={styles.statusText}>Authenticated: {isAuthenticated ? 'Yes' : 'No'}</Text>
+          <Text style={styles.statusText}>User: {user ? `${user.name} (${user.role})` : 'None'}</Text>
+          <Text style={styles.statusText}>Email: {user?.email || 'None'}</Text>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Authentication Tests</Text>
-          
+        <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={checkCurrentState}
-            disabled={loading}
+            style={styles.button}
+            onPress={testSignUp}
+            disabled={isLoading}
           >
-            <Text style={styles.buttonText}>Check Current State</Text>
+            <Text style={styles.buttonText}>Test Sign-Up Flow</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={testEnsureAuth}
-            disabled={loading}
+            style={styles.button}
+            onPress={testSignIn}
+            disabled={isLoading}
           >
-            <Text style={styles.buttonText}>Test ensureFirebaseAuth</Text>
+            <Text style={styles.buttonText}>Test Sign-In Flow</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={testDirectFirebaseAuth}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>Test Direct Firebase Auth</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={testAuthHook}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>Test useAuth Hook</Text>
-          </TouchableOpacity>
-          
-          {loading && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={theme.colors.primary} />
-              <Text style={styles.loadingText}>Testing...</Text>
-            </View>
+
+          {isAuthenticated && (
+            <TouchableOpacity
+              style={[styles.button, styles.dashboardButton]}
+              onPress={goToDashboard}
+            >
+              <Text style={styles.buttonText}>Go to Dashboard</Text>
+            </TouchableOpacity>
           )}
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Status Log</Text>
-          <ScrollView style={styles.statusContainer}>
-            {status.map((msg, index) => (
-              <Text key={index} style={styles.statusText}>
-                {msg}
-              </Text>
-            ))}
-          </ScrollView>
+        <View style={styles.instructions}>
+          <Text style={styles.instructionsTitle}>Test Instructions:</Text>
+          <Text style={styles.instructionsText}>
+            1. Tap "Test Sign-Up Flow" to create a new account{'\n'}
+            2. Fill in email, password, and name{'\n'}
+            3. Select role (Driver/Shipper){'\n'}
+            4. Tap "Create Account"{'\n'}
+            5. Should redirect to dashboard with correct name{'\n'}
+            6. Sign out and test sign-in with same credentials
+          </Text>
         </View>
-        
-        <TouchableOpacity
-          style={[styles.button, styles.backButton]}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.buttonText}>Back</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -213,82 +97,68 @@ export default function AuthTestScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: theme.colors.white,
   },
   content: {
     flex: 1,
-    padding: theme.spacing.md,
+    padding: theme.spacing.lg,
   },
-  section: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
+  title: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
+    color: theme.colors.dark,
+    textAlign: 'center',
+    marginBottom: theme.spacing.xl,
   },
-  sectionTitle: {
+  statusCard: {
+    backgroundColor: theme.colors.lightGray,
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.xl,
+  },
+  statusTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
     color: theme.colors.dark,
-    marginBottom: theme.spacing.md,
-  },
-  inputContainer: {
     marginBottom: theme.spacing.sm,
   },
-  label: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: '500',
-    color: theme.colors.dark,
+  statusText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
     marginBottom: theme.spacing.xs,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    fontSize: theme.fontSize.md,
-    color: theme.colors.dark,
+  buttonContainer: {
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.xl,
   },
   button: {
     backgroundColor: theme.colors.primary,
+    padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
     alignItems: 'center',
-    marginBottom: theme.spacing.sm,
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  dashboardButton: {
+    backgroundColor: theme.colors.success,
   },
   buttonText: {
     color: theme.colors.white,
     fontSize: theme.fontSize.md,
     fontWeight: '600',
   },
-  backButton: {
-    backgroundColor: theme.colors.gray,
-    marginTop: theme.spacing.lg,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme.spacing.md,
-  },
-  loadingText: {
-    marginLeft: theme.spacing.sm,
-    color: theme.colors.gray,
-  },
-  statusContainer: {
-    maxHeight: 200,
+  instructions: {
     backgroundColor: theme.colors.lightGray,
+    padding: theme.spacing.lg,
     borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.sm,
   },
-  statusText: {
-    fontSize: theme.fontSize.xs,
+  instructionsTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
     color: theme.colors.dark,
-    marginBottom: 2,
-    fontFamily: 'monospace',
+    marginBottom: theme.spacing.sm,
+  },
+  instructionsText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    lineHeight: 20,
   },
 });
