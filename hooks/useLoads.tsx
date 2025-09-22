@@ -159,14 +159,8 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         }
       }
       
-      // LOADS_RESTORE_FIX: Show all loads regardless of status for debugging
-      // Only filter by status if explicitly set
-      const statusCheck = load.status === 'available' || load.status === 'pending' || load.status === 'posted';
-      if (!statusCheck) {
-        console.log(`[LOADS_DEBUG] Load ${load.id} filtered out by status: ${load.status}`);
-        return false;
-      }
-      
+      // Don't filter by status unless a status filter is explicitly provided elsewhere
+      // This ensures previously uploaded or older loads with custom statuses remain visible
       console.log(`[LOADS_DEBUG] Load ${load.id} passed all filters`);
       return true;
     });
@@ -690,14 +684,15 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
         
         console.log('[LOADS_DISAPPEAR_FIX] Starting robust real-time listener...');
         
-        // Updated query to read active loads, newest first
-        const activeLoadsQuery = query(
+        // Broad query: read newest loads regardless of custom status labels
+        // We intentionally do NOT filter by status so older or imported loads remain visible
+        const loadsQuery = query(
           collection(db, LOADS_COLLECTION),
-          where("status", "==", "active"),
-          orderBy("createdAt", "desc")
+          orderBy("createdAt", "desc"),
+          limit(500)
         );
         
-        unsubscribeRef.current = onSnapshot(activeLoadsQuery, async (snap) => {
+        unsubscribeRef.current = onSnapshot(loadsQuery, async (snap) => {
           try {
             if (!mounted) {
               console.log('[LOADS_DISAPPEAR_FIX] Component unmounted during snapshot processing');
@@ -744,7 +739,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
                 ratePerMile: 0,
                 pickupDate: pickup,
                 deliveryDate: delivery,
-                status: 'available',
+                status: d?.status || 'available',
                 description: String(d?.title ?? d?.description ?? ''),
                 special_requirements: undefined,
                 isBackhaul: false,
