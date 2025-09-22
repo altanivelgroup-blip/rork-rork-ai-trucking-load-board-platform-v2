@@ -24,6 +24,7 @@ import {
   AlertCircle,
   CheckCircle
 } from 'lucide-react-native';
+import { useReportAnalytics } from '@/src/lib/reportsApi';
 
 type MetricCard = {
   id: string;
@@ -64,6 +65,9 @@ export default function ShipperAnalyticsScreen() {
   const [, setChartData] = useState<ChartData[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
   const [userActivityData, setUserActivityData] = useState<UserActivityData[]>([]);
+  
+  type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'quarterly';
+  const report = useReportAnalytics((selectedPeriod as TimeFilter));
   
   // Allow both shippers and admins
   React.useEffect(() => {
@@ -263,27 +267,29 @@ export default function ShipperAnalyticsScreen() {
         }
       ];
     } else {
+      const totals = report?.bottomRowData?.totals;
+      const kpis = report?.metricsData?.kpis;
       return [
         {
           id: 'revenue',
           title: 'Total Revenue',
-          value: `${Math.floor(((user as any)?.totalRevenue ?? 125000) * multiplier).toLocaleString()}`,
-          change: '+12.5%',
+          value: `${(totals?.totalRevenue ?? Math.floor(((user as any)?.totalRevenue ?? 125000) * multiplier)).toLocaleString()}`,
+          change: kpis?.avgRatePerMile?.change ?? '+12.5%',
           isPositive: true,
           icon: DollarSign
         },
         {
           id: 'loads',
           title: 'Loads Posted',
-          value: `${Math.floor(((user as any)?.totalLoadsPosted ?? 45) * multiplier)}`,
-          change: '+8.2%',
+          value: `${totals?.totalLoads ?? Math.floor(((user as any)?.totalLoadsPosted ?? 45) * multiplier)}`,
+          change: kpis?.loadsToday?.change ?? '+8.2%',
           isPositive: true,
           icon: Package
         },
         {
           id: 'active',
           title: 'Active Loads',
-          value: `${Math.floor(((user as any)?.activeLoads ?? 12) * multiplier)}`,
+          value: `${(kpis?.loadsToday?.value as number | undefined) ?? Math.floor(((user as any)?.activeLoads ?? 12) * multiplier)}`,
           change: '-2.1%',
           isPositive: false,
           icon: Clock
@@ -314,7 +320,7 @@ export default function ShipperAnalyticsScreen() {
         }
       ];
     }
-  }, [user, selectedPeriod, isAdmin, revenueData, liveData.activeUsers]);
+  }, [user, selectedPeriod, isAdmin, revenueData, liveData.activeUsers, report.bottomRowData?.totals, report.metricsData?.kpis]);
 
   if (!isShipper && !isAdmin) {
     return null;
@@ -356,7 +362,7 @@ export default function ShipperAnalyticsScreen() {
               <Text style={styles.subheading}>
                 {isAdmin ? 'Live monitoring & system control' : 'Track your load performance and revenue'}
               </Text>
-              <Text style={styles.lastUpdated}>Last updated: {new Date().toLocaleTimeString()}</Text>
+              <Text style={styles.lastUpdated}>Last updated: {isAdmin ? new Date().toLocaleTimeString() : report?.lastSuccessfulFetch ? report.lastSuccessfulFetch.toLocaleTimeString() : new Date().toLocaleTimeString()}</Text>
             </View>
             {isAdmin && (
               <View style={styles.liveIndicator}>
@@ -709,14 +715,14 @@ export default function ShipperAnalyticsScreen() {
               </View>
               
               {[
-                { metric: 'Total Loads', avg: '139,103', rev1: '96,500', rev2: '1.5%', completion: '1.9%', collection: '12500' },
-                { metric: 'Total Loads', avg: '359,85', rev1: '35,800', rev2: '1.35', completion: '1.2%', collection: '12500' },
-                { metric: 'Total Loads', avg: '368,29', rev1: '59,900', rev2: '1.34', completion: '1.6%', collection: '21530' },
-                { metric: 'Total Loads', avg: '34,17', rev1: '48,800', rev2: '20%', completion: '1.9%', collection: '16330' },
-                { metric: 'Total Loads', avg: '159,56', rev1: '45,000', rev2: '1.34', completion: '1.8%', collection: '26560' },
-                { metric: 'Total Loads', avg: '122,45', rev1: '92,800', rev2: '1.3%', completion: '1.3%', collection: '21530' }
-              ].map((row, rowIndex) => (
-                <View key={rowIndex} style={styles.tableRow}>
+                { key: 'row1', metric: 'Total Loads', avg: '139,103', rev1: '96,500', rev2: '1.5%', completion: '1.9%', collection: '12500' },
+                { key: 'row2', metric: 'Total Loads', avg: '359,85', rev1: '35,800', rev2: '1.35', completion: '1.2%', collection: '12500' },
+                { key: 'row3', metric: 'Total Loads', avg: '368,29', rev1: '59,900', rev2: '1.34', completion: '1.6%', collection: '21530' },
+                { key: 'row4', metric: 'Total Loads', avg: '34,17', rev1: '48,800', rev2: '20%', completion: '1.9%', collection: '16330' },
+                { key: 'row5', metric: 'Total Loads', avg: '159,56', rev1: '45,000', rev2: '1.34', completion: '1.8%', collection: '26560' },
+                { key: 'row6', metric: 'Total Loads', avg: '122,45', rev1: '92,800', rev2: '1.3%', completion: '1.3%', collection: '21530' }
+              ].map((row) => (
+                <View key={row.key} style={styles.tableRow}>
                   <View style={[styles.tableCell, { flex: 2 }]}>
                     <View style={styles.tableCellContent}>
                       <View style={styles.metricDot} />
@@ -757,20 +763,20 @@ export default function ShipperAnalyticsScreen() {
           <View style={styles.performanceSection}>
             <Text style={styles.sectionTitle}>Performance Metrics</Text>
             <View style={styles.performanceCards}>
-              <View style={styles.performanceCard}>
-                <Text style={styles.performanceLabel}>Load Completion Rate</Text>
-                <Text style={styles.performanceValue}>94.2%</Text>
-                <Text style={styles.performanceChange}>+2.1%</Text>
+              <View style={styles.performanceCard} testID="kpi-loads-today">
+                <Text style={styles.performanceLabel}>Loads {selectedPeriod === 'daily' ? 'Today' : selectedPeriod === 'weekly' ? 'This Week' : selectedPeriod === 'monthly' ? 'This Month' : 'This Quarter'}</Text>
+                <Text style={styles.performanceValue}>{String(report?.metricsData?.kpis?.loadsToday?.value ?? '--')}</Text>
+                <Text style={styles.performanceChange}>{report?.metricsData?.kpis?.loadsToday?.change ?? ''}</Text>
               </View>
-              <View style={styles.performanceCard}>
-                <Text style={styles.performanceLabel}>Average Delivery Time</Text>
-                <Text style={styles.performanceValue}>2.3 days</Text>
-                <Text style={styles.performanceChange}>-0.2 days</Text>
+              <View style={styles.performanceCard} testID="kpi-avg-rate">
+                <Text style={styles.performanceLabel}>$/Mile Avg</Text>
+                <Text style={styles.performanceValue}>{String(report?.metricsData?.kpis?.avgRatePerMile?.value ?? '--')}</Text>
+                <Text style={styles.performanceChange}>{report?.metricsData?.kpis?.avgRatePerMile?.change ?? ''}</Text>
               </View>
-              <View style={styles.performanceCard}>
-                <Text style={styles.performanceLabel}>Customer Satisfaction</Text>
-                <Text style={styles.performanceValue}>4.7/5</Text>
-                <Text style={styles.performanceChange}>+0.1</Text>
+              <View style={styles.performanceCard} testID="kpi-active-drivers">
+                <Text style={styles.performanceLabel}>Active Drivers</Text>
+                <Text style={styles.performanceValue}>{String(report?.metricsData?.kpis?.activeDrivers?.value ?? '--')}</Text>
+                <Text style={styles.performanceChange}>{report?.metricsData?.kpis?.activeDrivers?.change ?? ''}</Text>
               </View>
             </View>
           </View>
