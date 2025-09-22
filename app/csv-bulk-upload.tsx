@@ -693,14 +693,19 @@ export default function CSVBulkUploadScreen() {
       
       console.log(`[CSV PROCESSING] Processed ${normalizedWithDuplicateCheck.length} rows: ${validCount} valid, ${invalidCount} invalid, ${duplicateCount} duplicates`);
       
-      // Prepare data for AI duplicate checker - only if we have valid rows
-      if (validCount > 1) {
-        console.log('[CSV PROCESSING] Preparing AI duplicate checker data...');
-        const validRowsWithIndex = normalizedWithDuplicateCheck
-          .map((row, idx) => ({ row, idx }))
-          .filter(({ row }) => row.status === 'valid');
+      // Prepare data for AI duplicate checker - prefer valid rows, fallback to non-invalid rows
+      const candidateRowsWithIndex = normalizedWithDuplicateCheck
+        .map((row, idx) => ({ row, idx }))
+        .filter(({ row }) => row.status !== 'invalid');
 
-        const validLoads = validRowsWithIndex.map(({ row }) => ({
+      if (candidateRowsWithIndex.length > 1) {
+        console.log('[CSV PROCESSING] Preparing AI duplicate checker data...');
+
+        // Prefer valid rows if we have at least two, otherwise include duplicates too
+        const preferred = candidateRowsWithIndex.filter(({ row }) => row.status === 'valid');
+        const rowsForAI = preferred.length > 1 ? preferred : candidateRowsWithIndex;
+
+        const aiLoads = rowsForAI.map(({ row }) => ({
           title: row.title || undefined,
           origin: row.origin || '',
           destination: row.destination || '',
@@ -710,17 +715,18 @@ export default function CSVBulkUploadScreen() {
           equipmentType: row.equipmentType || undefined,
         }));
 
-        const indexMap = validRowsWithIndex.map(({ idx }) => idx);
+        const indexMap = rowsForAI.map(({ idx }) => idx);
         setValidIndexMap(indexMap);
-        setDuplicateCheckLoads(validLoads);
-        
-        console.log('[CSV PROCESSING] AI duplicate checker will be shown for', validLoads.length, 'valid loads');
-        
-        // Show duplicate checker immediately after processing completes
+        setDuplicateCheckLoads(aiLoads);
+
+        console.log('[CSV PROCESSING] AI duplicate checker will be shown for', aiLoads.length, 'loads');
         console.log('[CSV PROCESSING] Opening AI duplicate checker modal...');
         setShowDuplicateChecker(true);
       } else {
-        console.log('[CSV PROCESSING] Skipping AI duplicate checker - not enough valid rows:', validCount);
+        console.log('[CSV PROCESSING] Skipping AI duplicate checker - not enough rows:', {
+          validCount,
+          nonInvalid: candidateRowsWithIndex.length,
+        });
         setValidIndexMap([]);
         setDuplicateCheckLoads([]);
       }
