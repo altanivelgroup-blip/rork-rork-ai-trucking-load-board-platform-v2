@@ -232,9 +232,8 @@ export default function CSVBulkUploadScreen() {
             try {
               setIsUndoing(true);
               
-              const authSuccess = await ensureFirebaseAuth();
-              if (!authSuccess) {
-                throw new Error('Authentication failed');
+              if (!user || !user.id) {
+                throw new Error('Authentication required');
               }
               
               const { db } = getFirebase();
@@ -918,10 +917,12 @@ export default function CSVBulkUploadScreen() {
       console.log(`[BULK UPLOAD] Starting ${dryRun ? 'simulation' : 'import'} process...`);
       
       if (!dryRun) {
-        const authSuccess = await ensureFirebaseAuth();
-        if (!authSuccess) {
-          throw new Error('Authentication failed. Please try again.');
+        console.log('[BULK UPLOAD] Checking authentication...');
+        if (!user || !user.id) {
+          console.error('[BULK UPLOAD] No authenticated user found');
+          throw new Error('Authentication required. Please sign in and try again.');
         }
+        console.log('[BULK UPLOAD] User authenticated:', user.id);
       }
       
       const validRows = normalizedRows.filter(row => row.status === 'valid');
@@ -962,8 +963,13 @@ export default function CSVBulkUploadScreen() {
       }
       
       // Real import - check for duplicates one more time before writing
+      console.log('[BULK UPLOAD] Getting Firebase instance...');
       const { db } = getFirebase();
+      console.log('[BULK UPLOAD] Firebase DB instance obtained');
+      
       const bulkImportId = generateBulkImportId();
+      console.log('[BULK UPLOAD] Generated bulk import ID:', bulkImportId);
+      
       const BATCH_SIZE = 400;
       let imported = 0;
       let skippedDuplicates = 0;
@@ -975,6 +981,8 @@ export default function CSVBulkUploadScreen() {
       try {
         console.log('[BULK UPLOAD] Starting permission check...');
         const { checkFirebasePermissions } = await import('@/utils/firebase');
+        console.log('[BULK UPLOAD] Imported checkFirebasePermissions function');
+        
         const perms = await checkFirebasePermissions();
         console.log('[BULK UPLOAD] Permission check result:', perms);
         
@@ -987,26 +995,43 @@ export default function CSVBulkUploadScreen() {
         console.log('[BULK UPLOAD] Permission check passed - can write to Firestore');
       } catch (preErr: any) {
         console.error('[BULK UPLOAD] Permission check error:', preErr);
+        console.error('[BULK UPLOAD] Permission check error details:', {
+          name: preErr.name,
+          message: preErr.message,
+          stack: preErr.stack
+        });
         throw new Error(preErr?.message || 'Permission check failed');
       }
 
       // Process in batches with duplicate checking
+      console.log('[BULK UPLOAD] Starting batch processing...');
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+        console.log(`[BULK UPLOAD] Processing batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(validRows.length/BATCH_SIZE)}`);
         const batchRows = validRows.slice(i, Math.min(i + BATCH_SIZE, validRows.length));
+        console.log(`[BULK UPLOAD] Batch has ${batchRows.length} rows`);
         
         // Check this batch for duplicates before writing
+        console.log('[BULK UPLOAD] Checking batch for duplicates...');
         const batchWithDuplicateCheck = await checkForDuplicates(batchRows);
         const batchValidRows = batchWithDuplicateCheck.filter(row => row.status === 'valid');
         const batchDuplicates = batchWithDuplicateCheck.filter(row => row.status === 'duplicate');
         
+        console.log(`[BULK UPLOAD] Batch results: ${batchValidRows.length} valid, ${batchDuplicates.length} duplicates`);
         skippedDuplicates += batchDuplicates.length;
         
         if (batchValidRows.length > 0) {
+          console.log('[BULK UPLOAD] Creating Firestore batch...');
           const batch = writeBatch(db);
           
           for (const row of batchValidRows) {
             const docId = generateLoadId();
+            console.log(`[BULK UPLOAD] Converting row to Firestore doc: ${docId}`);
             const docData = toFirestoreDoc(row, selectedTemplate, bulkImportId);
+            console.log(`[BULK UPLOAD] Doc data created for ${docId}:`, {
+              title: docData.title,
+              status: docData.status,
+              createdBy: docData.createdBy
+            });
             const docRef = doc(db, LOADS_COLLECTION, docId);
             batch.set(docRef, docData);
             historyForDevice.push({ id: docId, ...docData });
@@ -1025,7 +1050,8 @@ export default function CSVBulkUploadScreen() {
               batchSize: batchValidRows.length,
               errorName: error.name,
               errorCode: error.code,
-              errorMessage: error.message
+              errorMessage: error.message,
+              errorStack: error.stack
             });
             
             let batchErrorMsg = `❌ Import failed after ${imported} rows. `;
@@ -1042,8 +1068,11 @@ export default function CSVBulkUploadScreen() {
             console.error('[BULK UPLOAD] Throwing batch error:', batchErrorMsg);
             throw new Error(batchErrorMsg);
           }
+        } else {
+          console.log('[BULK UPLOAD] No valid rows in this batch, skipping...');
         }
         
+        console.log(`[BULK UPLOAD] Updating progress: ${i + batchRows.length}/${validRows.length}`);
         setImportProgress({ current: i + batchRows.length, total: validRows.length });
       }
       
@@ -1179,6 +1208,7 @@ export default function CSVBulkUploadScreen() {
   const handleImport = useCallback(async () => {
     console.log('[HANDLE IMPORT] Starting import process...');
     console.log('[HANDLE IMPORT] User:', !!user);
+    console.log('[HANDLE IMPORT] User ID:', user?.id);
     console.log('[HANDLE IMPORT] Normalized rows:', normalizedRows.length);
     
     if (!user) {
@@ -1190,6 +1220,7 @@ export default function CSVBulkUploadScreen() {
 
     const validRows = normalizedRows.filter(row => row.status === 'valid');
     console.log('[HANDLE IMPORT] Valid rows:', validRows.length);
+    console.log('[HANDLE IMPORT] Sample valid row:', validRows[0]);
     
     if (validRows.length === 0) {
       console.error('[HANDLE IMPORT] No valid rows to import');
@@ -1200,15 +1231,25 @@ export default function CSVBulkUploadScreen() {
 
     console.log('[HANDLE IMPORT] Calling performImport...');
     try {
+      setIsImporting(true);
       await performImport(false);
       console.log('[HANDLE IMPORT] performImport completed successfully');
     } catch (error: any) {
       console.error('[HANDLE IMPORT] performImport failed:', error);
+      console.error('[HANDLE IMPORT] Error name:', error.name);
+      console.error('[HANDLE IMPORT] Error message:', error.message);
+      console.error('[HANDLE IMPORT] Error stack:', error.stack);
+      
+      // Show detailed error in alert
+      const errorMsg = error.message || 'An unexpected error occurred during import.';
       Alert.alert(
         'Import Failed', 
-        error.message || 'An unexpected error occurred during import.',
+        `Error: ${errorMsg}\n\nCheck console for details.`,
         [{ text: 'OK', style: 'default' }]
       );
+      showToast(`Import failed: ${errorMsg}`, 'error');
+    } finally {
+      setIsImporting(false);
     }
   }, [user, normalizedRows, showToast, performImport]);
 
@@ -1294,9 +1335,8 @@ export default function CSVBulkUploadScreen() {
             try {
               setIsUndoing(true);
               
-              const authSuccess = await ensureFirebaseAuth();
-              if (!authSuccess) {
-                throw new Error('Authentication failed');
+              if (!user || !user.id) {
+                throw new Error('Authentication required');
               }
               
               const { db } = getFirebase();
