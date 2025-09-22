@@ -74,7 +74,7 @@ export default function LiveAnalyticsDashboard({
             {formatCurrency(analytics.fuelCost || 0)}
           </Text>
           <Text style={[styles.metricSubtext, compact && styles.metricSubtextCompact]}>
-            {(analytics.gallonsNeeded || 0).toFixed(1)} gal @ {(analytics.mpg || 0).toFixed(1)} mpg
+            {(analytics.gallonsNeeded || 0).toFixed(1)} gal @ {(analytics.mpg || 0).toFixed(1)} mpg (Driver)
           </Text>
         </View>
 
@@ -140,7 +140,7 @@ export default function LiveAnalyticsDashboard({
           <View style={styles.summaryItem}>
             <MapPin size={16} color={theme.colors.gray} />
             <Text style={styles.summaryText}>
-              {analytics.estimatedMiles || 0} mi • {(analytics.gallonsNeeded || 0).toFixed(1)} gal • {(analytics.mpg || 0).toFixed(1)} mpg
+              {analytics.estimatedMiles || 0} mi • {(analytics.gallonsNeeded || 0).toFixed(1)} gal • {(analytics.mpg || 0).toFixed(1)} mpg (Your Truck)
             </Text>
           </View>
         </View>

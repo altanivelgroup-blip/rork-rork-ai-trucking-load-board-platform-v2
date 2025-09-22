@@ -100,6 +100,26 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
         fuelType: (user as any)?.fuelProfile?.fuelType
       });
 
+      // PERMANENT FIX: DRIVER MPG SYNC - Get driver's actual MPG from multiple sources
+      const driverProfile = user as Driver;
+      let driverActualMpg = 8.5; // Default fallback
+      
+      // Try to get MPG from multiple profile sources
+      if (driverProfile?.fuelProfile?.averageMpg) {
+        driverActualMpg = driverProfile.fuelProfile.averageMpg;
+        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using fuelProfile.averageMpg:', driverActualMpg);
+      } else if (driverProfile?.mpgRated) {
+        driverActualMpg = driverProfile.mpgRated;
+        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using mpgRated:', driverActualMpg);
+      } else if ((driverProfile as any)?.mpg) {
+        driverActualMpg = (driverProfile as any).mpg;
+        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Using mpg field:', driverActualMpg);
+      } else {
+        console.log('[useLiveAnalytics] ⚠️ DRIVER MPG SYNC - No MPG found in profile, using default:', driverActualMpg);
+      }
+      
+      console.log('[useLiveAnalytics] 🔥 DRIVER MPG SYNC - Final MPG for calculations:', driverActualMpg, 'from driver:', driverProfile?.name);
+
       // PERMANENT FIX: Get or calculate distance with comprehensive fallbacks
       let miles = load.distance || load.distanceMiles || 0;
       
@@ -162,31 +182,38 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
       
       console.log('[useLiveAnalytics] 🎯 PERMANENT DISTANCE SUCCESS - Final distance:', miles.toFixed(0), 'miles');
 
-      // Get fuel estimate with error handling
+      // PERMANENT FIX: DRIVER MPG SYNC - Get fuel estimate using driver's actual MPG
       let fuelEstimate;
       try {
         fuelEstimate = await fetchFuelEstimate({
           load: {
             distance: miles,
-            vehicleType: load.vehicleType || (user as Driver)?.fuelProfile?.vehicleType || 'truck',
+            vehicleType: load.vehicleType || driverProfile?.fuelProfile?.vehicleType || 'truck',
             weight: load.weight || 0,
             origin: load.origin,
             destination: load.destination,
           },
-          driver: user as Driver,
+          driver: {
+            ...driverProfile,
+            fuelProfile: {
+              ...driverProfile?.fuelProfile,
+              averageMpg: driverActualMpg // Force use of actual driver MPG
+            }
+          } as Driver,
         });
+        console.log('[useLiveAnalytics] 🎯 DRIVER MPG SYNC - Fuel estimate calculated with driver MPG:', driverActualMpg);
       } catch (fuelError) {
-        console.warn('[useLiveAnalytics] Fuel estimation failed:', fuelError);
-        // Fallback fuel calculation
-        const mpg = (user as Driver)?.fuelProfile?.averageMpg || 8;
-        const pricePerGallon = (user as Driver)?.fuelProfile?.fuelPricePerGallon || 3.50;
-        const gallons = miles / mpg;
+        console.warn('[useLiveAnalytics] Fuel estimation failed, using fallback with driver MPG:', fuelError);
+        // PERMANENT FIX: Fallback fuel calculation using driver's actual MPG
+        const pricePerGallon = driverProfile?.fuelProfile?.fuelPricePerGallon || 3.50;
+        const gallons = miles / driverActualMpg;
         fuelEstimate = {
           cost: gallons * pricePerGallon,
-          mpg,
+          mpg: driverActualMpg, // Use driver's actual MPG
           gallons,
           pricePerGallon
         };
+        console.log('[useLiveAnalytics] 🔥 DRIVER MPG SYNC - Fallback calculation using driver MPG:', driverActualMpg, 'gallons:', gallons.toFixed(1));
       }
 
       // Calculate financials with multiple rate sources
@@ -220,6 +247,9 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
       setAnalytics(result);
       console.log('[useLiveAnalytics] ✅ PERMANENT UNBREAKABLE ANALYTICS SUCCESS on', Platform.OS, ':', {
         loadId: load.id,
+        driverName: driverProfile?.name,
+        driverMpg: driverActualMpg,
+        calculatedMpg: fuelEstimate.mpg,
         fuelCost: `${fuelCost.toFixed(2)}`,
         netAfterFuel: `${netAfterFuel.toFixed(2)}`,
         profitPerMile: `${profitPerMile.toFixed(2)}/mi`,
@@ -230,8 +260,8 @@ export function useLiveAnalytics(load: any, enabled: boolean = true) {
         grossRate: `${rate.toFixed(2)}`,
         platform: Platform.OS,
         timestamp: new Date().toISOString(),
-        analyticsVersion: '3.0-unbreakable',
-        permanentlyFixed: 'Live Analytics Stability - ETA/fuel/ROI calculations never fail'
+        analyticsVersion: '3.1-driver-mpg-sync',
+        permanentlyFixed: 'Live Analytics with Driver MPG Sync - Always uses logged-in driver actual MPG'
       });
       
       console.log('[useLiveAnalytics] 🎯 PERMANENT FIX CONFIRMED: Live Analytics (ETA/fuel consumption/cost/ROI) are now UNBREAKABLE');
