@@ -39,7 +39,7 @@ export default function SignUpScreen() {
     setErrorText(null);
     
     try {
-      // Step 1: Validate input
+      // Step 1: Input validation
       if (!email?.trim() || !password?.trim()) {
         setErrorText('Email and password are required.');
         return;
@@ -64,21 +64,24 @@ export default function SignUpScreen() {
       
       console.log('[Sign-Up Rewritten] Firebase user created:', firebaseUser.uid);
       
-      // Step 3: Save basic profile in Firestore 'users' collection
+      // Step 3: Save basic profile in Firestore 'users' collection (UID as doc ID)
+      const defaultName = name.trim() || email.split('@')[0];
       const profileData = {
+        fullName: defaultName,
+        email: email.trim(),
+        phone: phone.trim() || '',
+        company: company.trim() || ''
+      };
+      
+      const userDoc = {
         role: selectedRole,
-        profileData: {
-          name: name.trim() || email.split('@')[0], // Use provided name or default from email
-          email: email.trim(),
-          phone: phone.trim() || '',
-          company: company.trim() || ''
-        },
+        profileData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
       
       const userRef = doc(db, 'users', firebaseUser.uid);
-      await setDoc(userRef, profileData, { merge: true });
+      await setDoc(userRef, userDoc, { merge: true });
       
       console.log('[Sign-Up Rewritten] Profile saved to Firestore for role:', selectedRole);
       

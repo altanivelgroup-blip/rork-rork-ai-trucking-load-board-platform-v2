@@ -31,7 +31,6 @@ export default function LoginScreen() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const router = useRouter();
 
-
   const isValidEmail = (emailValue: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(emailValue.trim());
@@ -42,7 +41,7 @@ export default function LoginScreen() {
     setErrorText(null);
     
     try {
-      // Step 1: Validate input
+      // Step 1: Input validation
       if (!email?.trim() || !password?.trim()) {
         setErrorText('Email and password are required.');
         return;
@@ -62,32 +61,37 @@ export default function LoginScreen() {
       
       console.log('[Sign-In Rewritten] Firebase authentication successful:', firebaseUser.uid);
       
-      // Step 3: Load or create profile in Firestore
+      // Step 3: Load or create profile in Firestore 'users' collection
       const userRef = doc(db, 'users', firebaseUser.uid);
       const userSnap = await getDoc(userRef);
       
       let userRole: UserRole = selectedRole;
+      let profileData: any;
       
       if (userSnap.exists()) {
         // Load existing profile
         const existingData = userSnap.data();
         userRole = existingData.role || selectedRole;
+        profileData = existingData.profileData || {};
         console.log('[Sign-In Rewritten] Loaded existing profile for role:', userRole);
       } else {
-        // Create new profile document
-        const newProfileData = {
+        // Create new profile document with UID as doc ID
+        const defaultName = email.split('@')[0];
+        profileData = {
+          fullName: defaultName,
+          email: email.trim(),
+          phone: '',
+          company: ''
+        };
+        
+        const newUserDoc = {
           role: selectedRole,
-          profileData: {
-            name: email.split('@')[0], // Default name from email
-            email: email.trim(),
-            phone: '',
-            company: ''
-          },
+          profileData,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
         
-        await setDoc(userRef, newProfileData, { merge: true });
+        await setDoc(userRef, newUserDoc, { merge: true });
         userRole = selectedRole;
         console.log('[Sign-In Rewritten] Created new profile for role:', userRole);
       }
