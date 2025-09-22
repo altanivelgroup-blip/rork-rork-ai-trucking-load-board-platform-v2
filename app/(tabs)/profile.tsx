@@ -338,11 +338,11 @@ export default function ProfileScreen() {
             <User size={32} color={theme.colors.white} />
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{activeProfile?.name || 'User'}</Text>
+            <Text style={styles.profileName}>{activeProfile?.name || user?.name || 'User'}</Text>
             <Text style={styles.profileEmail}>{activeProfile?.email || 'user@example.com'}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
-                {isDriver ? 'DRIVER' : isShipper ? 'SHIPPER' : 'USER'}
+                {(activeProfile?.name || user?.name || (isDriver ? 'DRIVER' : isShipper ? 'SHIPPER' : 'USER')).toUpperCase()}
                 {recoveredProfile ? ' (RECOVERED)' : ''}
               </Text>
               {liveDataRefreshing && (
