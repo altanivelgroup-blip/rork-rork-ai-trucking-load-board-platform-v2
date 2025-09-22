@@ -6,7 +6,7 @@ import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiveAnalytics } from '@/hooks/useLiveAnalytics';
 import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
-import { Driver } from '@/types';
+import { Driver, FuelProfile, VehicleType } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Mock load for testing
@@ -61,9 +61,12 @@ export default function DriverMpgTestScreen() {
         ...driverProfile,
         mpgRated: testMpg,
         fuelProfile: {
-          ...driverProfile.fuelProfile,
-          averageMpg: testMpg
-        }
+          vehicleType: (driverProfile.fuelProfile?.vehicleType || driverProfile.vehicleTypes?.[0] || 'truck') as VehicleType,
+          averageMpg: testMpg,
+          fuelPricePerGallon: driverProfile.fuelProfile?.fuelPricePerGallon || 3.50,
+          fuelType: (driverProfile.fuelProfile?.fuelType || 'diesel') as 'diesel' | 'gasoline',
+          tankCapacity: driverProfile.fuelProfile?.tankCapacity
+        } as FuelProfile
       };
 
       await updateProfile(updatedProfile);
