@@ -60,7 +60,8 @@ export default function LoginScreen() {
       };
       
       // Check if this is an emergency bypass user
-      if (emergencyUsers[emailTrimmed] && passwordTrimmed === emergencyUsers[emailTrimmed]) {
+      const emergencyPassword = emergencyUsers[emailTrimmed];
+      if (emergencyPassword && passwordTrimmed === emergencyPassword) {
         console.log(`[Emergency Access] Bypass activated for: ${emailTrimmed}`);
         
         // Create mock user and navigate directly
