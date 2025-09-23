@@ -17,9 +17,15 @@ export default function TabsLayout() {
   }
   const isDriver = user?.role === 'driver';
   const isShipper = user?.role === 'shipper';
-  const isAdmin = (user?.role as string) === 'admin' || user?.email === 'admin@loadrush.com';
+  const isAdmin = (user?.role as string) === 'admin' || user?.email === 'admin@loadrush.com' || user?.email === 'admin@test1.com';
   
-  console.log('[TabsLayout] Rendering with user role:', user?.role);
+  console.log('[TabsLayout] Rendering with user:', {
+    email: user?.email,
+    role: user?.role,
+    isDriver,
+    isShipper,
+    isAdmin
+  });
 
   return (
     <Tabs

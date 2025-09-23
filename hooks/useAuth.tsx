@@ -49,36 +49,77 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             const userData = JSON.parse(emergencyUser);
             console.log(`[auth] Emergency access detected for: ${userData.email}`);
             
-            // Create full user object
-            const userObject: Driver = {
-              id: userData.id,
-              role: userData.role || 'driver',
-              email: userData.email,
-              name: userData.name || userData.email.split('@')[0].toUpperCase(),
-              phone: userData.phone || '',
-              membershipTier: 'basic',
-              createdAt: new Date(),
-              cdlNumber: '',
-              vehicleTypes: [],
-              rating: 4.8,
-              completedLoads: 24,
-              documents: [],
-              wallet: {
-                balance: 2450,
-                pendingEarnings: 850,
-                totalEarnings: 12500,
-                transactions: [],
-              },
-              fuelProfile: {
-                vehicleType: 'truck',
-                averageMpg: 8.5,
-                fuelPricePerGallon: 3.85,
-                fuelType: 'diesel',
-                tankCapacity: 150,
-              },
-              isAvailable: true,
-              verificationStatus: 'verified',
-            };
+            // Create full user object based on role
+            let userObject: Driver | Shipper | Admin;
+            
+            if (userData.role === 'shipper') {
+              userObject = {
+                id: userData.id,
+                role: 'shipper',
+                email: userData.email,
+                name: userData.name || userData.email.split('@')[0].toUpperCase(),
+                phone: userData.phone || '',
+                membershipTier: 'basic',
+                createdAt: new Date(),
+                companyName: 'Test Logistics',
+                mcNumber: 'MC123456',
+                dotNumber: 'DOT789012',
+                verificationStatus: 'verified',
+                totalLoadsPosted: 45,
+                activeLoads: 12,
+                completedLoads: 33,
+                totalRevenue: 125000,
+                avgRating: 4.6,
+              } as Shipper;
+            } else if (userData.role === 'admin') {
+              userObject = {
+                id: userData.id,
+                role: 'admin',
+                email: userData.email,
+                name: userData.name || userData.email.split('@')[0].toUpperCase(),
+                phone: userData.phone || '',
+                membershipTier: 'enterprise',
+                createdAt: new Date(),
+                permissions: ['analytics', 'user_management', 'load_management', 'system_admin'],
+                lastLoginAt: new Date(),
+              } as Admin;
+            } else {
+              userObject = {
+                id: userData.id,
+                role: 'driver',
+                email: userData.email,
+                name: userData.name || userData.email.split('@')[0].toUpperCase(),
+                phone: userData.phone || '',
+                membershipTier: 'basic',
+                createdAt: new Date(),
+                cdlNumber: '',
+                vehicleTypes: [],
+                rating: 4.8,
+                completedLoads: 24,
+                documents: [],
+                wallet: {
+                  balance: 2450,
+                  pendingEarnings: 850,
+                  totalEarnings: 12500,
+                  transactions: [],
+                },
+                fuelProfile: {
+                  vehicleType: 'truck',
+                  averageMpg: 8.5,
+                  fuelPricePerGallon: 3.85,
+                  fuelType: 'diesel',
+                  tankCapacity: 150,
+                },
+                isAvailable: true,
+                verificationStatus: 'verified',
+              } as Driver;
+            }
+            
+            console.log(`[auth] Emergency user object created:`, {
+              role: userObject.role,
+              email: userObject.email,
+              name: userObject.name
+            });
             
             setUser(userObject);
             setUserId(userData.id);
@@ -388,6 +429,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         'profile:cache',
         'profile:persistent',
         'auth:user:persistent',
+        'auth:emergency:user',
       ];
       
       await Promise.all(keysToRemove.map(key => 

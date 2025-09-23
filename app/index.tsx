@@ -124,13 +124,20 @@ export default function Index() {
   }
 
   // If user is authenticated, redirect to appropriate dashboard
-  console.log('[Index] User authenticated, redirecting based on role:', user.role);
+  console.log('[Index] User authenticated, redirecting based on role:', {
+    role: user.role,
+    email: user.email,
+    id: user.id
+  });
   
   if (user.role === 'admin') {
+    console.log('[Index] Redirecting admin to admin tab');
     return <Redirect href="/(tabs)/admin" />;
   }
   if (user.role === 'shipper') {
+    console.log('[Index] Redirecting shipper to shipper tab');
     return <Redirect href="/(tabs)/shipper" />;
   }
+  console.log('[Index] Redirecting driver to dashboard tab');
   return <Redirect href="/(tabs)/dashboard" />;
 }

@@ -71,12 +71,16 @@ export default function LoginScreen() {
           name: emailTrimmed.split('@')[0].toUpperCase()
         }));
         
-        // Navigate based on role
+        // Navigate based on role with explicit routing
+        console.log(`[Login] Navigating test user with role: ${testUser.role}`);
         if (testUser.role === 'admin') {
+          console.log('[Login] Redirecting to admin tab');
           router.replace('/(tabs)/admin');
         } else if (testUser.role === 'shipper') {
+          console.log('[Login] Redirecting to shipper tab');
           router.replace('/(tabs)/shipper');
         } else {
+          console.log('[Login] Redirecting to driver dashboard');
           router.replace('/(tabs)/dashboard');
         }
         return;
@@ -117,12 +121,16 @@ export default function LoginScreen() {
           console.warn('[Login] Profile handling failed, continuing:', profileError);
         }
         
-        // Navigate based on role
+        // Navigate based on role with explicit routing
+        console.log(`[Login] Navigating Firebase user with role: ${userRole}`);
         if (userRole === 'admin') {
+          console.log('[Login] Redirecting to admin tab');
           router.replace('/(tabs)/admin');
         } else if (userRole === 'shipper') {
+          console.log('[Login] Redirecting to shipper tab');
           router.replace('/(tabs)/shipper');
         } else {
+          console.log('[Login] Redirecting to driver dashboard');
           router.replace('/(tabs)/dashboard');
         }
         
