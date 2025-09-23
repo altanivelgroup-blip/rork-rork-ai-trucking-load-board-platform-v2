@@ -1,208 +1,188 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   ActivityIndicator,
   Image,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, Users, Truck, Settings } from 'lucide-react-native';
+import { Users, Truck, Settings } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { moderateScale } from '@/src/ui/scale';
-import { UserRole } from '@/types';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirebase } from '@/utils/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useAuth } from '@/hooks/useAuth';
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
-export default function LoginScreen() {
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState<number>(0);
-  const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
-  const router = useRouter();
+type UserRole = 'driver' | 'shipper' | 'admin';
 
-  // ✅ Fixed login
-  const handleLogin = useCallback(async () => {
-    setIsLoading(true);
+interface RoleOption {
+  role: UserRole;
+  title: string;
+  subtitle: string;
+  icon: React.ComponentType<any>;
+  color: string;
+  testCredentials: {
+    email: string;
+    password: string;
+  };
+}
+
+const ROLE_OPTIONS: RoleOption[] = [
+  {
+    role: 'driver',
+    title: 'Driver',
+    subtitle: 'Find and book loads',
+    icon: Truck,
+    color: theme.colors.primary,
+    testCredentials: {
+      email: 'driver@test1.com',
+      password: 'RealUnlock123-'
+    }
+  },
+  {
+    role: 'shipper',
+    title: 'Shipper',
+    subtitle: 'Post loads and manage shipments',
+    icon: Users,
+    color: theme.colors.secondary,
+    testCredentials: {
+      email: 'shipper@test1.com',
+      password: 'RealShipper123'
+    }
+  },
+  {
+    role: 'admin',
+    title: 'Admin',
+    subtitle: 'Manage platform and users',
+    icon: Settings,
+    color: theme.colors.warning,
+    testCredentials: {
+      email: 'admin@test1.com',
+      password: 'RealBoss123'
+    }
+  },
+];
+
+export default function LoginScreen() {
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const router = useRouter();
+  const { login } = useAuth();
+
+  const handleRoleLogin = async (roleOption: RoleOption) => {
+    setIsLoading(roleOption.role);
     setErrorText(null);
 
     try {
-      if (!email?.trim() || !password?.trim()) {
-        setErrorText("Email and password are required.");
-        return;
-      }
+      console.log(`[Login] Attempting ${roleOption.role} login with ${roleOption.testCredentials.email}`);
+      
+      await login(
+        roleOption.testCredentials.email,
+        roleOption.testCredentials.password,
+        roleOption.role
+      );
 
-      const emailTrimmed = email.trim().toLowerCase();
-      const passwordTrimmed = password.trim();
+      console.log(`[Login] ${roleOption.role} login successful, navigating...`);
 
-      console.log(`[Login] Authenticating: ${emailTrimmed}`);
-
-      // Firebase auth
-      const { auth, db } = getFirebase();
-      const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
-      const firebaseUser = userCredential.user;
-
-      console.log(`[Login] Firebase Success: ${firebaseUser.uid}`);
-
-      // Fetch role from Firestore
-      const userRef = doc(db, "users", firebaseUser.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        setErrorText("❌ No Firestore profile found for this account.");
-        return;
-      }
-
-      const userData = userSnap.data();
-      const userRole: UserRole = userData.role;
-
-      console.log(`[Login] Resolved Firestore role: ${userRole}`);
-
-      // Route by role
-      if (userRole === "driver") {
-        router.replace("/(tabs)/dashboard");
-      } else if (userRole === "shipper") {
-        router.replace("/(tabs)/shipper");
-      } else if (userRole === "admin") {
-        router.replace("/(tabs)/admin");
+      // Navigate based on role
+      if (roleOption.role === 'admin') {
+        router.replace('/(tabs)/admin');
+      } else if (roleOption.role === 'shipper') {
+        router.replace('/(tabs)/shipper');
       } else {
-        setErrorText(`Unknown role: ${userRole}`);
+        router.replace('/(tabs)/dashboard');
       }
 
-    } catch (firebaseError: any) {
-      console.error("[Login] Firebase auth failed:", firebaseError?.code, firebaseError?.message);
-      setErrorText("Invalid credentials. Please check your email and password.");
+    } catch (error: any) {
+      console.error(`[Login] ${roleOption.role} login failed:`, error);
+      setErrorText(`${roleOption.title} login failed. Please try again.`);
     } finally {
-      setIsLoading(false);
+      setIsLoading(null);
     }
-  }, [email, password, router]);
+  };
 
   return (
     <SafeAreaView style={styles.container} testID="login-safe">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.header}>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => {
-                console.log('[login] logo pressed -> navigating to auth-debug');
-                try { router.push('/auth-debug'); } catch (e) { console.warn('nav error', e); }
-              }}
-              onLongPress={() => {
-                console.log('[login] logo long-pressed -> navigating to dev-bulk-tools');
-                try { router.push('/dev-bulk-tools'); } catch (e) { console.warn('nav error', e); }
-              }}
-              delayLongPress={500}
-              style={styles.logoContainer}
-              testID="login-logo-hotspot"
-              accessibilityRole="imagebutton"
-              accessibilityLabel="App logo"
-            >
-              <Image
-                source={{ uri: AUTH_ICON_URL }}
-                style={styles.logoImage}
-                resizeMode="contain"
-                accessibilityLabel="LoadRun AI Load Board for Car Haulers"
-                testID="login-logo-image"
-              />
-            </TouchableOpacity>
-            <Text style={styles.title} testID="login-title">LoadRun</Text>
-            <Text style={styles.subtitle}>AI Load Board for Car Haulers</Text>
-          </View>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => {
+              console.log('[login] logo pressed -> navigating to auth-debug');
+              try { router.push('/auth-debug'); } catch (e) { console.warn('nav error', e); }
+            }}
+            onLongPress={() => {
+              console.log('[login] logo long-pressed -> navigating to dev-bulk-tools');
+              try { router.push('/dev-bulk-tools'); } catch (e) { console.warn('nav error', e); }
+            }}
+            delayLongPress={500}
+            style={styles.logoContainer}
+            testID="login-logo-hotspot"
+            accessibilityRole="imagebutton"
+            accessibilityLabel="App logo"
+          >
+            <Image
+              source={{ uri: AUTH_ICON_URL }}
+              style={styles.logoImage}
+              resizeMode="contain"
+              accessibilityLabel="LoadRun AI Load Board for Car Haulers"
+              testID="login-logo-image"
+            />
+          </TouchableOpacity>
+          <Text style={styles.title} testID="login-title">LoadRun</Text>
+          <Text style={styles.subtitle}>AI Load Board for Car Haulers</Text>
+        </View>
 
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Mail size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor={theme.colors.gray}
-                value={email}
-                onChangeText={(t: string) => { 
-                  setEmail(t); 
-                  setErrorText(null);
-                  if (retryCount > 0) setRetryCount(0);
-                  if (isRateLimited) {
-                    setIsRateLimited(false);
-                    console.log(`[Auth] Rate limit cleared on email change`);
-                  }
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                testID="login-email"
-              />
-            </View>
+        <View style={styles.roleSelection}>
+          <Text style={styles.roleTitle}>Choose Your Role</Text>
+          
+          {ROLE_OPTIONS.map((roleOption) => {
+            const IconComponent = roleOption.icon;
+            const isLoadingThis = isLoading === roleOption.role;
+            
+            return (
+              <TouchableOpacity
+                key={roleOption.role}
+                style={[
+                  styles.roleButton,
+                  { backgroundColor: roleOption.color },
+                  isLoadingThis && styles.roleButtonDisabled
+                ]}
+                onPress={() => handleRoleLogin(roleOption)}
+                disabled={!!isLoading}
+                testID={`login-${roleOption.role}`}
+              >
+                <View style={styles.roleButtonContent}>
+                  <View style={styles.roleButtonLeft}>
+                    <IconComponent size={24} color={theme.colors.white} />
+                    <View style={styles.roleButtonText}>
+                      <Text style={styles.roleButtonTitle}>{roleOption.title}</Text>
+                      <Text style={styles.roleButtonSubtitle}>{roleOption.subtitle}</Text>
+                    </View>
+                  </View>
+                  {isLoadingThis && (
+                    <ActivityIndicator color={theme.colors.white} size="small" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-            <View style={styles.inputContainer}>
-              <Lock size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor={theme.colors.gray}
-                value={password}
-                onChangeText={(t: string) => { 
-                  setPassword(t); 
-                  setErrorText(null);
-                  if (retryCount > 0) setRetryCount(0);
-                  if (isRateLimited) {
-                    setIsRateLimited(false);
-                    console.log(`[Auth] Rate limit cleared on password change`);
-                  }
-                }}
-                secureTextEntry
-                autoComplete="password"
-                testID="login-password"
-              />
-            </View>
+        {!!errorText && (
+          <Text style={styles.errorText} testID="login-error">{errorText}</Text>
+        )}
 
-            {!!errorText && (
-              <Text style={styles.errorText} testID="login-error">{errorText}</Text>
-            )}
-
-            <TouchableOpacity
-              style={[styles.loginButton, (isLoading || isRateLimited) && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={isLoading || isRateLimited || !(email?.trim() && password?.trim())}
-              testID="login-submit"
-            >
-              {isLoading ? (
-                <ActivityIndicator color={theme.colors.white} />
-              ) : (
-                <Text style={styles.loginButtonText}>
-                  {isRateLimited ? 'Please Wait...' : 'Sign In'}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/(auth)/reset-password')} testID="forgot-password-link">
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don&apos;t have an account?</Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/signup')} testID="signup-link">
-              <Text style={styles.signUpText}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don&apos;t have an account?</Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/signup')} testID="signup-link">
+            <Text style={styles.signUpText}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -212,11 +192,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.white,
   },
-  keyboardView: {
+  content: {
     flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
     justifyContent: 'center',
     padding: theme.spacing.lg,
   },
@@ -248,48 +225,56 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.gray,
   },
-  form: {
+  roleSelection: {
     marginBottom: theme.spacing.xl,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.lightGray,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-  },
-  inputIcon: {
-    marginRight: theme.spacing.sm,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: theme.spacing.md,
-    fontSize: theme.fontSize.md,
-    color: theme.colors.dark,
-  },
-  loginButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-    marginTop: theme.spacing.sm,
-  },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
-    color: theme.colors.white,
+  roleTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
+    color: theme.colors.dark,
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
   },
-  forgotPassword: {
+  roleButton: {
+    borderRadius: theme.borderRadius.lg,
+    marginBottom: theme.spacing.md,
+    padding: theme.spacing.lg,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+  },
+  roleButtonDisabled: {
+    opacity: 0.7,
+  },
+  roleButtonContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: theme.spacing.md,
+    justifyContent: 'space-between',
   },
-  forgotPasswordText: {
-    color: theme.colors.primary,
+  roleButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  roleButtonText: {
+    marginLeft: theme.spacing.md,
+    flex: 1,
+  },
+  roleButtonTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.white,
+    marginBottom: theme.spacing.xs,
+  },
+  roleButtonSubtitle: {
     fontSize: theme.fontSize.sm,
+    color: theme.colors.white,
+    opacity: 0.9,
   },
   footer: {
     flexDirection: 'row',
