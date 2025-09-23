@@ -51,47 +51,7 @@ export default function LoginScreen() {
       
       console.log(`[Emergency Access] Authenticating: ${emailTrimmed}`);
       
-      // Emergency bypass for blocked users
-      const emergencyUsers = {
-        'driver@test1.com': 'RealUnlock123',
-        'test1@test1.com': 'RealUnlock123',
-        'driver@truck.com': 'password123',
-        'test@example.com': 'password123'
-      } as const;
-      
-      // Check if this is an emergency bypass user
-      const emergencyPassword = emergencyUsers[emailTrimmed as keyof typeof emergencyUsers];
-      if (emergencyPassword && passwordTrimmed === emergencyPassword) {
-        console.log(`[Emergency Access] Bypass activated for: ${emailTrimmed}`);
-        
-        // Create mock user and navigate directly
-        const mockUser = {
-          id: `emergency_${Date.now()}`,
-          role: selectedRole,
-          email: emailTrimmed,
-          name: emailTrimmed.split('@')[0].toUpperCase(),
-          phone: '',
-          company: ''
-        };
-        
-        // Store in AsyncStorage for persistence
-        try {
-          await AsyncStorage.setItem('auth:emergency:user', JSON.stringify(mockUser));
-          console.log(`[Emergency Access] User cached: ${emailTrimmed}`);
-        } catch (e) {
-          console.warn('[Emergency Access] Cache failed:', e);
-        }
-        
-        // Navigate based on role
-        if (selectedRole === 'admin') {
-          router.replace('/(tabs)/admin');
-        } else if (selectedRole === 'shipper') {
-          router.replace('/(tabs)/shipper');
-        } else {
-          router.replace('/(tabs)/dashboard');
-        }
-        return;
-      }
+     
       
       // Regular Firebase authentication
       const { auth, db } = getFirebase();
