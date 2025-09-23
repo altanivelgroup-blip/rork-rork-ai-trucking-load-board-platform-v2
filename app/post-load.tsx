@@ -136,11 +136,8 @@ if (userSnap.exists()) {
   shipperCompany = userSnap.data().companyName || userSnap.data().profileData?.company || "Unknown Shipper";
 }
 // 🔹 END ADD
-
-
-
-      const ref = doc(db, LOADS_COLLECTION, loadId);
-      const existing = await (await import('firebase/firestore')).getDoc(ref);
+const ref = doc(db, LOADS_COLLECTION, loadId);
+const existing = await (await import('firebase/firestore')).getDoc(ref);
       
       // CROSS-PLATFORM FIX: Enhanced data structure for universal compatibility
       const baseData = {
