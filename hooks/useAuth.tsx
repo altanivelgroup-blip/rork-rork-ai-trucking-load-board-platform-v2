@@ -166,22 +166,45 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               let profileData: any = {};
               let userRole: UserRole = 'driver';
               
-              // Try to load from Firestore but don't fail if it doesn't work
+              // Check if this is an emergency access user first
+              let emergencyUserData: any = null;
               try {
-                const userRef = doc(db, 'users', firebaseUser.uid);
-                const userSnap = await getDoc(userRef);
-                
-                if (userSnap.exists()) {
-                  const userData = userSnap.data();
-                  profileData = userData.profileData || {};
-                  userRole = userData.role || 'driver';
-                  console.log(`[auth] Loaded profile from Firestore for ${firebaseUser.email}: role=${userRole}`);
-                } else {
-                  console.log(`[auth] No Firestore profile found for ${firebaseUser.email}, using defaults`);
+                const emergencyUser = await AsyncStorage.getItem('auth:emergency:user');
+                if (emergencyUser) {
+                  emergencyUserData = JSON.parse(emergencyUser);
+                  if (emergencyUserData.id === firebaseUser.uid) {
+                    userRole = emergencyUserData.role || 'driver';
+                    profileData = {
+                      fullName: emergencyUserData.name || firebaseUser.email?.split('@')[0]?.toUpperCase() || 'User',
+                      email: emergencyUserData.email || firebaseUser.email || '',
+                      phone: emergencyUserData.phone || '',
+                      company: emergencyUserData.company || ''
+                    };
+                    console.log(`[auth] Using emergency access data for ${firebaseUser.email}: role=${userRole}`);
+                  }
                 }
-              } catch (firestoreError) {
-                console.warn(`[auth] Firestore access failed for ${firebaseUser.email}, using fallback profile:`, firestoreError);
-                // Continue with default profile
+              } catch (emergencyError) {
+                console.warn('[auth] Failed to check emergency access data:', emergencyError);
+              }
+              
+              // If not emergency access, try to load from Firestore
+              if (!emergencyUserData || emergencyUserData.id !== firebaseUser.uid) {
+                try {
+                  const userRef = doc(db, 'users', firebaseUser.uid);
+                  const userSnap = await getDoc(userRef);
+                  
+                  if (userSnap.exists()) {
+                    const userData = userSnap.data();
+                    profileData = userData.profileData || {};
+                    userRole = userData.role || 'driver';
+                    console.log(`[auth] Loaded profile from Firestore for ${firebaseUser.email}: role=${userRole}`);
+                  } else {
+                    console.log(`[auth] No Firestore profile found for ${firebaseUser.email}, using defaults`);
+                  }
+                } catch (firestoreError) {
+                  console.warn(`[auth] Firestore access failed for ${firebaseUser.email}, using fallback profile:`, firestoreError);
+                  // Continue with default profile
+                }
               }
               
               // Create fallback profile data if needed
