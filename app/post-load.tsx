@@ -137,8 +137,7 @@ if (userSnap.exists()) {
 }
 // 🔹 END ADD
 
-const ref = doc(db, LOADS_COLLECTION, loadId);
-const existing = await (await import('firebase/firestore')).getDoc(ref);
+
 
       const ref = doc(db, LOADS_COLLECTION, loadId);
       const existing = await (await import('firebase/firestore')).getDoc(ref);
