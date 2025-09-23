@@ -7,7 +7,7 @@ import { theme } from '@/constants/theme';
 import { testFirebaseConnectivity } from '@/utils/firebase';
 import { testFirebaseConnection } from '@/lib/firebase';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { runDeviceTestSuite } from '@/utils/deviceTesting';
+import { DeviceTestSuite } from '@/utils/deviceTesting';
 import {
   API_BASE_URL,
   hasApiBaseUrl,
@@ -195,7 +195,7 @@ export default function ComprehensiveSanityCheckScreen() {
     // 5. Device Capabilities Check
     console.log('\n5️⃣ DEVICE CAPABILITIES');
     try {
-      const deviceTests = await runDeviceTestSuite();
+      const deviceTests = await DeviceTestSuite();
       const failedTests = deviceTests.filter(test => test.status === 'failed');
       
       if (failedTests.length === 0) {
