@@ -196,7 +196,7 @@ export default function ComprehensiveSanityCheckScreen() {
     console.log('\n5️⃣ DEVICE CAPABILITIES');
     try {
       const deviceTests = await DeviceTestSuite();
-      const failedTests = deviceTests.filter(test => test.status === 'failed');
+      const failedTests = deviceTests.filter((test: any) => test.status === 'failed');
       
       if (failedTests.length === 0) {
         addResult({
