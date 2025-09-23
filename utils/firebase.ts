@@ -54,7 +54,7 @@ const firebaseConfig = {
   apiKey: (process.env.EXPO_PUBLIC_FIREBASE_API_KEY as string) ?? "AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ",
   authDomain: (process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN as string) ?? "rork-prod.firebaseapp.com",
   projectId: (process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID as string) ?? "rork-prod",
-  storageBucket: (process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET as string) ?? "rork-prod.firebasestorage.app",
+storageBucket: (process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET as string) ?? "rork-prod.appspot.com",
   messagingSenderId: (process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID as string) ?? "935855915227",
   appId: (process.env.EXPO_PUBLIC_FIREBASE_APP_ID as string) ?? "1:935855915227:web:20c4c517dd32f0e59a4cfe"
 };
