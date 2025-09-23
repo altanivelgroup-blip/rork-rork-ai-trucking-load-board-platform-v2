@@ -117,9 +117,9 @@ export default function Index() {
 
   const user = authState.user;
 
-  // If no user, redirect to sign in
+  // If no user, redirect to role selection
   if (!user) {
-    console.log('[Index] No user found, redirecting to login');
+    console.log('[Index] No user found, redirecting to role selection');
     return <Redirect href="/(auth)/login" />;
   }
 
