@@ -1,104 +1,124 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
-import { theme } from '@/constants/theme';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function EmergencyLoginScreen() {
-  const [email, setEmail] = useState('driver@truck.com');
-  const [password, setPassword] = useState('password123');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { auth, db } = getFirebase();
 
-  const handleLogin = async () => {
+  const handleRoleLogin = useCallback(async (role: 'driver' | 'shipper' | 'admin') => {
+    console.log('[EmergencyLogin] handleRoleLogin start', role);
     setIsLoading(true);
+    setError(null);
+
+    let email: string = '';
+    let password: string = '';
+    let expectedRoute: string = '';
+
+    switch (role) {
+      case 'driver':
+        email = 'driver@test1.com';
+        password = 'RealUnlock123';
+        expectedRoute = '/(tabs)/dashboard';
+        break;
+      case 'shipper':
+        email = 'shipper@test1.com';
+        password = 'RealShipper123';
+        expectedRoute = '/(tabs)/shipper';
+        break;
+      case 'admin':
+        email = 'admin@test1.com';
+        password = 'RealBoss123';
+        expectedRoute = '/(tabs)/admin';
+        break;
+      default:
+        setError('Unknown role');
+        setIsLoading(false);
+        return;
+    }
+
     try {
-      const { auth } = getFirebase();
-      await signInWithEmailAndPassword(auth, email.trim(), password.trim());
-      console.log('[Emergency Login] Success - redirecting to dashboard');
-      router.replace('/(tabs)/dashboard');
-    } catch (error: any) {
-      console.error('[Emergency Login] Failed:', error);
-      Alert.alert('Login Failed', error.message || 'Please try again');
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const uid = cred.user?.uid ?? '';
+      console.log('[EmergencyLogin] signed in', { uid, role });
+
+      const userRef = doc(db, 'users', uid);
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) {
+        console.warn('[EmergencyLogin] user doc missing');
+        setError('No user profile found.');
+        return;
+      }
+      const data = snap.data() as { role?: string } | undefined;
+      const docRole = (data?.role ?? '').toString().toLowerCase();
+      if (docRole !== role) {
+        console.warn('[EmergencyLogin] role mismatch', { expected: role, got: docRole });
+        setError(`Role mismatch. Expected ${role}, got ${docRole || 'unknown'}.`);
+        return;
+      }
+
+      console.log('[EmergencyLogin] navigating', expectedRoute);
+      router.replace(expectedRoute as any);
+    } catch (e: unknown) {
+      const msg = (e as { message?: string })?.message ?? 'Login failed';
+      console.error('[EmergencyLogin] error', msg);
+      setError(`${role.toUpperCase()} login failed: ${msg}`);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const quickLogin = (testEmail: string, testPassword: string) => {
-    setEmail(testEmail);
-    setPassword(testPassword);
-    setTimeout(() => handleLogin(), 100);
-  };
+  }, [auth, db, router]);
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Emergency Login</Text>
-        <Text style={styles.subtitle}>Quick access to your account</Text>
-
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.quickActions}>
-          <Text style={styles.quickTitle}>Quick Login:</Text>
-          <TouchableOpacity
-            style={styles.quickButton}
-            onPress={() => quickLogin('driver@truck.com', 'password123')}
-          >
-            <Text style={styles.quickButtonText}>Driver Account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickButton}
-            onPress={() => quickLogin('shipper@logistics.com', 'password123')}
-          >
-            <Text style={styles.quickButtonText}>Shipper Account</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.title} testID="emergencyLoginTitle">Emergency Role Login</Text>
+        <Text style={styles.subtitle} testID="emergencyLoginSubtitle">Choose your role</Text>
 
         <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
+          testID="driverLoginButton"
+          accessibilityRole="button"
+          accessibilityLabel="Driver Login"
+          style={[styles.button, styles.driverButton]}
+          onPress={() => handleRoleLogin('driver')}
+          disabled={isLoading}
         >
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Text style={styles.buttonText}>DRIVER</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          testID="shipperLoginButton"
+          accessibilityRole="button"
+          accessibilityLabel="Shipper Login"
+          style={[styles.button, styles.shipperButton]}
+          onPress={() => handleRoleLogin('shipper')}
+          disabled={isLoading}
+        >
+          <Text style={styles.buttonText}>SHIPPER</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          testID="adminLoginButton"
+          accessibilityRole="button"
+          accessibilityLabel="Admin Login"
+          style={[styles.button, styles.adminButton]}
+          onPress={() => handleRoleLogin('admin')}
+          disabled={isLoading}
+        >
+          <Text style={styles.buttonText}>ADMIN</Text>
+        </TouchableOpacity>
+
+        {isLoading && (
+          <ActivityIndicator testID="loginLoading" size="large" color="#2563eb" style={styles.loader} />
+        )}
+        {!!error && (
+          <Text testID="loginError" style={styles.error}>{error}</Text>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -107,82 +127,53 @@ export default function EmergencyLoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.white,
+    backgroundColor: '#ffffff',
   },
   content: {
     flex: 1,
-    padding: 20,
     justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: theme.colors.dark,
-    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0f172a',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: theme.colors.gray,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  form: {
-    marginBottom: 30,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.colors.lightGray,
-    borderRadius: 8,
-    padding: 15,
-    fontSize: 16,
-    marginBottom: 15,
-    backgroundColor: theme.colors.lightGray,
+    color: '#475569',
+    marginBottom: 24,
   },
   button: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 8,
-    padding: 15,
+    width: '80%',
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 10,
+    marginBottom: 14,
   },
-  buttonDisabled: {
-    opacity: 0.7,
+  driverButton: {
+    backgroundColor: '#2563eb',
+  },
+  shipperButton: {
+    backgroundColor: '#16a34a',
+  },
+  adminButton: {
+    backgroundColor: '#ef4444',
   },
   buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  quickActions: {
-    alignItems: 'center',
-    marginBottom: 30,
+  loader: {
+    marginTop: 16,
   },
-  quickTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.dark,
-    marginBottom: 15,
-  },
-  quickButton: {
-    backgroundColor: theme.colors.lightGray,
-    borderRadius: 6,
-    padding: 12,
-    marginBottom: 8,
-    minWidth: 200,
-    alignItems: 'center',
-  },
-  quickButtonText: {
-    color: theme.colors.primary,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  backButton: {
-    alignItems: 'center',
-    padding: 10,
-  },
-  backButtonText: {
-    color: theme.colors.gray,
-    fontSize: 16,
+  error: {
+    marginTop: 16,
+    color: '#ef4444',
+    textAlign: 'center',
   },
 });
