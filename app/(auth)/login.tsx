@@ -128,6 +128,10 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <TouchableOpacity
               activeOpacity={0.9}
+              onPress={() => {
+                console.log('[login] logo pressed -> navigating to auth-debug');
+                try { router.push('/auth-debug'); } catch (e) { console.warn('nav error', e); }
+              }}
               onLongPress={() => {
                 console.log('[login] logo long-pressed -> navigating to dev-bulk-tools');
                 try { router.push('/dev-bulk-tools'); } catch (e) { console.warn('nav error', e); }
