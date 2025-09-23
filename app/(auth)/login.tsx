@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Truck, Building, Shield } from 'lucide-react-native';
@@ -110,33 +111,40 @@ export default function LoginScreen() {
         console.warn(`[Login] Firestore save failed (continuing anyway):`, firestoreError);
       }
 
-      // Small delay to let auth state update
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Route based on selected role with more explicit navigation
-      console.log(`[Login] Navigating to ${role} dashboard`);
+      // Show success message
+      Alert.alert(
+        'Login Successful',
+        `Signed in as ${role.toUpperCase()}\nEmail: ${loginEmail}`,
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              // Navigate based on role
+              console.log(`[Login] Navigating to ${role} dashboard`);
+              
+              switch (role) {
+                case 'driver':
+                  console.log('[Login] Going to driver dashboard');
+                  router.replace('/(tabs)/dashboard');
+                  break;
+                case 'shipper':
+                  console.log('[Login] Going to shipper dashboard');
+                  router.replace('/(tabs)/shipper');
+                  break;
+                case 'admin':
+                  console.log('[Login] Going to admin dashboard');
+                  router.replace('/(tabs)/admin');
+                  break;
+              }
+            }
+          }
+        ]
+      );
       
-      // Force navigation with router.push first, then replace
-      switch (role) {
-        case 'driver':
-          console.log('[Login] Pushing to driver dashboard');
-          router.push('/(tabs)/dashboard');
-          setTimeout(() => router.replace('/(tabs)/dashboard'), 100);
-          break;
-        case 'shipper':
-          console.log('[Login] Pushing to shipper dashboard');
-          router.push('/(tabs)/shipper');
-          setTimeout(() => router.replace('/(tabs)/shipper'), 100);
-          break;
-        case 'admin':
-          console.log('[Login] Pushing to admin dashboard');
-          router.push('/(tabs)/admin');
-          setTimeout(() => router.replace('/(tabs)/admin'), 100);
-          break;
-      }
     } catch (error: any) {
       console.error(`[Login] Error for ${role}:`, error.code, error.message);
       setErrorText(`${role} login failed: ${error.message}`);
+      Alert.alert('Login Failed', `${role} login failed: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
