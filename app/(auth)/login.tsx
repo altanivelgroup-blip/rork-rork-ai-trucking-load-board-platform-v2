@@ -61,7 +61,7 @@ export default function LoginScreen() {
       }
 
       const userData = userSnap.data();
-      const userRole = userData.role;
+      let userRole = userData.role ? userData.role.toLowerCase() : 'driver'; // Make lowercase, default to driver if missing
 
       console.log(`[Login] Fetched role: ${userRole}`);
 
@@ -73,7 +73,8 @@ export default function LoginScreen() {
       } else if (userRole === "admin") {
         router.replace("/(tabs)/admin");
       } else {
-        setErrorText(`Unknown role: ${userRole}`);
+        console.log(`[Login] Unknown role, defaulting to driver`);
+        router.replace("/(tabs)/dashboard"); // Default to driver if no match
       }
     } catch (error: any) {
       console.error("[Login] Error:", error.code, error.message);
