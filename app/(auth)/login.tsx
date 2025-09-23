@@ -51,15 +51,15 @@ export default function LoginScreen() {
       
       console.log(`[Login] Authenticating: ${emailTrimmed}`);
       
-      // Test user credentials
-      const testUsers: Record<string, { password: string; role: UserRole; uid: string }> = {
-        'driver@test1.com': { password: 'RealUnlock123', role: 'driver', uid: 'test-driver-uid-001' },
-        'shipper@test1.com': { password: 'RealShipper123', role: 'shipper', uid: 'test-shipper-uid-001' },
-        'admin@test1.com': { password: 'RealBoss123', role: 'admin', uid: 'test-admin-uid-001' }
-      };
+      // Test user credentials with proper typing
+      const testUsers = {
+        'driver@test1.com': { password: 'RealUnlock123', role: 'driver' as UserRole, uid: 'test-driver-uid-001' },
+        'shipper@test1.com': { password: 'RealShipper123', role: 'shipper' as UserRole, uid: 'test-shipper-uid-001' },
+        'admin@test1.com': { password: 'RealBoss123', role: 'admin' as UserRole, uid: 'test-admin-uid-001' }
+      } as const;
       
       // Check if this is a test user
-      const testUser = testUsers[emailTrimmed];
+      const testUser = testUsers[emailTrimmed as keyof typeof testUsers];
       if (testUser && passwordTrimmed === testUser.password) {
         console.log(`[Login] Test user login: ${emailTrimmed}`);
         
