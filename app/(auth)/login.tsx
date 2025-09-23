@@ -63,26 +63,23 @@ export default function LoginScreen() {
       if (testUser && passwordTrimmed === testUser.password) {
         console.log(`[Login] Test user login: ${emailTrimmed}`);
         
-        // Store emergency access data
-        await AsyncStorage.setItem('auth:emergency:user', JSON.stringify({
+        // Store emergency access data with more complete user info
+        const emergencyUserData = {
           id: testUser.uid,
           email: emailTrimmed,
           role: testUser.role,
-          name: emailTrimmed.split('@')[0].toUpperCase()
-        }));
+          name: emailTrimmed.split('@')[0].toUpperCase(),
+          phone: '',
+          membershipTier: 'basic',
+          createdAt: new Date().toISOString()
+        };
         
-        // Navigate based on role with explicit routing
-        console.log(`[Login] Navigating test user with role: ${testUser.role}`);
-        if (testUser.role === 'admin') {
-          console.log('[Login] Redirecting to admin tab');
-          router.replace('/(tabs)/admin');
-        } else if (testUser.role === 'shipper') {
-          console.log('[Login] Redirecting to shipper tab');
-          router.replace('/(tabs)/shipper');
-        } else {
-          console.log('[Login] Redirecting to driver dashboard');
-          router.replace('/(tabs)/dashboard');
-        }
+        console.log('[Login] Storing emergency user data:', emergencyUserData);
+        await AsyncStorage.setItem('auth:emergency:user', JSON.stringify(emergencyUserData));
+        
+        // Let the index.tsx handle routing based on role
+        console.log(`[Login] Test user authenticated with role: ${testUser.role}, letting index.tsx handle routing`);
+        router.replace('/');
         return;
       }
       
@@ -121,18 +118,9 @@ export default function LoginScreen() {
           console.warn('[Login] Profile handling failed, continuing:', profileError);
         }
         
-        // Navigate based on role with explicit routing
-        console.log(`[Login] Navigating Firebase user with role: ${userRole}`);
-        if (userRole === 'admin') {
-          console.log('[Login] Redirecting to admin tab');
-          router.replace('/(tabs)/admin');
-        } else if (userRole === 'shipper') {
-          console.log('[Login] Redirecting to shipper tab');
-          router.replace('/(tabs)/shipper');
-        } else {
-          console.log('[Login] Redirecting to driver dashboard');
-          router.replace('/(tabs)/dashboard');
-        }
+        // Let the index.tsx handle routing based on role
+        console.log(`[Login] Firebase user authenticated with role: ${userRole}, letting index.tsx handle routing`);
+        router.replace('/');
         
       } catch (firebaseError: any) {
         console.error('[Login] Firebase auth failed:', firebaseError?.code, firebaseError?.message);

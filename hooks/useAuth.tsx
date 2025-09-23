@@ -52,6 +52,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             // Create full user object based on role
             let userObject: Driver | Shipper | Admin;
             
+            console.log(`[auth] Creating emergency user object for role: ${userData.role}`);
+            
             if (userData.role === 'shipper') {
               userObject = {
                 id: userData.id,
@@ -59,8 +61,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 email: userData.email,
                 name: userData.name || userData.email.split('@')[0].toUpperCase(),
                 phone: userData.phone || '',
-                membershipTier: 'basic',
-                createdAt: new Date(),
+                membershipTier: userData.membershipTier || 'basic',
+                createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date(),
                 companyName: 'Test Logistics',
                 mcNumber: 'MC123456',
                 dotNumber: 'DOT789012',
@@ -78,8 +80,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 email: userData.email,
                 name: userData.name || userData.email.split('@')[0].toUpperCase(),
                 phone: userData.phone || '',
-                membershipTier: 'enterprise',
-                createdAt: new Date(),
+                membershipTier: userData.membershipTier || 'enterprise',
+                createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date(),
                 permissions: ['analytics', 'user_management', 'load_management', 'system_admin'],
                 lastLoginAt: new Date(),
               } as Admin;
@@ -90,8 +92,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 email: userData.email,
                 name: userData.name || userData.email.split('@')[0].toUpperCase(),
                 phone: userData.phone || '',
-                membershipTier: 'basic',
-                createdAt: new Date(),
+                membershipTier: userData.membershipTier || 'basic',
+                createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date(),
                 cdlNumber: '',
                 vehicleTypes: [],
                 rating: 4.8,
@@ -355,6 +357,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         await signOut(auth);
       }
       await AsyncStorage.removeItem(USER_STORAGE_KEY);
+      await AsyncStorage.removeItem('auth:emergency:user');
       console.log('[auth] User logged out successfully');
     } catch (error) {
       console.error('[auth] Logout failed:', error);

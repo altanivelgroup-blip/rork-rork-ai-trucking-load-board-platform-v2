@@ -130,6 +130,7 @@ export default function Index() {
     id: user.id
   });
   
+  // Force correct routing based on user role
   if (user.role === 'admin') {
     console.log('[Index] Redirecting admin to admin tab');
     return <Redirect href="/(tabs)/admin" />;
@@ -138,6 +139,7 @@ export default function Index() {
     console.log('[Index] Redirecting shipper to shipper tab');
     return <Redirect href="/(tabs)/shipper" />;
   }
+  // Default to driver dashboard
   console.log('[Index] Redirecting driver to dashboard tab');
   return <Redirect href="/(tabs)/dashboard" />;
 }
