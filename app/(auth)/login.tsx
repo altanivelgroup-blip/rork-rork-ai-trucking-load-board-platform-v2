@@ -70,7 +70,8 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const router = useRouter();
-  const { login } = useAuth();
+  // Auth hook for state management
+  useAuth();
 
   const handleRoleLogin = async (roleOption: RoleOption) => {
     setIsLoading(roleOption.role);
@@ -79,12 +80,57 @@ export default function LoginScreen() {
     try {
       console.log(`[Login] Attempting ${roleOption.role} login with ${roleOption.testCredentials.email}`);
       
-      await login(
+      // Import Firebase auth functions
+      const { signInWithEmailAndPassword } = await import('firebase/auth');
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+      const { auth, db } = await import('@/utils/firebase');
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      
+      // Sign in with Firebase
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
         roleOption.testCredentials.email,
-        roleOption.testCredentials.password,
-        roleOption.role
+        roleOption.testCredentials.password
       );
-
+      
+      const firebaseUser = userCredential.user;
+      console.log(`[Login] Firebase authentication successful for ${firebaseUser.email}`);
+      
+      // Store emergency access data
+      const emergencyUserData = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email,
+        role: roleOption.role,
+        name: firebaseUser.email?.split('@')[0]?.toUpperCase() || 'USER',
+        phone: '',
+        membershipTier: roleOption.role === 'admin' ? 'enterprise' : 'basic',
+        createdAt: new Date().toISOString()
+      };
+      
+      await AsyncStorage.setItem('auth:emergency:user', JSON.stringify(emergencyUserData));
+      console.log(`[Login] Emergency access data stored for ${roleOption.role}`);
+      
+      // Try to update Firestore (best effort)
+      try {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const profileData = {
+          fullName: emergencyUserData.name,
+          email: emergencyUserData.email,
+          phone: '',
+          company: roleOption.role === 'shipper' ? 'Test Logistics' : ''
+        };
+        
+        await setDoc(userRef, {
+          role: roleOption.role,
+          profileData,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        
+        console.log(`[Login] Firestore profile updated for ${roleOption.role}`);
+      } catch (firestoreError) {
+        console.warn(`[Login] Firestore update failed (continuing anyway):`, firestoreError);
+      }
+      
       console.log(`[Login] ${roleOption.role} login successful, navigating...`);
 
       // Navigate based on role
@@ -98,7 +144,19 @@ export default function LoginScreen() {
 
     } catch (error: any) {
       console.error(`[Login] ${roleOption.role} login failed:`, error);
-      setErrorText(`${roleOption.title} login failed. Please try again.`);
+      let errorMessage = `${roleOption.title} login failed. Please try again.`;
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = `${roleOption.title} account not found. Please check credentials.`;
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = `Invalid password for ${roleOption.title} account.`;
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your connection.';
+      }
+      
+      setErrorText(errorMessage);
     } finally {
       setIsLoading(null);
     }
