@@ -124,8 +124,21 @@ const onNext = useCallback(async () => {
         throw new Error('No authenticated user');
       }
       
-      console.log('[PostLoad] FIXED: Authenticated user:', auth.currentUser.uid);
-      console.log('[PostLoad] FIXED: User is anonymous:', auth.currentUser.isAnonymous);
+console.log('[PostLoad] FIXED: Authenticated user:', auth.currentUser.uid);
+console.log('[PostLoad] FIXED: User is anonymous:', auth.currentUser.isAnonymous);
+
+// 🔹 ADD THIS BLOCK (line 129)
+const userRef = doc(db, "users", auth.currentUser.uid);
+const userSnap = await getDoc(userRef);
+
+let shipperCompany = "Unknown Shipper";
+if (userSnap.exists()) {
+  shipperCompany = userSnap.data().companyName || userSnap.data().profileData?.company || "Unknown Shipper";
+}
+// 🔹 END ADD
+
+const ref = doc(db, LOADS_COLLECTION, loadId);
+const existing = await (await import('firebase/firestore')).getDoc(ref);
 
       const ref = doc(db, LOADS_COLLECTION, loadId);
       const existing = await (await import('firebase/firestore')).getDoc(ref);
