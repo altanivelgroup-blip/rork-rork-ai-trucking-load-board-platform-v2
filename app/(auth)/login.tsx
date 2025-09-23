@@ -20,120 +20,74 @@ import { moderateScale } from '@/src/ui/scale';
 import { UserRole } from '@/types';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('driver');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState<number>(0);
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const router = useRouter();
 
-
-
+  // ✅ Fixed login
   const handleLogin = useCallback(async () => {
     setIsLoading(true);
     setErrorText(null);
-    
+
     try {
       if (!email?.trim() || !password?.trim()) {
-        setErrorText('Email and password are required.');
+        setErrorText("Email and password are required.");
         return;
       }
-      
+
       const emailTrimmed = email.trim().toLowerCase();
       const passwordTrimmed = password.trim();
-      
+
       console.log(`[Login] Authenticating: ${emailTrimmed}`);
-      
-      // Test user credentials with proper typing
-      const testUsers = {
-        'driver@test1.com': { password: 'RealUnlock123', role: 'driver' as UserRole, uid: 'test-driver-uid-001' },
-        'shipper@test1.com': { password: 'RealShipper123', role: 'shipper' as UserRole, uid: 'test-shipper-uid-001' },
-        'admin@test1.com': { password: 'RealBoss123', role: 'admin' as UserRole, uid: 'test-admin-uid-001' }
-      } as const;
-      
-      // Check if this is a test user
-      const testUser = testUsers[emailTrimmed as keyof typeof testUsers];
-      if (testUser && passwordTrimmed === testUser.password) {
-        console.log(`[Login] Test user login: ${emailTrimmed}`);
-        
-        // Store emergency access data with more complete user info
-        const emergencyUserData = {
-          id: testUser.uid,
-          email: emailTrimmed,
-          role: testUser.role,
-          name: emailTrimmed.split('@')[0].toUpperCase(),
-          phone: '',
-          membershipTier: 'basic',
-          createdAt: new Date().toISOString()
-        };
-        
-        console.log('[Login] Storing emergency user data:', emergencyUserData);
-        await AsyncStorage.setItem('auth:emergency:user', JSON.stringify(emergencyUserData));
-        
-        // Let the index.tsx handle routing based on role
-        console.log(`[Login] Test user authenticated with role: ${testUser.role}, letting index.tsx handle routing`);
-        router.replace('/');
+
+      // Firebase auth
+      const { auth, db } = getFirebase();
+      const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
+      const firebaseUser = userCredential.user;
+
+      console.log(`[Login] Firebase Success: ${firebaseUser.uid}`);
+
+      // Fetch role from Firestore
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        setErrorText("❌ No Firestore profile found for this account.");
         return;
       }
-      
-      // Try Firebase authentication for non-test users
-      try {
-        const { auth, db } = getFirebase();
-        const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
-        const firebaseUser = userCredential.user;
-        
-        console.log(`[Login] Firebase Success: ${firebaseUser.uid}`);
-        
-        // Simple profile handling
-        let userRole: UserRole = selectedRole;
-        
-        try {
-          const userRef = doc(db, 'users', firebaseUser.uid);
-          const userSnap = await getDoc(userRef);
-          
-          if (userSnap.exists()) {
-            userRole = userSnap.data().role || selectedRole;
-          } else {
-            // Create basic profile
-            await setDoc(userRef, {
-              role: selectedRole,
-              profileData: {
-                fullName: emailTrimmed.split('@')[0].toUpperCase(),
-                email: emailTrimmed,
-                phone: '',
-                company: ''
-              },
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            }, { merge: true });
-          }
-        } catch (profileError) {
-          console.warn('[Login] Profile handling failed, continuing:', profileError);
-        }
-        
-        // Let the index.tsx handle routing based on role
-        console.log(`[Login] Firebase user authenticated with role: ${userRole}, letting index.tsx handle routing`);
-        router.replace('/');
-        
-      } catch (firebaseError: any) {
-        console.error('[Login] Firebase auth failed:', firebaseError?.code, firebaseError?.message);
-        setErrorText('Invalid credentials. Please check your email and password.');
+
+      const userData = userSnap.data();
+      const userRole: UserRole = userData.role;
+
+      console.log(`[Login] Resolved Firestore role: ${userRole}`);
+
+      // Route by role
+      if (userRole === "driver") {
+        router.replace("/(tabs)/dashboard");
+      } else if (userRole === "shipper") {
+        router.replace("/(tabs)/shipper");
+      } else if (userRole === "admin") {
+        router.replace("/(tabs)/admin");
+      } else {
+        setErrorText(`Unknown role: ${userRole}`);
       }
-      
-    } catch (error: any) {
-      console.error('[Login] Error:', error?.code, error?.message);
-      setErrorText('Login failed. Please try again.');
+
+    } catch (firebaseError: any) {
+      console.error("[Login] Firebase auth failed:", firebaseError?.code, firebaseError?.message);
+      setErrorText("Invalid credentials. Please check your email and password.");
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, selectedRole, router]);
+  }, [email, password, router]);
 
   return (
     <SafeAreaView style={styles.container} testID="login-safe">
@@ -172,36 +126,6 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.form}>
-            <View style={styles.roleSelector}>
-              <Text style={styles.roleSelectorLabel}>I am a: <Text style={styles.requiredAsterisk}>*</Text></Text>
-              <View style={styles.roleButtons}>
-                <TouchableOpacity
-                  style={[styles.roleButton, selectedRole === 'driver' && styles.roleButtonActive]}
-                  onPress={() => setSelectedRole('driver')}
-                  testID="role-driver"
-                >
-                  <Truck size={20} color={selectedRole === 'driver' ? theme.colors.white : theme.colors.primary} />
-                  <Text style={[styles.roleButtonText, selectedRole === 'driver' && styles.roleButtonTextActive]}>Driver</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.roleButton, selectedRole === 'shipper' && styles.roleButtonActive]}
-                  onPress={() => setSelectedRole('shipper')}
-                  testID="role-shipper"
-                >
-                  <Users size={20} color={selectedRole === 'shipper' ? theme.colors.white : theme.colors.primary} />
-                  <Text style={[styles.roleButtonText, selectedRole === 'shipper' && styles.roleButtonTextActive]}>Shipper</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.roleButton, selectedRole === 'admin' && styles.roleButtonActive]}
-                  onPress={() => setSelectedRole('admin')}
-                  testID="role-admin"
-                >
-                  <Settings size={20} color={selectedRole === 'admin' ? theme.colors.white : theme.colors.primary} />
-                  <Text style={[styles.roleButtonText, selectedRole === 'admin' && styles.roleButtonTextActive]}>Admin</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
             <View style={styles.inputContainer}>
               <Mail size={20} color={theme.colors.gray} style={styles.inputIcon} />
               <TextInput
@@ -212,11 +136,10 @@ export default function LoginScreen() {
                 onChangeText={(t: string) => { 
                   setEmail(t); 
                   setErrorText(null);
-                  // Reset retry count and rate limit when user changes input
                   if (retryCount > 0) setRetryCount(0);
                   if (isRateLimited) {
                     setIsRateLimited(false);
-                    console.log(`[Auth Error Prevention] Rate limit cleared on email change`);
+                    console.log(`[Auth] Rate limit cleared on email change`);
                   }
                 }}
                 keyboardType="email-address"
@@ -236,11 +159,10 @@ export default function LoginScreen() {
                 onChangeText={(t: string) => { 
                   setPassword(t); 
                   setErrorText(null);
-                  // Reset retry count and rate limit when user changes input
                   if (retryCount > 0) setRetryCount(0);
                   if (isRateLimited) {
                     setIsRateLimited(false);
-                    console.log(`[Auth Error Prevention] Rate limit cleared on password change`);
+                    console.log(`[Auth] Rate limit cleared on password change`);
                   }
                 }}
                 secureTextEntry
@@ -268,8 +190,6 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-
-
             <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/(auth)/reset-password')} testID="forgot-password-link">
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -281,8 +201,6 @@ export default function LoginScreen() {
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
-          
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -310,7 +228,6 @@ const styles = StyleSheet.create({
     width: moderateScale(120),
     height: moderateScale(120),
     borderRadius: moderateScale(24),
-    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
@@ -388,48 +305,6 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
   },
-  roleSelector: {
-    marginBottom: theme.spacing.md,
-  },
-  roleSelectorLabel: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.sm,
-    textAlign: 'center',
-  },
-  roleButtons: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  roleButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.white,
-    gap: theme.spacing.xs,
-  },
-  roleButtonActive: {
-    backgroundColor: theme.colors.primary,
-  },
-  roleButtonText: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: theme.colors.primary,
-  },
-  roleButtonTextActive: {
-    color: theme.colors.white,
-  },
-  requiredAsterisk: {
-    color: theme.colors.danger,
-    fontSize: theme.fontSize.md,
-  },
   errorText: {
     color: theme.colors.danger,
     marginTop: theme.spacing.xs,
@@ -437,5 +312,4 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     textAlign: 'center',
   },
-
 });
