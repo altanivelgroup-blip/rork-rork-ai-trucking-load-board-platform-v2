@@ -524,17 +524,30 @@ export default function AdminScreen() {
   // Admin access control - check both email and role
   const isAdmin = user?.email === 'admin@loadrush.com' || 
                   user?.email === 'admin@loadrush,com' || // Handle typo in email
+                  user?.email === 'admin@test1.com' || // Test admin
                   user?.role === 'admin';
   
-  useEffect(() => {
-    if (!isAdmin) {
-      console.log('[Admin] Access denied - user:', user?.email, 'role:', user?.role);
-      console.log('[Admin] Admin access granted - Refresh to load');
-      // Don't redirect, just log for debugging
-      return;
-    }
-    console.log('[Admin] ✅ Admin access granted for:', user?.email, 'role:', user?.role);
-  }, [isAdmin, user?.email, user?.role]);
+  console.log('[Admin] Access check - user:', user?.email, 'role:', user?.role, 'isAdmin:', isAdmin);
+  
+  if (!user) {
+    return null;
+  }
+  
+  if (!isAdmin) {
+    console.log('[Admin] Access denied - user:', user?.email, 'role:', user?.role);
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.accessDenied}>
+          <Shield size={48} color={theme.colors.danger} />
+          <Text style={styles.accessDeniedTitle}>Access Denied</Text>
+          <Text style={styles.accessDeniedText}>Admin privileges required</Text>
+          <Text style={styles.accessDeniedText}>Current role: {user?.role}</Text>
+        </View>
+      </View>
+    );
+  }
+  
+  console.log('[Admin] ✅ Admin access granted for:', user?.email, 'role:', user?.role);
   
   // Calculate real-time metrics from loads data
   useEffect(() => {
@@ -622,18 +635,7 @@ export default function AdminScreen() {
     return () => clearInterval(interval);
   }, [isLiveMode]);
   
-  // Always allow access - remove blocking UI
-  // if (!isAdmin) {
-  //   return (
-  //     <View style={[styles.container, { paddingTop: insets.top }]}>
-  //       <View style={styles.accessDenied}>
-  //         <Shield size={48} color={theme.colors.danger} />
-  //         <Text style={styles.accessDeniedTitle}>Access Denied</Text>
-  //         <Text style={styles.accessDeniedText}>Admin privileges required</Text>
-  //       </View>
-  //     </View>
-  //   );
-  // }
+
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]} testID="adminScreen">

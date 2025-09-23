@@ -49,15 +49,22 @@ export default function ShipperHome() {
     router.push('/advance-security');
   }, [router]);
   
-  // Redirect non-shippers
-  React.useEffect(() => {
-    if (user && !isShipper) {
-      router.replace('/(tabs)/dashboard');
-    }
-  }, [user, isShipper, router]);
+  // Don't redirect - let the tab layout handle role-based access
+  if (!user) {
+    return null;
+  }
   
   if (!isShipper) {
-    return null;
+    console.log('[ShipperHome] Non-shipper user accessing shipper tab:', user.role);
+    // Show access denied instead of redirecting
+    return (
+      <View style={styles.container} testID="shipper-access-denied">
+        <View style={styles.accessDenied}>
+          <Text style={styles.accessDeniedTitle}>Access Restricted</Text>
+          <Text style={styles.accessDeniedText}>This section is for shippers only.</Text>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -196,5 +203,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
     marginTop: theme.spacing.sm,
+  },
+  accessDenied: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  accessDeniedTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.danger,
+    marginBottom: theme.spacing.sm,
+  },
+  accessDeniedText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+    textAlign: 'center',
   },
 });
