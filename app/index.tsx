@@ -130,16 +130,20 @@ export default function Index() {
     id: user.id
   });
   
-  // Force correct routing based on user role
-  if (user.role === 'admin') {
+  // Force correct routing based on user role with more explicit checks
+  const userRole = user.role?.toLowerCase();
+  
+  if (userRole === 'admin') {
     console.log('[Index] Redirecting admin to admin tab');
     return <Redirect href="/(tabs)/admin" />;
   }
-  if (user.role === 'shipper') {
+  
+  if (userRole === 'shipper') {
     console.log('[Index] Redirecting shipper to shipper tab');
     return <Redirect href="/(tabs)/shipper" />;
   }
-  // Default to driver dashboard
-  console.log('[Index] Redirecting driver to dashboard tab');
+  
+  // Default to driver dashboard (including for 'driver' role and any other cases)
+  console.log('[Index] Redirecting to driver dashboard tab (role:', userRole, ')');
   return <Redirect href="/(tabs)/dashboard" />;
 }

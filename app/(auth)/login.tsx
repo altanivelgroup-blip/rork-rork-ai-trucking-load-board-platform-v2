@@ -18,7 +18,8 @@ import { theme } from '@/constants/theme';
 import { moderateScale } from '@/src/ui/scale';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
@@ -40,19 +41,23 @@ export default function LoginScreen() {
       // Set predefined credentials based on role
       let loginEmail: string;
       let loginPassword: string;
+      let userId: string;
 
       switch (role) {
         case 'driver':
           loginEmail = 'driver@test1.com';
           loginPassword = 'RealUnlock123';
+          userId = 'OK0pPByFYicnOu6Z0B7tzR17Qz';
           break;
         case 'shipper':
           loginEmail = 'shipper@test1.com';
           loginPassword = 'RealShipper123';
+          userId = 'pu2bP7pzfuW39mgNDtO6im2ZQof';
           break;
         case 'admin':
           loginEmail = 'admin@test1.com';
           loginPassword = 'RealBoss123';
+          userId = 'IFHGF8LVUTQY6mnBqw5rblU167';
           break;
         default:
           setErrorText('Invalid role selected');
@@ -62,22 +67,71 @@ export default function LoginScreen() {
       console.log(`[Login] Authenticating as ${role}: ${loginEmail}`);
 
       // Firebase authentication
-      const { auth } = getFirebase();
+      const { auth, db } = getFirebase();
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       const firebaseUser = userCredential.user;
 
       console.log(`[Login] Firebase Success: UID ${firebaseUser.uid}`);
 
-      // Route based on selected role
+      // Store emergency access data for immediate auth state
+      const emergencyUserData = {
+        id: firebaseUser.uid,
+        email: loginEmail,
+        role: role,
+        name: loginEmail.split('@')[0].toUpperCase(),
+        phone: '',
+        membershipTier: role === 'admin' ? 'enterprise' : 'basic',
+        createdAt: new Date().toISOString()
+      };
+      
+      await AsyncStorage.setItem('auth:emergency:user', JSON.stringify(emergencyUserData));
+      console.log(`[Login] Emergency access stored for ${role}`);
+
+      // Also ensure Firestore has the user data
+      try {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const profileData = {
+          fullName: emergencyUserData.name,
+          email: loginEmail,
+          phone: '',
+          company: role === 'shipper' ? 'Test Logistics' : ''
+        };
+        
+        const userDoc = {
+          role: role,
+          profileData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+        
+        await setDoc(userRef, userDoc, { merge: true });
+        console.log(`[Login] User profile saved to Firestore for ${role}`);
+      } catch (firestoreError) {
+        console.warn(`[Login] Firestore save failed (continuing anyway):`, firestoreError);
+      }
+
+      // Small delay to let auth state update
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Route based on selected role with more explicit navigation
+      console.log(`[Login] Navigating to ${role} dashboard`);
+      
+      // Force navigation with router.push first, then replace
       switch (role) {
         case 'driver':
-          router.replace('/(tabs)/dashboard');
+          console.log('[Login] Pushing to driver dashboard');
+          router.push('/(tabs)/dashboard');
+          setTimeout(() => router.replace('/(tabs)/dashboard'), 100);
           break;
         case 'shipper':
-          router.replace('/(tabs)/shipper');
+          console.log('[Login] Pushing to shipper dashboard');
+          router.push('/(tabs)/shipper');
+          setTimeout(() => router.replace('/(tabs)/shipper'), 100);
           break;
         case 'admin':
-          router.replace('/(tabs)/admin');
+          console.log('[Login] Pushing to admin dashboard');
+          router.push('/(tabs)/admin');
+          setTimeout(() => router.replace('/(tabs)/admin'), 100);
           break;
       }
     } catch (error: any) {
@@ -110,30 +164,64 @@ export default function LoginScreen() {
 
       console.log(`[Login] Firebase Success: UID ${firebaseUser.uid}`);
 
-      // Fetch role from Firestore using UID
-      const userRef = doc(db, "users", firebaseUser.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        setErrorText("No profile found in Firestore for this user.");
-        return;
+      // Store emergency access data for immediate auth state
+      const emergencyUserData = {
+        id: firebaseUser.uid,
+        email: emailTrimmed,
+        role: 'driver', // Default role for custom login
+        name: emailTrimmed.split('@')[0].toUpperCase(),
+        phone: '',
+        membershipTier: 'basic',
+        createdAt: new Date().toISOString()
+      };
+      
+      // Try to fetch role from Firestore
+      let userRole = 'driver';
+      try {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          userRole = userData.role ? userData.role.toLowerCase() : 'driver';
+          console.log(`[Login] Fetched role from Firestore: ${userRole}`);
+          
+          // Update emergency data with correct role
+          emergencyUserData.role = userRole;
+          emergencyUserData.membershipTier = userRole === 'admin' ? 'enterprise' : 'basic';
+        } else {
+          console.log(`[Login] No Firestore profile found, using default role: driver`);
+        }
+      } catch (firestoreError) {
+        console.warn(`[Login] Firestore fetch failed, using default role:`, firestoreError);
       }
+      
+      await AsyncStorage.setItem('auth:emergency:user', JSON.stringify(emergencyUserData));
+      console.log(`[Login] Emergency access stored for custom login with role: ${userRole}`);
 
-      const userData = userSnap.data();
-      let userRole = userData.role ? userData.role.toLowerCase() : 'driver';
+      // Small delay to let auth state update
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      console.log(`[Login] Fetched role: ${userRole}`);
-
-      // Route based on role
+      // Route based on role with more explicit navigation
+      console.log(`[Login] Navigating to ${userRole} dashboard`);
+      
+      // Force navigation with router.push first, then replace
       if (userRole === "driver") {
-        router.replace("/(tabs)/dashboard");
+        console.log('[Login] Pushing to driver dashboard');
+        router.push("/(tabs)/dashboard");
+        setTimeout(() => router.replace("/(tabs)/dashboard"), 100);
       } else if (userRole === "shipper") {
-        router.replace("/(tabs)/shipper");
+        console.log('[Login] Pushing to shipper dashboard');
+        router.push("/(tabs)/shipper");
+        setTimeout(() => router.replace("/(tabs)/shipper"), 100);
       } else if (userRole === "admin") {
-        router.replace("/(tabs)/admin");
+        console.log('[Login] Pushing to admin dashboard');
+        router.push("/(tabs)/admin");
+        setTimeout(() => router.replace("/(tabs)/admin"), 100);
       } else {
         console.log(`[Login] Unknown role, defaulting to driver`);
-        router.replace("/(tabs)/dashboard");
+        router.push("/(tabs)/dashboard");
+        setTimeout(() => router.replace("/(tabs)/dashboard"), 100);
       }
     } catch (error: any) {
       console.error("[Login] Error:", error.code, error.message);
