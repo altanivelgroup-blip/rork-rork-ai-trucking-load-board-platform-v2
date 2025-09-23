@@ -288,7 +288,7 @@ export default function ComprehensiveSanityCheckScreen() {
       }
       
       // Check app name
-      const appName = 'AI Trucking Load Board Platform';
+      const appName: string = 'AI Trucking Load Board Platform';
       if (appName && appName !== 'Expo App') {
         addResult({
           name: 'App Name',
