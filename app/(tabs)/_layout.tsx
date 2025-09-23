@@ -12,8 +12,8 @@ export default function TabsLayout() {
   const user = authState?.user;
 
   if (!user) {
-    console.log('[TabsLayout] No user -> redirecting to /(auth)/login');
-    return <Redirect href="/(auth)/login" />;
+    console.log('[TabsLayout] No user -> redirecting to /login');
+    return <Redirect href="/login" />;
   }
   const isDriver = user?.role === 'driver';
   const isShipper = user?.role === 'shipper';

@@ -76,7 +76,7 @@ export default function Index() {
 
   const handleEmergencyBypass = () => {
     console.log('[Index] Emergency bypass - going to login');
-    router.replace('/(auth)/login');
+    router.replace('/login');
   };
 
   // Show loading while auth is initializing
@@ -120,7 +120,7 @@ export default function Index() {
   // If no user, redirect to login
   if (!user) {
     console.log('[Index] No user found, redirecting to login');
-    return <Redirect href="/(auth)/login" />;
+    return <Redirect href="/login" />;
   }
 
   // If user is authenticated, redirect to appropriate dashboard
