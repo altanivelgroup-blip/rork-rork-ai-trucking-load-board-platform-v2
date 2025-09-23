@@ -49,70 +49,91 @@ export default function LoginScreen() {
       const emailTrimmed = email.trim().toLowerCase();
       const passwordTrimmed = password.trim();
       
-      console.log(`[Emergency Access] Authenticating: ${emailTrimmed}`);
+      console.log(`[Login] Authenticating: ${emailTrimmed}`);
       
-     
+      // Test user credentials
+      const testUsers: Record<string, { password: string; role: UserRole; uid: string }> = {
+        'driver@test1.com': { password: 'RealUnlock123', role: 'driver', uid: 'test-driver-uid-001' },
+        'shipper@test1.com': { password: 'RealShipper123', role: 'shipper', uid: 'test-shipper-uid-001' },
+        'admin@test1.com': { password: 'RealBoss123', role: 'admin', uid: 'test-admin-uid-001' }
+      };
       
-      // Regular Firebase authentication
-      const { auth, db } = getFirebase();
-      const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
-      const firebaseUser = userCredential.user;
-      
-      console.log(`[Simple Login] Firebase Success: ${firebaseUser.uid}`);
-      
-      // Simple profile handling
-      let userRole: UserRole = selectedRole;
-      
-      try {
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
+      // Check if this is a test user
+      const testUser = testUsers[emailTrimmed];
+      if (testUser && passwordTrimmed === testUser.password) {
+        console.log(`[Login] Test user login: ${emailTrimmed}`);
         
-        if (userSnap.exists()) {
-          userRole = userSnap.data().role || selectedRole;
+        // Store emergency access data
+        await AsyncStorage.setItem('auth:emergency:user', JSON.stringify({
+          id: testUser.uid,
+          email: emailTrimmed,
+          role: testUser.role,
+          name: emailTrimmed.split('@')[0].toUpperCase()
+        }));
+        
+        // Navigate based on role
+        if (testUser.role === 'admin') {
+          router.replace('/(tabs)/admin');
+        } else if (testUser.role === 'shipper') {
+          router.replace('/(tabs)/shipper');
         } else {
-          // Create basic profile
-          await setDoc(userRef, {
-            role: selectedRole,
-            profileData: {
-              fullName: emailTrimmed.split('@')[0].toUpperCase(),
-              email: emailTrimmed,
-              phone: '',
-              company: ''
-            },
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          }, { merge: true });
+          router.replace('/(tabs)/dashboard');
         }
-      } catch (profileError) {
-        console.warn('[Simple Login] Profile handling failed, continuing:', profileError);
+        return;
       }
       
-      // Navigate based on role
-      if (userRole === 'admin') {
-        router.replace('/(tabs)/admin');
-      } else if (userRole === 'shipper') {
-        router.replace('/(tabs)/shipper');
-      } else {
-        router.replace('/(tabs)/dashboard');
+      // Try Firebase authentication for non-test users
+      try {
+        const { auth, db } = getFirebase();
+        const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
+        const firebaseUser = userCredential.user;
+        
+        console.log(`[Login] Firebase Success: ${firebaseUser.uid}`);
+        
+        // Simple profile handling
+        let userRole: UserRole = selectedRole;
+        
+        try {
+          const userRef = doc(db, 'users', firebaseUser.uid);
+          const userSnap = await getDoc(userRef);
+          
+          if (userSnap.exists()) {
+            userRole = userSnap.data().role || selectedRole;
+          } else {
+            // Create basic profile
+            await setDoc(userRef, {
+              role: selectedRole,
+              profileData: {
+                fullName: emailTrimmed.split('@')[0].toUpperCase(),
+                email: emailTrimmed,
+                phone: '',
+                company: ''
+              },
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          }
+        } catch (profileError) {
+          console.warn('[Login] Profile handling failed, continuing:', profileError);
+        }
+        
+        // Navigate based on role
+        if (userRole === 'admin') {
+          router.replace('/(tabs)/admin');
+        } else if (userRole === 'shipper') {
+          router.replace('/(tabs)/shipper');
+        } else {
+          router.replace('/(tabs)/dashboard');
+        }
+        
+      } catch (firebaseError: any) {
+        console.error('[Login] Firebase auth failed:', firebaseError?.code, firebaseError?.message);
+        setErrorText('Invalid credentials. Please check your email and password.');
       }
       
     } catch (error: any) {
-      console.error('[Simple Login] Error:', error?.code, error?.message);
-      
-      if (error?.code === 'auth/too-many-requests') {
-        console.log(`[Access Restored] Authentication failed for ${email}: ${error?.code} Firebase: Error (${error?.code}).`);
-        setErrorText('Account temporarily locked. Use emergency access or wait 15 minutes.');
-        setIsRateLimited(true);
-        setTimeout(() => {
-          setIsRateLimited(false);
-          setRetryCount(0);
-        }, 60 * 1000);
-      } else if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password' || error?.code === 'auth/user-not-found') {
-        setErrorText('Invalid credentials. Try emergency access if you\'re a test user.');
-      } else {
-        setErrorText('Login failed. Try emergency access for test accounts.');
-      }
-      
+      console.error('[Login] Error:', error?.code, error?.message);
+      setErrorText('Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
