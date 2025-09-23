@@ -12,7 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock } from 'lucide-react-native';
+import { Mail, Lock, Truck, Building, Shield } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { moderateScale } from '@/src/ui/scale';
@@ -22,14 +22,73 @@ import { doc, getDoc } from 'firebase/firestore';
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
+type UserRole = 'driver' | 'shipper' | 'admin';
+
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleLogin = useCallback(async () => {
+  const handleRoleLogin = useCallback(async (role: UserRole) => {
+    setIsLoading(true);
+    setErrorText(null);
+
+    try {
+      // Set predefined credentials based on role
+      let loginEmail: string;
+      let loginPassword: string;
+
+      switch (role) {
+        case 'driver':
+          loginEmail = 'driver@test1.com';
+          loginPassword = 'RealUnlock123';
+          break;
+        case 'shipper':
+          loginEmail = 'shipper@test1.com';
+          loginPassword = 'RealShipper123';
+          break;
+        case 'admin':
+          loginEmail = 'admin@test1.com';
+          loginPassword = 'RealBoss123';
+          break;
+        default:
+          setErrorText('Invalid role selected');
+          return;
+      }
+
+      console.log(`[Login] Authenticating as ${role}: ${loginEmail}`);
+
+      // Firebase authentication
+      const { auth } = getFirebase();
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      const firebaseUser = userCredential.user;
+
+      console.log(`[Login] Firebase Success: UID ${firebaseUser.uid}`);
+
+      // Route based on selected role
+      switch (role) {
+        case 'driver':
+          router.replace('/(tabs)/dashboard');
+          break;
+        case 'shipper':
+          router.replace('/(tabs)/shipper');
+          break;
+        case 'admin':
+          router.replace('/(tabs)/admin');
+          break;
+      }
+    } catch (error: any) {
+      console.error(`[Login] Error for ${role}:`, error.code, error.message);
+      setErrorText(`${role} login failed: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router]);
+
+  const handleCustomLogin = useCallback(async () => {
     setIsLoading(true);
     setErrorText(null);
 
@@ -39,10 +98,10 @@ export default function LoginScreen() {
         return;
       }
 
-      const emailTrimmed = email.trim().toLowerCase(); // Use user input, no hardcoding
+      const emailTrimmed = email.trim().toLowerCase();
       const passwordTrimmed = password.trim();
 
-      console.log(`[Login] Authenticating: ${emailTrimmed}`);
+      console.log(`[Login] Custom login: ${emailTrimmed}`);
 
       // Firebase authentication
       const { auth, db } = getFirebase();
@@ -61,7 +120,7 @@ export default function LoginScreen() {
       }
 
       const userData = userSnap.data();
-      let userRole = userData.role ? userData.role.toLowerCase() : 'driver'; // Make lowercase, default to driver if missing
+      let userRole = userData.role ? userData.role.toLowerCase() : 'driver';
 
       console.log(`[Login] Fetched role: ${userRole}`);
 
@@ -74,7 +133,7 @@ export default function LoginScreen() {
         router.replace("/(tabs)/admin");
       } else {
         console.log(`[Login] Unknown role, defaulting to driver`);
-        router.replace("/(tabs)/dashboard"); // Default to driver if no match
+        router.replace("/(tabs)/dashboard");
       }
     } catch (error: any) {
       console.error("[Login] Error:", error.code, error.message);
@@ -121,51 +180,117 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Mail size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor={theme.colors.gray}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                testID="login-email"
-              />
+            {/* Role Selection Buttons */}
+            <View style={styles.roleSection}>
+              <Text style={styles.roleSectionTitle}>Select Your Role</Text>
+              <View style={styles.roleButtons}>
+                <TouchableOpacity
+                  style={[styles.roleButton, styles.driverButton]}
+                  onPress={() => handleRoleLogin('driver')}
+                  disabled={isLoading}
+                  testID="driver-login-button"
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={theme.colors.white} size="small" />
+                  ) : (
+                    <>
+                      <Truck size={24} color={theme.colors.white} />
+                      <Text style={styles.roleButtonText}>DRIVER</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.roleButton, styles.shipperButton]}
+                  onPress={() => handleRoleLogin('shipper')}
+                  disabled={isLoading}
+                  testID="shipper-login-button"
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={theme.colors.white} size="small" />
+                  ) : (
+                    <>
+                      <Building size={24} color={theme.colors.white} />
+                      <Text style={styles.roleButtonText}>SHIPPER</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.roleButton, styles.adminButton]}
+                  onPress={() => handleRoleLogin('admin')}
+                  disabled={isLoading}
+                  testID="admin-login-button"
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={theme.colors.white} size="small" />
+                  ) : (
+                    <>
+                      <Shield size={24} color={theme.colors.white} />
+                      <Text style={styles.roleButtonText}>ADMIN</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Lock size={20} color={theme.colors.gray} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor={theme.colors.gray}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete="password"
-                testID="login-password"
-              />
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Custom Login Form */}
+            <View style={styles.customLoginSection}>
+              <Text style={styles.customLoginTitle}>Custom Login</Text>
+              
+              <View style={styles.inputContainer}>
+                <Mail size={20} color={theme.colors.gray} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor={theme.colors.gray}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  testID="login-email"
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Lock size={20} color={theme.colors.gray} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor={theme.colors.gray}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  autoComplete="password"
+                  testID="login-password"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+                onPress={handleCustomLogin}
+                disabled={isLoading || !(email?.trim() && password?.trim())}
+                testID="custom-login-submit"
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={theme.colors.white} />
+                ) : (
+                  <Text style={styles.loginButtonText}>Sign In</Text>
+                )}
+              </TouchableOpacity>
             </View>
 
             {!!errorText && (
               <Text style={styles.errorText} testID="login-error">{errorText}</Text>
             )}
-
-            <TouchableOpacity
-              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={isLoading || !(email?.trim() && password?.trim())}
-              testID="login-submit"
-            >
-              {isLoading ? (
-                <ActivityIndicator color={theme.colors.white} />
-              ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
 
             <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push('/(auth)/reset-password')} testID="forgot-password-link">
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
@@ -288,5 +413,71 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
     fontSize: theme.fontSize.sm,
     textAlign: 'center',
+  },
+  roleSection: {
+    marginBottom: theme.spacing.lg,
+  },
+  roleSectionTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  roleButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  roleButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 80,
+    gap: theme.spacing.xs,
+  },
+  driverButton: {
+    backgroundColor: '#2563eb', // Blue
+  },
+  shipperButton: {
+    backgroundColor: '#16a34a', // Green
+  },
+  adminButton: {
+    backgroundColor: '#dc2626', // Red
+  },
+  roleButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: theme.spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.lightGray,
+  },
+  dividerText: {
+    marginHorizontal: theme.spacing.md,
+    color: theme.colors.gray,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+  },
+  customLoginSection: {
+    marginBottom: theme.spacing.md,
+  },
+  customLoginTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
   },
 });
