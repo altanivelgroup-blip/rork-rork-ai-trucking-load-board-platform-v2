@@ -14,7 +14,9 @@ import { theme } from '@/constants/theme';
 import { moderateScale } from '@/src/ui/scale';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Truck, Building, Shield } from 'lucide-react-native';
 
 const AUTH_ICON_URL = 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/wcevsahzwhm5yc2aczcz8';
 
@@ -57,7 +59,7 @@ export default function LoginScreen() {
       console.log(`[Login] Signing in as ${roleKey}: ${account.email}`);
 
       // Firebase authentication
-      const { auth } = getFirebase();
+      const { auth, db } = getFirebase();
       const userCredential = await signInWithEmailAndPassword(auth, account.email, account.password);
       const firebaseUser = userCredential.user;
 
@@ -69,13 +71,43 @@ export default function LoginScreen() {
         email: account.email,
         role: account.role,
         name: account.name,
+        phone: '',
+        membershipTier: account.role === 'admin' ? 'enterprise' : 'basic',
         createdAt: new Date().toISOString()
       };
       
       await AsyncStorage.setItem('auth:emergency:user', JSON.stringify(emergencyUserData));
       console.log(`[Login] Emergency access stored for ${account.role}`);
 
-      // Route based on role
+      // Also ensure Firestore has the user data
+      try {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const profileData = {
+          fullName: account.name,
+          email: account.email,
+          phone: '',
+          company: account.role === 'shipper' ? 'Test Logistics' : ''
+        };
+        
+        const userDoc = {
+          role: account.role,
+          profileData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+        
+        await setDoc(userRef, userDoc, { merge: true });
+        console.log(`[Login] User profile saved to Firestore for ${account.role}`);
+      } catch (firestoreError) {
+        console.warn(`[Login] Firestore save failed (continuing anyway):`, firestoreError);
+      }
+
+      // Wait a moment for auth state to update
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Route based on role with explicit navigation
+      console.log(`[Login] Navigating to ${account.role} dashboard`);
+      
       if (account.role === 'driver') {
         router.replace('/(tabs)/dashboard');
       } else if (account.role === 'shipper') {
@@ -139,9 +171,10 @@ export default function LoginScreen() {
             testID="driver-login-button"
           >
             {isLoading && loadingRole === 'driver' ? (
-              <ActivityIndicator color={theme.colors.white} />
+              <ActivityIndicator color={theme.colors.white} size="large" />
             ) : (
               <>
+                <Truck size={32} color={theme.colors.white} />
                 <Text style={styles.roleButtonText}>DRIVER</Text>
                 <Text style={styles.roleButtonSubtext}>Find and haul loads</Text>
               </>
@@ -155,9 +188,10 @@ export default function LoginScreen() {
             testID="shipper-login-button"
           >
             {isLoading && loadingRole === 'shipper' ? (
-              <ActivityIndicator color={theme.colors.white} />
+              <ActivityIndicator color={theme.colors.white} size="large" />
             ) : (
               <>
+                <Building size={32} color={theme.colors.white} />
                 <Text style={styles.roleButtonText}>SHIPPER</Text>
                 <Text style={styles.roleButtonSubtext}>Post loads for drivers</Text>
               </>
@@ -171,9 +205,10 @@ export default function LoginScreen() {
             testID="admin-login-button"
           >
             {isLoading && loadingRole === 'admin' ? (
-              <ActivityIndicator color={theme.colors.white} />
+              <ActivityIndicator color={theme.colors.white} size="large" />
             ) : (
               <>
+                <Shield size={32} color={theme.colors.white} />
                 <Text style={styles.roleButtonText}>ADMIN</Text>
                 <Text style={styles.roleButtonSubtext}>Manage platform</Text>
               </>
@@ -185,6 +220,13 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={() => router.push('/(auth)/login')} testID="manual-login-link">
             <Text style={styles.manualLoginText}>Manual Login</Text>
           </TouchableOpacity>
+          
+          <View style={styles.testCredentials}>
+            <Text style={styles.testCredentialsTitle}>Test Credentials:</Text>
+            <Text style={styles.testCredentialsText}>Driver: driver@test1.com / RealUnlock123</Text>
+            <Text style={styles.testCredentialsText}>Shipper: shipper@test1.com / RealShipper123</Text>
+            <Text style={styles.testCredentialsText}>Admin: admin@test1.com / RealBoss123</Text>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -241,12 +283,13 @@ const styles = StyleSheet.create({
   },
   roleButton: {
     borderRadius: theme.borderRadius.lg,
-    paddingVertical: theme.spacing.lg,
+    paddingVertical: theme.spacing.xl,
     paddingHorizontal: theme.spacing.md,
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
-    minHeight: 80,
+    marginBottom: theme.spacing.lg,
+    minHeight: 100,
     justifyContent: 'center',
+    gap: theme.spacing.sm,
   },
   roleButtonDisabled: {
     opacity: 0.7,
@@ -279,5 +322,24 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontSize: theme.fontSize.sm,
     fontWeight: '500',
+  },
+  testCredentials: {
+    marginTop: theme.spacing.lg,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+  },
+  testCredentialsTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  testCredentialsText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    marginBottom: 2,
+    fontFamily: 'monospace',
   },
 });
