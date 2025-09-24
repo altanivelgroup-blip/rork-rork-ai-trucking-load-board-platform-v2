@@ -114,18 +114,39 @@ export default function LoginScreen() {
       // Navigate immediately after successful sign-in
       console.log(`[Login] Navigating to ${role} dashboard immediately`);
       switch (role) {
-        case 'driver':
+        case 'driver': {
           console.log('[Login] Going to driver dashboard');
-          router.replace('/(tabs)/dashboard');
+          try {
+            router.push('/(tabs)');
+            setTimeout(() => router.replace('/(tabs)/dashboard'), 100);
+          } catch (e) {
+            console.warn('[Login] driver nav push failed, fallback to replace', e);
+            router.replace('/(tabs)/dashboard');
+          }
           break;
-        case 'shipper':
+        }
+        case 'shipper': {
           console.log('[Login] Going to shipper dashboard');
-          router.replace('/(tabs)/shipper');
+          try {
+            router.push('/(tabs)');
+            setTimeout(() => router.replace('/(tabs)/shipper'), 100);
+          } catch (e) {
+            console.warn('[Login] shipper nav push failed, fallback to replace', e);
+            router.replace('/(tabs)/shipper');
+          }
           break;
-        case 'admin':
+        }
+        case 'admin': {
           console.log('[Login] Going to admin dashboard');
-          router.replace('/(tabs)/admin');
+          try {
+            router.push('/(tabs)');
+            setTimeout(() => router.replace('/(tabs)/admin'), 100);
+          } catch (e) {
+            console.warn('[Login] admin nav push failed, fallback to replace', e);
+            router.replace('/(tabs)/admin');
+          }
           break;
+        }
       }
       
     } catch (error: any) {
