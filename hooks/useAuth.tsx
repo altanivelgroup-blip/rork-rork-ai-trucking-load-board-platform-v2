@@ -159,7 +159,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         
         // Set up Firebase auth state listener with bypass for existing users
         unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-          console.log('[auth] Firebase auth state changed:', firebaseUser ? firebaseUser.uid : 'signed out');
+          console.log('[auth] Firebase auth state changed:', firebaseUser ? `${firebaseUser.uid} (${firebaseUser.email})` : 'signed out');
           
           if (firebaseUser) {
             // User is signed in, load their profile with fallback for existing users

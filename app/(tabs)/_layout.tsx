@@ -10,6 +10,13 @@ export default function TabsLayout() {
   
   // Safely destructure after hook is called
   const user = authState?.user;
+  const isLoading = authState?.isLoading;
+
+  // Don't redirect if still loading
+  if (isLoading) {
+    console.log('[TabsLayout] Auth still loading, waiting...');
+    return null; // Let the index.tsx handle loading state
+  }
 
   if (!user) {
     console.log('[TabsLayout] No user -> redirecting to /login');
