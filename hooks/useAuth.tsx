@@ -33,36 +33,48 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   console.log('[useAuth] Hook initialized');
 
-  // Firebase auth state listener for real authentication
+  // Simple Firebase auth state listener
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
-    let initTimeout: NodeJS.Timeout;
-
+    
     const initAuth = async () => {
       try {
-        console.log('[auth] Starting Firebase auth initialization...');
+        console.log('[auth] Starting simple auth initialization...');
         
-        // Check for emergency access first
-        try {
-          const emergencyUser = await AsyncStorage.getItem('auth:emergency:user');
-          if (emergencyUser) {
-            const userData = JSON.parse(emergencyUser);
-            console.log(`[auth] Emergency access detected for: ${userData.email}`);
+        // Set up Firebase auth state listener
+        unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+          console.log('[auth] Firebase auth state changed:', firebaseUser ? `${firebaseUser.uid} (${firebaseUser.email})` : 'signed out');
+          
+          if (firebaseUser) {
+            // Check for emergency access data to get role
+            let userRole: UserRole = 'driver';
+            try {
+              const emergencyUser = await AsyncStorage.getItem('auth:emergency:user');
+              if (emergencyUser) {
+                const userData = JSON.parse(emergencyUser);
+                if (userData.id === firebaseUser.uid) {
+                  userRole = userData.role || 'driver';
+                  console.log(`[auth] Using emergency access role: ${userRole}`);
+                }
+              }
+            } catch (e) {
+              console.warn('[auth] Failed to check emergency access:', e);
+            }
             
-            // Create full user object based on role
+            // Create user object based on role
             let userObject: Driver | Shipper | Admin;
+            const email = firebaseUser.email || '';
+            const name = email.split('@')[0].toUpperCase();
             
-            console.log(`[auth] Creating emergency user object for role: ${userData.role}`);
-            
-            if (userData.role === 'shipper') {
+            if (userRole === 'shipper') {
               userObject = {
-                id: userData.id,
+                id: firebaseUser.uid,
                 role: 'shipper',
-                email: userData.email,
-                name: userData.name || userData.email.split('@')[0].toUpperCase(),
-                phone: userData.phone || '',
-                membershipTier: userData.membershipTier || 'basic',
-                createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date(),
+                email,
+                name,
+                phone: '',
+                membershipTier: 'basic',
+                createdAt: new Date(),
                 companyName: 'Test Logistics',
                 mcNumber: 'MC123456',
                 dotNumber: 'DOT789012',
@@ -73,27 +85,27 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 totalRevenue: 125000,
                 avgRating: 4.6,
               } as Shipper;
-            } else if (userData.role === 'admin') {
+            } else if (userRole === 'admin') {
               userObject = {
-                id: userData.id,
+                id: firebaseUser.uid,
                 role: 'admin',
-                email: userData.email,
-                name: userData.name || userData.email.split('@')[0].toUpperCase(),
-                phone: userData.phone || '',
-                membershipTier: userData.membershipTier || 'enterprise',
-                createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date(),
+                email,
+                name,
+                phone: '',
+                membershipTier: 'enterprise',
+                createdAt: new Date(),
                 permissions: ['analytics', 'user_management', 'load_management', 'system_admin'],
                 lastLoginAt: new Date(),
               } as Admin;
             } else {
               userObject = {
-                id: userData.id,
+                id: firebaseUser.uid,
                 role: 'driver',
-                email: userData.email,
-                name: userData.name || userData.email.split('@')[0].toUpperCase(),
-                phone: userData.phone || '',
-                membershipTier: userData.membershipTier || 'basic',
-                createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date(),
+                email,
+                name,
+                phone: '',
+                membershipTier: 'basic',
+                createdAt: new Date(),
                 cdlNumber: '',
                 vehicleTypes: [],
                 rating: 4.8,
@@ -117,198 +129,16 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               } as Driver;
             }
             
-            console.log(`[auth] Emergency user object created:`, {
-              role: userObject.role,
-              email: userObject.email,
-              name: userObject.name
-            });
-            
             setUser(userObject);
-            setUserId(userData.id);
+            setUserId(firebaseUser.uid);
             setHasSignedInThisSession(true);
-            setIsLoading(false);
-            console.log(`[auth] Emergency access activated for: ${userData.email}`);
-            return;
-          }
-        } catch (emergencyError) {
-          console.warn('[auth] Emergency access check failed:', emergencyError);
-        }
-        
-        // Set a timeout to prevent infinite loading
-        initTimeout = setTimeout(() => {
-          console.warn('[auth] Initialization timeout - setting loading to false');
-          setIsLoading(false);
-        }, 10000); // 10 second timeout
-        
-        // Initialize Firebase first
-        const authSuccess = await ensureFirebaseAuth();
-        
-        if (!auth) {
-          console.warn('[auth] Firebase auth not available');
-          clearTimeout(initTimeout);
-          setIsLoading(false);
-          return;
-        }
-        
-        if (!authSuccess) {
-          console.warn('[auth] Firebase auth initialization failed');
-          clearTimeout(initTimeout);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Set up Firebase auth state listener with bypass for existing users
-        unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-          console.log('[auth] Firebase auth state changed:', firebaseUser ? `${firebaseUser.uid} (${firebaseUser.email})` : 'signed out');
-          
-          if (firebaseUser) {
-            // User is signed in, load their profile with fallback for existing users
-            try {
-              let userObject: Driver | Shipper | Admin;
-              let profileData: any = {};
-              let userRole: UserRole = 'driver';
-              
-              // Check if this is an emergency access user first
-              let emergencyUserData: any = null;
-              try {
-                const emergencyUser = await AsyncStorage.getItem('auth:emergency:user');
-                if (emergencyUser) {
-                  emergencyUserData = JSON.parse(emergencyUser);
-                  if (emergencyUserData.id === firebaseUser.uid) {
-                    userRole = emergencyUserData.role || 'driver';
-                    profileData = {
-                      fullName: emergencyUserData.name || firebaseUser.email?.split('@')[0]?.toUpperCase() || 'User',
-                      email: emergencyUserData.email || firebaseUser.email || '',
-                      phone: emergencyUserData.phone || '',
-                      company: emergencyUserData.company || ''
-                    };
-                    console.log(`[auth] Using emergency access data for ${firebaseUser.email}: role=${userRole}`);
-                  }
-                }
-              } catch (emergencyError) {
-                console.warn('[auth] Failed to check emergency access data:', emergencyError);
-              }
-              
-              // If not emergency access, try to load from Firestore
-              if (!emergencyUserData || emergencyUserData.id !== firebaseUser.uid) {
-                try {
-                  const userRef = doc(db, 'users', firebaseUser.uid);
-                  const userSnap = await getDoc(userRef);
-                  
-                  if (userSnap.exists()) {
-                    const userData = userSnap.data();
-                    profileData = userData.profileData || {};
-                    userRole = userData.role || 'driver';
-                    console.log(`[auth] Loaded profile from Firestore for ${firebaseUser.email}: role=${userRole}`);
-                  } else {
-                    console.log(`[auth] No Firestore profile found for ${firebaseUser.email}, using defaults`);
-                  }
-                } catch (firestoreError) {
-                  console.warn(`[auth] Firestore access failed for ${firebaseUser.email}, using fallback profile:`, firestoreError);
-                  // Continue with default profile
-                }
-              }
-              
-              // Create fallback profile data if needed
-              if (!profileData.fullName && !profileData.name) {
-                profileData.fullName = firebaseUser.email?.split('@')[0]?.toUpperCase() || 'User';
-              }
-              if (!profileData.email) {
-                profileData.email = firebaseUser.email || '';
-              }
-              
-              // Create user object based on role with generous defaults
-              if (userRole === 'driver') {
-                userObject = {
-                  id: firebaseUser.uid,
-                  role: 'driver',
-                  email: profileData.email || firebaseUser.email || '',
-                  name: profileData.fullName || profileData.name || firebaseUser.email?.split('@')[0]?.toUpperCase() || 'DRIVER',
-                  phone: profileData.phone || '',
-                  membershipTier: 'basic',
-                  createdAt: new Date(),
-                  cdlNumber: '',
-                  vehicleTypes: [],
-                  rating: 4.8,
-                  completedLoads: 24,
-                  documents: [],
-                  wallet: {
-                    balance: 2450,
-                    pendingEarnings: 850,
-                    totalEarnings: 12500,
-                    transactions: [],
-                  },
-                  fuelProfile: {
-                    vehicleType: 'truck',
-                    averageMpg: 8.5,
-                    fuelPricePerGallon: 3.85,
-                    fuelType: 'diesel',
-                    tankCapacity: 150,
-                  },
-                  isAvailable: true,
-                  verificationStatus: 'verified',
-                } as Driver;
-              } else if (userRole === 'shipper') {
-                userObject = {
-                  id: firebaseUser.uid,
-                  role: 'shipper',
-                  email: profileData.email || firebaseUser.email || '',
-                  name: profileData.fullName || profileData.name || firebaseUser.email?.split('@')[0]?.toUpperCase() || 'SHIPPER',
-                  phone: profileData.phone || '',
-                  membershipTier: 'basic',
-                  createdAt: new Date(),
-                  companyName: profileData.company || 'Test Logistics',
-                  mcNumber: 'MC123456',
-                  dotNumber: 'DOT789012',
-                  verificationStatus: 'verified',
-                  totalLoadsPosted: 45,
-                  activeLoads: 12,
-                  completedLoads: 33,
-                  totalRevenue: 125000,
-                  avgRating: 4.6,
-                } as Shipper;
-              } else {
-                userObject = {
-                  id: firebaseUser.uid,
-                  role: 'admin',
-                  email: profileData.email || firebaseUser.email || '',
-                  name: profileData.fullName || profileData.name || firebaseUser.email?.split('@')[0]?.toUpperCase() || 'ADMIN',
-                  phone: profileData.phone || '',
-                  membershipTier: 'enterprise',
-                  createdAt: new Date(),
-                  permissions: ['analytics', 'user_management', 'load_management', 'system_admin'],
-                  lastLoginAt: new Date(),
-                } as Admin;
-              }
-              
-              setUser(userObject);
-              setUserId(firebaseUser.uid);
-              setHasSignedInThisSession(true);
-              
-              // Cache the user data
-              try {
-                await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userObject));
-              } catch (cacheError) {
-                console.warn('[auth] Failed to cache user data:', cacheError);
-              }
-              
-              console.log(`[auth] User profile loaded successfully for ${firebaseUser.email}: ${userObject.name}`);
-              
-            } catch (error) {
-              console.error(`[auth] Failed to load user profile for ${firebaseUser.email}:`, error);
-              // Don't set user to null - let them stay authenticated with minimal profile
-              console.log('[auth] Proceeding with minimal authenticated state');
-            }
+            console.log(`[auth] User authenticated: ${userObject.role} - ${userObject.email}`);
+            
           } else {
             // User is signed out
             setUser(null);
             setUserId(null);
             setHasSignedInThisSession(false);
-            try {
-              await AsyncStorage.removeItem(USER_STORAGE_KEY);
-            } catch (e) {
-              console.warn('[auth] Failed to clear cached user data:', e);
-            }
             console.log('[auth] User signed out');
           }
           
@@ -316,11 +146,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         });
         
         setIsFirebaseAuthenticated(true);
-        clearTimeout(initTimeout);
         
       } catch (error: any) {
         console.error('[auth] Auth initialization error:', error);
-        clearTimeout(initTimeout);
         setIsLoading(false);
       }
     };
@@ -329,7 +157,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     
     return () => {
       if (unsubscribe) unsubscribe();
-      if (initTimeout) clearTimeout(initTimeout);
     };
   }, []);
 
