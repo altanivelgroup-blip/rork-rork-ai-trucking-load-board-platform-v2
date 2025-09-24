@@ -119,13 +119,14 @@ export default function LoginScreen() {
         console.warn(`[Login] Firestore save failed (continuing anyway):`, firestoreError);
       }
 
-      // Navigate to tabs root; Tabs initialRouteName will send to the correct dashboard
-      console.log('[Login] Navigating to tabs root for role-based landing');
+      // Navigate directly to the correct tab screen to avoid hitting a non-existent /(tabs) index
+      const target = role === 'shipper' ? '/shipper' : role === 'admin' ? '/admin' : '/dashboard';
+      console.log('[Login] Navigating directly to', target);
       try {
-        router.replace('/(tabs)');
+        router.replace(target);
       } catch (e) {
-        console.warn('[Login] tabs replace failed, fallback push', e);
-        router.push('/(tabs)');
+        console.warn('[Login] direct replace failed, fallback push', e);
+        router.push(target);
       }
       
     } catch (error: any) {
@@ -205,13 +206,14 @@ export default function LoginScreen() {
       // Small delay to let auth state update
       await new Promise(resolve => setTimeout(resolve, 400));
 
-      // Send to tabs root; Tabs will land on the right dashboard
-      console.log(`[Login] Navigating to tabs for role: ${userRole}`);
+      // Navigate directly to the correct tab screen to avoid hitting a non-existent /(tabs) index
+      const target = userRole === 'shipper' ? '/shipper' : userRole === 'admin' ? '/admin' : '/dashboard';
+      console.log('[Login] Navigating directly to', target);
       try {
-        router.replace('/(tabs)');
+        router.replace(target);
       } catch (e) {
-        console.warn('[Login] tabs replace failed, fallback push', e);
-        router.push('/(tabs)');
+        console.warn('[Login] direct replace failed, fallback push', e);
+        router.push(target);
       }
     } catch (error: any) {
       console.error("[Login] Error:", error.code, error.message);
