@@ -103,17 +103,24 @@ export default function LoginScreen() {
       }
 
       // Wait a moment for auth state to update
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Route based on role with explicit navigation
       console.log(`[Login] Navigating to ${account.role} dashboard`);
       
+      // Force navigation with router.push first, then replace
       if (account.role === 'driver') {
-        router.replace('/(tabs)/dashboard');
+        console.log('[Login] Routing to driver dashboard');
+        router.push('/(tabs)/dashboard');
+        setTimeout(() => router.replace('/(tabs)/dashboard'), 100);
       } else if (account.role === 'shipper') {
-        router.replace('/(tabs)/shipper');
+        console.log('[Login] Routing to shipper dashboard');
+        router.push('/(tabs)/shipper');
+        setTimeout(() => router.replace('/(tabs)/shipper'), 100);
       } else if (account.role === 'admin') {
-        router.replace('/(tabs)/admin');
+        console.log('[Login] Routing to admin dashboard');
+        router.push('/(tabs)/admin');
+        setTimeout(() => router.replace('/(tabs)/admin'), 100);
       }
       
     } catch (error: any) {
