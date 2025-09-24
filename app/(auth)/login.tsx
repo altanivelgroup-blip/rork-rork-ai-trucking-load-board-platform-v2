@@ -111,35 +111,22 @@ export default function LoginScreen() {
         console.warn(`[Login] Firestore save failed (continuing anyway):`, firestoreError);
       }
 
-      // Show success message
-      Alert.alert(
-        'Login Successful',
-        `Signed in as ${role.toUpperCase()}\nEmail: ${loginEmail}`,
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              // Navigate based on role
-              console.log(`[Login] Navigating to ${role} dashboard`);
-              
-              switch (role) {
-                case 'driver':
-                  console.log('[Login] Going to driver dashboard');
-                  router.replace('/(tabs)/dashboard');
-                  break;
-                case 'shipper':
-                  console.log('[Login] Going to shipper dashboard');
-                  router.replace('/(tabs)/shipper');
-                  break;
-                case 'admin':
-                  console.log('[Login] Going to admin dashboard');
-                  router.replace('/(tabs)/admin');
-                  break;
-              }
-            }
-          }
-        ]
-      );
+      // Navigate immediately after successful sign-in
+      console.log(`[Login] Navigating to ${role} dashboard immediately`);
+      switch (role) {
+        case 'driver':
+          console.log('[Login] Going to driver dashboard');
+          router.replace('/(tabs)/dashboard');
+          break;
+        case 'shipper':
+          console.log('[Login] Going to shipper dashboard');
+          router.replace('/(tabs)/shipper');
+          break;
+        case 'admin':
+          console.log('[Login] Going to admin dashboard');
+          router.replace('/(tabs)/admin');
+          break;
+      }
       
     } catch (error: any) {
       console.error(`[Login] Error for ${role}:`, error.code, error.message);
