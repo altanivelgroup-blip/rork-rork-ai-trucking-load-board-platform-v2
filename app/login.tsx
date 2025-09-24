@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { moderateScale } from '@/src/ui/scale';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirebase } from '@/utils/firebase';
+import { auth, db } from '@/utils/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Truck, Building, Shield } from 'lucide-react-native';
@@ -59,7 +59,6 @@ export default function LoginScreen() {
       console.log(`[Login] Signing in as ${roleKey}: ${account.email}`);
 
       // Firebase authentication
-      const { auth, db } = getFirebase();
       const userCredential = await signInWithEmailAndPassword(auth, account.email, account.password);
       const firebaseUser = userCredential.user;
 
