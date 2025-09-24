@@ -46,9 +46,10 @@ export default function LoginScreen() {
       const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
       const firebaseUser = userCredential.user;
 
-     console.log(`[Login] Success: UID ${firebaseUser.uid}`);  // Backticks for real UID
-console.log(`[Login] Checking Firestore for UID: ${firebaseUser.uid}`);  // Extra log
-const userRef = doc(db, "users", firebaseUser.uid);
+      console.log(`[Login] Success: UID ${firebaseUser.uid}`);  // Backticks for real UID
+      console.log(`[Login] Checking Firestore for UID: ${firebaseUser.uid}`);  // Backticks
+
+      const userRef = doc(db, "users", firebaseUser.uid);
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
