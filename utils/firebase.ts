@@ -47,7 +47,46 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export { app };
-export default { app, auth, db, storage };
+
+// Export getFirebase function for compatibility
+export function getFirebase() {
+  return { app, auth, db, storage };
+}
+
+// Export ensureFirebaseAuth function for compatibility
+export async function ensureFirebaseAuth(): Promise<boolean> {
+  try {
+    if (auth.currentUser) {
+      console.log('✅ Firebase auth already available:', auth.currentUser.uid);
+      return true;
+    }
+    
+    // Try to wait for auth state to initialize
+    return new Promise((resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        unsubscribe();
+        if (user) {
+          console.log('✅ Firebase auth state restored:', user.uid);
+          resolve(true);
+        } else {
+          console.log('❌ No Firebase auth user found');
+          resolve(false);
+        }
+      });
+      
+      // Timeout after 3 seconds
+      setTimeout(() => {
+        unsubscribe();
+        resolve(false);
+      }, 3000);
+    });
+  } catch (error) {
+    console.error('❌ Firebase auth check failed:', error);
+    return false;
+  }
+}
+
+export default { app, auth, db, storage, getFirebase, ensureFirebaseAuth };
 
 
 
