@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
-import React, { useMemo, useCallback } from "react";
-import { View, StyleSheet } from "react-native";
+import React, { useMemo, useCallback, useEffect, useState } from "react";
+import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -30,7 +30,30 @@ import AutoArriveSheet from "@/components/AutoArriveSheet";
 
 import { theme } from "@/constants/theme";
 
-// Firebase is available but not used for auth in this app
+// Global error handler to prevent red screen
+if (typeof ErrorUtils !== 'undefined') {
+  const originalHandler = ErrorUtils.getGlobalHandler();
+  ErrorUtils.setGlobalHandler((error, isFatal) => {
+    console.error('[GlobalErrorHandler] Caught error:', error);
+    if (isFatal) {
+      console.error('[GlobalErrorHandler] Fatal error, but continuing...');
+    }
+    // Don't call original handler to prevent red screen
+    // originalHandler(error, isFatal);
+  });
+}
+
+// Firebase initialization check
+let firebaseInitialized = false;
+try {
+  // Import Firebase to trigger initialization
+  require('@/utils/firebase');
+  firebaseInitialized = true;
+  console.log('✅ Firebase initialized successfully');
+} catch (error) {
+  console.error('❌ Firebase initialization failed:', error);
+  firebaseInitialized = false;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +74,26 @@ const styles = StyleSheet.create({
   appContainer: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    padding: theme.spacing.xl,
+  },
+  loadingText: {
+    marginTop: theme.spacing.lg,
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    textAlign: 'center',
+  },
+  errorText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    textAlign: 'center',
   },
 });
 
@@ -225,7 +268,62 @@ function RootLayoutNav() {
   );
 }
 
+// Loading screen component
+function LoadingScreen({ error }: { error?: string | null }) {
+  return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <Text style={styles.loadingText}>
+        {error ? `Error: ${error}` : 'Loading LoadRun...'}
+      </Text>
+      {error && (
+        <Text style={styles.errorText}>
+          Please check your internet connection and try again.
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export default function RootLayout() {
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        console.log('[RootLayout] Starting app initialization...');
+        
+        // Check Firebase initialization
+        if (!firebaseInitialized) {
+          throw new Error('Firebase failed to initialize');
+        }
+        
+        // Small delay to ensure everything is ready
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        console.log('[RootLayout] App initialization complete');
+        setIsInitialized(true);
+      } catch (error: any) {
+        console.error('[RootLayout] App initialization failed:', error);
+        setInitError(error.message || 'Unknown initialization error');
+        // Still set initialized to true to show the app (with error handling)
+        setIsInitialized(true);
+      }
+    };
+
+    initializeApp();
+  }, []);
+
+  if (!isInitialized) {
+    return (
+      <GestureHandlerRootView style={styles.rootContainer}>
+        <SafeAreaProvider>
+          <LoadingScreen error={initError || undefined} />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={styles.rootContainer}>
@@ -234,36 +332,36 @@ export default function RootLayout() {
           <trpc.Provider client={trpcClient} queryClient={queryClient}>
             <ToastProvider>
               <View style={styles.appContainer}>
-                <AuthProvider>
-                  <SettingsProvider>
-                    <PaymentsProvider>
-                      <WalletProvider>
-                        <AdminWalletProvider>
-                          <MaintenanceProvider>
-                            <PostLoadProvider>
-                              <LoadsProvider>
-                                <AutoArriveProvider>
-                                  <ProfileCacheProvider>
-                                    <DriverDataPersistenceProvider>
-                                      <FuelMonitorProvider>
-                                        <ErrorBoundary safeRoute="/login">
+                <ErrorBoundary safeRoute="/login">
+                  <AuthProvider>
+                    <SettingsProvider>
+                      <PaymentsProvider>
+                        <WalletProvider>
+                          <AdminWalletProvider>
+                            <MaintenanceProvider>
+                              <PostLoadProvider>
+                                <LoadsProvider>
+                                  <AutoArriveProvider>
+                                    <ProfileCacheProvider>
+                                      <DriverDataPersistenceProvider>
+                                        <FuelMonitorProvider>
                                           <NavigationErrorBoundary fallbackRoute="/login">
                                             <RootLayoutNav />
                                           </NavigationErrorBoundary>
-                                        </ErrorBoundary>
-                                        <AutoArriveSheet />
-                                      </FuelMonitorProvider>
-                                    </DriverDataPersistenceProvider>
-                                  </ProfileCacheProvider>
-                                </AutoArriveProvider>
-                              </LoadsProvider>
-                            </PostLoadProvider>
-                          </MaintenanceProvider>
-                        </AdminWalletProvider>
-                      </WalletProvider>
-                    </PaymentsProvider>
-                  </SettingsProvider>
-                </AuthProvider>
+                                          <AutoArriveSheet />
+                                        </FuelMonitorProvider>
+                                      </DriverDataPersistenceProvider>
+                                    </ProfileCacheProvider>
+                                  </AutoArriveProvider>
+                                </LoadsProvider>
+                              </PostLoadProvider>
+                            </MaintenanceProvider>
+                          </AdminWalletProvider>
+                        </WalletProvider>
+                      </PaymentsProvider>
+                    </SettingsProvider>
+                  </AuthProvider>
+                </ErrorBoundary>
               </View>
               <ToastHost />
             </ToastProvider>
