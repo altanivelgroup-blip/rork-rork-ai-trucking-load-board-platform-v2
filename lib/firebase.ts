@@ -1,6 +1,7 @@
 import {
   doc,
   setDoc,
+  getDoc,
   serverTimestamp,
   Timestamp,
   collection,
@@ -374,6 +375,236 @@ export function computeExpiresAtMsFromLocalTZ(deliveryLocalISO: string, tz: stri
   } catch (e) {
     console.log('[computeExpiresAtMsFromLocalTZ] failed', e);
     return Date.now() + 36 * 60 * 60 * 1000;
+  }
+}
+
+// ---- DRIVER PROFILE: Save complete driver profile to Firestore ----
+export async function saveDriverProfile(driverData: {
+  userId: string;
+  // Personal Information
+  fullName: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  
+  // Basic Driver Profile Fields
+  truckType?: string;
+  tankSize?: number;
+  fuelTypePreference?: 'diesel' | 'gasoline';
+  yearsExperience?: number;
+  safetyCertifications?: string;
+  
+  // Vehicle Information
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleYear?: number;
+  fuelType?: 'diesel' | 'gasoline';
+  mpgRated?: number;
+  vin?: string;
+  plate?: string;
+  tankGallons?: number;
+  gvwrLbs?: number;
+  
+  // Trailer Information
+  trailerMake?: string;
+  trailerModel?: string;
+  trailerYear?: number;
+  trailerVin?: string;
+  trailerPlate?: string;
+  trailerInsuranceCarrier?: string;
+  trailerPolicyNumber?: string;
+  trailerGvwrLbs?: number;
+  trailerType?: string;
+  
+  // Company & Insurance
+  companyName?: string;
+  mcNumber?: string;
+  dotNumber?: string;
+  insuranceCarrier?: string;
+  policyNumber?: string;
+  
+  // Additional fields
+  role?: string;
+  isActive?: boolean;
+  balance?: number;
+}) {
+  try {
+    console.log('[SAVE_DRIVER_PROFILE] Starting driver profile save for user:', driverData.userId);
+    console.log('[SAVE_DRIVER_PROFILE] Profile data:', JSON.stringify(driverData, null, 2));
+    
+    // Ensure Firebase auth is ready
+    const authSuccess = await ensureFirebaseAuth();
+    if (!authSuccess) {
+      console.warn('[SAVE_DRIVER_PROFILE] Firebase auth failed, throwing error');
+      throw new Error('Firebase authentication failed');
+    }
+    
+    const { auth, db } = getFirebase();
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      console.warn('[SAVE_DRIVER_PROFILE] No authenticated user');
+      throw new Error('No authenticated user');
+    }
+    
+    // Create the driver profile document
+    const driverProfileData = {
+      // Personal Information
+      fullName: driverData.fullName || '',
+      email: driverData.email || '',
+      phone: driverData.phone || '',
+      company: driverData.company || '',
+      
+      // Basic Driver Profile Fields
+      truckType: driverData.truckType || '',
+      tankSize: driverData.tankSize || null,
+      fuelTypePreference: driverData.fuelTypePreference || 'diesel',
+      yearsExperience: driverData.yearsExperience || null,
+      safetyCertifications: driverData.safetyCertifications || '',
+      
+      // Vehicle Information
+      vehicleMake: driverData.vehicleMake || '',
+      vehicleModel: driverData.vehicleModel || '',
+      vehicleYear: driverData.vehicleYear || null,
+      fuelType: driverData.fuelType || 'diesel',
+      mpgRated: driverData.mpgRated || null,
+      vin: driverData.vin || '',
+      plate: driverData.plate || '',
+      tankGallons: driverData.tankGallons || null,
+      gvwrLbs: driverData.gvwrLbs || null,
+      
+      // Trailer Information
+      trailerMake: driverData.trailerMake || '',
+      trailerModel: driverData.trailerModel || '',
+      trailerYear: driverData.trailerYear || null,
+      trailerVin: driverData.trailerVin || '',
+      trailerPlate: driverData.trailerPlate || '',
+      trailerInsuranceCarrier: driverData.trailerInsuranceCarrier || '',
+      trailerPolicyNumber: driverData.trailerPolicyNumber || '',
+      trailerGvwrLbs: driverData.trailerGvwrLbs || null,
+      trailerType: driverData.trailerType || '',
+      
+      // Company & Insurance
+      companyName: driverData.companyName || '',
+      mcNumber: driverData.mcNumber || '',
+      dotNumber: driverData.dotNumber || '',
+      insuranceCarrier: driverData.insuranceCarrier || '',
+      policyNumber: driverData.policyNumber || '',
+      
+      // System fields
+      role: driverData.role || 'driver',
+      isActive: driverData.isActive !== undefined ? driverData.isActive : true,
+      balance: driverData.balance || 0,
+      userId: driverData.userId,
+      
+      // Timestamps
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    
+    console.log('[SAVE_DRIVER_PROFILE] Prepared profile data for Firestore:', JSON.stringify(driverProfileData, null, 2));
+    
+    // Save to drivers collection
+    const driverRef = doc(db, 'drivers', driverData.userId);
+    await setDoc(driverRef, driverProfileData, { merge: true });
+    
+    console.log('[SAVE_DRIVER_PROFILE] ✅ Driver profile saved successfully to drivers collection');
+    
+    // Also save to users collection for compatibility
+    const userRef = doc(db, 'users', driverData.userId);
+    const userData = {
+      role: 'driver',
+      profileData: {
+        fullName: driverData.fullName || '',
+        email: driverData.email || '',
+        phone: driverData.phone || '',
+        company: driverData.company || '',
+      },
+      updatedAt: serverTimestamp(),
+    };
+    
+    await setDoc(userRef, userData, { merge: true });
+    console.log('[SAVE_DRIVER_PROFILE] ✅ User profile saved successfully to users collection');
+    
+    return {
+      success: true,
+      message: 'Driver profile saved successfully',
+      userId: driverData.userId,
+    };
+    
+  } catch (error: any) {
+    console.error('[SAVE_DRIVER_PROFILE] ❌ Failed to save driver profile:', error);
+    console.error('[SAVE_DRIVER_PROFILE] Error details:', {
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack?.split('\n').slice(0, 3).join('\n')
+    });
+    
+    // Provide specific error messages
+    let errorMessage = 'Failed to save driver profile';
+    if (error?.code === 'permission-denied') {
+      errorMessage = 'Permission denied. Please check your account permissions.';
+    } else if (error?.code === 'unavailable') {
+      errorMessage = 'Firebase service unavailable. Please try again later.';
+    } else if (error?.code === 'unauthenticated') {
+      errorMessage = 'User not authenticated. Please sign in again.';
+    }
+    
+    throw new Error(errorMessage);
+  }
+}
+
+// ---- DRIVER PROFILE: Get driver profile from Firestore ----
+export async function getDriverProfile(userId: string) {
+  try {
+    console.log('[GET_DRIVER_PROFILE] Fetching driver profile for user:', userId);
+    
+    const authSuccess = await ensureFirebaseAuth();
+    if (!authSuccess) {
+      console.warn('[GET_DRIVER_PROFILE] Firebase auth failed');
+      throw new Error('Firebase authentication failed');
+    }
+    
+    const { db } = getFirebase();
+    
+    // Try to get from drivers collection first
+    const driverRef = doc(db, 'drivers', userId);
+    const driverSnap = await getDoc(driverRef);
+    
+    if (driverSnap.exists()) {
+      const data = driverSnap.data();
+      console.log('[GET_DRIVER_PROFILE] ✅ Driver profile found in drivers collection');
+      return {
+        success: true,
+        data: data,
+        source: 'drivers'
+      };
+    }
+    
+    // Fallback to users collection
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      console.log('[GET_DRIVER_PROFILE] ✅ User profile found in users collection');
+      return {
+        success: true,
+        data: data,
+        source: 'users'
+      };
+    }
+    
+    console.log('[GET_DRIVER_PROFILE] ❌ No profile found for user:', userId);
+    return {
+      success: false,
+      message: 'Driver profile not found',
+      data: null
+    };
+    
+  } catch (error: any) {
+    console.error('[GET_DRIVER_PROFILE] ❌ Failed to get driver profile:', error);
+    throw error;
   }
 }
 

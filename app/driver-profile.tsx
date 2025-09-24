@@ -11,6 +11,7 @@ import { useToast } from '@/components/Toast';
 import { useProfileCache } from '@/hooks/useProfileCache';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType, Driver } from '@/types';
+import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 
 
 
@@ -18,7 +19,7 @@ import { FuelKind, VehicleType, Driver } from '@/types';
 // Options moved to shared constants to keep logic in sync
 export default function DriverProfileScreen() {
   const router = useRouter();
-  const { user, updateProfile, register, userId } = useAuth();
+  const { user, register, userId } = useAuth();
   const { updateCachedProfile, validateExperience } = useProfileCache();
   const toast = useToast();
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -308,13 +309,91 @@ export default function DriverProfileScreen() {
       };
       
       console.log('[DriverProfile] Update data prepared:', JSON.stringify(updateData, null, 2));
-      console.log('[DriverProfile] Calling updateCachedProfile...');
       
-      // Use cached profile update for offline support
-      await updateCachedProfile(updateData);
+      if (!userId) {
+        console.error('[DriverProfile] No user ID available for Firebase save');
+        toast.show('User ID not available. Please sign in again.', 'error');
+        return;
+      }
       
-      console.log('[DriverProfile] ✅ Profile updated successfully - All driver info saved');
-      toast.show('✅ Profile saved successfully! All driver information updated.', 'success');
+      // Prepare data for Firebase
+      const firebaseData = {
+        userId: userId,
+        fullName: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        company: formData.company.trim(),
+        
+        // Basic Driver Profile Fields
+        truckType: formData.truckType,
+        tankSize: formData.tankSize ? parseInt(formData.tankSize) : undefined,
+        fuelTypePreference: formData.fuelTypePreference,
+        yearsExperience: formData.yearsExperience ? parseInt(formData.yearsExperience) : undefined,
+        safetyCertifications: formData.safetyCertifications.trim(),
+        
+        // Vehicle Information
+        vehicleMake: formData.vehicleMake.trim(),
+        vehicleModel: formData.vehicleModel.trim(),
+        vehicleYear: formData.vehicleYear ? parseInt(formData.vehicleYear) : undefined,
+        fuelType: formData.fuelType,
+        mpgRated: formData.mpgRated ? parseFloat(formData.mpgRated) : undefined,
+        vin: formData.vin.trim(),
+        plate: formData.plate.trim(),
+        tankGallons: formData.tankGallons ? parseInt(formData.tankGallons) : undefined,
+        gvwrLbs: formData.gvwrLbs ? parseInt(formData.gvwrLbs) : undefined,
+        
+        // Trailer Information
+        trailerMake: formData.trailerMake.trim(),
+        trailerModel: formData.trailerModel.trim(),
+        trailerYear: formData.trailerYear ? parseInt(formData.trailerYear) : undefined,
+        trailerVin: formData.trailerVin.trim(),
+        trailerPlate: formData.trailerPlate.trim(),
+        trailerInsuranceCarrier: formData.trailerInsuranceCarrier.trim(),
+        trailerPolicyNumber: formData.trailerPolicyNumber.trim(),
+        trailerGvwrLbs: formData.trailerGvwrLbs ? parseInt(formData.trailerGvwrLbs) : undefined,
+        trailerType: formData.trailerType,
+        
+        // Company & Insurance
+        companyName: formData.companyName.trim(),
+        mcNumber: formData.mcNumber.trim(),
+        dotNumber: formData.dotNumber.trim(),
+        insuranceCarrier: formData.insuranceCarrier.trim(),
+        policyNumber: formData.policyNumber.trim(),
+        
+        // Additional fields
+        role: 'driver',
+        isActive: true,
+        balance: (user as any)?.wallet?.balance || 0,
+      };
+      
+      console.log('[DriverProfile] Prepared Firebase data:', JSON.stringify(firebaseData, null, 2));
+      
+      try {
+        // Save to Firebase first
+        console.log('[DriverProfile] Saving to Firebase...');
+        const firebaseResult = await saveDriverProfile(firebaseData);
+        console.log('[DriverProfile] Firebase save result:', firebaseResult);
+        
+        // Also update cached profile for offline support
+        console.log('[DriverProfile] Updating cached profile...');
+        await updateCachedProfile(updateData);
+        
+        console.log('[DriverProfile] ✅ Profile saved successfully to both Firebase and local cache');
+        toast.show('✅ Profile saved successfully! All driver information updated and synced to cloud.', 'success');
+        
+      } catch (firebaseError: any) {
+        console.warn('[DriverProfile] Firebase save failed, falling back to local cache only:', firebaseError);
+        
+        // Fallback to local cache only
+        try {
+          await updateCachedProfile(updateData);
+          console.log('[DriverProfile] ✅ Profile saved to local cache (Firebase unavailable)');
+          toast.show('✅ Profile saved locally! Will sync to cloud when connection is restored.', 'success');
+        } catch (cacheError: any) {
+          console.error('[DriverProfile] Both Firebase and cache save failed:', cacheError);
+          throw new Error('Failed to save profile data');
+        }
+      }
       
     } catch (error: any) {
       console.error('[DriverProfile] ❌ Profile save error:', error);
@@ -341,7 +420,7 @@ export default function DriverProfileScreen() {
       setValidatingExperience(false);
       console.log('[DriverProfile] Save process completed');
     }
-  }, [formData, updateCachedProfile, validateExperience, toast, submitting]);
+  }, [formData, updateCachedProfile, validateExperience, toast, submitting, user, userId]);
 
   const onSubmitForVerification = useCallback(async () => {
     await onSave();
