@@ -17,7 +17,7 @@ import { Mail, Lock, Truck, Building, Shield } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { moderateScale } from '@/src/ui/scale';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirebase } from '@/utils/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -46,17 +46,17 @@ export default function LoginScreen() {
 
       switch (role) {
         case 'driver':
-          loginEmail = 'driver@test1.com';
+          loginEmail = 'driver@test1.com'.trim().toLowerCase();
           loginPassword = 'RealUnlock123';
           userId = 'OK0pPByFYicnOu6Z0B7tzR17Qz';
           break;
         case 'shipper':
-          loginEmail = 'shipper@test1.com';
+          loginEmail = 'shipper@test1.com'.trim().toLowerCase();
           loginPassword = 'RealShipper123';
           userId = 'pu2bP7pzfuW39mgNDtO6im2ZQof';
           break;
         case 'admin':
-          loginEmail = 'admin@test1.com';
+          loginEmail = 'admin@test1.com'.trim().toLowerCase();
           loginPassword = 'RealBoss123';
           userId = 'IFHGF8LVUTQY6mnBqw5rblU167';
           break;
@@ -69,6 +69,14 @@ export default function LoginScreen() {
 
       // Firebase authentication
       const { auth, db } = getFirebase();
+      if (Platform.OS === 'web') {
+        try {
+          await setPersistence(auth as any, browserLocalPersistence as any);
+          console.log('[Login] Web auth persistence set to local');
+        } catch (pErr) {
+          console.warn('[Login] Failed to set web persistence (continuing):', pErr);
+        }
+      }
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       const firebaseUser = userCredential.user;
 
@@ -111,42 +119,13 @@ export default function LoginScreen() {
         console.warn(`[Login] Firestore save failed (continuing anyway):`, firestoreError);
       }
 
-      // Navigate immediately after successful sign-in
-      console.log(`[Login] Navigating to ${role} dashboard immediately`);
-      switch (role) {
-        case 'driver': {
-          console.log('[Login] Going to driver dashboard');
-          try {
-            router.push('/(tabs)');
-            setTimeout(() => router.replace('/(tabs)/dashboard'), 100);
-          } catch (e) {
-            console.warn('[Login] driver nav push failed, fallback to replace', e);
-            router.replace('/(tabs)/dashboard');
-          }
-          break;
-        }
-        case 'shipper': {
-          console.log('[Login] Going to shipper dashboard');
-          try {
-            router.push('/(tabs)');
-            setTimeout(() => router.replace('/(tabs)/shipper'), 100);
-          } catch (e) {
-            console.warn('[Login] shipper nav push failed, fallback to replace', e);
-            router.replace('/(tabs)/shipper');
-          }
-          break;
-        }
-        case 'admin': {
-          console.log('[Login] Going to admin dashboard');
-          try {
-            router.push('/(tabs)');
-            setTimeout(() => router.replace('/(tabs)/admin'), 100);
-          } catch (e) {
-            console.warn('[Login] admin nav push failed, fallback to replace', e);
-            router.replace('/(tabs)/admin');
-          }
-          break;
-        }
+      // Navigate to tabs root; Tabs initialRouteName will send to the correct dashboard
+      console.log('[Login] Navigating to tabs root for role-based landing');
+      try {
+        router.replace('/(tabs)');
+      } catch (e) {
+        console.warn('[Login] tabs replace failed, fallback push', e);
+        router.push('/(tabs)');
       }
       
     } catch (error: any) {
@@ -175,6 +154,14 @@ export default function LoginScreen() {
 
       // Firebase authentication
       const { auth, db } = getFirebase();
+      if (Platform.OS === 'web') {
+        try {
+          await setPersistence(auth as any, browserLocalPersistence as any);
+          console.log('[Login] Web auth persistence set to local');
+        } catch (pErr) {
+          console.warn('[Login] Failed to set web persistence (continuing):', pErr);
+        }
+      }
       const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
       const firebaseUser = userCredential.user;
 
@@ -216,28 +203,15 @@ export default function LoginScreen() {
       console.log(`[Login] Emergency access stored for custom login with role: ${userRole}`);
 
       // Small delay to let auth state update
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 400));
 
-      // Route based on role with more explicit navigation
-      console.log(`[Login] Navigating to ${userRole} dashboard`);
-      
-      // Force navigation with router.push first, then replace
-      if (userRole === "driver") {
-        console.log('[Login] Pushing to driver dashboard');
-        router.push("/(tabs)/dashboard");
-        setTimeout(() => router.replace("/(tabs)/dashboard"), 100);
-      } else if (userRole === "shipper") {
-        console.log('[Login] Pushing to shipper dashboard');
-        router.push("/(tabs)/shipper");
-        setTimeout(() => router.replace("/(tabs)/shipper"), 100);
-      } else if (userRole === "admin") {
-        console.log('[Login] Pushing to admin dashboard');
-        router.push("/(tabs)/admin");
-        setTimeout(() => router.replace("/(tabs)/admin"), 100);
-      } else {
-        console.log(`[Login] Unknown role, defaulting to driver`);
-        router.push("/(tabs)/dashboard");
-        setTimeout(() => router.replace("/(tabs)/dashboard"), 100);
+      // Send to tabs root; Tabs will land on the right dashboard
+      console.log(`[Login] Navigating to tabs for role: ${userRole}`);
+      try {
+        router.replace('/(tabs)');
+      } catch (e) {
+        console.warn('[Login] tabs replace failed, fallback push', e);
+        router.push('/(tabs)');
       }
     } catch (error: any) {
       console.error("[Login] Error:", error.code, error.message);
