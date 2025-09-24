@@ -245,8 +245,8 @@ export default function RootLayout() {
                                   <ProfileCacheProvider>
                                     <DriverDataPersistenceProvider>
                                       <FuelMonitorProvider>
-                                        <ErrorBoundary safeRoute="/(auth)/login">
-                                          <NavigationErrorBoundary fallbackRoute="/(auth)/login">
+                                        <ErrorBoundary safeRoute="/login">
+                                          <NavigationErrorBoundary fallbackRoute="/login">
                                             <RootLayoutNav />
                                           </NavigationErrorBoundary>
                                         </ErrorBoundary>
