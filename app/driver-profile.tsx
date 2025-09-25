@@ -490,8 +490,6 @@ const onSyncMpgToAnalytics = useCallback(async () => {
 
 const insets = useSafeAreaInsets();
 
-  const insets = useSafeAreaInsets();
-
   if (bootstrapping) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}> 
@@ -1072,28 +1070,17 @@ const insets = useSafeAreaInsets();
               Submit for Verification
             </Text>
           </TouchableOpacity>
-         <TouchableOpacity 
-       style={styles.submitButton} 
-      onPress={onSubmitForVerification}
-     disabled={submitting}
-    testID="submit-verification-btn"
-   >
-   <Text style={styles.submitButtonText}>
-    Submit for Verification
-    </Text>
-   </TouchableOpacity>
-
-   {/* 👇 NEW: Sync MPG button */}
-  <TouchableOpacity
-  style={styles.submitButton}
-  onPress={onSyncMpgToAnalytics}
-  disabled={submitting}
-  testID="sync-mpg-btn"
-   >
-    <Text style={styles.submitButtonText}>Sync MPG to Analytics</Text>
-     </TouchableOpacity>
-      </View>  {/* <- keep this closing tag */}
-       </View>
+          
+          {/* 👇 NEW: Sync MPG button */}
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={onSyncMpgToAnalytics}
+            disabled={submitting}
+            testID="sync-mpg-btn"
+          >
+            <Text style={styles.submitButtonText}>Sync MPG to Analytics</Text>
+          </TouchableOpacity>
+        </View>
         
         {/* Debug Info - Always show for driver profile persistence verification */}
         <View style={styles.debugInfo}>
@@ -1122,7 +1109,8 @@ const styles = StyleSheet.create({
   scroll: { 
     padding: theme.spacing.md, 
     paddingBottom: theme.spacing.xl 
-  },  profileHeader: {
+  },
+  profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.colors.white,
