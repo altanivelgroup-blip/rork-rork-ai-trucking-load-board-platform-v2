@@ -1339,7 +1339,7 @@ export default function ShipperDashboard() {
                     )}
                   </View>
                 );
-              })()} 
+              })()
               <TouchableOpacity onPress={handlePostNewLoad} style={styles.postBtn}>
                 <Text style={styles.postBtnText}>Post New Load</Text>
               </TouchableOpacity>
