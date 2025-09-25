@@ -447,6 +447,49 @@ try {
     toast.show('Profile submitted for verification', 'success');
   }, [onSave, toast]);
 
+// 👇 Add this here
+const onSyncMpgToAnalytics = useCallback(async () => {
+  const mpg = formData?.mpgRated ? parseFloat(formData.mpgRated) : NaN;
+  if (!userId) {
+    toast.show('Not signed in. Please sign in again.', 'error');
+    return;
+  }
+  if (!mpg || Number.isNaN(mpg)) {
+    toast.show('Enter a valid MPG first.', 'error');
+    return;
+  }
+
+  try {
+    const payload: Parameters<typeof saveDriverProfile>[0] = {
+      userId,
+      email: formData.email?.trim() || user?.email || '',
+      fullName: formData.name?.trim() || 'Driver',
+      fuelProfile: {
+        ...((user as any)?.fuelProfile || {}),
+        averageMpg: mpg,
+      },
+      mpgRated: mpg,
+    };
+
+    await saveDriverProfile(payload);
+    await updateCachedProfile({
+      mpgRated: mpg,
+      fuelProfile: {
+        ...((user as any)?.fuelProfile || {}),
+        averageMpg: mpg,
+      },
+    });
+
+    toast.show(`✅ Synced MPG to ${mpg.toFixed(1)} for Analytics.`, 'success');
+  } catch (e) {
+    console.warn('[DriverProfile] MPG sync failed', e);
+    toast.show('Sync failed. Please try again.', 'error');
+  }
+}, [formData?.mpgRated, formData?.email, formData?.name, user, userId, updateCachedProfile, toast]);
+// 👆 End of new function
+
+const insets = useSafeAreaInsets();
+
   const insets = useSafeAreaInsets();
 
   if (bootstrapping) {
@@ -1029,7 +1072,28 @@ try {
               Submit for Verification
             </Text>
           </TouchableOpacity>
-        </View>
+         <TouchableOpacity 
+       style={styles.submitButton} 
+      onPress={onSubmitForVerification}
+     disabled={submitting}
+    testID="submit-verification-btn"
+   >
+   <Text style={styles.submitButtonText}>
+    Submit for Verification
+    </Text>
+   </TouchableOpacity>
+
+   {/* 👇 NEW: Sync MPG button */}
+  <TouchableOpacity
+  style={styles.submitButton}
+  onPress={onSyncMpgToAnalytics}
+  disabled={submitting}
+  testID="sync-mpg-btn"
+   >
+    <Text style={styles.submitButtonText}>Sync MPG to Analytics</Text>
+     </TouchableOpacity>
+      </View>  {/* <- keep this closing tag */}
+       </View>
         
         {/* Debug Info - Always show for driver profile persistence verification */}
         <View style={styles.debugInfo}>
