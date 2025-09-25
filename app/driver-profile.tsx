@@ -89,9 +89,10 @@ useEffect(() => {
   (async () => {
     if (!userId) return;
     try {
-      const driver = await getDriverProfile(userId); // reads drivers/{uid}
-      if (!alive || !driver) return;
+      const result = await getDriverProfile(userId); // reads drivers/{uid}
+      if (!alive || !result || !result.success || !result.data) return;
 
+      const driver = result.data;
       setFormData({
         // Personal Info
         name: driver.fullName ?? driver.name ?? '',
@@ -373,7 +374,6 @@ try {
   console.log('[DriverProfile] Saving to Firebase...');
   const firebaseResult = await saveDriverProfile({
     ...compact,
-    createdBy: userId, // required by your rules
     userId,
   });
 
