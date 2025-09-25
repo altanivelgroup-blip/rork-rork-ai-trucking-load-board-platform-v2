@@ -20,7 +20,7 @@ import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 export default function DriverProfileScreen() {
   const router = useRouter();
   const { user, register, userId } = useAuth();
-  const displayName  = user?.displayName || (user?.email ? user.email.split("@")[0] : "Driver");
+  const displayName = (user as any)?.displayName || (user?.email ? user.email.split("@")[0] : "Driver");
   const displayEmail = user?.email ?? "";
   const { updateCachedProfile, validateExperience } = useProfileCache();
   const toast = useToast();
@@ -470,26 +470,16 @@ try {
       }} />
       
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-       {{/* Mini Profile Header (read-only) */}
-<View style={styles.profileHeader}>
-  <View style={styles.profileAvatar}>
-    <User size={18} color={theme.colors.white} />
-  </View>
-  <View style={{ flex: 1 }}>
-    <Text style={styles.profileName}>{displayName}</Text>
-    <Text style={styles.profileEmail}>{displayEmail}</Text>
-  </View>
-</View>
-/* Mini Profile Header (read-only) */}
-<View style={styles.profileHeader}>
-  <View style={styles.profileAvatar}>
-    <User size={18} color={theme.colors.white} />
-  </View>
-  <View style={{ flex: 1 }}>
-    <Text style={styles.profileName}>{displayName}</Text>
-    <Text style={styles.profileEmail}>{displayEmail}</Text>
-  </View>
-</View>
+        {/* Mini Profile Header (read-only) */}
+        <View style={styles.profileHeader}>
+          <View style={styles.profileAvatar}>
+            <User size={18} color={theme.colors.white} />
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{displayName}</Text>
+            <Text style={styles.profileEmail}>{displayEmail}</Text>
+          </View>
+        </View>
 
  {/* Personal Information */}
         <View style={styles.section}>
@@ -1282,5 +1272,8 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: theme.colors.gray,
     fontFamily: 'monospace',
+  },
+  profileInfo: {
+    flex: 1,
   },
 });
