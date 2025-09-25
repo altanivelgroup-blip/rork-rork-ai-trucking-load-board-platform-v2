@@ -460,56 +460,30 @@ const onSyncMpgToAnalytics = useCallback(async () => {
   }
 
   try {
-  // 1) Read current driver doc so we can merge
-  const existing = await getDriverProfile(userId).catch(() => null);
-  const base = (existing && existing.success && existing.data) ? existing.data : {};
+    // 1) Read current driver doc so we can merge
+    const existing = await getDriverProfile(userId).catch(() => null);
+    const base = (existing && existing.success && existing.data) ? existing.data : {};
 
-  // 2) Only the fields we want to change
-  const changes = {
-    mpgRated: mpg,
-    fuelProfile: {
-      ...(base?.fuelProfile || {}),
-      averageMpg: mpg,
-    },
-  };
-
-  // 3) Save MERGED object (spread base first, then overrides)
-  await saveDriverProfile({
-    ...base,                            // everything already in Firestore
-    ...changes,                         // your MPG updates
-    userId,                             // keep id
-    fullName: base.fullName || (formData.name?.trim() || 'Driver'),
-    email: base.email || (formData.email?.trim() || user?.email || ''),
-  } as any);
-
-  // 4) Update local cache so UI reflects immediately
-  await updateCachedProfile(changes);
-
-  toast.show(`✅ Synced MPG to ${mpg.toFixed(1)} for Analytics.`, 'success');
-} catch (e) {
-  console.warn('[DriverProfile] MPG sync failed', e);
-  toast.show('Sync failed. Please try again.', 'error');
-}
-
-    const payload: any = {
-      userId,
-      email: formData.email?.trim() || user?.email || '',
-      fullName: formData.name?.trim() || 'Driver',
+    // 2) Only the fields we want to change
+    const changes = {
+      mpgRated: mpg,
       fuelProfile: {
-        ...((user as any)?.fuelProfile || {}),
+        ...(base?.fuelProfile || {}),
         averageMpg: mpg,
       },
-      mpgRated: mpg,
     };
 
-    await saveDriverProfile(payload);
-    await updateCachedProfile({
-      mpgRated: mpg,
-      fuelProfile: {
-        ...((user as any)?.fuelProfile || {}),
-        averageMpg: mpg,
-      },
-    });
+    // 3) Save MERGED object (spread base first, then overrides)
+    await saveDriverProfile({
+      ...base,                            // everything already in Firestore
+      ...changes,                         // your MPG updates
+      userId,                             // keep id
+      fullName: base.fullName || (formData.name?.trim() || 'Driver'),
+      email: base.email || (formData.email?.trim() || user?.email || ''),
+    } as any);
+
+    // 4) Update local cache so UI reflects immediately
+    await updateCachedProfile(changes);
 
     toast.show(`✅ Synced MPG to ${mpg.toFixed(1)} for Analytics.`, 'success');
   } catch (e) {
