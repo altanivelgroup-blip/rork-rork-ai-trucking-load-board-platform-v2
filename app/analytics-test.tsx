@@ -48,7 +48,7 @@ const mockLoad: any = {
 
 export default function AnalyticsTestScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [testEnabled, setTestEnabled] = useState(true);
   const { analytics, loading, error, refetch } = useLiveAnalytics(mockLoad, testEnabled);
 
@@ -59,6 +59,23 @@ export default function AnalyticsTestScreen() {
   const handleToggleEnabled = () => {
     setTestEnabled(!testEnabled);
   };
+  // Copy profile mpgRated -> fuelProfile.averageMpg, then refetch analytics
+  const syncMpgFromProfile = async () => {
+  const driver: any = user;
+  const newMpg = driver?.mpgRated ?? driver?.fuelProfile?.averageMpg;
+  if (!newMpg) return;
+
+  await updateProfile({
+    fuelProfile: {
+      ...(driver?.fuelProfile || {}),
+      averageMpg: newMpg,
+    },
+  });
+
+  setTimeout(() => {
+    refetch();
+  }, 300);
+};
 
   return (
     <>
@@ -104,7 +121,10 @@ export default function AnalyticsTestScreen() {
 
         {/* Controls */}
         <View style={styles.controlsSection}>
-          <TouchableOpacity style={styles.button} onPress={handleToggleEnabled}>
+          <TouchableOpacity style={styles.button} onPress={syncMpgFromProfile}>
+       <Text style={styles.buttonText}>Sync MPG from Profile</Text>
+         </TouchableOpacity>
+           <TouchableOpacity style={styles.button} onPress={handleToggleEnabled}>
             <Text style={styles.buttonText}>
               {testEnabled ? 'Disable' : 'Enable'} Analytics
             </Text>
