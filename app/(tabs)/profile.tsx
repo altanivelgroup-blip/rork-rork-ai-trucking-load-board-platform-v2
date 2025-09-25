@@ -52,6 +52,7 @@ export default function ProfileScreen() {
   const { online: isOnline } = useOnlineStatus();
   const insets = useSafeAreaInsets();
   const [liveDataRefreshing, setLiveDataRefreshing] = useState<boolean>(false);
+  const [profileDoc, setProfileDoc] = useState<Record<string, unknown> | null>(null);
   
   // PERMANENT FIX: UNBREAKABLE PROFILE PERSISTENCE - Enhanced profile recovery with comprehensive fallbacks
   const [recoveredProfile, setRecoveredProfile] = useState(null);
@@ -102,6 +103,7 @@ export default function ProfileScreen() {
             if (parsedProfile.id && parsedProfile.role && parsedProfile.email) {
               console.log('[Profile] ✅ PERMANENT PROFILE RECOVERY - Found profile in:', key);
               setRecoveredProfile(parsedProfile);
+              setProfileDoc(parsedProfile);
               return;
             }
           }
@@ -121,6 +123,14 @@ export default function ProfileScreen() {
   const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
   const isDriver = activeProfile?.role === 'driver';
   const isShipper = activeProfile?.role === 'shipper';
+  
+  // Sync profileDoc with activeProfile when it changes
+  useEffect(() => {
+    if (activeProfile && !profileDoc) {
+      console.log('[Profile] 🔄 Syncing profileDoc with activeProfile');
+      setProfileDoc(activeProfile as any);
+    }
+  }, [activeProfile, profileDoc]);
   
   console.log('[Profile] 🎯 PERMANENT PROFILE PERSISTENCE - Active profile:', {
     source: recoveredProfile ? 'recovered' : (isOffline && cachedProfile) ? 'cached' : 'current',
@@ -430,7 +440,7 @@ export default function ProfileScreen() {
                   </View>
                   <View style={styles.statCard}>
                     <Text style={styles.statValue}>
-                      {(activeProfile as any)?.yearsExperience || '0'}
+                      {(profileDoc as any)?.yearsExperience || (activeProfile as any)?.yearsExperience || (user as any)?.yearsExperience || '0'}
                     </Text>
                     <Text style={styles.statLabel}>Years Experience</Text>
                   </View>
