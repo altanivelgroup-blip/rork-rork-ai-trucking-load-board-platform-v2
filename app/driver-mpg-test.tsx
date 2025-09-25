@@ -146,7 +146,7 @@ export default function DriverMpgTestScreen() {
             </TouchableOpacity>
           </View>
           <TouchableOpacity style={styles.updateButton} onPress={handleUpdateMpg}>
-            <Text style={styles.updateButtonText}>Update Driver MPG to 10.5{testMpg.toFixed(1)}</Text>
+            <Text style={styles.updateButtonText}>Update Driver MPG to {testMpg.toFixed(1)}</Text>
           </TouchableOpacity>
         </View>
 
