@@ -916,15 +916,15 @@ export default function AdminScreen() {
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <TouchableOpacity 
               style={styles.quickActionCard}
-              onPress={() => router.push('/reports')}
+              onPress={() => router.push('/reports-analytics')}
               testID="reportsButton"
             >
               <View style={styles.quickActionIcon}>
                 <TrendingUp color={theme.colors.primary} size={20} />
               </View>
               <View style={styles.quickActionContent}>
-                <Text style={styles.quickActionTitle}>Advanced Analytics</Text>
-                <Text style={styles.quickActionSubtitle}>View detailed reports with live data, AI insights, and export capabilities</Text>
+                <Text style={styles.quickActionTitle}>Advanced Analytics Reports</Text>
+                <Text style={styles.quickActionSubtitle}>View comprehensive analytics dashboard with live data, AI insights, charts, and export capabilities</Text>
               </View>
               <View style={styles.quickActionArrow}>
                 <ChevronDown color={theme.colors.gray} size={16} style={{ transform: [{ rotate: '-90deg' }] }} />
