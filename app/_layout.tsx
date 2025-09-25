@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import React, { useMemo, useCallback, useEffect, useState } from "react";
+import React, { useMemo, useCallback } from "react";
 import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -286,43 +286,11 @@ function LoadingScreen({ error }: { error?: string | null }) {
 }
 
 export default function RootLayout() {
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [initError, setInitError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        console.log('[RootLayout] Starting app initialization...');
-        
-        // Check Firebase initialization
-        if (!firebaseInitialized) {
-          throw new Error('Firebase failed to initialize');
-        }
-        
-        // Small delay to ensure everything is ready
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        console.log('[RootLayout] App initialization complete');
-        setIsInitialized(true);
-      } catch (error: any) {
-        console.error('[RootLayout] App initialization failed:', error);
-        setInitError(error.message || 'Unknown initialization error');
-        // Still set initialized to true to show the app (with error handling)
-        setIsInitialized(true);
-      }
-    };
-
-    initializeApp();
-  }, []);
-
-  if (!isInitialized) {
-    return (
-      <GestureHandlerRootView style={styles.rootContainer}>
-        <SafeAreaProvider>
-          <LoadingScreen error={initError || undefined} />
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    );
+  console.log('[RootLayout] Initializing app layout...');
+  
+  // Check Firebase initialization
+  if (!firebaseInitialized) {
+    console.warn('[RootLayout] Firebase not initialized, but continuing...');
   }
 
   return (

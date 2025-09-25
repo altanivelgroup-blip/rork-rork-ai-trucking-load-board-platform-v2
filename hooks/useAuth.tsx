@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { Driver, Shipper, Admin, UserRole } from '@/types';
-import { auth, ensureFirebaseAuth, db } from '@/utils/firebase';
+import { auth, db } from '@/utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 

@@ -74,9 +74,7 @@ export default function DriverProfileScreen() {
     policyNumber: '',
   });
 
-  // Calculate display values after formData is initialized
-  const displayName = (formData?.name?.trim()) || user?.name || (user?.email ? user.email.split("@")[0] : "Driver");
-  const displayEmail = (formData?.email?.trim()) || user?.email || "";
+
 
   // Update form data when user data changes
 
@@ -478,8 +476,8 @@ try {
             <User size={18} color={theme.colors.white} />
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{displayName}</Text>
-            <Text style={styles.profileEmail}>{displayEmail}</Text>
+            <Text style={styles.profileName}>{(formData?.name?.trim()) || user?.name || (user?.email ? user.email.split("@")[0] : "Driver")}</Text>
+            <Text style={styles.profileEmail}>{(formData?.email?.trim()) || user?.email || ""}</Text>
           </View>
         </View>
 
