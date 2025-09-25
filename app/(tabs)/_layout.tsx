@@ -102,13 +102,13 @@ export default function TabsLayout() {
         }}
       />
       
-      {/* Analytics Tab (Always visible for shippers and admins) */}
+      {/* Analytics Tab (Only visible for shippers) */}
       <Tabs.Screen
         name="shipper-analytics"
         options={{
           title: 'Analytics',
           tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size} />,
-          href: isAdmin ? '/shipper-analytics' : (isShipper ? '/shipper-analytics' : null),
+          href: isShipper ? '/shipper-analytics' : null,
         }}
       />
       
