@@ -12,6 +12,7 @@ import { useProfileCache } from '@/hooks/useProfileCache';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType, Driver } from '@/types';
 import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 
@@ -155,6 +156,25 @@ useEffect(() => {
       fuelType: prev.fuelType === 'diesel' ? 'gasoline' as const : 'diesel' as const
     }));
   }, []);
+// Merge a partial patch into the local auth cache used by the app
+const patchAuthCache = useCallback(async (patch: any) => {
+  try {
+    const raw = await AsyncStorage.getItem('auth:user:profile');
+    const current = raw ? JSON.parse(raw) : {};
+    const next = {
+      ...current,
+      ...patch,
+      fuelProfile: {
+        ...(current?.fuelProfile || {}),
+        ...(patch?.fuelProfile || {}),
+      },
+    };
+    await AsyncStorage.setItem('auth:user:profile', JSON.stringify(next));
+    console.log('[DriverProfile] Patched auth cache with', next?.fuelProfile?.averageMpg);
+  } catch (e) {
+    console.warn('[DriverProfile] patchAuthCache failed', e);
+  }
+}, []);
 
 
 
