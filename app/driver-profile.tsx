@@ -474,9 +474,9 @@ if (newMpg) {
     toast.show('Profile submitted for verification', 'success');
   }, [onSave, toast]);
 
-// 👇 Add this here
-const onSyncMpgToAnalytics = useCallback(async () => {
-  const mpg = formData?.mpgRated ? parseFloat(formData.mpgRated) : NaN;
+   // 👇 Add this here
+   const onSyncMpgToAnalytics = useCallback(async () => {
+   const mpg = formData?.mpgRated ? parseFloat(formData.mpgRated) : NaN;
   if (!userId) {
     toast.show('Not signed in. Please sign in again.', 'error');
     return;
