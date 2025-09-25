@@ -83,10 +83,65 @@ export default function DriverProfileScreen() {
 
 
 
-  useEffect(() => {
-    if (user && user.role === 'driver') {
-      const driver = user as Driver;
+ // Load the profile directly from Firestore so edits stick after logout/login
+useEffect(() => {
+  let alive = true;
+  (async () => {
+    if (!userId) return;
+    try {
+      const driver = await getDriverProfile(userId); // reads drivers/{uid}
+      if (!alive || !driver) return;
+
       setFormData({
+        // Personal Info
+        name: driver.fullName ?? driver.name ?? '',
+        email: driver.email ?? '',
+        phone: driver.phone ?? '',
+        company: driver.company ?? '',
+
+        // Basic Driver Profile Fields
+        truckType: driver.truckType ?? 'truck',
+        tankSize: driver.tankSize != null ? String(driver.tankSize) : '',
+        fuelTypePreference: driver.fuelTypePreference ?? 'diesel',
+        yearsExperience: driver.yearsExperience != null ? String(driver.yearsExperience) : '',
+        safetyCertifications: driver.safetyCertifications ?? '',
+
+        // Vehicle Info
+        vehicleMake: driver.vehicleMake ?? '',
+        vehicleModel: driver.vehicleModel ?? '',
+        vehicleYear: driver.vehicleYear != null ? String(driver.vehicleYear) : '',
+        fuelType: (driver.fuelType === 'gas' ? 'gasoline' : driver.fuelType) ?? 'diesel',
+        mpgRated: driver.mpgRated != null ? String(driver.mpgRated) : '',
+        vin: driver.vin ?? '',
+        plate: driver.plate ?? '',
+        tankGallons: driver.tankGallons != null ? String(driver.tankGallons) : '50',
+        gvwrLbs: driver.gvwrLbs != null ? String(driver.gvwrLbs) : '',
+
+        // Trailer Info
+        trailerMake: driver.trailerMake ?? '',
+        trailerModel: driver.trailerModel ?? '',
+        trailerYear: driver.trailerYear != null ? String(driver.trailerYear) : '',
+        trailerVin: driver.trailerVin ?? '',
+        trailerPlate: driver.trailerPlate ?? '',
+        trailerInsuranceCarrier: driver.trailerInsuranceCarrier ?? '',
+        trailerPolicyNumber: driver.trailerPolicyNumber ?? '',
+        trailerGvwrLbs: driver.trailerGvwrLbs != null ? String(driver.trailerGvwrLbs) : '',
+        trailerType: driver.trailerType ?? 'flatbed',
+
+        // Company & Insurance
+        companyName: driver.companyName ?? '',
+        mcNumber: driver.mcNumber ?? '',
+        dotNumber: driver.dotNumber ?? '',
+        insuranceCarrier: driver.insuranceCarrier ?? '',
+        policyNumber: driver.policyNumber ?? '',
+      });
+    } catch (e) {
+      console.warn('[DriverProfile] getDriverProfile failed', e);
+    }
+  })();
+  return () => { alive = false; };
+}, [userId]);
+
         // Personal Info
         name: driver.name || '',
         email: driver.email || '',
