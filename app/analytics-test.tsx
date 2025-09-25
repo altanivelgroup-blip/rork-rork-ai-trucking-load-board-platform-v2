@@ -60,22 +60,25 @@ export default function AnalyticsTestScreen() {
     setTestEnabled(!testEnabled);
   };
   // Copy profile mpgRated -> fuelProfile.averageMpg, then refetch analytics
-  const syncMpgFromProfile = async () => {
+const syncMpgFromProfile = async () => {
   const driver: any = user;
   const newMpg = driver?.mpgRated ?? driver?.fuelProfile?.averageMpg;
   if (!newMpg) return;
 
-  await updateProfile({
-    fuelProfile: {
-      ...(driver?.fuelProfile || {}),
-      averageMpg: newMpg,
-    },
-  });
+  if (typeof updateProfile === 'function') {
+    await updateProfile({
+      fuelProfile: {
+        ...(driver?.fuelProfile || {}),
+        averageMpg: newMpg,
+      },
+    });
+  }
 
   setTimeout(() => {
     refetch();
   }, 300);
 };
+
 
   return (
     <>
@@ -130,7 +133,10 @@ export default function AnalyticsTestScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.button} onPress={handleRefetch}>
-            <Text style={styles.buttonText}>Refetch Analytics</Text>
+            <TouchableOpacity style={styles.button} onPress={syncMpgFromProfile}>
+             <Text style={styles.buttonText}>Sync MPG from Profile</Text>
+            </TouchableOpacity>
+           <Text style={styles.buttonText}>Refetch Analytics</Text>
           </TouchableOpacity>
         </View>
 
