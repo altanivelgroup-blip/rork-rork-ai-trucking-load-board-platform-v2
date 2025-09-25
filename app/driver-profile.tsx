@@ -82,22 +82,6 @@ export default function DriverProfileScreen() {
 
 
 
-  useEffect(() => {
-    if (!user && userId && !bootstrapping) {
-      (async () => {
-        try {
-          setBootstrapping(true);
-          const anonEmail = `${userId}@anon.local`;
-          await register(anonEmail, 'temp-password', 'driver', { email: anonEmail, name: '' });
-          console.log('[DriverProfile] Bootstrapped local driver profile for uid:', userId);
-        } catch (e) {
-          console.warn('[DriverProfile] Failed to bootstrap driver profile', e);
-        } finally {
-          setBootstrapping(false);
-        }
-      })();
-    }
-  }, [user, userId, bootstrapping, register]);
 
   useEffect(() => {
     if (user && user.role === 'driver') {
