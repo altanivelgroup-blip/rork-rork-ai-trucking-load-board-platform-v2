@@ -103,11 +103,15 @@ export default function SignUpScreen() {
       
       // Handle specific Firebase auth errors
       if (error?.code === 'auth/email-already-in-use') {
-        setErrorText('An account with this email already exists.');
+        setErrorText('An account with this email already exists. Please try logging in instead.');
       } else if (error?.code === 'auth/weak-password') {
         setErrorText('Password is too weak. Please choose a stronger password.');
       } else if (error?.code === 'auth/invalid-email') {
         setErrorText('Please enter a valid email address.');
+      } else if (error?.code === 'auth/network-request-failed') {
+        setErrorText('Network error. Please check your connection and try again.');
+      } else if (error?.code === 'auth/too-many-requests') {
+        setErrorText('Too many attempts. Please wait a moment and try again.');
       } else {
         setErrorText(error?.message || 'Account creation failed. Please try again.');
       }
@@ -222,7 +226,18 @@ export default function SignUpScreen() {
             </View>
             
             {!!errorText && (
-              <Text style={styles.errorText} testID="signup-error">{errorText}</Text>
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText} testID="signup-error">{errorText}</Text>
+                {errorText.includes('already exists') && (
+                  <TouchableOpacity 
+                    onPress={() => router.replace('/(auth)/login')}
+                    style={styles.loginRedirectButton}
+                    testID="redirect-to-login"
+                  >
+                    <Text style={styles.loginRedirectText}>Go to Login</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
             <TouchableOpacity 
               style={[styles.cta, isLoading && styles.ctaDisabled]} 
@@ -276,12 +291,28 @@ const styles = StyleSheet.create({
   cta: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md, paddingVertical: theme.spacing.md, alignItems: 'center', marginTop: theme.spacing.sm },
   ctaDisabled: { opacity: 0.7 },
   ctaText: { color: theme.colors.white, fontSize: theme.fontSize.md, fontWeight: '700' },
-  errorText: {
-    color: theme.colors.danger,
+  errorContainer: {
     marginTop: theme.spacing.xs,
     marginBottom: theme.spacing.xs,
+    alignItems: 'center',
+  },
+  errorText: {
+    color: theme.colors.danger,
     fontSize: theme.fontSize.sm,
     textAlign: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  loginRedirectButton: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.xs,
+  },
+  loginRedirectText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
   },
   secondary: { alignItems: 'center', marginTop: theme.spacing.md },
   secondaryText: { color: theme.colors.primary },
