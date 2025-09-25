@@ -1,3 +1,4 @@
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
@@ -8,6 +9,7 @@ import { db } from '@/utils/firebase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadCard } from '@/components/LoadCard';
 import { getCache, setCache } from '@/utils/simpleCache';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function LiveLoadsScreen() {
   const router = useRouter();
@@ -18,10 +20,68 @@ export default function LiveLoadsScreen() {
 
 useEffect(() => {
   console.log('[LiveLoads] temp query: createdAt desc');
-  setIsLoading(true);
+  setIsloading(true);
+
+  let unsubscribe: undefined | (() => void);
 
   (async () => {
     try {
+      const cached = await getCache<any[]>('cache:liveLoads:v1');
+      if (cached?.length) {
+        setItems(cached);
+        setFromCache(true);
+        console.log('[LiveLoads] set from cache', cached.length);
+      }
+    } catch (e) {
+      console.warn('[LiveLoads] cache read failed', e);
+    }
+
+    // Live query
+    try {
+      const colRef = collection(db, 'loads');
+      const q = query(colRef, orderBy('createdAt', 'desc'), limit(50));
+
+      unsubscribe = onSnapshot(
+        q,
+        (snap) => {
+          const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setItems(rows);
+          setCache('cache:liveLoads:v1', rows);
+          setIsloading(false);
+          setFromCache(false);
+          console.log('[LiveLoads] snapshot rows:', rows.length);
+        },
+        (err) => {
+          console.warn('[LiveLoads] onSnapshot error', err);
+          setIsloading(false);
+        }
+      );
+    } catch (e) {
+      console.warn('[LiveLoads] query setup failed', e);
+      setIsloading(false);
+    }
+  })();
+
+  return () => {
+    // prevent duplicate listeners when we refocus
+    if (unsubscribe) unsubscribe();
+  };
+}, [refreshTick]);
+
+
+  (async () => {
+    try {
+      const [refreshTick, setRefreshTick] = useState(0);
+
+// Refetch loads whenever the screen regains focus
+useFocusEffect(
+  useCallback(() => {
+    console.log('[LiveLoads] focus -> refresh');
+    setRefreshTick(t => t + 1);
+    return () => {};
+  }, [])
+);
+
       const cached = await getCache<any[]>('cache:liveLoads:v1');
       if (cached.hit && Array.isArray(cached.data)) {
         console.log('[LiveLoads] Loading from cache...');
