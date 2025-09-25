@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { 
   User, 
+  Users,
   Settings, 
   CreditCard, 
   Bell, 
@@ -123,6 +124,7 @@ export default function ProfileScreen() {
   const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
   const isDriver = activeProfile?.role === 'driver';
   const isShipper = activeProfile?.role === 'shipper';
+  const isAdmin = activeProfile?.role === 'admin';
   
   // Sync profileDoc with activeProfile when it changes
   useEffect(() => {
@@ -330,7 +332,34 @@ export default function ProfileScreen() {
     }
   ];
 
-  const profileOptions = isDriver ? [...driverOptions, ...commonOptions] : isShipper ? [...shipperOptions, ...commonOptions] : commonOptions;
+  const adminOptions: ProfileOption[] = [
+    {
+      id: 'admin-dashboard',
+      title: 'Admin Dashboard',
+      subtitle: 'System monitoring and analytics',
+      icon: <BarChart3 size={20} color={theme.colors.primary} />,
+      route: '/admin',
+      showChevron: true
+    },
+    {
+      id: 'user-management',
+      title: 'User Management',
+      subtitle: 'Manage drivers and shippers',
+      icon: <Users size={20} color={theme.colors.secondary} />,
+      route: '/admin-assignment',
+      showChevron: true
+    },
+    {
+      id: 'system-reports',
+      title: 'System Reports',
+      subtitle: 'Analytics and performance reports',
+      icon: <FileText size={20} color={theme.colors.success} />,
+      route: '/reports',
+      showChevron: true
+    },
+  ];
+
+  const profileOptions = isAdmin ? [...adminOptions, ...commonOptions] : isDriver ? [...driverOptions, ...commonOptions] : isShipper ? [...shipperOptions, ...commonOptions] : commonOptions;
 
   const handleOptionPress = (option: ProfileOption) => {
     if (option.action) {
@@ -352,7 +381,7 @@ export default function ProfileScreen() {
             <Text style={styles.profileEmail}>{activeProfile?.email || 'user@example.com'}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
-                {(activeProfile?.name || user?.name || (isDriver ? 'DRIVER' : isShipper ? 'SHIPPER' : 'USER')).toUpperCase()}
+                {(activeProfile?.role || 'USER').toUpperCase()}
                 {recoveredProfile ? ' (RECOVERED)' : ''}
               </Text>
               {liveDataRefreshing && (
@@ -407,7 +436,7 @@ export default function ProfileScreen() {
         </View>
         
         {/* Live Stats Section */}
-        {(isDriver || isShipper) && (
+        {(isDriver || isShipper || isAdmin) && (
           <View style={styles.liveStatsContainer}>
             <View style={styles.liveStatsHeader}>
               <Text style={styles.liveStatsTitle}>Live Dashboard</Text>
@@ -472,6 +501,35 @@ export default function ProfileScreen() {
                       {loadsLoading ? '...' : `${shipperStats.totalRevenue.toLocaleString()}`}
                     </Text>
                     <Text style={styles.statLabel}>Total Revenue</Text>
+                  </View>
+                </>
+              )}
+              
+              {isAdmin && (
+                <>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      {loads.length}
+                    </Text>
+                    <Text style={styles.statLabel}>Total Loads</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      247
+                    </Text>
+                    <Text style={styles.statLabel}>Total Users</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      ADMIN
+                    </Text>
+                    <Text style={styles.statLabel}>Access Level</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={styles.statValue}>
+                      FULL
+                    </Text>
+                    <Text style={styles.statLabel}>Permissions</Text>
                   </View>
                 </>
               )}
