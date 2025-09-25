@@ -1,5 +1,4 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
@@ -17,106 +16,69 @@ export default function LiveLoadsScreen() {
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [fromCache, setFromCache] = useState<boolean>(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
-useEffect(() => {
-  console.log('[LiveLoads] temp query: createdAt desc');
-  setIsloading(true);
+  // Refetch loads whenever the screen regains focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[LiveLoads] focus -> refresh');
+      setRefreshTick(t => t + 1);
+      return () => {};
+    }, [])
+  );
 
-  let unsubscribe: undefined | (() => void);
+  useEffect(() => {
+    console.log('[LiveLoads] Setting up loads query');
+    setIsLoading(true);
 
-  (async () => {
-    try {
-      const cached = await getCache<any[]>('cache:liveLoads:v1');
-      if (cached?.length) {
-        setItems(cached);
-        setFromCache(true);
-        console.log('[LiveLoads] set from cache', cached.length);
-      }
-    } catch (e) {
-      console.warn('[LiveLoads] cache read failed', e);
-    }
+    let unsubscribe: undefined | (() => void);
 
-    // Live query
-    try {
-      const colRef = collection(db, 'loads');
-      const q = query(colRef, orderBy('createdAt', 'desc'), limit(50));
-
-      unsubscribe = onSnapshot(
-        q,
-        (snap) => {
-          const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setItems(rows);
-          setCache('cache:liveLoads:v1', rows);
-          setIsloading(false);
-          setFromCache(false);
-          console.log('[LiveLoads] snapshot rows:', rows.length);
-        },
-        (err) => {
-          console.warn('[LiveLoads] onSnapshot error', err);
-          setIsloading(false);
+    (async () => {
+      try {
+        const cached = await getCache<any[]>('cache:liveLoads:v1');
+        if (cached?.length) {
+          setItems(cached);
+          setFromCache(true);
+          console.log('[LiveLoads] set from cache', cached.length);
         }
-      );
-    } catch (e) {
-      console.warn('[LiveLoads] query setup failed', e);
-      setIsloading(false);
-    }
-  })();
-
-  return () => {
-    // prevent duplicate listeners when we refocus
-    if (unsubscribe) unsubscribe();
-  };
-}, [refreshTick]);
-
-
-  (async () => {
-    try {
-      const [refreshTick, setRefreshTick] = useState(0);
-
-// Refetch loads whenever the screen regains focus
-useFocusEffect(
-  useCallback(() => {
-    console.log('[LiveLoads] focus -> refresh');
-    setRefreshTick(t => t + 1);
-    return () => {};
-  }, [])
-);
-
-      const cached = await getCache<any[]>('cache:liveLoads:v1');
-      if (cached.hit && Array.isArray(cached.data)) {
-        console.log('[LiveLoads] Loading from cache...');
-        setItems(cached.data ?? []);
-        setFromCache(true);
+      } catch (e) {
+        console.warn('[LiveLoads] cache read failed', e);
       }
-    } catch (e) {
-      console.warn('[LiveLoads] cache read failed', e);
-    }
-  })();
 
-  const q = query(
-    collection(db, 'loads'),
-    orderBy('createdAt', 'desc')
-    // UNLIMITED LOADS: Removed limit(25) to show ALL loads
-  );
+      // Live query
+      try {
+        const colRef = collection(db, 'loads');
+        const q = query(colRef, orderBy('createdAt', 'desc'), limit(50));
 
-  const unsub = onSnapshot(
-    q,
-    async (snap) => {
-      const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-      console.log('[LiveLoads] fetched', arr.length);
-      setItems(arr);
-      setIsLoading(false);
-      setFromCache(false);
-      try { await setCache('cache:liveLoads:v1', arr, 5 * 60 * 1000); } catch {}
-    },
-    (err) => {
-      console.error('[LiveLoads] snapshot error', err.code, err.message);
-      setIsLoading(false);
-    }
-  );
+        unsubscribe = onSnapshot(
+          q,
+          async (snap) => {
+            const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setItems(rows);
+            setIsLoading(false);
+            setFromCache(false);
+            console.log('[LiveLoads] snapshot rows:', rows.length);
+            try { 
+              await setCache('cache:liveLoads:v1', rows, 5 * 60 * 1000); 
+            } catch (e) {
+              console.warn('[LiveLoads] cache write failed', e);
+            }
+          },
+          (err) => {
+            console.warn('[LiveLoads] onSnapshot error', err);
+            setIsLoading(false);
+          }
+        );
+      } catch (e) {
+        console.warn('[LiveLoads] query setup failed', e);
+        setIsLoading(false);
+      }
+    })();
 
-  return () => unsub();
-}, []);
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [refreshTick]);
   
   
 const loads = useMemo(() => {
