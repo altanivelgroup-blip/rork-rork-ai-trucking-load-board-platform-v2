@@ -1318,7 +1318,7 @@ export default function ShipperDashboard() {
                   return <Text style={styles.loadsBadge}>Pro: 50 loads/mo</Text>;
                 }
                 return <Text style={styles.loadsBadge}>Free: 3 loads/mo</Text>;
-              })()} 
+              })()}
             </View>
             <View style={styles.actionButtons}>
               {(() => {
