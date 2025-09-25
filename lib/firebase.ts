@@ -496,6 +496,7 @@ export async function saveDriverProfile(driverData: {
       isActive: driverData.isActive !== undefined ? driverData.isActive : true,
       balance: driverData.balance || 0,
       userId: driverData.userId,
+      createdBy: currentUser.uid,
       
       // Timestamps
       createdAt: serverTimestamp(),
@@ -520,6 +521,8 @@ export async function saveDriverProfile(driverData: {
         phone: driverData.phone || '',
         company: driverData.company || '',
       },
+      userId: driverData.userId,
+      createdBy: currentUser.uid,
       updatedAt: serverTimestamp(),
     };
     

@@ -29,5 +29,9 @@ service cloud.firestore {
     match /drivers/{userId} {
       allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
     }
+
+    match /driverProfiles/{userId} {
+      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
