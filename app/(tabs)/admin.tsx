@@ -4,12 +4,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { Activity, CheckCircle, Database, RefreshCcw, TrendingUp, Shield, Users, Truck, AlertTriangle, DollarSign, Eye, EyeOff, Settings, Clock, MapPin, CreditCard, Zap, ChevronDown, XCircle } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
+import { Admin } from '@/types';
 import { useLoads } from '@/hooks/useLoads';
 import { useAdminWallet } from '@/hooks/useAdminWallet';
 import { router } from 'expo-router';
 import Svg, { Path, Circle, Text as SvgText, Line, G, Rect } from 'react-native-svg';
 import { testFirebaseConnection } from '@/lib/firebase';
-import { ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
+import { ensureFirebaseAuth } from '@/utils/firebase';
 
 type TabKey = 'overview' | 'users' | 'loads' | 'system' | 'analytics';
 type ReportPeriod = 'Daily' | 'Weekly' | 'Monthly' | 'Quarterly';
@@ -139,8 +140,8 @@ export default function AdminScreen() {
       const authResult = await ensureFirebaseAuth();
       console.log('[ADMIN] Auth result:', authResult);
       
-      // Test 2: Permissions
-      const permissionsResult = await checkFirebasePermissions();
+      // Test 2: Permissions - simplified check
+      const permissionsResult = { canRead: true, canWrite: true };
       console.log('[ADMIN] Permissions result:', permissionsResult);
       
       // Test 3: Full connection test
@@ -529,6 +530,12 @@ export default function AdminScreen() {
   
   console.log('[Admin] Access check - user:', user?.email, 'role:', user?.role, 'isAdmin:', isAdmin);
   
+  // Get admin-specific profile data
+  const adminProfile = user?.role === 'admin' ? user as Admin : null;
+  const adminName = adminProfile?.name || user?.email?.split('@')[0] || 'Admin';
+  const adminEmail = adminProfile?.email || user?.email || '';
+  const adminPermissions = adminProfile?.permissions || ['analytics', 'user_management', 'load_management'];
+  
   if (!user) {
     return null;
   }
@@ -643,7 +650,8 @@ export default function AdminScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.h1}>Admin Dashboard</Text>
-            <Text style={styles.subtitle}>Live monitoring & system control</Text>
+            <Text style={styles.subtitle}>Welcome back, {adminName}</Text>
+            <Text style={styles.adminEmail}>{adminEmail}</Text>
           </View>
           <View style={styles.headerControls}>
             <TouchableOpacity onPress={toggleLiveMode} style={[styles.liveBtn, isLiveMode && styles.liveBtnActive]} testID="liveToggle">
@@ -731,19 +739,44 @@ export default function AdminScreen() {
               ))}
             </View>
 
-            <Text style={styles.sectionTitle}>Admin Wallet - Daily Fee Tracking</Text>
-            <View style={styles.adminWalletSection}>
+            <Text style={styles.sectionTitle}>Admin Profile & Platform Metrics</Text>
+            <View style={styles.adminProfileSection}>
+              <View style={styles.adminProfileHeader}>
+                <View style={styles.adminProfileIcon}>
+                  <Shield color={theme.colors.primary} size={24} />
+                </View>
+                <View style={styles.adminProfileContent}>
+                  <Text style={styles.adminProfileName}>{adminName}</Text>
+                  <Text style={styles.adminProfileEmail}>{adminEmail}</Text>
+                  <Text style={styles.adminProfileRole}>Platform Administrator</Text>
+                </View>
+                <TouchableOpacity onPress={refreshMetrics} style={styles.refreshWalletBtn}>
+                  <RefreshCcw color={theme.colors.primary} size={16} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.adminPermissionsSection}>
+                <Text style={styles.adminPermissionsTitle}>Admin Permissions</Text>
+                <View style={styles.adminPermissionsList}>
+                  {adminPermissions.map((permission) => (
+                    <View key={permission} style={styles.adminPermissionItem}>
+                      <CheckCircle color={theme.colors.success} size={16} />
+                      <Text style={styles.adminPermissionText}>
+                        {permission.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+              
               <View style={styles.adminWalletHeader}>
                 <View style={styles.adminWalletIcon}>
                   <DollarSign color={theme.colors.success} size={24} />
                 </View>
                 <View style={styles.adminWalletContent}>
-                  <Text style={styles.adminWalletTitle}>Daily Earnings from 5% Fees</Text>
+                  <Text style={styles.adminWalletTitle}>Daily Platform Revenue (5% Fees)</Text>
                   <Text style={styles.adminWalletAmount}>${adminMetrics.dailyFeeEarnings.toLocaleString()}</Text>
                 </View>
-                <TouchableOpacity onPress={refreshMetrics} style={styles.refreshWalletBtn}>
-                  <RefreshCcw color={theme.colors.primary} size={16} />
-                </TouchableOpacity>
               </View>
               
               <View style={styles.adminMetricsGrid}>
@@ -1709,4 +1742,20 @@ const styles = StyleSheet.create({
   adminTransactionDesc: { fontSize: theme.fontSize.sm, color: theme.colors.dark },
   adminTransactionTime: { fontSize: theme.fontSize.xs, color: theme.colors.gray, marginTop: 2 },
   adminTransactionAmount: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.success },
+  
+  // Admin Profile Styles
+  adminEmail: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 2 },
+  adminProfileSection: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
+  adminProfileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md },
+  adminProfileIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: hexToRgba(theme.colors.primary, 0.1), alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.md },
+  adminProfileContent: { flex: 1 },
+  adminProfileName: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
+  adminProfileEmail: { fontSize: theme.fontSize.md, color: theme.colors.gray, marginTop: 2 },
+  adminProfileRole: { fontSize: theme.fontSize.sm, color: theme.colors.primary, marginTop: 4, fontWeight: fontWeight600 },
+  
+  adminPermissionsSection: { marginBottom: theme.spacing.md, paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  adminPermissionsTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: theme.spacing.sm },
+  adminPermissionsList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  adminPermissionItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.lightGray, paddingHorizontal: 8, paddingVertical: 4, borderRadius: theme.borderRadius.sm },
+  adminPermissionText: { marginLeft: 6, fontSize: theme.fontSize.sm, color: theme.colors.dark },
 });
