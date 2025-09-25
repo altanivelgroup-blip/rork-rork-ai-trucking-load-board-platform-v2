@@ -470,7 +470,17 @@ try {
       }} />
       
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Personal Information */}
+       {/* Mini Profile Header (read-only) */}
+<View style={styles.profileHeader}>
+  <View style={styles.profileAvatar}>
+    <User size={18} color={theme.colors.white} />
+  </View>
+  <View style={{ flex: 1 }}>
+    <Text style={styles.profileName}>{displayName}</Text>
+    <Text style={styles.profileEmail}>{displayEmail}</Text>
+  </View>
+</View>
+ {/* Personal Information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <User size={20} color={theme.colors.primary} />
