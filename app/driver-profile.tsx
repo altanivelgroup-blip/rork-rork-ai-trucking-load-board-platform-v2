@@ -355,8 +355,13 @@ export default function DriverProfileScreen() {
       try {
         // Save to Firebase first
         console.log('[DriverProfile] Saving to Firebase...');
-        const firebaseResult = await saveDriverProfile(firebaseData);
+        const firebaseResult = await saveDriverProfile({
+        ...firebaseData,
+        createdBy: userId,   // <-- REQUIRED by your rules
+        userId,              // <-- keep too (your rules accept either)
+        });
         console.log('[DriverProfile] Firebase save result:', firebaseResult);
+
         
         // Also update cached profile for offline support
         console.log('[DriverProfile] Updating cached profile...');
