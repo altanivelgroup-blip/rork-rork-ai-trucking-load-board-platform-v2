@@ -1175,9 +1175,15 @@ export default function AdminScreen() {
         
         {activeTab === 'analytics' && (
           <>
-            {/* Header */}
-            <View style={styles.hrHeader}>
-              <Text style={styles.hrTitle}>LoadRush Operations Analytics</Text>
+            {/* Analytics Header */}
+            <View style={styles.analyticsHeader}>
+              <Text style={styles.analyticsTitle}>📊 LoadRush Analytics Dashboard</Text>
+              <Text style={styles.analyticsSubtitle}>Real-time platform insights and performance metrics</Text>
+            </View>
+
+            {/* Period Selector */}
+            <View style={styles.periodSelectorContainer}>
+              <Text style={styles.periodSelectorLabel}>Time Period:</Text>
               <View style={styles.periodToggle}>
                 <TouchableOpacity 
                   style={[styles.periodBtn, reportPeriod === 'Daily' && styles.periodBtnActive]}
@@ -1206,197 +1212,158 @@ export default function AdminScreen() {
               </View>
             </View>
 
-            {/* Export Buttons */}
+            {/* Export Actions */}
             <View style={styles.exportButtonsRow}>
-              <TouchableOpacity style={styles.exportBtn} testID="exportPDF">
-                <Text style={styles.exportBtnText}>Export PDF</Text>
+              <TouchableOpacity 
+                style={styles.exportBtn} 
+                testID="exportPDF"
+                onPress={() => console.log('Export PDF clicked')}
+              >
+                <Text style={styles.exportBtnText}>📄 Export PDF</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.exportBtn} testID="exportCSV">
-                <Text style={styles.exportBtnText}>Export CSV</Text>
+              <TouchableOpacity 
+                style={styles.exportBtn} 
+                testID="exportCSV"
+                onPress={() => console.log('Export CSV clicked')}
+              >
+                <Text style={styles.exportBtnText}>📊 Export CSV</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Top Row - Key Metrics */}
-            <View style={styles.hrTopRow}>
-              {/* Total Loads */}
-              <View style={styles.hrMetricCard}>
-                <Text style={styles.hrCardTitle}>Total Loads</Text>
-                <View style={styles.hrPieContainer}>
-                  <PieChart 
-                    data={[
-                      { value: liveMetrics.availableLoads, color: '#4CAF50', label: 'Open' },
-                      { value: liveMetrics.inTransitLoads, color: '#FF9800', label: 'Accepted' },
-                      { value: liveMetrics.completedLoads, color: '#2196F3', label: 'Completed' },
-                      { value: Math.max(1, liveMetrics.totalLoads - liveMetrics.availableLoads - liveMetrics.inTransitLoads - liveMetrics.completedLoads), color: '#F44336', label: 'Canceled' }
-                    ]}
-                    centerValue={liveMetrics.totalLoads.toString()}
-                  />
+            {/* Key Metrics Cards */}
+            <View style={styles.analyticsMetricsGrid}>
+              <View style={styles.analyticsMetricCard}>
+                <View style={styles.metricCardHeader}>
+                  <Truck color={theme.colors.primary} size={24} />
+                  <Text style={styles.metricCardTitle}>Total Loads</Text>
                 </View>
-                <Text style={styles.hrCardSubtitle}>Breakdown by Status</Text>
+                <Text style={styles.metricCardValue}>{liveMetrics.totalLoads}</Text>
+                <Text style={styles.metricCardSubtext}>Platform loads posted</Text>
               </View>
-
-              {/* Load Volume Trend */}
-              <View style={styles.hrMetricCard}>
-                <Text style={styles.hrCardTitle}>Load Volume Trend</Text>
-                <View style={styles.hrAreaContainer}>
-                  <AreaChart 
-                    data={revenueData.map((item, index) => ({
-                      x: index,
-                      y: Math.floor(item.y / 10000) + 20,
-                      label: item.label
-                    }))}
-                  />
+              
+              <View style={styles.analyticsMetricCard}>
+                <View style={styles.metricCardHeader}>
+                  <DollarSign color={theme.colors.success} size={24} />
+                  <Text style={styles.metricCardTitle}>Revenue</Text>
                 </View>
-                <Text style={styles.hrCardSubtitle}>{reportPeriod} Volume</Text>
+                <Text style={styles.metricCardValue}>${(liveMetrics.totalRevenue / 1000).toFixed(1)}K</Text>
+                <Text style={styles.metricCardSubtext}>Total platform revenue</Text>
               </View>
-
-              {/* User Roles */}
-              <View style={styles.hrMetricCard}>
-                <Text style={styles.hrCardTitle}>User Roles</Text>
-                <View style={styles.hrPieContainer}>
-                  <PieChart 
-                    data={[
-                      { value: 5, color: '#FF9800', label: 'Admins' },
-                      { value: 65, color: '#4CAF50', label: 'Shippers' },
-                      { value: 30, color: '#2196F3', label: 'Drivers' }
-                    ]}
-                    centerValue="247"
-                  />
+              
+              <View style={styles.analyticsMetricCard}>
+                <View style={styles.metricCardHeader}>
+                  <TrendingUp color={theme.colors.warning} size={24} />
+                  <Text style={styles.metricCardTitle}>Avg Rate</Text>
                 </View>
-                <Text style={styles.hrCardSubtitle}>Platform Users</Text>
+                <Text style={styles.metricCardValue}>${liveMetrics.avgRate.toFixed(0)}</Text>
+                <Text style={styles.metricCardSubtext}>Per load average</Text>
               </View>
-
-              {/* Revenue Share */}
-              <View style={styles.hrMetricCard}>
-                <Text style={styles.hrCardTitle}>Revenue Share</Text>
-                <View style={styles.hrPieContainer}>
-                  <PieChart 
-                    data={[
-                      { value: 95, color: '#00BCD4', label: 'Drivers/Shippers' },
-                      { value: 5, color: '#F44336', label: 'Platform Cut' }
-                    ]}
-                    centerValue="5%"
-                  />
+              
+              <View style={styles.analyticsMetricCard}>
+                <View style={styles.metricCardHeader}>
+                  <CheckCircle color={theme.colors.secondary} size={24} />
+                  <Text style={styles.metricCardTitle}>Completion</Text>
                 </View>
-                <Text style={styles.hrCardSubtitle}>Platform Commission</Text>
+                <Text style={styles.metricCardValue}>{((liveMetrics.completedLoads / liveMetrics.totalLoads) * 100).toFixed(1)}%</Text>
+                <Text style={styles.metricCardSubtext}>Load completion rate</Text>
               </View>
             </View>
 
-            {/* Middle Row - Efficiency Metrics */}
-            <View style={styles.hrTimeDimensionsPanel}>
-              <Text style={styles.hrSectionTitle}>Backhaul Efficiency Analysis</Text>
-              <View style={styles.hrBarChartsRow}>
-                <View style={styles.hrBarChartSection}>
-                  <Text style={styles.hrBarChartTitle}>Accepted vs Suggested</Text>
-                  <View style={styles.backhaulPyramid}>
-                    <View style={styles.pyramidRow}>
-                      <View style={[styles.pyramidBar, { width: '80%', backgroundColor: '#4ECDC4' }]} />
-                      <Text style={styles.pyramidLabel}>Accepted: 80%</Text>
-                    </View>
-                    <View style={styles.pyramidRow}>
-                      <View style={[styles.pyramidBar, { width: '60%', backgroundColor: '#FF6B6B' }]} />
-                      <Text style={styles.pyramidLabel}>Suggested: 60%</Text>
-                    </View>
-                  </View>
+            {/* Load Status Breakdown */}
+            <View style={styles.analyticsSection}>
+              <Text style={styles.analyticsSectionTitle}>📈 Load Status Breakdown</Text>
+              <View style={styles.loadStatusGrid}>
+                <View style={styles.loadStatusCard}>
+                  <View style={[styles.statusIndicator, { backgroundColor: theme.colors.success }]} />
+                  <Text style={styles.statusLabel}>Available</Text>
+                  <Text style={styles.statusValue}>{liveMetrics.availableLoads}</Text>
                 </View>
-                <View style={styles.hrBarChartSection}>
-                  <Text style={styles.hrBarChartTitle}>Load Rating Distribution</Text>
-                  <BarChart 
-                    data={[
-                      { value: 5, color: '#F44336' },
-                      { value: 8, color: '#FF9800' },
-                      { value: 15, color: '#FFC107' },
-                      { value: 35, color: '#4CAF50' },
-                      { value: 37, color: '#2196F3' }
-                    ]}
-                  />
-                  <Text style={styles.hrAxisLabel}>1★ 2★ 3★ 4★ 5★</Text>
+                <View style={styles.loadStatusCard}>
+                  <View style={[styles.statusIndicator, { backgroundColor: theme.colors.warning }]} />
+                  <Text style={styles.statusLabel}>In Transit</Text>
+                  <Text style={styles.statusValue}>{liveMetrics.inTransitLoads}</Text>
                 </View>
-                <View style={styles.hrBarChartSection}>
-                  <Text style={styles.hrBarChartTitle}>Average Load Rating</Text>
-                  <View style={styles.ratingDisplay}>
-                    <Text style={styles.ratingValue}>4.2</Text>
-                    <Text style={styles.ratingStars}>★★★★☆</Text>
-                  </View>
-                  <Text style={styles.hrAxisLabel}>Out of 5 Stars</Text>
+                <View style={styles.loadStatusCard}>
+                  <View style={[styles.statusIndicator, { backgroundColor: theme.colors.primary }]} />
+                  <Text style={styles.statusLabel}>Completed</Text>
+                  <Text style={styles.statusValue}>{liveMetrics.completedLoads}</Text>
                 </View>
               </View>
             </View>
 
-            {/* Bottom Row */}
-            <View style={styles.hrBottomRow}>
-              {/* Vehicle Types */}
-              <View style={styles.hrGenderPanel}>
-                <Text style={styles.hrSectionTitle}>Top Vehicle Types</Text>
-                <View style={styles.vehicleTypesList}>
-                  {[
-                    { type: 'Box Truck', count: 45, color: '#4CAF50' },
-                    { type: 'Flatbed', count: 32, color: '#2196F3' },
-                    { type: 'Reefer', count: 28, color: '#FF9800' },
-                    { type: 'Van', count: 25, color: '#9C27B0' },
-                    { type: 'Tanker', count: 18, color: '#607D8B' },
-                    { type: 'Car Carrier', count: 12, color: '#795548' },
-                    { type: 'Lowboy', count: 8, color: '#E91E63' }
-                  ].map((vehicle, index) => (
-                    <View key={index} style={styles.vehicleTypeItem}>
-                      <View style={[styles.vehicleTypeIcon, { backgroundColor: vehicle.color }]} />
-                      <Text style={styles.vehicleTypeName}>{vehicle.type}</Text>
-                      <Text style={styles.vehicleTypeCount}>{vehicle.count}</Text>
+            {/* Top Routes */}
+            <View style={styles.analyticsSection}>
+              <Text style={styles.analyticsSectionTitle}>🗺️ Top Routes</Text>
+              <View style={styles.topRoutesList}>
+                {liveMetrics.topRoutes.slice(0, 5).map((route, index) => (
+                  <View key={index} style={styles.routeItem}>
+                    <View style={styles.routeRank}>
+                      <Text style={styles.routeRankText}>#{index + 1}</Text>
                     </View>
-                  ))}
-                </View>
-                <View style={styles.hrRatingSection}>
-                  <Text style={styles.hrRatingTitle}>Platform Performance</Text>
-                  <View style={styles.hrRatingSlider}>
-                    <View style={styles.hrSliderTrack}>
-                      <View style={[styles.hrSliderFill, { width: '85%' }]} />
+                    <View style={styles.routeInfo}>
+                      <Text style={styles.routeName}>{route.route}</Text>
+                      <Text style={styles.routeCount}>{route.count} loads</Text>
                     </View>
-                    <Text style={styles.hrRatingValue}>4.2</Text>
+                    <View style={styles.routeProgress}>
+                      <View style={[styles.routeProgressBar, { width: `${(route.count / liveMetrics.topRoutes[0]?.count || 1) * 100}%` }]} />
+                    </View>
                   </View>
-                  <Text style={styles.hrRatingTitle}>Load Completion Rate</Text>
-                  <View style={styles.hrRatingSlider}>
-                    <View style={styles.hrSliderTrack}>
-                      <View style={[styles.hrSliderFill, { width: '92%' }]} />
-                    </View>
-                    <Text style={styles.hrRatingValue}>92%</Text>
-                  </View>
-                  <Text style={styles.hrRatingTitle}>Driver Satisfaction</Text>
-                  <View style={styles.hrRatingSlider}>
-                    <View style={styles.hrSliderTrack}>
-                      <View style={[styles.hrSliderFill, { width: '88%' }]} />
-                    </View>
-                    <Text style={styles.hrRatingValue}>4.4</Text>
-                  </View>
-                </View>
+                ))}
               </View>
+            </View>
 
-              {/* Revenue Analytics */}
-              <View style={styles.hrJobRolePanel}>
-                <Text style={styles.hrSectionTitle}>Revenue Analytics</Text>
-                <View style={styles.revenueChart}>
-                  <SimpleRevenueChart />
-                </View>
-                <View style={styles.hrPayrollSection}>
-                  <View style={styles.hrPayrollRow}>
-                    <View style={styles.hrPayrollItem}>
-                      <Text style={styles.hrPayrollTitle}>{reportPeriod} Revenue</Text>
-                      <Text style={styles.hrPayrollValue}>${(liveMetrics.totalRevenue / 1000).toFixed(1)}K</Text>
-                      <Text style={styles.hrPayrollSubtext}>Total Platform Revenue</Text>
+            {/* Recent Activity */}
+            <View style={styles.analyticsSection}>
+              <Text style={styles.analyticsSectionTitle}>⚡ Recent Bookings</Text>
+              <View style={styles.recentBookingsList}>
+                {liveMetrics.recentBookings.slice(0, 3).map((booking, index) => (
+                  <View key={index} style={styles.bookingItem}>
+                    <View style={styles.bookingIcon}>
+                      <CreditCard color={theme.colors.success} size={16} />
                     </View>
-                    <View style={styles.hrPayrollItem}>
-                      <Text style={styles.hrPayrollTitle}>Growth Rate</Text>
-                      <Text style={styles.hrPayrollGrowth}>+12%</Text>
+                    <View style={styles.bookingDetails}>
+                      <Text style={styles.bookingRoute}>{booking.route}</Text>
+                      <Text style={styles.bookingTime}>{booking.time}</Text>
                     </View>
-                    <View style={styles.hrPayrollItem}>
-                      <Text style={styles.hrPayrollTitle}>Avg Load Value</Text>
-                      <Text style={styles.hrPayrollRating}>${liveMetrics.avgRate.toFixed(0)}</Text>
-                    </View>
+                    <Text style={styles.bookingRate}>${booking.rate.toLocaleString()}</Text>
                   </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Performance Metrics */}
+            <View style={styles.analyticsSection}>
+              <Text style={styles.analyticsSectionTitle}>📊 Platform Performance</Text>
+              <View style={styles.performanceGrid}>
+                <View style={styles.performanceCard}>
+                  <Text style={styles.performanceLabel}>Load Fill Rate</Text>
+                  <View style={styles.performanceBar}>
+                    <View style={[styles.performanceBarFill, { width: '87%', backgroundColor: theme.colors.success }]} />
+                  </View>
+                  <Text style={styles.performanceValue}>87%</Text>
+                </View>
+                <View style={styles.performanceCard}>
+                  <Text style={styles.performanceLabel}>On-Time Delivery</Text>
+                  <View style={styles.performanceBar}>
+                    <View style={[styles.performanceBarFill, { width: '94%', backgroundColor: theme.colors.primary }]} />
+                  </View>
+                  <Text style={styles.performanceValue}>94%</Text>
+                </View>
+                <View style={styles.performanceCard}>
+                  <Text style={styles.performanceLabel}>User Satisfaction</Text>
+                  <View style={styles.performanceBar}>
+                    <View style={[styles.performanceBarFill, { width: '91%', backgroundColor: theme.colors.warning }]} />
+                  </View>
+                  <Text style={styles.performanceValue}>4.6/5</Text>
                 </View>
               </View>
             </View>
-            
-            <Text style={styles.hrUpdateNote}>Live data from Firestore - {formatNow()}</Text>
+
+            {/* Footer */}
+            <View style={styles.analyticsFooter}>
+              <Text style={styles.analyticsFooterText}>📊 Live data updated: {formatNow()}</Text>
+              <Text style={styles.analyticsFooterSubtext}>Analytics refresh automatically every 30 seconds</Text>
+            </View>
           </>
         )}
       </ScrollView>
@@ -1758,4 +1725,49 @@ const styles = StyleSheet.create({
   adminPermissionsList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   adminPermissionItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.lightGray, paddingHorizontal: 8, paddingVertical: 4, borderRadius: theme.borderRadius.sm },
   adminPermissionText: { marginLeft: 6, fontSize: theme.fontSize.sm, color: theme.colors.dark },
+  
+  // Analytics Section Styles
+  analyticsHeader: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.lg, marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  analyticsTitle: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.dark, textAlign: 'center' },
+  analyticsSubtitle: { fontSize: theme.fontSize.md, color: theme.colors.gray, textAlign: 'center', marginTop: theme.spacing.sm },
+  
+  periodSelectorContainer: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  periodSelectorLabel: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark, marginBottom: theme.spacing.sm },
+  
+  analyticsMetricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 as unknown as number, marginBottom: theme.spacing.lg },
+  analyticsMetricCard: { flex: 1, minWidth: 140, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  metricCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.sm },
+  metricCardTitle: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark, marginLeft: theme.spacing.sm },
+  metricCardValue: { fontSize: theme.fontSize.xl, fontWeight: fontWeight700, color: theme.colors.dark, textAlign: 'center' },
+  metricCardSubtext: { fontSize: theme.fontSize.sm, color: theme.colors.gray, textAlign: 'center', marginTop: 4 },
+  
+  analyticsSection: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border },
+  analyticsSectionTitle: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark, marginBottom: theme.spacing.md },
+  
+  loadStatusGrid: { flexDirection: 'row', gap: 12 as unknown as number },
+  loadStatusCard: { flex: 1, alignItems: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md },
+  statusIndicator: { width: 12, height: 12, borderRadius: 6, marginBottom: theme.spacing.sm },
+  statusLabel: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginBottom: 4 },
+  statusValue: { fontSize: theme.fontSize.lg, fontWeight: fontWeight700, color: theme.colors.dark },
+  
+  topRoutesList: { gap: 8 },
+  routeItem: { flexDirection: 'row', alignItems: 'center', padding: theme.spacing.sm, backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md },
+  routeRank: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.md },
+  routeRankText: { fontSize: theme.fontSize.sm, fontWeight: fontWeight600, color: theme.colors.white },
+  routeInfo: { flex: 1 },
+  routeProgress: { width: 60, height: 4, backgroundColor: theme.colors.border, borderRadius: 2, overflow: 'hidden' },
+  routeProgressBar: { height: '100%', backgroundColor: theme.colors.primary, borderRadius: 2 },
+  
+  recentBookingsList: { gap: 8 },
+  bookingItem: { flexDirection: 'row', alignItems: 'center', padding: theme.spacing.sm, backgroundColor: theme.colors.lightGray, borderRadius: theme.borderRadius.md },
+  bookingDetails: { flex: 1, marginLeft: theme.spacing.sm },
+  
+  performanceGrid: { gap: 12 as unknown as number },
+  performanceLabel: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginBottom: 4 },
+  performanceBar: { height: 8, backgroundColor: theme.colors.border, borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
+  performanceBarFill: { height: '100%', borderRadius: 4 },
+  
+  analyticsFooter: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg, padding: theme.spacing.md, marginTop: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
+  analyticsFooterText: { fontSize: theme.fontSize.md, fontWeight: fontWeight600, color: theme.colors.dark },
+  analyticsFooterSubtext: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: 4, textAlign: 'center' },
 });
