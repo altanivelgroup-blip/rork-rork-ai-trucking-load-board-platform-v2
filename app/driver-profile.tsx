@@ -363,19 +363,31 @@ useEffect(() => {
       
       console.log('[DriverProfile] Prepared Firebase data:', JSON.stringify(firebaseData, null, 2));
 
-// Strip empties so we never wipe fields with "" or null
+// Strip empties so we never wipe fields with "" or null, but keep required fields
 const compact = Object.fromEntries(
   Object.entries(firebaseData).filter(
-    ([, v]) => v !== undefined && v !== null && !(typeof v === 'string' && v.trim() === '')
+    ([key, v]) => {
+      // Always keep required fields even if empty
+      if (key === 'userId' || key === 'fullName' || key === 'email') {
+        return true;
+      }
+      // Filter out empty optional fields
+      return v !== undefined && v !== null && !(typeof v === 'string' && v.trim() === '');
+    }
   )
 );
 
+// Ensure required fields are present with fallbacks
+const finalData: Parameters<typeof saveDriverProfile>[0] = {
+  ...compact,
+  userId: userId,
+  fullName: formData.name.trim() || 'Driver',
+  email: formData.email.trim() || user?.email || '',
+};
+
 try {
   console.log('[DriverProfile] Saving to Firebase...');
-  const firebaseResult = await saveDriverProfile({
-    ...compact,
-    userId,
-  });
+  const firebaseResult = await saveDriverProfile(finalData);
 
         console.log('[DriverProfile] Firebase save result:', firebaseResult);
 
