@@ -506,19 +506,7 @@ const insets = useSafeAreaInsets();
         headerRight: () => (
           <TouchableOpacity onPress={onSave} disabled={submitting}>
             <Text style={[styles.saveBtn, submitting && styles.saveBtnDisabled]}>Save</Text>
-          <View style={styles.actions}>
-  ...existing buttons...
-
-  <TouchableOpacity
-    style={styles.submitButton}
-    onPress={onSyncMpgToAnalytics}
-    disabled={submitting}
-    testID="sync-mpg-btn"
-  >
-    <Text style={styles.submitButtonText}>Sync MPG to Analytics</Text>
-  </TouchableOpacity>
-</View>  // ← keep this closing tag
-</TouchableOpacity>
+          </TouchableOpacity>
         )
       }} />
       
