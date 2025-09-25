@@ -20,6 +20,8 @@ import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 export default function DriverProfileScreen() {
   const router = useRouter();
   const { user, register, userId } = useAuth();
+  const displayName  = user?.displayName || (user?.email ? user.email.split("@")[0] : "Driver");
+  const displayEmail = user?.email ?? "";
   const { updateCachedProfile, validateExperience } = useProfileCache();
   const toast = useToast();
   const [submitting, setSubmitting] = useState<boolean>(false);
