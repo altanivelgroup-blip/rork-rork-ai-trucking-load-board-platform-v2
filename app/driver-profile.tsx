@@ -142,51 +142,6 @@ useEffect(() => {
   return () => { alive = false; };
 }, [userId]);
 
-        // Personal Info
-        name: driver.name || '',
-        email: driver.email || '',
-        phone: driver.phone || '',
-        company: driver.company || '',
-        
-        // Basic Driver Profile Fields
-        truckType: driver.truckType || 'truck',
-        tankSize: driver.tankSize?.toString() || '',
-        fuelTypePreference: driver.fuelTypePreference || 'diesel',
-        yearsExperience: driver.yearsExperience?.toString() || '',
-        safetyCertifications: driver.safetyCertifications || '',
-        
-        // Vehicle Info
-        vehicleMake: driver.vehicleMake || '',
-        vehicleModel: driver.vehicleModel || '',
-        vehicleYear: driver.vehicleYear?.toString() || '',
-        fuelType: (driver.fuelType === 'gas' ? 'gasoline' : driver.fuelType || 'diesel') as 'diesel' | 'gasoline',
-        mpgRated: driver.mpgRated?.toString() || '',
-        vin: driver.vin || '',
-        plate: driver.plate || '',
-        tankGallons: driver.tankGallons?.toString() || '50',
-        gvwrLbs: driver.gvwrLbs?.toString() || '',
-        
-        // Trailer Info
-        trailerMake: driver.trailerMake || '',
-        trailerModel: driver.trailerModel || '',
-        trailerYear: driver.trailerYear?.toString() || '',
-        trailerVin: driver.trailerVin || '',
-        trailerPlate: driver.trailerPlate || '',
-        trailerInsuranceCarrier: driver.trailerInsuranceCarrier || '',
-        trailerPolicyNumber: driver.trailerPolicyNumber || '',
-        trailerGvwrLbs: driver.trailerGvwrLbs?.toString() || '',
-        trailerType: driver.trailerType || 'flatbed',
-        
-        // Company Info
-        companyName: driver.companyName || '',
-        mcNumber: driver.mcNumber || '',
-        dotNumber: driver.dotNumber || '',
-        insuranceCarrier: driver.insuranceCarrier || '',
-        policyNumber: driver.policyNumber || '',
-      });
-    }
-  }, [user]);
-
   const updateField = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   }, []);
