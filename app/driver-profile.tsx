@@ -20,9 +20,6 @@ import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 export default function DriverProfileScreen() {
   const router = useRouter();
   const { user, register, userId } = useAuth();
-  const displayName  = (formData?.name?.trim()) || user?.displayName || (user?.email ? user.email.split("@")[0] : "Driver");
-  const displayEmail = (formData?.email?.trim()) || user?.email || "";
-
   const { updateCachedProfile, validateExperience } = useProfileCache();
   const toast = useToast();
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -76,6 +73,10 @@ export default function DriverProfileScreen() {
     insuranceCarrier: '',
     policyNumber: '',
   });
+
+  // Calculate display values after formData is initialized
+  const displayName = (formData?.name?.trim()) || user?.name || (user?.email ? user.email.split("@")[0] : "Driver");
+  const displayEmail = (formData?.email?.trim()) || user?.email || "";
 
   // Update form data when user data changes
 
