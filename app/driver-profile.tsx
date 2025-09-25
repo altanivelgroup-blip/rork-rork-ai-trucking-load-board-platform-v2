@@ -417,7 +417,14 @@ try {
         // Also update cached profile for offline support
         console.log('[DriverProfile] Updating cached profile...');
         await updateCachedProfile(updateData);
-        
+        const newMpg = formData.mpgRated ? parseFloat(formData.mpgRated) : undefined;
+if (newMpg) {
+  await patchAuthCache({
+    mpgRated: newMpg,
+    fuelProfile: { averageMpg: newMpg },
+  });
+}
+
         console.log('[DriverProfile] ✅ Profile saved successfully to both Firebase and local cache');
         toast.show('✅ Profile saved successfully! All driver information updated and synced to cloud.', 'success');
         
@@ -474,6 +481,18 @@ const onSyncMpgToAnalytics = useCallback(async () => {
     toast.show('Not signed in. Please sign in again.', 'error');
     return;
   }
+  await updateCachedProfile({
+  mpgRated: mpg,
+  fuelProfile: {
+    ...((user as any)?.fuelProfile || {}),
+    averageMpg: mpg,
+  },
+});
+await patchAuthCache({
+  mpgRated: mpg,
+  fuelProfile: { averageMpg: mpg },
+});
+
   if (!mpg || Number.isNaN(mpg)) {
     toast.show('Enter a valid MPG first.', 'error');
     return;
