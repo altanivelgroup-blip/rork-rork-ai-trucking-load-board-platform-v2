@@ -460,7 +460,7 @@ const onSyncMpgToAnalytics = useCallback(async () => {
   }
 
   try {
-    const payload: Parameters<typeof saveDriverProfile>[0] = {
+    const payload: any = {
       userId,
       email: formData.email?.trim() || user?.email || '',
       fullName: formData.name?.trim() || 'Driver',
@@ -506,7 +506,19 @@ const insets = useSafeAreaInsets();
         headerRight: () => (
           <TouchableOpacity onPress={onSave} disabled={submitting}>
             <Text style={[styles.saveBtn, submitting && styles.saveBtnDisabled]}>Save</Text>
-          </TouchableOpacity>
+          <View style={styles.actions}>
+  ...existing buttons...
+
+  <TouchableOpacity
+    style={styles.submitButton}
+    onPress={onSyncMpgToAnalytics}
+    disabled={submitting}
+    testID="sync-mpg-btn"
+  >
+    <Text style={styles.submitButtonText}>Sync MPG to Analytics</Text>
+  </TouchableOpacity>
+</View>  // ← keep this closing tag
+</TouchableOpacity>
         )
       }} />
       
