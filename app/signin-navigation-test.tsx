@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,9 +20,32 @@ interface TestResult {
   duration?: number;
 }
 
+// --- helpers ---
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+async function waitFor(
+  predicate: () => boolean,
+  { timeout = 7000, interval = 100, onTick }: { timeout?: number; interval?: number; onTick?: () => void } = {}
+) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    if (predicate()) return;
+    onTick?.();
+    await sleep(interval);
+  }
+  throw new Error('Timeout waiting for condition');
+}
+
 export default function SignInNavigationTest() {
   const { user, login, logout, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  // Always-fresh auth snapshot (avoids stale closures in async tests)
+  const authRef = useRef({ user, isAuthenticated, isLoading });
+  useEffect(() => {
+    authRef.current = { user, isAuthenticated, isLoading };
+  }, [user, isAuthenticated, isLoading]);
+
   const [tests, setTests] = useState<TestResult[]>([
     { name: 'Auth Hook Availability', status: 'pending' },
     { name: 'Initial Auth State', status: 'pending' },
@@ -38,127 +60,135 @@ export default function SignInNavigationTest() {
   const [currentTestIndex, setCurrentTestIndex] = useState(-1);
 
   const updateTest = (index: number, updates: Partial<TestResult>) => {
-    setTests(prev => prev.map((test, i) => 
-      i === index ? { ...test, ...updates } : test
-    ));
+    setTests(prev => prev.map((t, i) => (i === index ? { ...t, ...updates } : t)));
   };
 
   const runTest = async (index: number, testFn: () => Promise<void>) => {
     const startTime = Date.now();
-    updateTest(index, { status: 'running' });
+    updateTest(index, { status: 'running', message: undefined, duration: undefined });
     setCurrentTestIndex(index);
-    
     try {
       await testFn();
       const duration = Date.now() - startTime;
       updateTest(index, { status: 'passed', duration, message: `Completed in ${duration}ms` });
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      updateTest(index, { 
-        status: 'failed', 
-        duration, 
-        message: error.message || 'Unknown error' 
+      updateTest(index, {
+        status: 'failed',
+        duration,
+        message: error?.message || 'Unknown error',
       });
     }
   };
 
+  const waitForRole = async (role: 'driver' | 'shipper' | 'admin') => {
+    await waitFor(() => authRef.current.isAuthenticated && authRef.current.user?.role === role, {
+      timeout: 8000,
+      interval: 120,
+    });
+  };
+
+  const waitForSignedOut = async () => {
+    await waitFor(() => !authRef.current.isAuthenticated && !authRef.current.user, {
+      timeout: 8000,
+      interval: 120,
+    });
+  };
+
   const runAllTests = async () => {
+    if (isRunning) return;
     setIsRunning(true);
-    console.log('[SignInTest] 🎯 PERMANENT SIGN IN FIX - Starting comprehensive sign-in navigation tests');
+    console.log('[SignInTest] 🎯 PERMANENT SIGN IN FIX - Starting tests');
 
     try {
-      // Test 1: Auth Hook Availability
+      // 1) Auth Hook Availability
       await runTest(0, async () => {
         if (!useAuth) throw new Error('useAuth hook not available');
-        if (!login) throw new Error('login function not available');
-        if (!logout) throw new Error('logout function not available');
-        console.log('[SignInTest] ✅ Auth hook and functions available');
+        if (typeof login !== 'function') throw new Error('login function not available');
+        if (typeof logout !== 'function') throw new Error('logout function not available');
       });
 
-      // Test 2: Initial Auth State
+      // 2) Initial Auth State
       await runTest(1, async () => {
+        const snap = authRef.current;
         console.log('[SignInTest] 🔍 Initial auth state:', {
-          hasUser: !!user,
-          isLoading,
-          isAuthenticated,
-          userRole: user?.role
+          hasUser: !!snap.user,
+          isLoading: snap.isLoading,
+          isAuthenticated: snap.isAuthenticated,
+          userRole: snap.user?.role,
         });
-        // This test always passes as it's just checking state
+        // Always pass; include a message for visibility
+        updateTest(1, {
+          message: `User=${snap.user ? `${snap.user.name} (${snap.user.role})` : 'None'}, Auth=${snap.isAuthenticated}`,
+        });
       });
 
-      // Test 3: Driver Login Flow
+      // 3) Driver Login Flow
       await runTest(2, async () => {
         console.log('[SignInTest] 🚛 Testing driver login...');
         await login('test.driver@example.com', 'password123', 'driver');
-        if (!user || user.role !== 'driver') {
-          throw new Error('Driver login failed - user not set or wrong role');
-        }
-        console.log('[SignInTest] ✅ Driver login successful');
+        await waitForRole('driver');
       });
 
-      // Test 4: Logout and Shipper Login
+      // 4) Logout + Shipper Login
       await runTest(3, async () => {
-        console.log('[SignInTest] 📦 Testing logout and shipper login...');
+        console.log('[SignInTest] 📦 Testing logout then shipper login...');
         await logout();
-        if (user) throw new Error('Logout failed - user still exists');
-        
+        await waitForSignedOut();
         await login('test.shipper@example.com', 'password123', 'shipper');
-        if (!user || user.role !== 'shipper') {
-          throw new Error('Shipper login failed - user not set or wrong role');
-        }
-        console.log('[SignInTest] ✅ Shipper login successful');
+        await waitForRole('shipper');
       });
 
-      // Test 5: Admin Login Flow
+      // 5) Admin Login Flow
       await runTest(4, async () => {
         console.log('[SignInTest] 👑 Testing admin login...');
         await logout();
+        await waitForSignedOut();
         await login('admin@loadrush.com', 'admin123', 'admin');
-        if (!user || user.role !== 'admin') {
-          throw new Error('Admin login failed - user not set or wrong role');
-        }
-        console.log('[SignInTest] ✅ Admin login successful');
+        await waitForRole('admin');
       });
 
-      // Test 6: Navigation After Login
+      // 6) Navigation After Login (assert mapping only—no route changes)
       await runTest(5, async () => {
-        console.log('[SignInTest] 🧭 Testing navigation after login...');
-        // Test that we can navigate to different routes based on role
-        if (user?.role === 'admin') {
-          console.log('[SignInTest] ✅ Admin user can navigate to admin routes');
-        } else {
-          throw new Error('Navigation test failed - wrong user role');
-        }
+        console.log('[SignInTest] 🧭 Checking route mapping for role...');
+        const role = authRef.current.user?.role;
+        const expectedByRole: Record<string, string> = {
+          admin: '/(admin)/dashboard',
+          driver: '/(driver)/dashboard',
+          shipper: '/(shipper)/dashboard',
+        };
+        const expected = role ? expectedByRole[role] : undefined;
+        if (!role || !expected) throw new Error('No role set or mapping missing');
+        // If you want a *real* nav test, uncomment the two lines below (will navigate away!):
+        // router.push(expected);
+        // await sleep(200); // give it a tick
       });
 
-      // Test 7: Final Logout
+      // 7) Final Logout
       await runTest(6, async () => {
         console.log('[SignInTest] 🚪 Testing final logout...');
         await logout();
-        if (user) throw new Error('Final logout failed - user still exists');
-        console.log('[SignInTest] ✅ Final logout successful');
+        await waitForSignedOut();
       });
 
-      // Test 8: Error Handling
+      // 8) Error Handling
       await runTest(7, async () => {
         console.log('[SignInTest] ⚠️ Testing error handling...');
+        let threw = false;
         try {
-          await login('', '', 'driver'); // Should fail
-          throw new Error('Error handling test failed - empty credentials should be rejected');
-        } catch (error: any) {
-          if (error.message.includes('Email and password are required')) {
-            console.log('[SignInTest] ✅ Error handling working correctly');
-          } else {
-            throw error;
+          await login('', '', 'driver'); // should throw
+        } catch (e: any) {
+          threw = true;
+          if (!e?.message?.toLowerCase?.().includes('email and password')) {
+            throw new Error('Login threw, but with an unexpected message');
           }
         }
+        if (!threw) throw new Error('Empty credential login did not throw as expected');
       });
 
-      console.log('[SignInTest] 🎯 PERMANENT SIGN IN FIX - All tests completed successfully!');
-
-    } catch (error) {
-      console.error('[SignInTest] ❌ Test suite failed:', error);
-      console.log('[SignInTest] ❌ Some tests failed. Check the console for details.');
+      console.log('[SignInTest] ✅ All tests completed!');
+    } catch (e) {
+      console.error('[SignInTest] ❌ Test suite failed:', e);
     } finally {
       setIsRunning(false);
       setCurrentTestIndex(-1);
@@ -172,7 +202,7 @@ export default function SignInNavigationTest() {
       case 'failed':
         return <XCircle size={20} color={theme.colors.danger} />;
       case 'running':
-        return <ActivityIndicator size={20} color={theme.colors.primary} />;
+        return <ActivityIndicator size="small" color={theme.colors.primary} />;
       default:
         return <AlertCircle size={20} color={theme.colors.gray} />;
     }
@@ -194,7 +224,6 @@ export default function SignInNavigationTest() {
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ title: 'Sign-In Navigation Test' }} />
-      
       <ScrollView style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>🎯 PERMANENT SIGN IN FIX</Text>
@@ -205,7 +234,9 @@ export default function SignInNavigationTest() {
           <Text style={styles.sectionTitle}>Current Auth State</Text>
           <View style={styles.stateRow}>
             <Text style={styles.stateLabel}>User:</Text>
-            <Text style={styles.stateValue}>{user ? `${user.name} (${user.role})` : 'None'}</Text>
+            <Text style={styles.stateValue}>
+              {user ? `${user.name} (${user.role})` : 'None'}
+            </Text>
           </View>
           <View style={styles.stateRow}>
             <Text style={styles.stateLabel}>Loading:</Text>
@@ -220,19 +251,17 @@ export default function SignInNavigationTest() {
         <View style={styles.testsSection}>
           <Text style={styles.sectionTitle}>Test Results</Text>
           {tests.map((test, index) => (
-            <View key={`test-${test.name}-${index}`} style={[
-              styles.testItem,
-              currentTestIndex === index && styles.currentTest
-            ]}>
+            <View
+              key={`test-${test.name}-${index}`}
+              style={[styles.testItem, currentTestIndex === index && styles.currentTest]}
+            >
               <View style={styles.testHeader}>
                 {getStatusIcon(test.status)}
                 <Text style={[styles.testName, { color: getStatusColor(test.status) }]}>
                   {test.name}
                 </Text>
               </View>
-              {test.message && (
-                <Text style={styles.testMessage}>{test.message}</Text>
-              )}
+              {!!test.message && <Text style={styles.testMessage}>{test.message}</Text>}
             </View>
           ))}
         </View>
@@ -244,18 +273,14 @@ export default function SignInNavigationTest() {
             disabled={isRunning}
           >
             <RefreshCw size={20} color={theme.colors.white} />
-            <Text style={styles.buttonText}>
-              {isRunning ? 'Running Tests...' : 'Run All Tests'}
-            </Text>
+            <Text style={styles.buttonText}>{isRunning ? 'Running Tests...' : 'Run All Tests'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
             onPress={() => router.push('/dev/signout')}
           >
-            <Text style={[styles.buttonText, styles.secondaryButtonText]}>
-              Test Sign Out
-            </Text>
+            <Text style={[styles.buttonText, styles.secondaryButtonText]}>Test Sign Out</Text>
           </TouchableOpacity>
         </View>
 
@@ -271,128 +296,28 @@ export default function SignInNavigationTest() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.lightGray,
-  },
-  content: {
-    flex: 1,
-    padding: theme.spacing.lg,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.xl,
-  },
-  title: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: '700',
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.xs,
-  },
-  subtitle: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
-    textAlign: 'center',
-  },
-  currentState: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '600',
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.md,
-  },
-  stateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.xs,
-  },
-  stateLabel: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
-    fontWeight: '500',
-  },
-  stateValue: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.dark,
-    fontWeight: '600',
-  },
-  testsSection: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
-  testItem: {
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
-  currentTest: {
-    backgroundColor: '#F0F8FF',
-    marginHorizontal: -theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
-  },
-  testHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  testName: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    flex: 1,
-  },
-  testMessage: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    marginTop: theme.spacing.xs,
-    marginLeft: 32,
-  },
-  actions: {
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
-  button: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: theme.colors.white,
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-  },
-  secondaryButtonText: {
-    color: theme.colors.primary,
-  },
-  footer: {
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.md,
-  },
-  footerText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+  container: { flex: 1, backgroundColor: theme.colors.lightGray },
+  content: { flex: 1, padding: theme.spacing.lg },
+  header: { alignItems: 'center', marginBottom: theme.spacing.xl },
+  title: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.dark, marginBottom: theme.spacing.xs },
+  subtitle: { fontSize: theme.fontSize.md, color: theme.colors.gray, textAlign: 'center' },
+  currentState: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md, padding: theme.spacing.md, marginBottom: theme.spacing.lg },
+  sectionTitle: { fontSize: theme.fontSize.lg, fontWeight: '600', color: theme.colors.dark, marginBottom: theme.spacing.md },
+  stateRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: theme.spacing.xs },
+  stateLabel: { fontSize: theme.fontSize.md, color: theme.colors.gray, fontWeight: '500' },
+  stateValue: { fontSize: theme.fontSize.md, color: theme.colors.dark, fontWeight: '600' },
+  testsSection: { backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md, padding: theme.spacing.md, marginBottom: theme.spacing.lg },
+  testItem: { paddingVertical: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.lightGray },
+  currentTest: { backgroundColor: '#F0F8FF', marginHorizontal: -theme.spacing.md, paddingHorizontal: theme.spacing.md, borderRadius: theme.borderRadius.sm },
+  testHeader: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  testName: { fontSize: theme.fontSize.md, fontWeight: '600', flex: 1 },
+  testMessage: { fontSize: theme.fontSize.sm, color: theme.colors.gray, marginTop: theme.spacing.xs, marginLeft: 32 },
+  actions: { gap: theme.spacing.md, marginBottom: theme.spacing.lg },
+  button: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md, paddingVertical: theme.spacing.md, paddingHorizontal: theme.spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.sm },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: theme.colors.white, fontSize: theme.fontSize.md, fontWeight: '600' },
+  secondaryButton: { backgroundColor: 'transparent', borderWidth: 2, borderColor: theme.colors.primary },
+  secondaryButtonText: { color: theme.colors.primary },
+  footer: { padding: theme.spacing.md, backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.md },
+  footerText: { fontSize: theme.fontSize.sm, color: theme.colors.gray, textAlign: 'center', lineHeight: 20 },
 });
