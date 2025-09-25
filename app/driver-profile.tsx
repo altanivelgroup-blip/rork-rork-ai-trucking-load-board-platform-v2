@@ -406,15 +406,22 @@ useEffect(() => {
       };
       
       console.log('[DriverProfile] Prepared Firebase data:', JSON.stringify(firebaseData, null, 2));
-      
-      try {
-        // Save to Firebase first
-        console.log('[DriverProfile] Saving to Firebase...');
-        const firebaseResult = await saveDriverProfile({
-        ...firebaseData,
-        createdBy: userId,   // <-- REQUIRED by your rules
-        userId,              // <-- keep too (your rules accept either)
-        });
+
+// Strip empties so we never wipe fields with "" or null
+const compact = Object.fromEntries(
+  Object.entries(firebaseData).filter(
+    ([, v]) => v !== undefined && v !== null && !(typeof v === 'string' && v.trim() === '')
+  )
+);
+
+try {
+  console.log('[DriverProfile] Saving to Firebase...');
+  const firebaseResult = await saveDriverProfile({
+    ...compact,
+    createdBy: userId, // required by your rules
+    userId,
+  });
+
         console.log('[DriverProfile] Firebase save result:', firebaseResult);
 
         
