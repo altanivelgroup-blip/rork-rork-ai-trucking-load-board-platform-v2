@@ -72,10 +72,9 @@ export default function DriverMpgTestScreen() {
       
       // Refresh analytics to see the change
       setTimeout(() => {
-        TS
-        
-        refetch();
-      }, 500);
+     refetch();
+    }, 500);
+
       
       Alert.alert('Success', `MPG updated to ${testMpg}. Analytics will refresh.`);
     } catch (error) {
