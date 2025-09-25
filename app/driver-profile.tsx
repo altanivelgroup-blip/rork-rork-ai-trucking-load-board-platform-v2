@@ -470,7 +470,7 @@ try {
       }} />
       
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-       {/* Mini Profile Header (read-only) */}
+       {{/* Mini Profile Header (read-only) */}
 <View style={styles.profileHeader}>
   <View style={styles.profileAvatar}>
     <User size={18} color={theme.colors.white} />
@@ -480,6 +480,17 @@ try {
     <Text style={styles.profileEmail}>{displayEmail}</Text>
   </View>
 </View>
+/* Mini Profile Header (read-only) */}
+<View style={styles.profileHeader}>
+  <View style={styles.profileAvatar}>
+    <User size={18} color={theme.colors.white} />
+  </View>
+  <View style={{ flex: 1 }}>
+    <Text style={styles.profileName}>{displayName}</Text>
+    <Text style={styles.profileEmail}>{displayEmail}</Text>
+  </View>
+</View>
+
  {/* Personal Information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -1057,7 +1068,36 @@ const styles = StyleSheet.create({
   scroll: { 
     padding: theme.spacing.md, 
     paddingBottom: theme.spacing.xl 
+  },  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
+  profileAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.sm,
+  },
+  profileName: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.dark,
+  },
+  profileEmail: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginTop: 2,
+  },
+
   saveBtn: {
     color: theme.colors.primary,
     fontWeight: '600',
