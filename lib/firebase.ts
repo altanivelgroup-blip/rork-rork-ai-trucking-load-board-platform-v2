@@ -834,7 +834,7 @@ export async function getVehicle(vehicleId: string) {
   const ref = doc(db, 'drivers', uid, 'vehicles', vehicleId);
   const snap = await getDoc(ref);
   
-  console.log('[getVehicle] Document exists:', snap.exists());
+  console.log('[getVehicle] Document exists in new path:', snap.exists());
   
   if (!snap.exists()) {
     // Try to check if vehicle exists in old path structure
@@ -842,18 +842,37 @@ export async function getVehicle(vehicleId: string) {
     try {
       const oldRef = doc(db, 'vehicles', vehicleId);
       const oldSnap = await getDoc(oldRef);
+      console.log('[getVehicle] Document exists in old path:', oldSnap.exists());
+      
       if (oldSnap.exists()) {
         const oldData = oldSnap.data() as Vehicle;
-        console.log('[getVehicle] Found vehicle in old path! Migrating...', {
+        console.log('[getVehicle] Found vehicle in old path! Data:', {
           name: oldData.name,
-          createdBy: oldData.createdBy
+          createdBy: oldData.createdBy,
+          userId: oldData.userId,
+          currentUid: uid
         });
         
+        // Check if this vehicle belongs to current user
+        if (oldData.createdBy !== uid && oldData.userId !== uid) {
+          console.log('[getVehicle] Vehicle belongs to different user, access denied');
+          throw new Error('Not found');
+        }
+        
         // Auto-migrate to new path
+        console.log('[getVehicle] Migrating vehicle to new path...');
         const migratedVehicle = await migrateVehicleToNewPath(vehicleId);
         return migratedVehicle;
       } else {
         console.log('[getVehicle] Vehicle not found in old path either');
+        
+        // Debug: List all vehicles for this user
+        console.log('[getVehicle] Debugging - listing all user vehicles...');
+        try {
+          await listUserVehicles();
+        } catch (listError) {
+          console.log('[getVehicle] Error listing vehicles:', listError);
+        }
       }
     } catch (oldError) {
       console.log('[getVehicle] Error checking old path:', oldError);
@@ -863,7 +882,7 @@ export async function getVehicle(vehicleId: string) {
   }
   
   const data = snap.data() as Vehicle;
-  console.log('[getVehicle] Found vehicle:', {
+  console.log('[getVehicle] Found vehicle in new path:', {
     id: snap.id,
     name: data.name,
     createdBy: data.createdBy,

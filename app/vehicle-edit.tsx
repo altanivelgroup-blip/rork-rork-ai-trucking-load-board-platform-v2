@@ -158,8 +158,17 @@ export default function VehicleEditScreen() {
       
       if (error?.message === 'Not found') {
         console.warn('[VehicleEdit] Vehicle document not found:', vehicle_id);
-        setState(prev => ({ ...prev, loading: false }));
-        toast.show('Vehicle not found', 'error');
+        console.log('[VehicleEdit] Switching to add mode for non-existent vehicle');
+        // Switch to add mode - keep the same ID for PhotoUploader stability
+        setState(prev => ({ 
+          ...prev, 
+          loading: false,
+          vehicle: {
+            ...prev.vehicle,
+            id: vehicle_id, // Keep the ID that was passed in
+          }
+        }));
+        toast.show('Vehicle not found - creating new vehicle', 'info');
         return;
       } else if (error?.message === 'Not signed in' || error?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please sign in and try again.';
