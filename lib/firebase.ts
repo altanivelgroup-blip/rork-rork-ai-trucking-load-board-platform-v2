@@ -825,10 +825,52 @@ export async function getVehicle(vehicleId: string) {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
 
+  console.log('[getVehicle] Looking for vehicle:', {
+    vehicleId,
+    uid,
+    path: `drivers/${uid}/vehicles/${vehicleId}`
+  });
+
   const ref = doc(db, 'drivers', uid, 'vehicles', vehicleId);
   const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error('Not found');
-  return { id: snap.id, ...(snap.data() as Vehicle) };
+  
+  console.log('[getVehicle] Document exists:', snap.exists());
+  
+  if (!snap.exists()) {
+    // Try to check if vehicle exists in old path structure
+    console.log('[getVehicle] Checking old path structure...');
+    try {
+      const oldRef = doc(db, 'vehicles', vehicleId);
+      const oldSnap = await getDoc(oldRef);
+      if (oldSnap.exists()) {
+        const oldData = oldSnap.data() as Vehicle;
+        console.log('[getVehicle] Found vehicle in old path! Migrating...', {
+          name: oldData.name,
+          createdBy: oldData.createdBy
+        });
+        
+        // Auto-migrate to new path
+        const migratedVehicle = await migrateVehicleToNewPath(vehicleId);
+        return migratedVehicle;
+      } else {
+        console.log('[getVehicle] Vehicle not found in old path either');
+      }
+    } catch (oldError) {
+      console.log('[getVehicle] Error checking old path:', oldError);
+    }
+    
+    throw new Error('Not found');
+  }
+  
+  const data = snap.data() as Vehicle;
+  console.log('[getVehicle] Found vehicle:', {
+    id: snap.id,
+    name: data.name,
+    createdBy: data.createdBy,
+    photos: data.photos?.length || 0
+  });
+  
+  return { id: snap.id, ...data };
 }
 
 export async function updateVehicle(vehicleId: string, patch: Partial<Vehicle>) {
@@ -838,4 +880,85 @@ export async function updateVehicle(vehicleId: string, patch: Partial<Vehicle>) 
 
   const ref = doc(db, 'drivers', uid, 'vehicles', vehicleId);
   await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
+}
+
+// Debug helper to list all vehicles for current user
+export async function listUserVehicles() {
+  const { auth, db } = getFirebase();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+
+  console.log('[listUserVehicles] Listing vehicles for user:', uid);
+  
+  try {
+    // Check new path
+    const newPathQuery = query(collection(db, 'drivers', uid, 'vehicles'));
+    const newPathSnap = await getDocs(newPathQuery);
+    console.log('[listUserVehicles] New path vehicles:', newPathSnap.docs.length);
+    newPathSnap.docs.forEach(doc => {
+      const data = doc.data();
+      console.log(`  - ${doc.id}: ${data.name} (${data.make} ${data.model})`);
+    });
+    
+    // Check old path
+    const oldPathQuery = query(
+      collection(db, 'vehicles'),
+      where('createdBy', '==', uid)
+    );
+    const oldPathSnap = await getDocs(oldPathQuery);
+    console.log('[listUserVehicles] Old path vehicles:', oldPathSnap.docs.length);
+    oldPathSnap.docs.forEach(doc => {
+      const data = doc.data();
+      console.log(`  - ${doc.id}: ${data.name} (${data.make} ${data.model})`);
+    });
+    
+    return {
+      newPath: newPathSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+      oldPath: oldPathSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    };
+  } catch (error) {
+    console.error('[listUserVehicles] Error:', error);
+    throw error;
+  }
+}
+
+// Migrate vehicle from old path to new path
+export async function migrateVehicleToNewPath(vehicleId: string) {
+  const { auth, db } = getFirebase();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+
+  console.log('[migrateVehicleToNewPath] Migrating vehicle:', vehicleId);
+  
+  try {
+    // Get from old path
+    const oldRef = doc(db, 'vehicles', vehicleId);
+    const oldSnap = await getDoc(oldRef);
+    
+    if (!oldSnap.exists()) {
+      throw new Error('Vehicle not found in old path');
+    }
+    
+    const oldData = oldSnap.data() as Vehicle;
+    console.log('[migrateVehicleToNewPath] Found old vehicle:', oldData.name);
+    
+    // Create in new path
+    const newRef = doc(db, 'drivers', uid, 'vehicles', vehicleId);
+    const migratedData = {
+      ...oldData,
+      createdBy: uid,
+      userId: uid,
+      updatedAt: serverTimestamp(),
+      // Keep original createdAt if it exists
+      ...(oldData.createdAt ? {} : { createdAt: serverTimestamp() })
+    };
+    
+    await setDoc(newRef, migratedData, { merge: true });
+    console.log('[migrateVehicleToNewPath] ✅ Vehicle migrated to new path');
+    
+    return { id: vehicleId, ...migratedData };
+  } catch (error) {
+    console.error('[migrateVehicleToNewPath] Error:', error);
+    throw error;
+  }
 }
