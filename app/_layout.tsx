@@ -264,6 +264,7 @@ function RootLayoutNav() {
       <Stack.Screen name="auth-debug" options={{ title: "Auth Debug", headerShown: false }} />
       <Stack.Screen name="emergency-login" options={{ title: "Emergency Login", headerShown: false }} />
       <Stack.Screen name="app-test" options={{ title: "App Test" }} />
+      <Stack.Screen name="app-loading-debug" options={{ title: "App Loading Debug" }} />
     </Stack>
   );
 }
