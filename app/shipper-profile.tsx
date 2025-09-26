@@ -130,14 +130,13 @@ export default function ShipperProfileScreen() {
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => {
+                console.log('Shipper profile back button pressed');
                 try {
-                  if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.replace('/(tabs)/shipper');
-                  }
+                  // Always go back to shipper dashboard for consistent navigation
+                  router.replace('/(tabs)/shipper');
                 } catch (error) {
                   console.error('Navigation error:', error);
+                  // Fallback to shipper tab
                   router.replace('/(tabs)/shipper');
                 }
               }}
