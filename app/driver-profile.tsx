@@ -475,63 +475,55 @@ try {
     toast.show('Profile submitted for verification', 'success');
   }, [onSave, toast]);
 
-   // 👇 Add this here
-   const onSyncMpgToAnalytics = useCallback(async () => {
-   const mpg = formData?.mpgRated ? parseFloat(formData.mpgRated) : NaN;
-  if (!userId) {
-    toast.show('Not signed in. Please sign in again.', 'error');
-    return;
-  }
-  await updateCachedProfile({
-  mpgRated: mpg,
-  fuelProfile: {
-    ...((user as any)?.fuelProfile || {}),
-    averageMpg: mpg,
-  },
-});
-await patchAuthCache({
-  mpgRated: mpg,
-  fuelProfile: { averageMpg: mpg },
-});
+  const onSyncMpgToAnalytics = useCallback(async () => {
+    const mpg = formData?.mpgRated ? parseFloat(formData.mpgRated) : NaN;
+    
+    if (!userId) {
+      toast.show('Not signed in. Please sign in again.', 'error');
+      return;
+    }
+    
+    if (!mpg || Number.isNaN(mpg)) {
+      toast.show('Enter a valid MPG first.', 'error');
+      return;
+    }
 
-  if (!mpg || Number.isNaN(mpg)) {
-    toast.show('Enter a valid MPG first.', 'error');
-    return;
-  }
+    try {
+      // 1) Read current driver doc so we can merge
+      const existing = await getDriverProfile(userId).catch(() => null);
+      const base = (existing && existing.success && existing.data) ? existing.data : {};
 
-  try {
-    // 1) Read current driver doc so we can merge
-    const existing = await getDriverProfile(userId).catch(() => null);
-    const base = (existing && existing.success && existing.data) ? existing.data : {};
+      // 2) Only the fields we want to change
+      const changes = {
+        mpgRated: mpg,
+        fuelProfile: {
+          ...(base?.fuelProfile || {}),
+          averageMpg: mpg,
+        },
+      };
 
-    // 2) Only the fields we want to change
-    const changes = {
-      mpgRated: mpg,
-      fuelProfile: {
-        ...(base?.fuelProfile || {}),
-        averageMpg: mpg,
-      },
-    };
+      // 3) Save MERGED object (spread base first, then overrides)
+      await saveDriverProfile({
+        ...base,                            // everything already in Firestore
+        ...changes,                         // your MPG updates
+        userId,                             // keep id
+        fullName: base.fullName || (formData.name?.trim() || 'Driver'),
+        email: base.email || (formData.email?.trim() || user?.email || ''),
+      } as any);
 
-    // 3) Save MERGED object (spread base first, then overrides)
-    await saveDriverProfile({
-      ...base,                            // everything already in Firestore
-      ...changes,                         // your MPG updates
-      userId,                             // keep id
-      fullName: base.fullName || (formData.name?.trim() || 'Driver'),
-      email: base.email || (formData.email?.trim() || user?.email || ''),
-    } as any);
+      // 4) Update local cache so UI reflects immediately
+      await updateCachedProfile(changes);
+      await patchAuthCache({
+        mpgRated: mpg,
+        fuelProfile: { averageMpg: mpg },
+      });
 
-    // 4) Update local cache so UI reflects immediately
-    await updateCachedProfile(changes);
-
-    toast.show(`✅ Synced MPG to ${mpg.toFixed(1)} for Analytics.`, 'success');
-  } catch (e) {
-    console.warn('[DriverProfile] MPG sync failed', e);
-    toast.show('Sync failed. Please try again.', 'error');
-  }
-}, [formData?.mpgRated, formData?.email, formData?.name, user, userId, updateCachedProfile, toast, patchAuthCache]);
-// 👆 End of new function
+      toast.show(`✅ Synced MPG to ${mpg.toFixed(1)} for Analytics.`, 'success');
+    } catch (e) {
+      console.warn('[DriverProfile] MPG sync failed', e);
+      toast.show('Sync failed. Please try again.', 'error');
+    }
+  }, [formData?.mpgRated, formData?.email, formData?.name, user, userId, updateCachedProfile, toast, patchAuthCache]);
 
 const insets = useSafeAreaInsets();
 
