@@ -1,14 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
 import { useLoads } from '@/hooks/useLoads';
-import { useProfileCache } from '@/hooks/useProfileCache';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { 
   User, 
@@ -27,11 +24,7 @@ import {
   Wallet,
   Wrench,
   BarChart3,
-  Upload,
-  Wifi,
-  WifiOff,
-  RefreshCw,
-  Clock
+  Upload
 } from 'lucide-react-native';
 
 type ProfileOption = {
@@ -48,142 +41,11 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { balance, totalEarnings, isLoading: walletLoading } = useWallet();
-  const { loads, isLoading: loadsLoading } = useLoads();
-  const { cachedProfile, isOffline, isSyncing, lastSyncTime, pendingChanges, syncProfile } = useProfileCache();
-  const { online: isOnline } = useOnlineStatus();
+  const { loads } = useLoads();
   const insets = useSafeAreaInsets();
   
-  // All useState hooks must be called in the same order every time
-  const [liveDataRefreshing, setLiveDataRefreshing] = useState<boolean>(false);
-  const [profileDoc, setProfileDoc] = useState<Record<string, unknown> | null>(null);
-  const [recoveredProfile, setRecoveredProfile] = useState<any>(null);
-  const [profileRecoveryAttempted, setProfileRecoveryAttempted] = useState<boolean>(false);
-  
-  // All useEffect hooks must be called in the same order every time
-  // Redirect shippers to their dedicated profile page
-  useEffect(() => {
-    if (user?.role === 'shipper') {
-      console.log('[Profile] Redirecting shipper to dedicated profile page');
-      router.replace('/shipper-profile');
-    }
-  }, [user?.role, router]);
-  
-  // Enhanced profile recovery on mount
-  useEffect(() => {
-    const recoverProfile = async () => {
-      if (profileRecoveryAttempted) return;
-      setProfileRecoveryAttempted(true);
-      
-      console.log('[Profile] 🔧 PERMANENT PROFILE RECOVERY - Starting comprehensive profile recovery...');
-      
-      // Try multiple recovery sources
-      const recoveryKeys = [
-        'auth:user:profile',
-        'auth:user:profile_backup',
-        'profile:cache',
-        'profile:persistent',
-        'driver:profile:backup',
-        'auth:user:persistent',
-        'profile:emergency',
-        'profile:recovery',
-        'user:session:backup',
-        'auth:permanent:cache'
-      ];
-      
-      for (const key of recoveryKeys) {
-        try {
-          let cached = null;
-          
-          // Try AsyncStorage first
-          try {
-            cached = await AsyncStorage.getItem(key);
-          } catch {
-            // Web fallbacks
-            if (typeof window !== 'undefined') {
-              try {
-                cached = window.localStorage?.getItem(key) || window.sessionStorage?.getItem(key);
-              } catch {
-                console.warn('[Profile] Web storage failed for key:', key);
-              }
-            }
-          }
-          
-          if (cached) {
-            const parsedProfile = JSON.parse(cached);
-            if (parsedProfile.id && parsedProfile.role && parsedProfile.email) {
-              console.log('[Profile] ✅ PERMANENT PROFILE RECOVERY - Found profile in:', key);
-              setRecoveredProfile(parsedProfile);
-              setProfileDoc(parsedProfile);
-              return;
-            }
-          }
-        } catch (error) {
-          console.warn('[Profile] Recovery failed for key:', key, error);
-          continue;
-        }
-      }
-      
-      console.log('[Profile] ⚠️ PERMANENT PROFILE RECOVERY - No cached profile found, using current user');
-    };
-    
-    recoverProfile();
-  }, [profileRecoveryAttempted]);
-  
-  // Sync profileDoc with activeProfile when it changes
-  useEffect(() => {
-    const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
-    if (activeProfile && !profileDoc) {
-      console.log('[Profile] 🔄 Syncing profileDoc with activeProfile');
-      setProfileDoc(activeProfile as any);
-    }
-  }, [recoveredProfile, isOffline, cachedProfile, user, profileDoc]);
-  
-  // Auto-refresh live data periodically
-  useEffect(() => {
-    const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
-    if (!activeProfile) return;
-    
-    const refreshInterval = setInterval(() => {
-      console.log('[Profile] Auto-refreshing live data...');
-      setLiveDataRefreshing(true);
-      // Simulate refresh completion
-      setTimeout(() => setLiveDataRefreshing(false), 1000);
-    }, 30000); // Refresh every 30 seconds
-    
-    return () => clearInterval(refreshInterval);
-  }, [recoveredProfile, isOffline, cachedProfile, user]);
-  
-  // All useMemo and useCallback hooks must be called in the same order
-  const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
-  const isDriver = activeProfile?.role === 'driver';
-  const isShipper = activeProfile?.role === 'shipper';
-  const isAdmin = activeProfile?.role === 'admin';
-  
-  // Calculate live stats for shippers
-  const shipperStats = React.useMemo(() => {
-    if (!isShipper || !activeProfile) return null;
-    
-    const myLoads = loads.filter(load => load.shipperId === (activeProfile as any).id);
-    const activeLoads = myLoads.filter(load => load.status === 'available' || load.status === 'in-transit');
-    const completedLoads = myLoads.filter(load => load.status === 'delivered');
-    
-    return {
-      totalPosted: myLoads.length,
-      activeLoads: activeLoads.length,
-      completedLoads: completedLoads.length,
-      totalRevenue: completedLoads.reduce((sum, load) => sum + (load.rate || 0), 0),
-    };
-  }, [loads, activeProfile, isShipper]);
-  
-  // Manual sync handler
-  const handleManualSync = useCallback(async () => {
-    if (isOnline && pendingChanges) {
-      await syncProfile();
-    }
-  }, [isOnline, pendingChanges, syncProfile]);
-  
-  // Logout handler
-  const handleLogout = useCallback(() => {
+  // Logout handler - must be before early return
+  const handleLogout = React.useCallback(() => {
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
@@ -195,7 +57,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               await logout();
-              router.replace('/(auth)/login');
+              router.replace('/login');
             } catch {
               Alert.alert('Sign out failed', 'Please try again.');
             }
@@ -205,21 +67,22 @@ export default function ProfileScreen() {
     );
   }, [logout, router]);
   
-  // Don't render anything for shippers - they should be redirected
-  if (isShipper) {
+  // Immediately redirect shippers - no other hooks or state needed
+  useEffect(() => {
+    if (user?.role === 'shipper') {
+      console.log('[Profile] Redirecting shipper to dedicated profile page');
+      router.replace('/shipper-profile');
+      return;
+    }
+  }, [user?.role, router]);
+  
+  // Don't render anything for shippers - they should be redirected immediately
+  if (user?.role === 'shipper') {
     return null;
   }
   
-  console.log('[Profile] 🎯 PERMANENT PROFILE PERSISTENCE - Active profile:', {
-    source: recoveredProfile ? 'recovered' : (isOffline && cachedProfile) ? 'cached' : 'current',
-    hasProfile: !!activeProfile,
-    role: activeProfile?.role,
-    name: activeProfile?.name,
-    email: activeProfile?.email,
-    hasWallet: !!(activeProfile as any)?.wallet,
-    hasFuelProfile: !!(activeProfile as any)?.fuelProfile,
-    permanentlyFixed: true
-  });
+  const isDriver = user?.role === 'driver';
+  const isAdmin = user?.role === 'admin';
 
   const driverOptions: ProfileOption[] = [
     {
@@ -264,40 +127,7 @@ export default function ProfileScreen() {
     },
   ];
 
-  const shipperOptions: ProfileOption[] = [
-    {
-      id: 'shipper-dashboard',
-      title: 'Analytics Dashboard',
-      subtitle: 'View load performance and metrics',
-      icon: <BarChart3 size={20} color={theme.colors.primary} />,
-      route: '/shipper-dashboard',
-      showChevron: true
-    },
-    {
-      id: 'bulk-upload',
-      title: 'Bulk Upload',
-      subtitle: 'Import loads from CSV',
-      icon: <Upload size={20} color={theme.colors.secondary} />,
-      route: '/csv-bulk-upload',
-      showChevron: true
-    },
-    {
-      id: 'shipper-membership',
-      title: 'Shipper Membership',
-      subtitle: 'Premium posting features',
-      icon: <Crown size={20} color={theme.colors.warning} />,
-      route: '/shipper-membership',
-      showChevron: true
-    },
-    {
-      id: 'payment-methods',
-      title: 'Payment Methods',
-      subtitle: 'Manage billing and payments',
-      icon: <CreditCard size={20} color={theme.colors.success} />,
-      route: '/payment-methods',
-      showChevron: true
-    },
-  ];
+
 
   const commonOptions: ProfileOption[] = [
     {
@@ -376,7 +206,7 @@ export default function ProfileScreen() {
     },
   ];
 
-  const profileOptions = isAdmin ? [...adminOptions, ...commonOptions] : isDriver ? [...driverOptions, ...commonOptions] : isShipper ? [...shipperOptions, ...commonOptions] : commonOptions;
+  const profileOptions = isAdmin ? [...adminOptions, ...commonOptions] : isDriver ? [...driverOptions, ...commonOptions] : commonOptions;
 
   const handleOptionPress = (option: ProfileOption) => {
     if (option.action) {
@@ -394,66 +224,21 @@ export default function ProfileScreen() {
             <User size={32} color={theme.colors.white} />
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{activeProfile?.name || user?.name || 'User'}</Text>
-            <Text style={styles.profileEmail}>{activeProfile?.email || 'user@example.com'}</Text>
+            <Text style={styles.profileName}>{user?.name || 'User'}</Text>
+            <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
-                {(activeProfile?.role || 'USER').toUpperCase()}
-                {recoveredProfile ? ' (RECOVERED)' : ''}
+                {(user?.role || 'USER').toUpperCase()}
               </Text>
-              {liveDataRefreshing && (
-                <ActivityIndicator size="small" color={theme.colors.white} style={styles.refreshIndicator} />
-              )}
             </View>
-            {activeProfile?.company && (
-              <Text style={styles.profileCompany}>{activeProfile.company}</Text>
+            {(user as any)?.company && (
+              <Text style={styles.profileCompany}>{(user as any).company}</Text>
             )}
-            
-            {/* Offline/Sync Status */}
-            <View style={styles.syncStatus}>
-              {isOffline ? (
-                <View style={styles.offlineIndicator}>
-                  <WifiOff size={12} color={theme.colors.warning} />
-                  <Text style={styles.offlineText}>Offline Mode</Text>
-                </View>
-              ) : (
-                <View style={styles.onlineIndicator}>
-                  <Wifi size={12} color={theme.colors.success} />
-                  <Text style={styles.onlineText}>Online</Text>
-                </View>
-              )}
-              
-              {pendingChanges && (
-                <TouchableOpacity 
-                  style={styles.syncButton} 
-                  onPress={handleManualSync}
-                  disabled={!isOnline || isSyncing}
-                >
-                  {isSyncing ? (
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                  ) : (
-                    <RefreshCw size={12} color={theme.colors.primary} />
-                  )}
-                  <Text style={styles.syncButtonText}>
-                    {isSyncing ? 'Syncing...' : 'Sync'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              
-              {lastSyncTime && (
-                <View style={styles.lastSyncIndicator}>
-                  <Clock size={10} color={theme.colors.gray} />
-                  <Text style={styles.lastSyncText}>
-                    {lastSyncTime.toLocaleTimeString()}
-                  </Text>
-                </View>
-              )}
-            </View>
           </View>
         </View>
         
         {/* Live Stats Section */}
-        {(isDriver || isShipper || isAdmin) && (
+        {(isDriver || isAdmin) && (
           <View style={styles.liveStatsContainer}>
             <View style={styles.liveStatsHeader}>
               <Text style={styles.liveStatsTitle}>Live Dashboard</Text>
@@ -480,44 +265,15 @@ export default function ProfileScreen() {
                   </View>
                   <View style={styles.statCard}>
                     <Text style={styles.statValue}>
-                      {(activeProfile as any)?.truckType?.replace('-', ' ').toUpperCase() || 'TRUCK'}
+                      {(user as any)?.truckType?.replace('-', ' ').toUpperCase() || 'TRUCK'}
                     </Text>
                     <Text style={styles.statLabel}>Truck Type</Text>
                   </View>
                   <View style={styles.statCard}>
                     <Text style={styles.statValue}>
-                      {(profileDoc as any)?.yearsExperience || (activeProfile as any)?.yearsExperience || (user as any)?.yearsExperience || '0'}
+                      {(user as any)?.yearsExperience || '0'}
                     </Text>
                     <Text style={styles.statLabel}>Years Experience</Text>
-                  </View>
-                </>
-              )}
-              
-              {isShipper && shipperStats && (
-                <>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statValue}>
-                      {loadsLoading ? '...' : shipperStats.totalPosted}
-                    </Text>
-                    <Text style={styles.statLabel}>Total Posted</Text>
-                  </View>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statValue}>
-                      {loadsLoading ? '...' : shipperStats.activeLoads}
-                    </Text>
-                    <Text style={styles.statLabel}>Active Loads</Text>
-                  </View>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statValue}>
-                      {loadsLoading ? '...' : shipperStats.completedLoads}
-                    </Text>
-                    <Text style={styles.statLabel}>Completed</Text>
-                  </View>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statValue}>
-                      {loadsLoading ? '...' : `${shipperStats.totalRevenue.toLocaleString()}`}
-                    </Text>
-                    <Text style={styles.statLabel}>Total Revenue</Text>
                   </View>
                 </>
               )}
