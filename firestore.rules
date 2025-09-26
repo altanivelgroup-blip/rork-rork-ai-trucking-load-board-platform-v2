@@ -33,5 +33,11 @@ service cloud.firestore {
     match /driverProfiles/{userId} {
       allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
     }
+
+    match /vehicles/{id} {
+      allow create: if isOwnerCreate();
+      allow read: if true; // Public read for now, can be restricted later
+      allow update, delete: if isOwnerExisting();
+    }
   }
 }
