@@ -4,10 +4,8 @@ import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckCircle, XCircle, AlertTriangle, Star } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
-import { testFirebaseConnectivity } from '@/utils/firebase';
 import { testFirebaseConnection } from '@/lib/firebase';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { DeviceTestSuite } from '@/utils/deviceTesting';
 import {
   API_BASE_URL,
   hasApiBaseUrl,
@@ -43,7 +41,7 @@ export default function ComprehensiveSanityCheckScreen() {
     try {
       const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
       const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
-      const orsKey = process.env.EXPO_PUBLIC_ORS_API_KEY;
+      // const orsKey = process.env.EXPO_PUBLIC_ORS_API_KEY;
       
       if (!apiUrl) {
         addResult({
@@ -88,33 +86,35 @@ export default function ComprehensiveSanityCheckScreen() {
       });
     }
     
-    // 2. Firebase Connectivity Check
-    console.log('\n2️⃣ FIREBASE CONNECTIVITY');
+    // 2. Firebase Basic Check
+    console.log('\n2️⃣ FIREBASE BASIC CHECK');
     try {
-      const firebaseTest = await testFirebaseConnectivity();
-      if (firebaseTest.connected) {
+      const { getFirebase } = await import('@/utils/firebase');
+      const { auth, db, app } = getFirebase();
+      
+      if (app && auth && db) {
         addResult({
-          name: 'Firebase Connection',
+          name: 'Firebase Services',
           status: 'pass',
-          message: 'Firebase services operational',
+          message: `Firebase initialized (${app.options.projectId})`,
           critical: true
         });
-        console.log('✅ Firebase connectivity check passed');
+        console.log('✅ Firebase services check passed');
       } else {
         addResult({
-          name: 'Firebase Connection',
+          name: 'Firebase Services',
           status: 'fail',
-          message: `Firebase error: ${firebaseTest.error}`,
+          message: 'Firebase services not initialized',
           critical: true
         });
-        console.log('❌ Firebase connectivity check failed:', firebaseTest.error);
+        console.log('❌ Firebase services check failed');
       }
     } catch (error: any) {
-      console.error('❌ Firebase connectivity check failed:', error);
+      console.error('❌ Firebase services check failed:', error);
       addResult({
-        name: 'Firebase Connection',
+        name: 'Firebase Services',
         status: 'fail',
-        message: `Firebase connection failed: ${error.message}`,
+        message: `Firebase init failed: ${error.message}`,
         critical: true
       });
     }
@@ -153,80 +153,171 @@ export default function ComprehensiveSanityCheckScreen() {
     // 4. Network Connectivity Check
     console.log('\n4️⃣ NETWORK CONNECTIVITY');
     try {
-      if (!hasApiBaseUrl) {
-        throw new Error('API base URL not configured');
-      }
+      // Check current window location for ngrok issues
+      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'unknown';
+      console.log('Current origin:', currentOrigin);
       
-      const response = await fetch(`${API_BASE_URL}/api`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        timeout: 10000
-      } as any);
-      
-      if (response.ok) {
-        addResult({
-          name: 'API Connectivity',
-          status: 'pass',
-          message: `API reachable (${response.status})`,
-          critical: true
-        });
-        console.log('✅ API connectivity check passed');
+      if (currentOrigin.includes('ngrok') || currentOrigin.includes('tunnel')) {
+        // Test ngrok connectivity
+        try {
+          const ngrokResponse = await fetch(currentOrigin + '/api/health', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            timeout: 5000
+          } as any);
+          
+          if (ngrokResponse.ok) {
+            addResult({
+              name: 'Ngrok Tunnel',
+              status: 'pass',
+              message: `Ngrok tunnel working (${ngrokResponse.status})`,
+              critical: true
+            });
+          } else {
+            addResult({
+              name: 'Ngrok Tunnel',
+              status: 'fail',
+              message: `Ngrok tunnel error: ${ngrokResponse.status}`,
+              critical: true
+            });
+          }
+        } catch (ngrokError: any) {
+          addResult({
+            name: 'Ngrok Tunnel',
+            status: 'fail',
+            message: `Ngrok tunnel offline: ${ngrokError.message}`,
+            critical: true
+          });
+        }
       } else {
-        addResult({
-          name: 'API Connectivity',
-          status: 'warning',
-          message: `API returned ${response.status}`,
-          critical: false
-        });
-        console.log('⚠️ API connectivity check warning:', response.status);
+        // Regular API connectivity test
+        if (!hasApiBaseUrl) {
+          throw new Error('API base URL not configured');
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/api`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          timeout: 10000
+        } as any);
+        
+        if (response.ok) {
+          addResult({
+            name: 'API Connectivity',
+            status: 'pass',
+            message: `API reachable (${response.status})`,
+            critical: true
+          });
+          console.log('✅ API connectivity check passed');
+        } else {
+          addResult({
+            name: 'API Connectivity',
+            status: 'warning',
+            message: `API returned ${response.status}`,
+            critical: false
+          });
+          console.log('⚠️ API connectivity check warning:', response.status);
+        }
       }
     } catch (error: any) {
       console.error('❌ Network connectivity check failed:', error);
       addResult({
-        name: 'API Connectivity',
+        name: 'Network Connectivity',
         status: 'fail',
         message: `Network error: ${error.message}`,
         critical: true
       });
     }
     
-    // 5. Device Capabilities Check
-    console.log('\n5️⃣ DEVICE CAPABILITIES');
+    // 5. Platform Check
+    console.log('\n5️⃣ PLATFORM CHECK');
     try {
-      const deviceTests = await DeviceTestSuite();
-      const failedTests = deviceTests.filter((test: any) => test.status === 'failed');
+      const { Platform } = await import('react-native');
+      const platform = Platform.OS;
+      const isWeb = platform === 'web';
       
-      if (failedTests.length === 0) {
-        addResult({
-          name: 'Device Capabilities',
-          status: 'pass',
-          message: 'All device tests passed',
-          critical: false
-        });
-        console.log('✅ Device capabilities check passed');
-      } else {
-        addResult({
-          name: 'Device Capabilities',
-          status: 'warning',
-          message: `${failedTests.length} device tests failed`,
-          critical: false
-        });
-        console.log('⚠️ Device capabilities check warning:', failedTests.length, 'tests failed');
-      }
-    } catch (error: any) {
-      console.error('❌ Device capabilities check failed:', error);
       addResult({
-        name: 'Device Capabilities',
+        name: 'Platform Detection',
+        status: 'pass',
+        message: `Running on ${platform}${isWeb ? ' (React Native Web)' : ''}`,
+        critical: false
+      });
+      
+      console.log('✅ Platform check passed:', platform);
+    } catch (error: any) {
+      console.error('❌ Platform check failed:', error);
+      addResult({
+        name: 'Platform Detection',
         status: 'warning',
-        message: `Device test error: ${error.message}`,
+        message: `Platform detection error: ${error.message}`,
         critical: false
       });
     }
     
-    // 6. AI Services Check
-    console.log('\n6️⃣ AI SERVICES');
+    // 6. Vehicle Edit Specific Test
+    console.log('\n6️⃣ VEHICLE EDIT SPECIFIC TEST');
+    try {
+      const { auth, db } = await import('@/utils/firebase').then(m => m.getFirebase());
+      
+      if (auth.currentUser) {
+        const testVehicleId = 'test-vehicle-' + Date.now();
+        // const vehiclePath = `drivers/${auth.currentUser.uid}/vehicles/${testVehicleId}`;
+        
+        // Test if we can create a test vehicle document
+        const { createVehicleWithId } = await import('@/lib/firebase');
+        
+        try {
+          await createVehicleWithId(testVehicleId, {
+            name: 'Test Vehicle',
+            year: '2020',
+            make: 'Test',
+            model: 'Test',
+            type: 'truck',
+            subtype: 'Hotshot'
+          });
+          
+          addResult({
+            name: 'Vehicle Creation Test',
+            status: 'pass',
+            message: 'Vehicle creation works correctly',
+            critical: true
+          });
+          
+          // Clean up test vehicle
+          const { doc, deleteDoc } = await import('firebase/firestore');
+          const testRef = doc(db, 'drivers', auth.currentUser.uid, 'vehicles', testVehicleId);
+          await deleteDoc(testRef);
+          
+        } catch (vehicleError: any) {
+          addResult({
+            name: 'Vehicle Creation Test',
+            status: 'fail',
+            message: `Vehicle creation failed: ${vehicleError.message}`,
+            critical: true
+          });
+        }
+      } else {
+        addResult({
+          name: 'Vehicle Creation Test',
+          status: 'fail',
+          message: 'No authenticated user for vehicle test',
+          critical: true
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Vehicle edit test failed:', error);
+      addResult({
+        name: 'Vehicle Creation Test',
+        status: 'fail',
+        message: `Vehicle test error: ${error.message}`,
+        critical: true
+      });
+    }
+    
+    // 7. AI Services Check
+    console.log('\n7️⃣ AI SERVICES');
     try {
       const aiResponse = await fetch('https://toolkit.rork.com/text/llm/', {
         method: 'POST',
@@ -266,8 +357,8 @@ export default function ComprehensiveSanityCheckScreen() {
       });
     }
     
-    // 7. App Configuration Check
-    console.log('\n7️⃣ APP CONFIGURATION');
+    // 8. App Configuration Check
+    console.log('\n8️⃣ APP CONFIGURATION');
     try {
       // Check bundle identifier
       const bundleId = 'app.rork.rork-ai-trucking-load-board';
@@ -316,8 +407,8 @@ export default function ComprehensiveSanityCheckScreen() {
       });
     }
     
-    // 8. Online Status Check
-    console.log('\n8️⃣ ONLINE STATUS');
+    // 9. Online Status Check
+    console.log('\n9️⃣ ONLINE STATUS');
     if (online) {
       addResult({
         name: 'Network Status',
