@@ -131,25 +131,43 @@ export default function VehicleEditScreen() {
         // Continue anyway, might still work
       }
       
-      const data = await getVehicle(vehicle_id);
-      console.log('[VehicleEdit] Vehicle loaded successfully:', {
-        id: vehicle_id,
-        name: data.name,
-        status: data.status,
-        photos: data.photos?.length || 0,
-        createdBy: data.createdBy
-      });
-      setState(prev => ({
-        ...prev,
-        vehicle: {
-          ...prev.vehicle,
-          ...data,
+      try {
+        const data = await getVehicle(vehicle_id);
+        console.log('[VehicleEdit] Vehicle loaded successfully:', {
           id: vehicle_id,
-        },
-        photos: data.photos || [],
-        primaryPhoto: data.primaryPhoto || '',
-        loading: false,
-      }));
+          name: data.name,
+          status: data.status,
+          photos: data.photos?.length || 0,
+          createdBy: data.createdBy
+        });
+        setState(prev => ({
+          ...prev,
+          vehicle: {
+            ...prev.vehicle,
+            ...data,
+            id: vehicle_id,
+          },
+          photos: data.photos || [],
+          primaryPhoto: data.primaryPhoto || '',
+          loading: false,
+        }));
+      } catch (vehicleError: any) {
+        console.log('[VehicleEdit] Vehicle not found in database, creating new vehicle with existing ID:', vehicle_id);
+        // Vehicle doesn't exist yet - this is normal for new vehicles
+        // Keep the existing ID and let user create the vehicle
+        setState(prev => ({ 
+          ...prev, 
+          loading: false,
+          vehicle: {
+            ...prev.vehicle,
+            id: vehicle_id, // Keep the ID that was passed in
+          }
+        }));
+        // Clear any auth errors since we're in create mode
+        setAuthError(null);
+        console.log('[VehicleEdit] Ready to create new vehicle with ID:', vehicle_id);
+        return;
+      }
     } catch (error: any) {
       console.error('[VehicleEdit] Error loading vehicle:', error);
       
