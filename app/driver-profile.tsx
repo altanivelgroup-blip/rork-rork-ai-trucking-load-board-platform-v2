@@ -13,7 +13,6 @@ import { useProfileCache } from '@/hooks/useProfileCache';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
 import { FuelKind, VehicleType, Driver } from '@/types';
 import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 
@@ -175,25 +174,6 @@ const patchAuthCache = useCallback(async (patch: any) => {
       fuelType: prev.fuelType === 'diesel' ? 'gasoline' as const : 'diesel' as const
     }));
   }, []);
-// Merge a partial patch into the local auth cache used by the app
-const patchAuthCache = useCallback(async (patch: any) => {
-  try {
-    const raw = await AsyncStorage.getItem('auth:user:profile');
-    const current = raw ? JSON.parse(raw) : {};
-    const next = {
-      ...current,
-      ...patch,
-      fuelProfile: {
-        ...(current?.fuelProfile || {}),
-        ...(patch?.fuelProfile || {}),
-      },
-    };
-    await AsyncStorage.setItem('auth:user:profile', JSON.stringify(next));
-    console.log('[DriverProfile] Patched auth cache with', next?.fuelProfile?.averageMpg);
-  } catch (e) {
-    console.warn('[DriverProfile] patchAuthCache failed', e);
-  }
-}, []);
 
 
 
@@ -435,23 +415,16 @@ try {
         
         // Also update cached profile for offline support
         console.log('[DriverProfile] Updating cached profile...');
-        // put this right before updateData so we can reuse it below
-       const newMpg = formData.mpgRated ? parseFloat(formData.mpgRated) : undefined;
-      fuelProfile: newMpg !== undefined
-  ? {
-      ...((user as any)?.fuelProfile || {}),
-      averageMpg: newMpg,
-    }
-  : undefined,
-
-  await updateCachedProfile(updateData);
+        
+        await updateCachedProfile(updateData);
+        
         const newMpg = formData.mpgRated ? parseFloat(formData.mpgRated) : undefined;
-if (newMpg) {
-  await patchAuthCache({
-    mpgRated: newMpg,
-    fuelProfile: { averageMpg: newMpg },
-  });
-}
+        if (newMpg) {
+          await patchAuthCache({
+            mpgRated: newMpg,
+            fuelProfile: { averageMpg: newMpg },
+          });
+        }
 
         console.log('[DriverProfile] ✅ Profile saved successfully to both Firebase and local cache');
         toast.show('✅ Profile saved successfully! All driver information updated and synced to cloud.', 'success');
@@ -495,7 +468,7 @@ if (newMpg) {
       setValidatingExperience(false);
       console.log('[DriverProfile] Save process completed');
     }
-  }, [formData, updateCachedProfile, validateExperience, toast, submitting, user, userId]);
+  }, [formData, updateCachedProfile, validateExperience, toast, submitting, user, userId, patchAuthCache]);
 
   const onSubmitForVerification = useCallback(async () => {
     await onSave();
@@ -557,7 +530,7 @@ await patchAuthCache({
     console.warn('[DriverProfile] MPG sync failed', e);
     toast.show('Sync failed. Please try again.', 'error');
   }
-}, [formData?.mpgRated, formData?.email, formData?.name, user, userId, updateCachedProfile, toast]);
+}, [formData?.mpgRated, formData?.email, formData?.name, user, userId, updateCachedProfile, toast, patchAuthCache]);
 // 👆 End of new function
 
 const insets = useSafeAreaInsets();
