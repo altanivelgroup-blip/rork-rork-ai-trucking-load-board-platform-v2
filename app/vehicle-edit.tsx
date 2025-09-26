@@ -168,6 +168,8 @@ export default function VehicleEditScreen() {
             id: vehicle_id, // Keep the ID that was passed in
           }
         }));
+        // Clear any auth errors since we're switching to add mode
+        setAuthError(null);
         toast.show('Vehicle not found - creating new vehicle', 'info');
         return;
       } else if (error?.message === 'Not signed in' || error?.code === 'permission-denied') {

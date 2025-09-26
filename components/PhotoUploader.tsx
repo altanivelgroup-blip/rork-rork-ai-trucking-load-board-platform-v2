@@ -643,9 +643,25 @@ export function PhotoUploader({
         console.warn('[PhotoUploader] Skipping Firestore sync: insufficient permissions');
         return;
       }
-      const { db } = getFirebase();
-      const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
-      const docRef = doc(db, collectionName, entityId);
+      const { db, auth } = getFirebase();
+      
+      // CRITICAL FIX: Handle new vehicle path structure
+      let docRef;
+      if (entityType === 'load') {
+        docRef = doc(db, LOADS_COLLECTION, entityId);
+      } else if (entityType === 'vehicle') {
+        // Use new nested path: drivers/{uid}/vehicles/{vehicleId}
+        const uid = auth.currentUser?.uid;
+        if (!uid) {
+          console.warn('[PhotoUploader] No authenticated user for vehicle photo sync');
+          return;
+        }
+        docRef = doc(db, 'drivers', uid, 'vehicles', entityId);
+        console.log('[PhotoUploader] Using new vehicle path:', `drivers/${uid}/vehicles/${entityId}`);
+      } else {
+        // Fallback to old structure for backward compatibility
+        docRef = doc(db, VEHICLES_COLLECTION, entityId);
+      }
       while (true) {
         const next = pendingWriteRef.current;
         if (!next) break;
