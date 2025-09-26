@@ -18,7 +18,7 @@ import { TRUCK_SUBTYPES, TRAILER_SUBTYPES, AnySubtype } from '@/constants/vehicl
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { getVehicle, createVehicleWithId, updateVehicle, Vehicle } from '@/lib/firebase';
+import { getVehicle, updateVehicle, createVehicleWithId, Vehicle } from '@/lib/firebase';
 import { Save, AlertCircle, LogIn } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import uuid from 'react-native-uuid';
