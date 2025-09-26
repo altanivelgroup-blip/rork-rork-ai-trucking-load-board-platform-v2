@@ -97,21 +97,26 @@ export default function LoginScreen() {
       }
 
       // Wait a moment for auth state to update
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Route based on selected role
       console.log(`[Login] Navigating to ${selectedRole} dashboard`);
       
-      if (selectedRole === 'driver') {
-        console.log('[Login] Routing to driver dashboard');
-        router.replace('/(tabs)/dashboard');
-      } else if (selectedRole === 'shipper') {
-        console.log('[Login] Routing to shipper dashboard');
-        router.replace('/(tabs)/shipper');
-      } else if (selectedRole === 'admin') {
-        console.log('[Login] Routing to admin dashboard');
-        router.replace('/(tabs)/admin');
-      }
+      // Always go to index.tsx and let it handle the routing based on auth state
+      console.log('[Login] Routing to index for proper role-based routing');
+      router.replace('/');
+      
+      // Alternative: Direct routing (commented out for now)
+      // if (selectedRole === 'driver') {
+      //   console.log('[Login] Routing to driver dashboard');
+      //   router.replace('/(tabs)/dashboard');
+      // } else if (selectedRole === 'shipper') {
+      //   console.log('[Login] Routing to shipper dashboard');
+      //   router.replace('/(tabs)/shipper');
+      // } else if (selectedRole === 'admin') {
+      //   console.log('[Login] Routing to admin dashboard');
+      //   router.replace('/(tabs)/admin');
+      // }
       
     } catch (error: any) {
       console.error("[Login] Error:", error.code, error.message);
