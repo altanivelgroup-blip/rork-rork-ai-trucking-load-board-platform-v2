@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
@@ -149,6 +150,24 @@ useEffect(() => {
   const updateField = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   }, []);
+const patchAuthCache = useCallback(async (patch: any) => {
+  try {
+    const raw = await AsyncStorage.getItem('auth:user:profile');
+    const current = raw ? JSON.parse(raw) : {};
+    const next = {
+      ...current,
+      ...patch,
+      fuelProfile: {
+        ...(current?.fuelProfile || {}),
+        ...(patch?.fuelProfile || {}),
+      },
+    };
+    await AsyncStorage.setItem('auth:user:profile', JSON.stringify(next));
+    console.log('[DriverProfile] Patched auth cache MPG =', next?.fuelProfile?.averageMpg);
+  } catch (e) {
+    console.warn('[DriverProfile] patchAuthCache failed', e);
+  }
+}, []);
 
   const toggleFuelType = useCallback(() => {
     setFormData(prev => ({ 
@@ -416,7 +435,16 @@ try {
         
         // Also update cached profile for offline support
         console.log('[DriverProfile] Updating cached profile...');
-        await updateCachedProfile(updateData);
+        // put this right before updateData so we can reuse it below
+       const newMpg = formData.mpgRated ? parseFloat(formData.mpgRated) : undefined;
+      fuelProfile: newMpg !== undefined
+  ? {
+      ...((user as any)?.fuelProfile || {}),
+      averageMpg: newMpg,
+    }
+  : undefined,
+
+  await updateCachedProfile(updateData);
         const newMpg = formData.mpgRated ? parseFloat(formData.mpgRated) : undefined;
 if (newMpg) {
   await patchAuthCache({
