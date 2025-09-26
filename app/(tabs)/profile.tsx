@@ -55,6 +55,14 @@ export default function ProfileScreen() {
   const [liveDataRefreshing, setLiveDataRefreshing] = useState<boolean>(false);
   const [profileDoc, setProfileDoc] = useState<Record<string, unknown> | null>(null);
   
+  // Redirect shippers to their dedicated profile page
+  React.useEffect(() => {
+    if (user?.role === 'shipper') {
+      console.log('[Profile] Redirecting shipper to dedicated profile page');
+      router.replace('/shipper-profile');
+    }
+  }, [user?.role, router]);
+  
   // PERMANENT FIX: UNBREAKABLE PROFILE PERSISTENCE - Enhanced profile recovery with comprehensive fallbacks
   const [recoveredProfile, setRecoveredProfile] = useState(null);
   const [profileRecoveryAttempted, setProfileRecoveryAttempted] = useState(false);
@@ -125,6 +133,11 @@ export default function ProfileScreen() {
   const isDriver = activeProfile?.role === 'driver';
   const isShipper = activeProfile?.role === 'shipper';
   const isAdmin = activeProfile?.role === 'admin';
+  
+  // Don't render anything for shippers - they should be redirected
+  if (isShipper) {
+    return null;
+  }
   
   // Sync profileDoc with activeProfile when it changes
   useEffect(() => {
