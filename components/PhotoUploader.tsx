@@ -730,10 +730,11 @@ export function PhotoUploader({
         console.warn('[PhotoUploader] ⚠️ Token refresh failed, continuing anyway:', tokenError);
       }
 
-      // ✅ PERMANENT FIX: Use simple, consistent path structure with app user ID
+      // ✅ PERMANENT FIX: Use entity-specific path structure with app user ID
       const uid = auth?.currentUser?.uid || authState.user.id;
       const safeId = String(entityId || 'default').trim().replace(/\s+/g, '-');
-      const basePath = `loadPhotos/${uid}/${safeId}`;
+      const pathPrefix = entityType === 'vehicle' ? 'vehiclePhotos' : 'loadPhotos';
+      const basePath = `${pathPrefix}/${uid}/${safeId}`;
       
       console.log('[PhotoUploader] 📁 Upload path:', basePath);
       console.log('[PhotoUploader] ✅ PERMANENT FIX: Simplified authentication and path logic');

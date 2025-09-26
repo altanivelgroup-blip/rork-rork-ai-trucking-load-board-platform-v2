@@ -10,7 +10,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { useProfileCache } from '@/hooks/useProfileCache';
-import { User, Truck, FileText, Shield, Fuel, Container, Wrench } from 'lucide-react-native';
+import { User, Truck, FileText, Shield, Fuel, Container, Wrench, Camera } from 'lucide-react-native';
+import { PhotoUploader } from '@/components/PhotoUploader';
 import { FuelKind, VehicleType, Driver } from '@/types';
 import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 
@@ -1031,6 +1032,31 @@ const insets = useSafeAreaInsets();
           </View>
         </View>
 
+        {/* Profile Photos */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Camera size={20} color={theme.colors.primary} />
+            <Text style={styles.sectionTitle}>Profile Photos</Text>
+          </View>
+          <Text style={styles.sectionSubtitle}>
+            Add photos of yourself, your truck, and equipment to build trust with shippers.
+          </Text>
+          
+          <PhotoUploader
+            entityType="vehicle"
+            entityId={userId ? `driver-profile-${userId}` : 'temp-profile'}
+            minPhotos={1}
+            maxPhotos={10}
+            onChange={(photos, primaryPhoto, uploadsInProgress) => {
+              console.log('[DriverProfile] Profile photos updated:', {
+                count: photos.length,
+                primaryPhoto: !!primaryPhoto,
+                uploadsInProgress
+              });
+            }}
+          />
+        </View>
+
         {/* Equipment & Maintenance */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -1203,6 +1229,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.dark,
     marginLeft: theme.spacing.sm,
+  },
+  sectionSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: theme.spacing.md,
+    lineHeight: 20,
   },
   inputGroup: {
     marginBottom: theme.spacing.md,
