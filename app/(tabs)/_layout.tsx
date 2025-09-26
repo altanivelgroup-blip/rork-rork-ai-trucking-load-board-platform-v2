@@ -31,7 +31,8 @@ export default function TabsLayout() {
     role: user?.role,
     isDriver,
     isShipper,
-    isAdmin
+    isAdmin,
+    userObject: user
   });
 
   return (

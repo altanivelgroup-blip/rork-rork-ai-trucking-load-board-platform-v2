@@ -37,8 +37,8 @@ export default function Index() {
   // Redirect based on auth state
   if (isAuthenticated && user) {
     if (user.role === 'shipper') {
-      console.log('[Index] Redirecting authenticated shipper to shipper dashboard');
-      return <Redirect href="/shipper-dashboard" />;
+      console.log('[Index] Redirecting authenticated shipper to shipper tab');
+      return <Redirect href="/(tabs)/shipper" />;
     } else if (user.role === 'admin') {
       console.log('[Index] Redirecting authenticated admin to admin dashboard');
       return <Redirect href="/(tabs)/admin" />;

@@ -57,6 +57,21 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                   console.log(`[auth] Using emergency access role: ${userRole}`);
                 }
               }
+              
+              // Also check Firestore for role if available
+              try {
+                const userRef = doc(db, 'users', firebaseUser.uid);
+                const userSnap = await getDoc(userRef);
+                if (userSnap.exists()) {
+                  const firestoreData = userSnap.data();
+                  if (firestoreData.role) {
+                    userRole = firestoreData.role;
+                    console.log(`[auth] Using Firestore role: ${userRole}`);
+                  }
+                }
+              } catch (firestoreError) {
+                console.warn('[auth] Failed to check Firestore role:', firestoreError);
+              }
             } catch (e) {
               console.warn('[auth] Failed to check emergency access:', e);
             }
