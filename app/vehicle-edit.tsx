@@ -95,6 +95,14 @@ export default function VehicleEditScreen() {
       console.log('[VehicleEdit] Loading vehicle:', vehicle_id);
       console.log('[VehicleEdit] Auth state:', { user: !!user, isAuthenticated, userEmail: user?.email });
       
+      // CRITICAL FIX: Check app-level authentication first
+      if (!user || !isAuthenticated) {
+        console.warn('[VehicleEdit] User not authenticated in app state');
+        setAuthError('Please sign in to access vehicle data.');
+        setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+      
       // CRITICAL FIX: Wait for authentication to be ready
       const { auth } = getFirebase();
       
@@ -105,13 +113,7 @@ export default function VehicleEditScreen() {
         const authSuccess = await ensureFirebaseAuth();
         if (!authSuccess || !auth?.currentUser?.uid) {
           console.error('[VehicleEdit] Firebase authentication failed');
-          
-          // If we have app-level auth but no Firebase auth, show specific error
-          if (user && isAuthenticated) {
-            setAuthError('Authentication sync issue. Please try signing out and back in.');
-          } else {
-            setAuthError('Please sign in to access vehicle data.');
-          }
+          setAuthError('Authentication sync issue. Please sign out and back in.');
           setState(prev => ({ ...prev, loading: false }));
           return;
         }
