@@ -52,20 +52,21 @@ export default function ProfileScreen() {
   const { cachedProfile, isOffline, isSyncing, lastSyncTime, pendingChanges, syncProfile } = useProfileCache();
   const { online: isOnline } = useOnlineStatus();
   const insets = useSafeAreaInsets();
+  
+  // All useState hooks must be called in the same order every time
   const [liveDataRefreshing, setLiveDataRefreshing] = useState<boolean>(false);
   const [profileDoc, setProfileDoc] = useState<Record<string, unknown> | null>(null);
+  const [recoveredProfile, setRecoveredProfile] = useState<any>(null);
+  const [profileRecoveryAttempted, setProfileRecoveryAttempted] = useState<boolean>(false);
   
+  // All useEffect hooks must be called in the same order every time
   // Redirect shippers to their dedicated profile page
-  React.useEffect(() => {
+  useEffect(() => {
     if (user?.role === 'shipper') {
       console.log('[Profile] Redirecting shipper to dedicated profile page');
       router.replace('/shipper-profile');
     }
   }, [user?.role, router]);
-  
-  // PERMANENT FIX: UNBREAKABLE PROFILE PERSISTENCE - Enhanced profile recovery with comprehensive fallbacks
-  const [recoveredProfile, setRecoveredProfile] = useState(null);
-  const [profileRecoveryAttempted, setProfileRecoveryAttempted] = useState(false);
   
   // Enhanced profile recovery on mount
   useEffect(() => {
@@ -96,12 +97,12 @@ export default function ProfileScreen() {
           // Try AsyncStorage first
           try {
             cached = await AsyncStorage.getItem(key);
-          } catch (asyncError) {
+          } catch {
             // Web fallbacks
             if (typeof window !== 'undefined') {
               try {
                 cached = window.localStorage?.getItem(key) || window.sessionStorage?.getItem(key);
-              } catch (webError) {
+              } catch {
                 console.warn('[Profile] Web storage failed for key:', key);
               }
             }
@@ -128,41 +129,41 @@ export default function ProfileScreen() {
     recoverProfile();
   }, [profileRecoveryAttempted]);
   
-  // PERMANENT FIX: Use best available profile with comprehensive fallback chain
+  // Sync profileDoc with activeProfile when it changes
+  useEffect(() => {
+    const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
+    if (activeProfile && !profileDoc) {
+      console.log('[Profile] 🔄 Syncing profileDoc with activeProfile');
+      setProfileDoc(activeProfile as any);
+    }
+  }, [recoveredProfile, isOffline, cachedProfile, user, profileDoc]);
+  
+  // Auto-refresh live data periodically
+  useEffect(() => {
+    const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
+    if (!activeProfile) return;
+    
+    const refreshInterval = setInterval(() => {
+      console.log('[Profile] Auto-refreshing live data...');
+      setLiveDataRefreshing(true);
+      // Simulate refresh completion
+      setTimeout(() => setLiveDataRefreshing(false), 1000);
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(refreshInterval);
+  }, [recoveredProfile, isOffline, cachedProfile, user]);
+  
+  // All useMemo and useCallback hooks must be called in the same order
   const activeProfile = recoveredProfile || (isOffline && cachedProfile ? cachedProfile : user) || user;
   const isDriver = activeProfile?.role === 'driver';
   const isShipper = activeProfile?.role === 'shipper';
   const isAdmin = activeProfile?.role === 'admin';
   
-  // Don't render anything for shippers - they should be redirected
-  if (isShipper) {
-    return null;
-  }
-  
-  // Sync profileDoc with activeProfile when it changes
-  useEffect(() => {
-    if (activeProfile && !profileDoc) {
-      console.log('[Profile] 🔄 Syncing profileDoc with activeProfile');
-      setProfileDoc(activeProfile as any);
-    }
-  }, [activeProfile, profileDoc]);
-  
-  console.log('[Profile] 🎯 PERMANENT PROFILE PERSISTENCE - Active profile:', {
-    source: recoveredProfile ? 'recovered' : (isOffline && cachedProfile) ? 'cached' : 'current',
-    hasProfile: !!activeProfile,
-    role: activeProfile?.role,
-    name: activeProfile?.name,
-    email: activeProfile?.email,
-    hasWallet: !!(activeProfile as any)?.wallet,
-    hasFuelProfile: !!(activeProfile as any)?.fuelProfile,
-    permanentlyFixed: true
-  });
-  
   // Calculate live stats for shippers
   const shipperStats = React.useMemo(() => {
     if (!isShipper || !activeProfile) return null;
     
-    const myLoads = loads.filter(load => load.shipperId === activeProfile.id);
+    const myLoads = loads.filter(load => load.shipperId === (activeProfile as any).id);
     const activeLoads = myLoads.filter(load => load.status === 'available' || load.status === 'in-transit');
     const completedLoads = myLoads.filter(load => load.status === 'delivered');
     
@@ -174,28 +175,15 @@ export default function ProfileScreen() {
     };
   }, [loads, activeProfile, isShipper]);
   
-  // Auto-refresh live data periodically
-  useEffect(() => {
-    if (!activeProfile) return;
-    
-    const refreshInterval = setInterval(() => {
-      console.log('[Profile] Auto-refreshing live data...');
-      setLiveDataRefreshing(true);
-      // Simulate refresh completion
-      setTimeout(() => setLiveDataRefreshing(false), 1000);
-    }, 30000); // Refresh every 30 seconds
-    
-    return () => clearInterval(refreshInterval);
-  }, [activeProfile]);
-
   // Manual sync handler
   const handleManualSync = useCallback(async () => {
     if (isOnline && pendingChanges) {
       await syncProfile();
     }
   }, [isOnline, pendingChanges, syncProfile]);
-
-  const handleLogout = () => {
+  
+  // Logout handler
+  const handleLogout = useCallback(() => {
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
@@ -208,14 +196,30 @@ export default function ProfileScreen() {
             try {
               await logout();
               router.replace('/(auth)/login');
-            } catch (e) {
+            } catch {
               Alert.alert('Sign out failed', 'Please try again.');
             }
           }
         }
       ]
     );
-  };
+  }, [logout, router]);
+  
+  // Don't render anything for shippers - they should be redirected
+  if (isShipper) {
+    return null;
+  }
+  
+  console.log('[Profile] 🎯 PERMANENT PROFILE PERSISTENCE - Active profile:', {
+    source: recoveredProfile ? 'recovered' : (isOffline && cachedProfile) ? 'cached' : 'current',
+    hasProfile: !!activeProfile,
+    role: activeProfile?.role,
+    name: activeProfile?.name,
+    email: activeProfile?.email,
+    hasWallet: !!(activeProfile as any)?.wallet,
+    hasFuelProfile: !!(activeProfile as any)?.fuelProfile,
+    permanentlyFixed: true
+  });
 
   const driverOptions: ProfileOption[] = [
     {
