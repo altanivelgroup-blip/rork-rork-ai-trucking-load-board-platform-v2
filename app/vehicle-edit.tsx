@@ -18,29 +18,14 @@ import { TRUCK_SUBTYPES, TRAILER_SUBTYPES, AnySubtype } from '@/constants/vehicl
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { VEHICLES_COLLECTION } from '@/lib/loadSchema';
+import { getVehicle, createVehicleWithId, updateVehicle, Vehicle } from '@/lib/firebase';
 import { Save, AlertCircle, LogIn } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import uuid from 'react-native-uuid';
 
-interface VehicleData {
-  id: string;
-  name: string;
-  year: string;
-  make: string;
-  model: string;
-  type: 'truck' | 'trailer';
-  subtype: string;
-  vin?: string;
-  licensePlate?: string;
-  mpg?: string;
+interface VehicleData extends Vehicle {
   photos: string[];
   primaryPhoto: string;
-  status: 'draft' | 'published';
-  createdBy?: string;
-  createdAt?: any;
-  updatedAt?: any;
 }
 
 interface VehicleEditState {
@@ -131,41 +116,37 @@ export default function VehicleEditScreen() {
         // Continue anyway, might still work
       }
       
-      const { db } = getFirebase();
-      const docRef = doc(db, VEHICLES_COLLECTION, vehicle_id);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const data = docSnap.data() as VehicleData;
-        console.log('[VehicleEdit] Vehicle loaded successfully:', {
-          id: vehicle_id,
-          name: data.name,
-          status: data.status,
-          photos: data.photos?.length || 0,
-          createdBy: data.createdBy
-        });
-        setState(prev => ({
-          ...prev,
-          vehicle: {
-            ...data,
-            id: vehicle_id,
-          },
+      const data = await getVehicle(vehicle_id);
+      console.log('[VehicleEdit] Vehicle loaded successfully:', {
+        id: vehicle_id,
+        name: data.name,
+        status: data.status,
+        photos: data.photos?.length || 0,
+        createdBy: data.createdBy
+      });
+      setState(prev => ({
+        ...prev,
+        vehicle: {
+          ...data,
           photos: data.photos || [],
           primaryPhoto: data.primaryPhoto || '',
-          loading: false,
-        }));
-      } else {
-        console.warn('[VehicleEdit] Vehicle document not found:', vehicle_id);
-        setState(prev => ({ ...prev, loading: false }));
-        toast.show('Vehicle not found', 'error');
-      }
+        },
+        photos: data.photos || [],
+        primaryPhoto: data.primaryPhoto || '',
+        loading: false,
+      }));
     } catch (error: any) {
       console.error('[VehicleEdit] Error loading vehicle:', error);
       
       // CRITICAL FIX: Enhanced error handling with user-friendly messages
       let errorMessage = 'Failed to load vehicle data';
       
-      if (error?.code === 'permission-denied') {
+      if (error?.message === 'Not found') {
+        console.warn('[VehicleEdit] Vehicle document not found:', vehicle_id);
+        setState(prev => ({ ...prev, loading: false }));
+        toast.show('Vehicle not found', 'error');
+        return;
+      } else if (error?.message === 'Not signed in' || error?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please sign in and try again.';
         setAuthError(errorMessage);
       } else if (error?.message?.includes('auth') || error?.message?.includes('unauthorized')) {
@@ -313,7 +294,6 @@ export default function VehicleEditScreen() {
       
       setState(prev => ({ ...prev, saving: true }));
       
-      const { db } = getFirebase();
       const currentUser = auth.currentUser; // We already verified auth above
       
       // CRITICAL FIX: Force fresh token to prevent permission errors
@@ -325,25 +305,32 @@ export default function VehicleEditScreen() {
         console.warn('[VehicleEdit] ⚠️ Token refresh failed, continuing anyway:', tokenError);
       }
       
-      const vehicleData: VehicleData = {
-        ...state.vehicle,
-        status: publish ? 'published' : 'draft',
+      const vehicleData = {
+        name: state.vehicle.name,
+        year: state.vehicle.year,
+        make: state.vehicle.make,
+        model: state.vehicle.model,
+        type: state.vehicle.type,
+        subtype: state.vehicle.subtype,
+        vin: state.vehicle.vin,
+        licensePlate: state.vehicle.licensePlate,
+        mpg: state.vehicle.mpg,
         photos: state.photos,
         primaryPhoto: state.primaryPhoto,
-        updatedAt: serverTimestamp(),
-        createdBy: currentUser?.uid || user?.id || 'unknown', // Add user ownership with fallback
-        ...(vehicle_id ? {} : { createdAt: serverTimestamp() }),
-      };
+        status: publish ? 'published' : 'draft',
+      } as const;
       
-      console.log('[VehicleEdit] Saving vehicle:', vehicleData.id, {
+      console.log('[VehicleEdit] Saving vehicle:', state.vehicle.id, {
         status: vehicleData.status,
         photos: vehicleData.photos.length,
         primaryPhoto: !!vehicleData.primaryPhoto,
-        createdBy: vehicleData.createdBy,
       });
       
-      const docRef = doc(db, VEHICLES_COLLECTION, vehicleData.id);
-      await setDoc(docRef, vehicleData, { merge: true });
+      if (vehicle_id) {
+        await updateVehicle(vehicle_id, vehicleData);
+      } else {
+        await createVehicleWithId(state.vehicle.id, vehicleData);
+      }
       
       console.log('[VehicleEdit] Vehicle saved successfully');
       toast.show(
@@ -360,7 +347,7 @@ export default function VehicleEditScreen() {
       // CRITICAL FIX: Enhanced error handling with user-friendly messages
       let errorMessage = 'Failed to save vehicle';
       
-      if (error?.code === 'permission-denied') {
+      if (error?.message === 'Not signed in' || error?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please sign in and try again.';
         setAuthError(errorMessage);
       } else if (error?.message?.includes('auth') || error?.message?.includes('unauthorized')) {

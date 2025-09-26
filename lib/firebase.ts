@@ -774,3 +774,68 @@ export async function postLoad(args: {
     throw error;
   }
 }
+
+// ======================
+// VEHICLE HELPERS
+// ======================
+
+export type Vehicle = {
+  id?: string;
+  name: string;
+  year: string;
+  make: string;
+  model: string;
+  type: 'truck' | 'trailer';
+  subtype: string;
+  vin?: string;
+  licensePlate?: string;
+  mpg?: string;
+  photos?: string[];
+  primaryPhoto?: string;
+  status?: 'draft' | 'published';
+  createdBy?: string;
+  userId?: string;
+  createdAt?: any;
+  updatedAt?: any;
+};
+
+// Create at drivers/{uid}/vehicles/{forcedId}
+export async function createVehicleWithId(
+  forcedId: string,
+  data: Omit<Vehicle, 'id' | 'createdBy' | 'userId' | 'createdAt' | 'updatedAt'>
+) {
+  const { auth, db } = getFirebase();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+
+  const ref = doc(db, 'drivers', uid, 'vehicles', forcedId);
+  const payload = {
+    ...data,
+    createdBy: uid,
+    userId: uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  await setDoc(ref, payload, { merge: true });
+  return forcedId;
+}
+
+export async function getVehicle(vehicleId: string) {
+  const { auth, db } = getFirebase();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+
+  const ref = doc(db, 'drivers', uid, 'vehicles', vehicleId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Not found');
+  return { id: snap.id, ...(snap.data() as Vehicle) };
+}
+
+export async function updateVehicle(vehicleId: string, patch: Partial<Vehicle>) {
+  const { auth, db } = getFirebase();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+
+  const ref = doc(db, 'drivers', uid, 'vehicles', vehicleId);
+  await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
+}
