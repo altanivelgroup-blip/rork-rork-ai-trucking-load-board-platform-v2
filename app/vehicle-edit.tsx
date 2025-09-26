@@ -95,35 +95,39 @@ export default function VehicleEditScreen() {
       console.log('[VehicleEdit] Loading vehicle:', vehicle_id);
       console.log('[VehicleEdit] Auth state:', { user: !!user, isAuthenticated, userEmail: user?.email });
       
-      // CRITICAL FIX: Check app-level authentication first
-      if (!user || !isAuthenticated) {
-        console.warn('[VehicleEdit] User not authenticated in app state');
-        // Don't set auth error for loading, just continue without blocking
-        console.log('[VehicleEdit] Continuing without authentication for vehicle loading');
-      }
-      
-      // CRITICAL FIX: Enhanced authentication check with fallback
+      // CRITICAL FIX: Wait for authentication to be ready
       const { auth } = getFirebase();
       
+      // If no Firebase user, try to ensure authentication
       if (!auth?.currentUser?.uid) {
         console.warn('[VehicleEdit] No Firebase user - attempting to ensure auth...');
         
-        // Try to ensure authentication
         const authSuccess = await ensureFirebaseAuth();
         if (!authSuccess || !auth?.currentUser?.uid) {
-          console.error('[VehicleEdit] Firebase authentication failed - but user is signed in app');
-          // Don't block if app user exists
+          console.error('[VehicleEdit] Firebase authentication failed');
+          
+          // If we have app-level auth but no Firebase auth, show specific error
           if (user && isAuthenticated) {
-            console.log('[VehicleEdit] Continuing with app authentication');
+            setAuthError('Authentication sync issue. Please try signing out and back in.');
           } else {
             setAuthError('Please sign in to access vehicle data.');
-            setState(prev => ({ ...prev, loading: false }));
-            return;
           }
+          setState(prev => ({ ...prev, loading: false }));
+          return;
         }
       }
       
       console.log('[VehicleEdit] ✅ Authentication verified - User ID:', auth.currentUser.uid);
+      
+      // Force token refresh to ensure we have valid permissions
+      try {
+        console.log('[VehicleEdit] 🔑 Refreshing authentication token...');
+        const freshToken = await auth.currentUser.getIdToken(true);
+        console.log('[VehicleEdit] ✅ Fresh token obtained:', !!freshToken);
+      } catch (tokenError) {
+        console.warn('[VehicleEdit] ⚠️ Token refresh failed:', tokenError);
+        // Continue anyway, might still work
+      }
       
       const { db } = getFirebase();
       const docRef = doc(db, VEHICLES_COLLECTION, vehicle_id);
@@ -135,7 +139,8 @@ export default function VehicleEditScreen() {
           id: vehicle_id,
           name: data.name,
           status: data.status,
-          photos: data.photos?.length || 0
+          photos: data.photos?.length || 0,
+          createdBy: data.createdBy
         });
         setState(prev => ({
           ...prev,
@@ -589,7 +594,7 @@ export default function VehicleEditScreen() {
                   style={styles.signInButton}
                   onPress={() => {
                     console.log('[VehicleEdit] Navigating to sign in');
-                    router.push('/signin');
+                    router.push('/(auth)/login');
                   }}
                   testID="vehicle-edit-signin"
                 >
@@ -614,7 +619,7 @@ export default function VehicleEditScreen() {
                 style={styles.signInPromptButton}
                 onPress={() => {
                   console.log('[VehicleEdit] Sign in prompt - navigating to sign in');
-                  router.push('/signin');
+                  router.push('/(auth)/login');
                 }}
                 testID="vehicle-edit-signin-prompt"
               >
