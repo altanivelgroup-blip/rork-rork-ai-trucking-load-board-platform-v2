@@ -22,7 +22,7 @@ export default function ResetPasswordScreen() {
       console.log('[reset] sending reset email to', email);
       await resetPassword(email);
       Alert.alert('Email sent', 'Check your email for password reset instructions.');
-      router.replace('/(auth)/login');
+      router.replace('/login');
     } catch (e) {
       console.error('[reset] error', e);
       Alert.alert('Reset failed', 'Unable to send reset email.');

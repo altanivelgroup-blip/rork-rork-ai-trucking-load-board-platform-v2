@@ -230,7 +230,7 @@ export default function SignUpScreen() {
                 <Text style={styles.errorText} testID="signup-error">{errorText}</Text>
                 {errorText.includes('already exists') && (
                   <TouchableOpacity 
-                    onPress={() => router.replace('/(auth)/login')}
+                    onPress={() => router.replace('/login')}
                     style={styles.loginRedirectButton}
                     testID="redirect-to-login"
                   >
@@ -251,7 +251,7 @@ export default function SignUpScreen() {
                 <Text style={styles.ctaText}>Create {selectedRole} Account</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.replace('/(auth)/login')} style={styles.secondary}>
+            <TouchableOpacity onPress={() => router.replace('/login')} style={styles.secondary}>
               <Text style={styles.secondaryText}>Already have an account? Log in</Text>
             </TouchableOpacity>
           </View>
