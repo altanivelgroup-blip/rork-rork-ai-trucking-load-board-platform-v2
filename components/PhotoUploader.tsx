@@ -517,6 +517,11 @@ export function PhotoUploader({
       // FIXED: Start with empty state for new uploads to avoid permission issues
       console.log('[PhotoUploader] ✅ FIXED: Ready for photo uploads');
       setState((prev) => ({ ...prev, loading: false }));
+      
+      // Show a friendly message for new entities
+      if (entityType === 'vehicle') {
+        console.log('[PhotoUploader] ✅ Vehicle PhotoUploader ready - awaiting photos');
+      }
       return;
       
       // The code below is commented out to avoid Firebase permission errors

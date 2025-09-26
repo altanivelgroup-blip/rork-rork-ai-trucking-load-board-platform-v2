@@ -151,8 +151,10 @@ export default function VehicleEditScreen() {
           primaryPhoto: data.primaryPhoto || '',
           loading: false,
         }));
+        // Clear any auth errors since we successfully loaded
+        setAuthError(null);
       } catch (vehicleError: any) {
-        console.log('[VehicleEdit] Vehicle not found in database, creating new vehicle with existing ID:', vehicle_id);
+        console.log('[VehicleEdit] ✅ Vehicle not found - switching to CREATE mode for ID:', vehicle_id);
         // Vehicle doesn't exist yet - this is normal for new vehicles
         // Keep the existing ID and let user create the vehicle
         setState(prev => ({ 
@@ -165,7 +167,8 @@ export default function VehicleEditScreen() {
         }));
         // Clear any auth errors since we're in create mode
         setAuthError(null);
-        console.log('[VehicleEdit] Ready to create new vehicle with ID:', vehicle_id);
+        console.log('[VehicleEdit] ✅ Ready to create new vehicle with ID:', vehicle_id);
+        toast.show('Creating new vehicle - ready for photos!', 'success');
         return;
       }
     } catch (error: any) {
@@ -175,8 +178,8 @@ export default function VehicleEditScreen() {
       let errorMessage = 'Failed to load vehicle data';
       
       if (error?.message === 'Not found') {
-        console.warn('[VehicleEdit] Vehicle document not found:', vehicle_id);
-        console.log('[VehicleEdit] Switching to add mode for non-existent vehicle');
+        console.log('[VehicleEdit] ✅ Vehicle not found - this is normal for new vehicles');
+        console.log('[VehicleEdit] ✅ Switching to CREATE mode for vehicle ID:', vehicle_id);
         // Switch to add mode - keep the same ID for PhotoUploader stability
         setState(prev => ({ 
           ...prev, 
@@ -188,7 +191,7 @@ export default function VehicleEditScreen() {
         }));
         // Clear any auth errors since we're switching to add mode
         setAuthError(null);
-        toast.show('Vehicle not found - creating new vehicle', 'info');
+        toast.show('✅ Ready to create new vehicle!', 'success');
         return;
       } else if (error?.message === 'Not signed in' || error?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please sign in and try again.';
