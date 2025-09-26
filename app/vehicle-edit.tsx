@@ -18,14 +18,29 @@ import { TRUCK_SUBTYPES, TRAILER_SUBTYPES, AnySubtype } from '@/constants/vehicl
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { getVehicle, updateVehicle, createVehicleWithId, Vehicle } from '@/lib/firebase';
+import { getVehicle, updateVehicle, createVehicleWithId } from '@/lib/firebase';
 import { Save, AlertCircle, LogIn } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import uuid from 'react-native-uuid';
 
-interface VehicleData extends Vehicle {
+interface VehicleData {
+  id?: string;
+  name: string;
+  year: string;
+  make: string;
+  model: string;
+  type: 'truck' | 'trailer';
+  subtype: string;
+  vin?: string;
+  licensePlate?: string;
+  mpg?: string;
   photos: string[];
   primaryPhoto: string;
+  status?: 'draft' | 'published';
+  createdBy?: string;
+  userId?: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 interface VehicleEditState {
@@ -127,9 +142,9 @@ export default function VehicleEditScreen() {
       setState(prev => ({
         ...prev,
         vehicle: {
+          ...prev.vehicle,
           ...data,
-          photos: data.photos || [],
-          primaryPhoto: data.primaryPhoto || '',
+          id: vehicle_id,
         },
         photos: data.photos || [],
         primaryPhoto: data.primaryPhoto || '',
@@ -305,7 +320,8 @@ export default function VehicleEditScreen() {
         console.warn('[VehicleEdit] ⚠️ Token refresh failed, continuing anyway:', tokenError);
       }
       
-      const vehicleData = {
+      const forcedId = state.vehicle.id; // keep PhotoUploader id stable
+      const basePatch = {
         name: state.vehicle.name,
         year: state.vehicle.year,
         make: state.vehicle.make,
@@ -319,17 +335,13 @@ export default function VehicleEditScreen() {
         primaryPhoto: state.primaryPhoto,
         status: publish ? 'published' : 'draft',
       } as const;
-      
-      console.log('[VehicleEdit] Saving vehicle:', state.vehicle.id, {
-        status: vehicleData.status,
-        photos: vehicleData.photos.length,
-        primaryPhoto: !!vehicleData.primaryPhoto,
-      });
-      
-      if (vehicle_id) {
-        await updateVehicle(vehicle_id, vehicleData);
+
+      if (!vehicle_id) {
+        // ADD MODE — create at drivers/{uid}/vehicles/{forcedId}
+        await createVehicleWithId(forcedId, basePatch as any);
       } else {
-        await createVehicleWithId(state.vehicle.id, vehicleData);
+        // EDIT MODE — update existing
+        await updateVehicle(vehicle_id, basePatch as any);
       }
       
       console.log('[VehicleEdit] Vehicle saved successfully');
