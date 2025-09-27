@@ -47,61 +47,85 @@ export default function PhotoUploader({
 
       console.log(`[PhotoUploader] Starting image manipulation for ${uri}`);
       
-      // Compress image with timeout
-      const manipulatePromise = ImageManipulator.manipulateAsync(
-        uri,
-        [{ resize: { width: 1600 } }],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Image manipulation timeout')), 30000)
-      );
-      
-      const manipulated = await Promise.race([manipulatePromise, timeoutPromise]) as any;
-      console.log(`[PhotoUploader] Image manipulated successfully`);
+      // Compress image with shorter timeout and better error handling
+      let manipulated;
+      try {
+        manipulated = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: 1200 } }], // Reduced size for faster processing
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        console.log(`[PhotoUploader] Image manipulated successfully`);
+      } catch (manipError) {
+        console.warn(`[PhotoUploader] Image manipulation failed, using original:`, manipError);
+        manipulated = { uri }; // Use original if manipulation fails
+      }
 
-      // Convert to blob with timeout
+      // Convert to blob with better error handling
       console.log(`[PhotoUploader] Converting to blob...`);
-      const fetchPromise = fetch(manipulated.uri);
-      const fetchTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Fetch timeout')), 15000)
-      );
-      
-      const response = await Promise.race([fetchPromise, fetchTimeoutPromise]) as Response;
-      const blob = await response.blob();
-      console.log(`[PhotoUploader] Blob created, size: ${blob.size} bytes`);
+      let blob;
+      try {
+        const response = await fetch(manipulated.uri);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        blob = await response.blob();
+        console.log(`[PhotoUploader] Blob created, size: ${blob.size} bytes`);
+      } catch (fetchError: any) {
+        console.error(`[PhotoUploader] Blob conversion failed:`, fetchError);
+        throw new Error(`Failed to process image: ${fetchError?.message || 'Unknown error'}`);
+      }
 
-      // Create storage reference
+      // Create storage reference with better path structure
       const storage = getStorage();
-      const fileId = `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}.jpg`;
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).slice(2, 8);
+      const fileId = `${timestamp}-${randomId}.jpg`;
       const path = `photos/${userId}/${fileId}`;
       const storageRef = ref(storage, path);
       
       console.log(`[PhotoUploader] Uploading to Firebase Storage: ${path}`);
 
-      // Upload with timeout
-      const uploadPromise = uploadBytes(storageRef, blob, {
-        contentType: 'image/jpeg',
-      });
-      
-      const uploadTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Upload timeout')), 60000)
-      );
-      
-      await Promise.race([uploadPromise, uploadTimeoutPromise]);
-      console.log(`[PhotoUploader] Upload completed, getting download URL...`);
-      
-      const downloadURL = await getDownloadURL(storageRef);
-      console.log(`[PhotoUploader] Successfully uploaded image ${index}/${total}: ${downloadURL}`);
-      
-      return { id: fileId, url: downloadURL, path };
+      // Upload with better error handling
+      try {
+        await uploadBytes(storageRef, blob, {
+          contentType: 'image/jpeg',
+          customMetadata: {
+            uploadedBy: userId,
+            uploadedAt: timestamp.toString(),
+            originalSize: blob.size.toString()
+          }
+        });
+        console.log(`[PhotoUploader] Upload completed successfully`);
+        
+        // Get download URL
+        const downloadURL = await getDownloadURL(storageRef);
+        console.log(`[PhotoUploader] Successfully uploaded image ${index}/${total}: ${downloadURL}`);
+        
+        return { id: fileId, url: downloadURL, path };
+      } catch (uploadError: any) {
+        console.error(`[PhotoUploader] Firebase upload failed:`, uploadError);
+        
+        // Provide specific error messages
+        let errorMessage = 'Upload failed';
+        if (uploadError.code === 'storage/unauthorized') {
+          errorMessage = 'Permission denied. Please check your account permissions.';
+        } else if (uploadError.code === 'storage/canceled') {
+          errorMessage = 'Upload was canceled.';
+        } else if (uploadError.code === 'storage/unknown') {
+          errorMessage = 'Unknown error occurred during upload.';
+        } else if (uploadError.code === 'storage/retry-limit-exceeded') {
+          errorMessage = 'Upload failed after multiple retries.';
+        }
+        
+        throw new Error(errorMessage);
+      }
     } catch (error: any) {
       console.error(`[PhotoUploader] Failed to upload image ${index}:`, error);
       console.error(`[PhotoUploader] Error details:`, {
         message: error?.message,
         code: error?.code,
-        stack: error?.stack?.substring(0, 200)
+        name: error?.name
       });
       throw error;
     }
@@ -164,14 +188,20 @@ export default function PhotoUploader({
       const uploadedItems: {id:string;url:string;path:string}[] = [];
       const failedUploads: string[] = [];
       
-      // Upload each image sequentially
+      // Upload each image sequentially with better error recovery
       for (let i = 0; i < assets.length; i++) {
         try {
+          setProgress(`Processing image ${i + 1}/${assets.length}...`);
           const uploaded = await uploadSingleImage(assets[i].uri, i + 1, assets.length);
           uploadedItems.push(uploaded);
+          console.log(`[PhotoUploader] Successfully uploaded ${i + 1}/${assets.length}`);
         } catch (error: any) {
           console.error(`[PhotoUploader] Failed to upload image ${i + 1}:`, error);
-          failedUploads.push(`Image ${i + 1}: ${error?.message || 'Unknown error'}`);
+          const errorMsg = error?.message || 'Unknown error';
+          failedUploads.push(`Image ${i + 1}: ${errorMsg}`);
+          
+          // Continue with other images even if one fails
+          console.log(`[PhotoUploader] Continuing with remaining images...`);
         }
       }
 
@@ -180,17 +210,23 @@ export default function PhotoUploader({
       
       console.log(`[PhotoUploader] Upload complete. Successfully uploaded ${uploadedItems.length} out of ${assets.length} photos`);
       
+      // Handle results
       if (uploadedItems.length > 0) {
+        console.log(`[PhotoUploader] Calling onUploaded with ${uploadedItems.length} items`);
         onUploaded?.(uploadedItems);
         
         let message = `Successfully uploaded ${uploadedItems.length} photo${uploadedItems.length > 1 ? 's' : ''}!`;
         if (failedUploads.length > 0) {
-          message += `\n\nFailed uploads:\n${failedUploads.join('\n')}`;
+          message += `\n\n${failedUploads.length} upload${failedUploads.length > 1 ? 's' : ''} failed.`;
         }
         
         Alert.alert("Upload Complete", message);
       } else if (failedUploads.length > 0) {
-        Alert.alert("Upload Failed", `All uploads failed:\n${failedUploads.join('\n')}`);
+        const errorDetails = failedUploads.slice(0, 3).join('\n'); // Show first 3 errors
+        const moreErrors = failedUploads.length > 3 ? `\n...and ${failedUploads.length - 3} more` : '';
+        Alert.alert("Upload Failed", `All uploads failed:\n${errorDetails}${moreErrors}`);
+      } else {
+        Alert.alert("No Photos", "No photos were selected or processed.");
       }
       
     } catch (error: any) {
