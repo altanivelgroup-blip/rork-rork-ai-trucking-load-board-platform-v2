@@ -47,9 +47,9 @@ export default function TestUploaderSection({ role }: { role: "shipper" | "drive
 
   if (!userId) {
     return (
-      <View style={styles.card}>
+      <View style={styles.card} testID="testUploaderSectionSignedOut">
         <Text style={styles.title}>Photo Uploader (TEST)</Text>
-        <Text style={styles.error}>Please sign in to test photo uploads</Text>
+        <Text style={styles.error}>Sign-in required. Please login to test uploads.</Text>
       </View>
     );
   }

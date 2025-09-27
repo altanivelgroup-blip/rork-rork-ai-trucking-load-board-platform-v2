@@ -1,35 +1,45 @@
 import { db } from "@/utils/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
-/** Ensures a per-user test load exists and returns its id. */
 export async function ensureTestLoad(userId: string) {
-  if (!userId || typeof userId !== 'string') {
+  if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
     throw new Error('Valid userId is required');
   }
-  
-  console.log('[ensureTestLoad] Creating test load for user:', userId);
-  
+
+  console.log('[ensureTestLoad] Ensuring test load for user:', userId);
+
   const loadId = `test-load-${userId}`;
   const ref = doc(db, "loads", loadId);
-  
+
   try {
     const snap = await getDoc(ref);
     if (!snap.exists()) {
-      console.log('[ensureTestLoad] Test load does not exist, creating...');
+      console.log('[ensureTestLoad] Test load missing, creating with owner fields...');
       await setDoc(ref, {
         title: "TEST LOAD (do not use)",
-        createdBy: userId,            // <- matches Storage Rules owner check
-        assignedDriverId: userId,     // <- lets the driver role upload too
+        createdBy: userId,
+        userId: userId,
+        assignedDriverId: userId,
         status: "test",
         createdAt: serverTimestamp(),
         lastPhotoAt: serverTimestamp(),
         coverPhotoUrl: null,
       });
-      console.log('[ensureTestLoad] Test load created successfully');
+      console.log('[ensureTestLoad] Test load created');
     } else {
-      console.log('[ensureTestLoad] Test load already exists');
+      const data = snap.data() as Record<string, unknown> | undefined;
+      const needsOwnerPatch = !data?.createdBy || !data?.userId;
+      if (needsOwnerPatch) {
+        console.log('[ensureTestLoad] Patching owner fields on existing test load');
+        await setDoc(
+          ref,
+          { createdBy: userId, userId: userId },
+          { merge: true } as any
+        );
+      }
+      console.log('[ensureTestLoad] Test load ready');
     }
-    
+
     return loadId;
   } catch (error: any) {
     console.error('[ensureTestLoad] Failed to create test load:', error);
