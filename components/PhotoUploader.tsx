@@ -64,10 +64,13 @@ export default function PhotoUploader({
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
     try {
-      // Convert to blob with abort signal
-      const response = await fetch(manipulated.uri, {
-        signal: controller.signal
-      });
+      // Convert to blob with timeout handling
+      const response = await Promise.race([
+        fetch(manipulated.uri),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Fetch timeout (15s)')), 15000)
+        ),
+      ]);
       
       clearTimeout(timeoutId);
       
@@ -93,17 +96,22 @@ export default function PhotoUploader({
       
       console.log(`[PhotoUploader] Uploading image ${index} to: ${path}`);
 
-      // Upload with metadata
-      await uploadBytes(storageRef, blob, {
-        contentType: 'image/jpeg',
-        customMetadata: {
-          uploadedBy: userId,
-          uploadedAt: timestamp.toString(),
-          loadId: loadId,
-          originalSize: blob.size.toString(),
-          compressionLevel: compressionLevel.toString()
-        }
-      });
+      // Upload with metadata and timeout handling
+      await Promise.race([
+        uploadBytes(storageRef, blob, {
+          contentType: 'image/jpeg',
+          customMetadata: {
+            uploadedBy: userId,
+            uploadedAt: timestamp.toString(),
+            loadId: loadId,
+            originalSize: blob.size.toString(),
+            compressionLevel: compressionLevel.toString()
+          }
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Upload timeout (30s)')), 30000)
+        ),
+      ]);
       
       console.log(`[PhotoUploader] Image ${index} uploaded successfully`);
       
