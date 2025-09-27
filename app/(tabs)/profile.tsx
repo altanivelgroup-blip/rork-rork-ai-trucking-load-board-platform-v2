@@ -86,6 +86,14 @@ export default function ProfileScreen() {
 
   const driverOptions: ProfileOption[] = [
     {
+      id: 'photo-upload-test',
+      title: 'Photo Upload Test',
+      subtitle: 'Test photo uploads quickly',
+      icon: <Upload size={20} color={theme.colors.success} />,
+      route: '/photo-upload-test',
+      showChevron: true
+    },
+    {
       id: 'driver-profile',
       title: 'Edit Profile',
       subtitle: 'Personal info, vehicle, MPG, VIN, plate',
