@@ -11,11 +11,11 @@ export default function Index() {
   const [forceLogin, setForceLogin] = useState(false);
 
   useEffect(() => {
-    // Shorter timeout to prevent long loading
+    // Much shorter timeout to prevent long loading
     const timer = setTimeout(() => {
       setInitializing(false);
       setDebugInfo(`Auth: loading=${isLoading}, authenticated=${isAuthenticated}, user=${user?.role || 'none'}`);
-    }, 2000); // Reduced from 1000 to 2000ms
+    }, 500); // Reduced to 500ms
 
     return () => clearTimeout(timer);
   }, [isLoading, isAuthenticated, user]);
@@ -34,8 +34,8 @@ export default function Index() {
     return <Redirect href="/login" />;
   }
 
-  // Show loading while auth is initializing
-  if (isLoading || initializing) {
+  // Show loading while auth is initializing (but not for too long)
+  if ((isLoading || initializing) && !forceLogin) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />

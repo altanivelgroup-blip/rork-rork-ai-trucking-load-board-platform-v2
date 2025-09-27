@@ -36,13 +36,24 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   // Simple Firebase auth state listener
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let mounted = true;
     
     const initAuth = async () => {
       try {
         console.log('[auth] Starting simple auth initialization...');
         
+        // Add timeout to prevent hanging
+        const timeoutId = setTimeout(() => {
+          if (mounted) {
+            console.log('[auth] Auth initialization timeout, setting loading to false');
+            setIsLoading(false);
+          }
+        }, 3000);
+        
         // Set up Firebase auth state listener
         unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+          clearTimeout(timeoutId);
+          if (!mounted) return;
           console.log('[auth] Firebase auth state changed:', firebaseUser ? `${firebaseUser.uid} (${firebaseUser.email})` : 'signed out');
           
           if (firebaseUser) {
@@ -157,20 +168,27 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             console.log('[auth] User signed out');
           }
           
-          setIsLoading(false);
+          if (mounted) {
+            setIsLoading(false);
+          }
         });
         
-        setIsFirebaseAuthenticated(true);
+        if (mounted) {
+          setIsFirebaseAuthenticated(true);
+        }
         
       } catch (error: any) {
         console.error('[auth] Auth initialization error:', error);
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
     
     initAuth();
     
     return () => {
+      mounted = false;
       if (unsubscribe) unsubscribe();
     };
   }, []);
