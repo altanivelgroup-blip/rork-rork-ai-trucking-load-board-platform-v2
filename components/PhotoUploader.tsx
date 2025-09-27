@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth } from "@/utils/firebase";
@@ -19,40 +19,90 @@ export default function PhotoUploader({
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string>('');
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
+  useEffect(() => {
+    // Debug Firebase connection
+    const checkFirebase = () => {
+      const user = auth.currentUser;
+      const info = `Auth: ${user ? 'Signed In' : 'Not Signed In'} | Platform: ${Platform.OS}`;
+      setDebugInfo(info);
+      console.log('[PhotoUploader] Debug info:', info);
+    };
+    
+    checkFirebase();
+    const unsubscribe = auth.onAuthStateChanged(checkFirebase);
+    return unsubscribe;
+  }, []);
 
   const uploadSingleImage = async (uri: string, index: number, total: number) => {
     console.log(`[PhotoUploader] Uploading image ${index}/${total}`);
     setProgress(`Uploading ${index}/${total}...`);
     
     try {
-      // Compress image
-      const manipulated = await ImageManipulator.manipulateAsync(
+      // Validate auth first
+      if (!auth.currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      console.log(`[PhotoUploader] Starting image manipulation for ${uri}`);
+      
+      // Compress image with timeout
+      const manipulatePromise = ImageManipulator.manipulateAsync(
         uri,
         [{ resize: { width: 1600 } }],
         { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
       );
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Image manipulation timeout')), 30000)
+      );
+      
+      const manipulated = await Promise.race([manipulatePromise, timeoutPromise]) as any;
+      console.log(`[PhotoUploader] Image manipulated successfully`);
 
-      // Convert to blob
-      const response = await fetch(manipulated.uri);
+      // Convert to blob with timeout
+      console.log(`[PhotoUploader] Converting to blob...`);
+      const fetchPromise = fetch(manipulated.uri);
+      const fetchTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch timeout')), 15000)
+      );
+      
+      const response = await Promise.race([fetchPromise, fetchTimeoutPromise]) as Response;
       const blob = await response.blob();
+      console.log(`[PhotoUploader] Blob created, size: ${blob.size} bytes`);
 
-      // Create storage reference - simplified path
+      // Create storage reference
       const storage = getStorage();
       const fileId = `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}.jpg`;
       const path = `photos/${userId}/${fileId}`;
       const storageRef = ref(storage, path);
+      
+      console.log(`[PhotoUploader] Uploading to Firebase Storage: ${path}`);
 
-      // Simple upload without progress tracking
-      await uploadBytes(storageRef, blob, {
+      // Upload with timeout
+      const uploadPromise = uploadBytes(storageRef, blob, {
         contentType: 'image/jpeg',
       });
       
+      const uploadTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Upload timeout')), 60000)
+      );
+      
+      await Promise.race([uploadPromise, uploadTimeoutPromise]);
+      console.log(`[PhotoUploader] Upload completed, getting download URL...`);
+      
       const downloadURL = await getDownloadURL(storageRef);
-      console.log(`[PhotoUploader] Successfully uploaded image ${index}/${total}`);
+      console.log(`[PhotoUploader] Successfully uploaded image ${index}/${total}: ${downloadURL}`);
       
       return { id: fileId, url: downloadURL, path };
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[PhotoUploader] Failed to upload image ${index}:`, error);
+      console.error(`[PhotoUploader] Error details:`, {
+        message: error?.message,
+        code: error?.code,
+        stack: error?.stack?.substring(0, 200)
+      });
       throw error;
     }
   };
@@ -60,20 +110,30 @@ export default function PhotoUploader({
   const pick = async () => {
     try {
       console.log('[PhotoUploader] Starting photo selection...');
+      setBusy(true);
+      setProgress('Checking permissions...');
       
       // Check permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
+        setBusy(false);
+        setProgress('');
         Alert.alert("Permission Required", "Media library permission is required to upload photos.");
         return;
       }
+      console.log('[PhotoUploader] Permissions granted');
 
       // Check auth
       if (!auth.currentUser) {
+        setBusy(false);
+        setProgress('');
         Alert.alert("Authentication Required", "Please sign in to upload photos.");
         return;
       }
+      console.log('[PhotoUploader] User authenticated:', auth.currentUser.uid);
 
+      setProgress('Opening photo picker...');
+      
       // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsMultipleSelection: allowMultiple,
@@ -84,6 +144,8 @@ export default function PhotoUploader({
 
       if (result.canceled) {
         console.log('[PhotoUploader] User canceled photo selection');
+        setBusy(false);
+        setProgress('');
         return;
       }
       
@@ -92,13 +154,15 @@ export default function PhotoUploader({
       
       if (assets.length === 0) {
         console.log('[PhotoUploader] No assets selected');
+        setBusy(false);
+        setProgress('');
         return;
       }
       
-      setBusy(true);
       setProgress('Starting upload...');
 
       const uploadedItems: {id:string;url:string;path:string}[] = [];
+      const failedUploads: string[] = [];
       
       // Upload each image sequentially
       for (let i = 0; i < assets.length; i++) {
@@ -107,7 +171,7 @@ export default function PhotoUploader({
           uploadedItems.push(uploaded);
         } catch (error: any) {
           console.error(`[PhotoUploader] Failed to upload image ${i + 1}:`, error);
-          Alert.alert("Upload Error", `Failed to upload image ${i + 1}: ${error?.message || 'Unknown error'}`);
+          failedUploads.push(`Image ${i + 1}: ${error?.message || 'Unknown error'}`);
         }
       }
 
@@ -118,7 +182,15 @@ export default function PhotoUploader({
       
       if (uploadedItems.length > 0) {
         onUploaded?.(uploadedItems);
-        Alert.alert("Success", `Successfully uploaded ${uploadedItems.length} photo${uploadedItems.length > 1 ? 's' : ''}!`);
+        
+        let message = `Successfully uploaded ${uploadedItems.length} photo${uploadedItems.length > 1 ? 's' : ''}!`;
+        if (failedUploads.length > 0) {
+          message += `\n\nFailed uploads:\n${failedUploads.join('\n')}`;
+        }
+        
+        Alert.alert("Upload Complete", message);
+      } else if (failedUploads.length > 0) {
+        Alert.alert("Upload Failed", `All uploads failed:\n${failedUploads.join('\n')}`);
       }
       
     } catch (error: any) {
@@ -127,6 +199,11 @@ export default function PhotoUploader({
       setProgress('');
       Alert.alert("Error", `Photo selection failed: ${error?.message || 'Unknown error'}`);
     }
+  };
+
+  const handleRetry = () => {
+    setBusy(false);
+    setProgress('');
   };
 
   return (
@@ -141,10 +218,18 @@ export default function PhotoUploader({
 
       {busy ? (
         <View style={styles.progressContainer}>
-          <ActivityIndicator />
+          <ActivityIndicator size="small" color="#2563eb" />
           <Text style={styles.progressText}>{progress}</Text>
         </View>
       ) : null}
+      
+      {busy && (
+        <Pressable onPress={handleRetry} style={styles.retryButton}>
+          <Text style={styles.retryText}>Cancel / Retry</Text>
+        </Pressable>
+      )}
+      
+      <Text style={styles.debugText}>{debugInfo}</Text>
     </View>
   );
 }
@@ -175,5 +260,25 @@ const styles = StyleSheet.create({
   progressText: {
     color: '#666',
     marginLeft: 12,
+    flex: 1,
+  },
+  retryButton: {
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  retryText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  debugText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
   },
 });
