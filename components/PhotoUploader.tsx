@@ -61,7 +61,17 @@ export default function PhotoUploader({
     const storage = getStorage();
     const timestamp = Date.now();
     const fileId = `${timestamp}-${index}.jpg`;
-    const path = `photos/${auth.currentUser.uid}/${fileId}`;
+    
+    let path: string;
+    
+    if (role === "shipper") {
+      path = `loads/${loadId}/shipper/${userId}/${fileId}`;
+    } else if (role === "driver") {
+      path = `loads/${loadId}/driver/${userId}/${fileId}`;
+    } else {
+      throw new Error("Invalid role: must be shipper or driver");
+    }
+    
     const storageRef = ref(storage, path);
 
     // Upload with resumable upload and timeout
