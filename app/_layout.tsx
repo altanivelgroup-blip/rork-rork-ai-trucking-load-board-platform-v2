@@ -21,6 +21,7 @@ import { DriverDataPersistenceProvider } from "@/hooks/useDriverDataPersistence"
 
 
 import HeaderBack from "@/components/HeaderBack";
+import PersistentAuthAction from "@/components/PersistentAuthAction";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import NavigationErrorBoundary from "@/components/NavigationErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
@@ -315,7 +316,10 @@ export default function RootLayout() {
                                       <DriverDataPersistenceProvider>
                                         <FuelMonitorProvider>
                                           <NavigationErrorBoundary fallbackRoute="/login">
-                                            <RootLayoutNav />
+                                            <>
+                                              <RootLayoutNav />
+                                              <PersistentAuthAction />
+                                            </>
                                           </NavigationErrorBoundary>
                                           <AutoArriveSheet />
                                         </FuelMonitorProvider>
