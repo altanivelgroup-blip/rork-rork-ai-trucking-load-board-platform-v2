@@ -51,7 +51,7 @@ export default function ShipperHome() {
 
   const goPhotoUploadTest = useCallback(() => {
     console.log('shipper.goPhotoUploadTest');
-    router.push('/photo-upload-test');
+    router.push('/photo-test');
   }, [router]);
   
   // Don't redirect - let the tab layout handle role-based access
