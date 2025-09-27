@@ -8,6 +8,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { useLoads } from '@/hooks/useLoads';
 import { useNotificationSettings } from '@/hooks/useNotificationSettings';
 import { useToast } from '@/components/Toast';
+import TestUploaderSection from '@/components/TestUploaderSection';
 import { 
   Building2, 
   Shield, 
@@ -289,6 +290,15 @@ export default function ShipperProfileScreen() {
                 <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
               </TouchableOpacity>
             ))}
+          </View>
+        </View>
+
+        {/* Test Photo Uploader */}
+        <View style={styles.section}>
+          <View style={styles.testUploaderPill}>
+            <Text style={styles.testUploaderTitle}>📸 Photo Upload Test</Text>
+            <Text style={styles.testUploaderSubtitle}>Test photo upload functionality</Text>
+            <TestUploaderSection role="shipper" />
           </View>
         </View>
 
@@ -910,5 +920,28 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '600',
     color: theme.colors.dark,
+  },
+  testUploaderPill: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+  },
+  testUploaderTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.primary,
+    marginBottom: 4,
+  },
+  testUploaderSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    marginBottom: theme.spacing.md,
   },
 });
