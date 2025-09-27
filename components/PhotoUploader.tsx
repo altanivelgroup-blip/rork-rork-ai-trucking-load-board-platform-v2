@@ -162,7 +162,14 @@ export default function PhotoUploader({
     
     // All attempts failed
     const errorMessage = lastError?.message || 'Unknown upload error';
-    throw new Error(`Upload timeout - please try again`);
+    // Check if it's a timeout or auth error for better messaging
+    if (lastError?.message?.includes('timeout') || lastError?.message?.includes('abort')) {
+      throw new Error('Network is slow — please try again.');
+    } else if (lastError?.message?.includes('auth') || lastError?.message?.includes('permission')) {
+      throw new Error('You must be signed in to upload photos.');
+    } else {
+      throw new Error('Upload failed — please check your connection and try again.');
+    }
   };
 
   const pick = async () => {
@@ -178,7 +185,7 @@ export default function PhotoUploader({
       if (status !== "granted") {
         setBusy(false);
         setProgress('');
-        Alert.alert("Permission Required", "Media library permission is required to upload photos.");
+        Alert.alert("Photo Access Required", "Photo access is required — enable permissions in Settings.");
         return;
       }
       console.log('[PhotoUploader] Permissions granted');
@@ -187,7 +194,7 @@ export default function PhotoUploader({
       if (!auth.currentUser) {
         setBusy(false);
         setProgress('');
-        Alert.alert("Authentication Required", "Please sign in to upload photos.");
+        Alert.alert("Sign In Required", "You must be signed in to upload photos.");
         return;
       }
       console.log('[PhotoUploader] User authenticated:', auth.currentUser.uid);
@@ -285,13 +292,13 @@ export default function PhotoUploader({
           message += `\n\n${failedUploads.length} upload${failedUploads.length > 1 ? 's' : ''} failed.`;
         }
         
-        Alert.alert("Upload Complete", message);
+        Alert.alert("Photos Uploaded!", message);
       } else if (failedUploads.length > 0) {
         const errorDetails = failedUploads.slice(0, 3).join('\n');
         const moreErrors = failedUploads.length > 3 ? `\n...and ${failedUploads.length - 3} more` : '';
-        Alert.alert("Upload Failed", `All uploads failed:\n${errorDetails}${moreErrors}`);
+        Alert.alert("Upload Failed", `Something went wrong with your photos:\n${errorDetails}${moreErrors}`);
       } else {
-        Alert.alert("No Photos", "No photos were selected or processed.");
+        Alert.alert("No Photos Selected", "Please select photos to upload.");
       }
       
     } catch (error: any) {
@@ -300,7 +307,7 @@ export default function PhotoUploader({
       setProgress('');
       setUploadedCount(0);
       setTotalCount(0);
-      Alert.alert("Error", `Photo selection failed: ${error?.message || 'Unknown error'}`);
+      Alert.alert("Something Went Wrong", "Unable to access photos — please try again.");
     }
   };
 
@@ -316,7 +323,7 @@ export default function PhotoUploader({
     setUploadedCount(0);
     setTotalCount(0);
     setRetryQueue([]);
-    Alert.alert('Upload Cancelled', 'Photo upload has been cancelled.');
+    Alert.alert('Upload Stopped', 'Photo upload was cancelled.');
   };
   
   const handleRetryFailed = async () => {
@@ -355,10 +362,10 @@ export default function PhotoUploader({
       onUploaded?.(uploadedItems);
       Alert.alert(
         'Retry Complete',
-        `Successfully uploaded ${uploadedItems.length} photos.${stillFailed.length > 0 ? ` ${stillFailed.length} still failed.` : ''}`
+        `Successfully uploaded ${uploadedItems.length} photo${uploadedItems.length > 1 ? 's' : ''}!${stillFailed.length > 0 ? ` ${stillFailed.length} still failed.` : ''}`
       );
     } else {
-      Alert.alert('Retry Failed', 'All retry attempts failed. Please check your connection and try again.');
+      Alert.alert('Retry Failed', 'Network issues prevented upload — please check your connection and try again.');
     }
   };
 
