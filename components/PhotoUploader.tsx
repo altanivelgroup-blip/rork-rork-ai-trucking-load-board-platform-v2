@@ -38,119 +38,125 @@ export default function PhotoUploader({
     return unsubscribe;
   }, []);
 
-  const uploadSingleImage = async (uri: string, index: number, retryCount = 0): Promise<{id:string;url:string;path:string}> => {
-    const maxRetries = 3;
-    console.log(`[PhotoUploader] Starting upload for image ${index} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+  const uploadSingleImage = async (uri: string, index: number): Promise<{id:string;url:string;path:string}> => {
+    console.log(`[PhotoUploader] Starting upload for image ${index}`);
     
-    try {
-      // Validate auth first
-      if (!auth.currentUser) {
-        throw new Error('User not authenticated');
-      }
-
-      // Progressive compression based on retry count
-      const compressionLevel = Math.max(0.4, 0.8 - (retryCount * 0.2));
-      const maxWidth = Math.max(600, 1000 - (retryCount * 200));
-      
-      console.log(`[PhotoUploader] Compressing image ${index} - quality: ${compressionLevel}, maxWidth: ${maxWidth}`);
-      
-      const manipulated = await ImageManipulator.manipulateAsync(
-        uri,
-        [{ resize: { width: maxWidth } }],
-        { compress: compressionLevel, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      console.log(`[PhotoUploader] Image ${index} compressed successfully`);
-
-      // Create abort controller for this upload
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
-
-      try {
-        // Convert to blob with abort signal
-        const response = await fetch(manipulated.uri, {
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const blob = await response.blob();
-        const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
-        console.log(`[PhotoUploader] Image ${index} converted to blob: ${sizeMB}MB`);
-
-        // Create storage reference with better naming
-        const storage = getStorage();
-        const timestamp = Date.now();
-        const randomId = Math.random().toString(36).slice(2, 8);
-        const fileId = `${timestamp}-${randomId}-img${index}.jpg`;
-        const path = `photos/${userId}/${loadId}/${fileId}`;
-        const storageRef = ref(storage, path);
-        
-        console.log(`[PhotoUploader] Uploading image ${index} to: ${path}`);
-
-        // Upload with metadata
-        await uploadBytes(storageRef, blob, {
-          contentType: 'image/jpeg',
-          customMetadata: {
-            uploadedBy: userId,
-            uploadedAt: timestamp.toString(),
-            loadId: loadId,
-            originalSize: blob.size.toString(),
-            compressionLevel: compressionLevel.toString()
-          }
-        });
-        
-        console.log(`[PhotoUploader] Image ${index} uploaded successfully`);
-        
-        // Get download URL with retry logic
-        let downloadURL: string;
-        let urlRetries = 0;
-        const maxUrlRetries = 3;
-        
-        while (urlRetries < maxUrlRetries) {
-          try {
-            downloadURL = await getDownloadURL(storageRef);
-            console.log(`[PhotoUploader] Image ${index} URL obtained: ${downloadURL}`);
-            break;
-          } catch (urlError) {
-            urlRetries++;
-            console.warn(`[PhotoUploader] Failed to get URL for image ${index}, retry ${urlRetries}/${maxUrlRetries}:`, urlError);
-            if (urlRetries >= maxUrlRetries) {
-              throw new Error(`Failed to get download URL after ${maxUrlRetries} attempts`);
-            }
-            await new Promise(resolve => setTimeout(resolve, 1000 * urlRetries));
-          }
-        }
-        
-        // Return successful upload info
-        const uploadInfo = { id: fileId, url: downloadURL!, path };
-        console.log(`[PhotoUploader] Upload info created:`, uploadInfo);
-        
-        return uploadInfo;
-        
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
-      }
-      
-    } catch (error: any) {
-      console.error(`[PhotoUploader] Upload attempt ${retryCount + 1} failed for image ${index}:`, error);
-      
-      // Retry logic
-      if (retryCount < maxRetries) {
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
-        console.log(`[PhotoUploader] Retrying image ${index} in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return uploadSingleImage(uri, index, retryCount + 1);
-      }
-      
-      // Final failure
-      const errorMessage = error?.message || 'Unknown upload error';
-      throw new Error(`Upload failed after ${maxRetries + 1} attempts: ${errorMessage}`);
+    // Validate auth first
+    if (!auth.currentUser) {
+      throw new Error('User not authenticated');
     }
+
+    // Standard compression settings
+    const compressionLevel = 0.8;
+    const maxWidth = 1000;
+    
+    console.log(`[PhotoUploader] Compressing image ${index} - quality: ${compressionLevel}, maxWidth: ${maxWidth}`);
+    
+    const manipulated = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: maxWidth } }],
+      { compress: compressionLevel, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    console.log(`[PhotoUploader] Image ${index} compressed successfully`);
+
+    // Create abort controller for this upload
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+    try {
+      // Convert to blob with abort signal
+      const response = await fetch(manipulated.uri, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+      console.log(`[PhotoUploader] Image ${index} converted to blob: ${sizeMB}MB`);
+
+      // Create storage reference with better naming
+      const storage = getStorage();
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).slice(2, 8);
+      const fileId = `${timestamp}-${randomId}-img${index}.jpg`;
+      const path = `photos/${userId}/${loadId}/${fileId}`;
+      const storageRef = ref(storage, path);
+      
+      console.log(`[PhotoUploader] Uploading image ${index} to: ${path}`);
+
+      // Upload with metadata
+      await uploadBytes(storageRef, blob, {
+        contentType: 'image/jpeg',
+        customMetadata: {
+          uploadedBy: userId,
+          uploadedAt: timestamp.toString(),
+          loadId: loadId,
+          originalSize: blob.size.toString(),
+          compressionLevel: compressionLevel.toString()
+        }
+      });
+      
+      console.log(`[PhotoUploader] Image ${index} uploaded successfully`);
+      
+      // Get download URL with retry logic
+      let downloadURL: string;
+      let urlRetries = 0;
+      const maxUrlRetries = 3;
+      
+      while (urlRetries < maxUrlRetries) {
+        try {
+          downloadURL = await getDownloadURL(storageRef);
+          console.log(`[PhotoUploader] Image ${index} URL obtained: ${downloadURL}`);
+          break;
+        } catch (urlError) {
+          urlRetries++;
+          console.warn(`[PhotoUploader] Failed to get URL for image ${index}, retry ${urlRetries}/${maxUrlRetries}:`, urlError);
+          if (urlRetries >= maxUrlRetries) {
+            throw new Error(`Failed to get download URL after ${maxUrlRetries} attempts`);
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000 * urlRetries));
+        }
+      }
+      
+      // Return successful upload info
+      const uploadInfo = { id: fileId, url: downloadURL!, path };
+      console.log(`[PhotoUploader] Upload info created:`, uploadInfo);
+      
+      return uploadInfo;
+      
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      throw fetchError;
+    }
+  };
+
+  const uploadWithRetry = async (uri: string, index: number, attempts = 3): Promise<{id:string;url:string;path:string}> => {
+    let lastError: Error;
+    
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        console.log(`[PhotoUploader] Upload attempt ${attempt}/${attempts} for image ${index}`);
+        return await uploadSingleImage(uri, index);
+      } catch (error: any) {
+        lastError = error;
+        console.error(`[PhotoUploader] Upload attempt ${attempt} failed for image ${index}:`, error);
+        
+        if (attempt < attempts) {
+          const delay = attempt * 1000; // 1s, 2s, 3s delays
+          console.log(`[PhotoUploader] Waiting ${delay}ms before retry ${attempt + 1} for image ${index}`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    // All attempts failed
+    const errorMessage = lastError?.message || 'Unknown upload error';
+    throw new Error(`Upload timeout - please try again`);
   };
 
   const pick = async () => {
@@ -230,7 +236,7 @@ export default function PhotoUploader({
           console.log(`[PhotoUploader] Starting upload for image ${imageIndex}/${assets.length}`);
           setProgress(`Uploading image ${imageIndex}/${assets.length}...`);
           
-          const uploaded = await uploadSingleImage(asset.uri, imageIndex);
+          const uploaded = await uploadWithRetry(asset.uri, imageIndex);
           
           uploadedItems.push(uploaded);
           setUploadedCount(prev => {
@@ -323,7 +329,7 @@ export default function PhotoUploader({
       const item = retryQueue[i];
       try {
         setProgress(`Retrying image ${i + 1}/${retryQueue.length}...`);
-        const uploaded = await uploadSingleImage(item.uri, item.index);
+        const uploaded = await uploadWithRetry(item.uri, item.index);
         uploadedItems.push(uploaded);
         setUploadedCount(prev => prev + 1);
         console.log(`[PhotoUploader] Retry successful for image ${item.index}`);
