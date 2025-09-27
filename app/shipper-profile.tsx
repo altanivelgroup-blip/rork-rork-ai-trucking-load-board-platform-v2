@@ -23,8 +23,10 @@ import {
   ArrowLeft,
   Bell,
   LogOut,
+  Camera,
 
 } from 'lucide-react-native';
+import { PhotoUploader } from '@/components/PhotoUploader';
 
 export default function ShipperProfileScreen() {
   const router = useRouter();
@@ -497,6 +499,28 @@ export default function ShipperProfileScreen() {
           </View>
         </View>
 
+        {/* Photo Upload Test Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Photo Upload Test</Text>
+          <View style={styles.testUploaderPill}>
+            <View style={styles.testUploaderHeader}>
+              <Camera size={24} color={theme.colors.primary} />
+              <Text style={styles.testUploaderTitle}>Test Photo Uploader</Text>
+            </View>
+            <Text style={styles.testUploaderSubtitle}>
+              Test the photo upload functionality directly here without going through multiple steps.
+            </Text>
+            <PhotoUploader
+              onPhotosChange={(photos) => {
+                console.log('Photos uploaded:', photos.length);
+                toast.show(`${photos.length} photos uploaded successfully!`, 'success');
+              }}
+              maxPhotos={5}
+              testId="shipper-profile-photo-test"
+            />
+          </View>
+        </View>
+
         {/* Business Stats */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Business Overview</Text>
@@ -957,11 +981,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: theme.colors.primary,
   },
+  testUploaderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+  },
   testUploaderTitle: {
     fontSize: theme.fontSize.lg,
     fontWeight: '700',
     color: theme.colors.primary,
-    marginBottom: 4,
   },
   testUploaderSubtitle: {
     fontSize: theme.fontSize.sm,
