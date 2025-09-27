@@ -25,12 +25,12 @@ export default function HeaderAuthAction() {
             if (logout) {
               await logout();
             }
-            console.log('[HeaderAuthAction] ✅ SIGN OUT - Logout successful, redirecting to signin');
-            router.replace('/signin');
+            console.log('[HeaderAuthAction] ✅ SIGN OUT - Logout successful, redirecting to login');
+            router.replace('/login');
           } catch (e) {
             console.error('[HeaderAuthAction] ❌ SIGN OUT - Logout error:', e);
-            // Force navigation to signin even if logout fails
-            router.replace('/signin');
+            // Force navigation to login even if logout fails
+            router.replace('/login');
           }
         }}
         accessibilityRole="button"
@@ -47,8 +47,8 @@ export default function HeaderAuthAction() {
   return (
     <TouchableOpacity
       onPress={() => {
-        console.log('[HeaderAuthAction] 🎯 SIGN IN NAVIGATION - Redirecting to signin');
-        router.replace('/signin');
+        console.log('[HeaderAuthAction] 🎯 SIGN IN NAVIGATION - Redirecting to login');
+        router.replace('/login');
       }}
       accessibilityRole="button"
       accessibilityLabel="Sign In"
