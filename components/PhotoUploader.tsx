@@ -46,9 +46,9 @@ export default function PhotoUploader({
       throw new Error('User not authenticated');
     }
 
-    // Standard compression settings
-    const compressionLevel = 0.8;
-    const maxWidth = 1000;
+    // Updated compression settings for better performance
+    const compressionLevel = 0.5; // 50% quality
+    const maxWidth = 600; // Reduced width for faster uploads
     
     console.log(`[PhotoUploader] Compressing image ${index} - quality: ${compressionLevel}, maxWidth: ${maxWidth}`);
     
@@ -57,7 +57,7 @@ export default function PhotoUploader({
       [{ resize: { width: maxWidth } }],
       { compress: compressionLevel, format: ImageManipulator.SaveFormat.JPEG }
     );
-    console.log(`[PhotoUploader] Image ${index} compressed successfully`);
+    console.log(`[PhotoUploader] Image ${index} compressed successfully - new dimensions: ${manipulated.width}x${manipulated.height}`);
 
     // Create abort controller for this upload
     const controller = new AbortController();
@@ -77,7 +77,13 @@ export default function PhotoUploader({
       
       const blob = await response.blob();
       const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
-      console.log(`[PhotoUploader] Image ${index} converted to blob: ${sizeMB}MB`);
+      const sizeKB = (blob.size / 1024).toFixed(1);
+      console.log(`[PhotoUploader] Image ${index} converted to blob: ${sizeMB}MB (${sizeKB}KB) - Compressed at 50% quality, 600px width`);
+      
+      // Alert user about compression for debugging
+      if (Platform.OS !== 'web') {
+        console.log(`[PhotoUploader] COMPRESSION ALERT - Image ${index}: Final size ${sizeKB}KB, Quality: 50%, Width: 600px`);
+      }
 
       // Create storage reference with better naming
       const storage = getStorage();
