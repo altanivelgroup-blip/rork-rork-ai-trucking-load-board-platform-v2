@@ -39,126 +39,63 @@ export default function PhotoUploader({
   }, []);
 
   const uploadSingleImage = async (uri: string, index: number): Promise<{id:string;url:string;path:string}> => {
-    console.log(`[PhotoUploader] Starting upload for image ${index}`);
-    
-    // Validate auth first
-    if (!auth.currentUser) {
-      throw new Error('User not authenticated');
-    }
+    if (!auth.currentUser) throw new Error("User not authenticated");
 
-    // Optimized compression settings for faster uploads
-    const compressionLevel = 0.5; // 50% quality
-    const maxWidth = 600; // 600px width for optimal balance
-    
-    console.log(`[PhotoUploader] Compressing image ${index} - quality: ${compressionLevel}, maxWidth: ${maxWidth}`);
-    
+    // Compress image
     const manipulated = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: maxWidth } }],
-      { compress: compressionLevel, format: ImageManipulator.SaveFormat.JPEG }
+      [{ resize: { width: 600 } }],
+      { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG }
     );
-    console.log(`[PhotoUploader] Image ${index} compressed successfully - new dimensions: ${manipulated.width}x${manipulated.height}`);
 
-    // Create abort controller for this upload with shorter timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    // Convert to blob
+    const response = await Promise.race([
+      fetch(manipulated.uri),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Fetch timeout (15s)')), 15000)
+      ),
+    ]);
+    const blob = await response.blob();
 
-    try {
-      // Convert to blob with timeout handling
-      const response = await Promise.race([
-        fetch(manipulated.uri),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Fetch timeout (15s)')), 15000)
-        ),
-      ]);
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const blob = await response.blob();
-      const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
-      const sizeKB = (blob.size / 1024).toFixed(1);
-      console.log(`[PhotoUploader] Image ${index} converted to blob: ${sizeMB}MB (${sizeKB}KB) - Compressed at 50% quality, 600px width`);
-      
-      // Log compression details for debugging
-      console.log(`[PhotoUploader] Image ${index} compressed: ${sizeKB}KB (50% quality, 600px width)`);
+    // Create storage ref
+    const storage = getStorage();
+    const timestamp = Date.now();
+    const fileId = `${timestamp}-${index}.jpg`;
+    const path = `photos/${auth.currentUser.uid}/${fileId}`;
+    const storageRef = ref(storage, path);
 
-      // Create storage reference with better naming
-      const storage = getStorage();
-      const timestamp = Date.now();
-      const randomId = Math.random().toString(36).slice(2, 8);
-      const fileId = `${timestamp}-${randomId}-img${index}.jpg`;
-      const path = `photos/${userId}/${loadId}/${fileId}`;
-      const storageRef = ref(storage, path);
-      
-      console.log(`[PhotoUploader] Uploading image ${index} to: ${path}`);
+    // Upload with resumable upload and timeout
+    const uploadTask = uploadBytesResumable(storageRef, blob, {
+      contentType: 'image/jpeg',
+      customMetadata: {
+        uploadedBy: auth.currentUser.uid,
+        uploadedAt: timestamp.toString(),
+      },
+    });
 
-      // Upload with metadata and timeout handling using resumable upload
-      const uploadTask = uploadBytesResumable(storageRef, blob, {
-        contentType: 'image/jpeg',
-        customMetadata: {
-          uploadedBy: userId,
-          uploadedAt: timestamp.toString(),
-          loadId: loadId,
-          originalSize: blob.size.toString(),
-          compressionLevel: compressionLevel.toString()
+    const result = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        uploadTask.cancel();
+        reject(new Error("Upload timeout (30s)"));
+      }, 30000);
+
+      uploadTask.on('state_changed',
+        null,
+        (error) => {
+          clearTimeout(timer);
+          reject(error);
         },
-      });
-
-      const result = await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          uploadTask.cancel();
-          reject(new Error("Upload timeout (30s)"));
-        }, 30000);
-
-        uploadTask.on('state_changed',
-          null,
-          (error) => {
-            clearTimeout(timer);
-            reject(error);
-          },
-          () => {
-            clearTimeout(timer);
-            resolve(true);
-          }
-        );
-      });
-      
-      console.log(`[PhotoUploader] Image ${index} uploaded successfully`);
-      
-      // Get download URL with retry logic
-      let downloadURL: string;
-      let urlRetries = 0;
-      const maxUrlRetries = 3;
-      
-      while (urlRetries < maxUrlRetries) {
-        try {
-          downloadURL = await getDownloadURL(storageRef);
-          console.log(`[PhotoUploader] Image ${index} URL obtained: ${downloadURL}`);
-          break;
-        } catch (urlError) {
-          urlRetries++;
-          console.warn(`[PhotoUploader] Failed to get URL for image ${index}, retry ${urlRetries}/${maxUrlRetries}:`, urlError);
-          if (urlRetries >= maxUrlRetries) {
-            throw new Error(`Failed to get download URL after ${maxUrlRetries} attempts`);
-          }
-          await new Promise(resolve => setTimeout(resolve, 1000 * urlRetries));
+        () => {
+          clearTimeout(timer);
+          resolve(true);
         }
-      }
-      
-      // Return successful upload info
-      const uploadInfo = { id: fileId, url: downloadURL!, path };
-      console.log(`[PhotoUploader] Upload info created:`, uploadInfo);
-      
-      return uploadInfo;
-      
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      throw fetchError;
-    }
+      );
+    });
+
+    // Get URL
+    const url = await getDownloadURL(storageRef);
+
+    return { id: fileId, url, path };
   };
 
   const uploadWithRetry = async (uri: string, index: number, attempts = 3): Promise<{id:string;url:string;path:string}> => {
