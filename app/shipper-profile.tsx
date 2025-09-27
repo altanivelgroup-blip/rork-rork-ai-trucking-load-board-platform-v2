@@ -26,7 +26,7 @@ import {
   Camera,
 
 } from 'lucide-react-native';
-import { PhotoUploader } from '@/components/PhotoUploader';
+import PhotoUploader from '@/components/PhotoUploader';
 
 export default function ShipperProfileScreen() {
   const router = useRouter();
@@ -519,12 +519,15 @@ export default function ShipperProfileScreen() {
               Test the photo upload functionality directly here without going through multiple steps.
             </Text>
             <PhotoUploader
-              onPhotosChange={(photos) => {
-                console.log('Photos uploaded:', photos.length);
-                toast.show(`${photos.length} photos uploaded successfully!`, 'success');
+              loadId={`test-${user?.id || 'anonymous'}`}
+              userId={user?.id || 'anonymous'}
+              role="shipper"
+              allowMultiple={true}
+              buttonLabel="Test Upload Photos"
+              onUploaded={(items) => {
+                console.log('Photos uploaded:', items.length);
+                toast.show(`${items.length} photos uploaded successfully!`, 'success');
               }}
-              maxPhotos={5}
-              testId="shipper-profile-photo-test"
             />
           </View>
         </View>
