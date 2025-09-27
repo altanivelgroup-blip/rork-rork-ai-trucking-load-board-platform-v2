@@ -100,9 +100,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   progressText: {
     color: '#666',
+    marginLeft: 12,
   },
 });
