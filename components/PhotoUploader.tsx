@@ -46,9 +46,9 @@ export default function PhotoUploader({
       throw new Error('User not authenticated');
     }
 
-    // Updated compression settings for better performance
+    // Optimized compression settings for faster uploads
     const compressionLevel = 0.5; // 50% quality
-    const maxWidth = 600; // Reduced width for faster uploads
+    const maxWidth = 600; // 600px width for optimal balance
     
     console.log(`[PhotoUploader] Compressing image ${index} - quality: ${compressionLevel}, maxWidth: ${maxWidth}`);
     
@@ -59,9 +59,9 @@ export default function PhotoUploader({
     );
     console.log(`[PhotoUploader] Image ${index} compressed successfully - new dimensions: ${manipulated.width}x${manipulated.height}`);
 
-    // Create abort controller for this upload
+    // Create abort controller for this upload with shorter timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
     try {
       // Convert to blob with abort signal
@@ -80,10 +80,8 @@ export default function PhotoUploader({
       const sizeKB = (blob.size / 1024).toFixed(1);
       console.log(`[PhotoUploader] Image ${index} converted to blob: ${sizeMB}MB (${sizeKB}KB) - Compressed at 50% quality, 600px width`);
       
-      // Alert user about compression for debugging
-      if (Platform.OS !== 'web') {
-        console.log(`[PhotoUploader] COMPRESSION ALERT - Image ${index}: Final size ${sizeKB}KB, Quality: 50%, Width: 600px`);
-      }
+      // Log compression details for debugging
+      console.log(`[PhotoUploader] Image ${index} compressed: ${sizeKB}KB (50% quality, 600px width)`);
 
       // Create storage reference with better naming
       const storage = getStorage();
@@ -326,7 +324,7 @@ export default function PhotoUploader({
       } else if (failedUploads.length > 0) {
         const errorDetails = failedUploads.slice(0, 3).join('\n');
         const moreErrors = failedUploads.length > 3 ? `\n...and ${failedUploads.length - 3} more` : '';
-        Alert.alert("Upload Failed", `Something went wrong with your photos:\n${errorDetails}${moreErrors}`);
+        Alert.alert("Upload Failed", `Network issues prevented upload:\n${errorDetails}${moreErrors}`);
       } else {
         Alert.alert("No Photos Selected", "Please select photos to upload.");
       }
@@ -395,7 +393,7 @@ export default function PhotoUploader({
         `Successfully uploaded ${uploadedItems.length} photo${uploadedItems.length > 1 ? 's' : ''}!${stillFailed.length > 0 ? ` ${stillFailed.length} still failed.` : ''}`
       );
     } else {
-      Alert.alert('Retry Failed', 'Network issues prevented upload — please check your connection and try again.');
+      Alert.alert('Retry Failed', 'Network is slow — please check your connection and try again.');
     }
   };
 
