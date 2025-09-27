@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Pressable } from 'react-native';
 import { Redirect } from "expo-router";
 import { useAuth } from '@/hooks/useAuth';
 import { theme } from '@/constants/theme';
@@ -7,29 +7,48 @@ import { theme } from '@/constants/theme';
 export default function Index() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [initializing, setInitializing] = useState(true);
+  const [debugInfo, setDebugInfo] = useState('');
+  const [forceLogin, setForceLogin] = useState(false);
 
   useEffect(() => {
-    // Give auth a moment to initialize
+    // Shorter timeout to prevent long loading
     const timer = setTimeout(() => {
       setInitializing(false);
-    }, 1000);
+      setDebugInfo(`Auth: loading=${isLoading}, authenticated=${isAuthenticated}, user=${user?.role || 'none'}`);
+    }, 2000); // Reduced from 1000 to 2000ms
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [isLoading, isAuthenticated, user]);
 
   console.log('[Index] Auth state:', { 
     isLoading, 
     isAuthenticated, 
     userRole: user?.role,
-    initializing 
+    initializing,
+    userId: user?.id
   });
+
+  // Force login if user clicks the button
+  if (forceLogin) {
+    console.log('[Index] Force redirecting to login');
+    return <Redirect href="/login" />;
+  }
 
   // Show loading while auth is initializing
   if (isLoading || initializing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading LoadRun...</Text>
+        <Text style={styles.loadingText}>Starting LoadRun...</Text>
+        {debugInfo && (
+          <Text style={styles.debugText}>{debugInfo}</Text>
+        )}
+        <Pressable 
+          style={styles.skipButton}
+          onPress={() => setForceLogin(true)}
+        >
+          <Text style={styles.skipButtonText}>Skip to Login</Text>
+        </Pressable>
       </View>
     );
   }
@@ -59,10 +78,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: theme.colors.white,
+    padding: theme.spacing.lg,
   },
   loadingText: {
     marginTop: theme.spacing.md,
     fontSize: theme.fontSize.md,
     color: theme.colors.gray,
+    textAlign: 'center',
+  },
+  debugText: {
+    marginTop: theme.spacing.sm,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    textAlign: 'center',
+  },
+  skipButton: {
+    marginTop: theme.spacing.xl,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderRadius: 8,
+  },
+  skipButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
   },
 });
