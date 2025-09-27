@@ -6,22 +6,22 @@ import PhotoUploader from "@/components/PhotoUploader";
 import LoadPhotoGallery from "@/components/LoadPhotoGallery";
 
 export default function TestUploaderSection({ role }: { role: "shipper" | "driver" }) {
-  const { user, isLoading } = useAuth();
+  const { userId, isLoading } = useAuth();
   const [loadId, setLoadId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [isCreatingLoad, setIsCreatingLoad] = React.useState(false);
 
   React.useEffect(() => {
-    if (!user?.uid) {
+    if (!userId) {
       console.log('[TestUploaderSection] No user ID available');
       return;
     }
     
-    console.log('[TestUploaderSection] Creating test load for user:', user.uid);
+    console.log('[TestUploaderSection] Creating test load for user:', userId);
     setIsCreatingLoad(true);
     setError(null);
     
-    ensureTestLoad(user.uid)
+    ensureTestLoad(userId)
       .then((id) => {
         console.log('[TestUploaderSection] Test load ready:', id);
         setLoadId(id);
@@ -34,7 +34,7 @@ export default function TestUploaderSection({ role }: { role: "shipper" | "drive
       .finally(() => {
         setIsCreatingLoad(false);
       });
-  }, [user?.uid]);
+  }, [userId]);
 
   if (isLoading) {
     return (
@@ -45,7 +45,7 @@ export default function TestUploaderSection({ role }: { role: "shipper" | "drive
     );
   }
 
-  if (!user?.uid) {
+  if (!userId) {
     return (
       <View style={styles.card}>
         <Text style={styles.title}>Photo Uploader (TEST)</Text>
@@ -67,7 +67,7 @@ export default function TestUploaderSection({ role }: { role: "shipper" | "drive
             onPress={() => {
               setError(null);
               setIsCreatingLoad(true);
-              ensureTestLoad(user.uid)
+              ensureTestLoad(userId)
                 .then(setLoadId)
                 .catch((err) => setError(err?.message || 'Failed to create test load'))
                 .finally(() => setIsCreatingLoad(false));
@@ -80,7 +80,7 @@ export default function TestUploaderSection({ role }: { role: "shipper" | "drive
         <>
           <PhotoUploader
             loadId={loadId}
-            userId={user.uid}
+            userId={userId}
             role={role}
             allowMultiple
             buttonLabel="Pick Photos"
