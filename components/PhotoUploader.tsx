@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -22,6 +22,8 @@ export default function PhotoUploader({
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [uploadedCount, setUploadedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [retryQueue, setRetryQueue] = useState<{uri: string, index: number}[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const checkFirebase = () => {
@@ -36,68 +38,119 @@ export default function PhotoUploader({
     return unsubscribe;
   }, []);
 
-  const uploadSingleImage = async (uri: string, index: number): Promise<{id:string;url:string;path:string}> => {
-    console.log(`[PhotoUploader] Starting upload for image ${index}`);
+  const uploadSingleImage = async (uri: string, index: number, retryCount = 0): Promise<{id:string;url:string;path:string}> => {
+    const maxRetries = 3;
+    console.log(`[PhotoUploader] Starting upload for image ${index} (attempt ${retryCount + 1}/${maxRetries + 1})`);
     
-    // Validate auth first
-    if (!auth.currentUser) {
-      throw new Error('User not authenticated');
-    }
+    try {
+      // Validate auth first
+      if (!auth.currentUser) {
+        throw new Error('User not authenticated');
+      }
 
-    // Compress image aggressively for speed
-    const manipulated = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: 800 } }], // Reasonable size
-      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    console.log(`[PhotoUploader] Image ${index} compressed`);
+      // Progressive compression based on retry count
+      const compressionLevel = Math.max(0.4, 0.8 - (retryCount * 0.2));
+      const maxWidth = Math.max(600, 1000 - (retryCount * 200));
+      
+      console.log(`[PhotoUploader] Compressing image ${index} - quality: ${compressionLevel}, maxWidth: ${maxWidth}`);
+      
+      const manipulated = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: maxWidth } }],
+        { compress: compressionLevel, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      console.log(`[PhotoUploader] Image ${index} compressed successfully`);
 
-    // Convert to blob with timeout
-    const response = await Promise.race([
-      fetch(manipulated.uri),
-      new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Fetch timeout')), 10000)
-      )
-    ]);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const blob = await response.blob();
-    console.log(`[PhotoUploader] Image ${index} converted to blob: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
+      // Create abort controller for this upload
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
 
-    // Create storage reference
-    const storage = getStorage();
-    const timestamp = Date.now();
-    const randomId = Math.random().toString(36).slice(2, 8);
-    const fileId = `${timestamp}-${randomId}-${index}.jpg`;
-    const path = `photos/${userId}/${fileId}`;
-    const storageRef = ref(storage, path);
-    
-    console.log(`[PhotoUploader] Uploading image ${index} to: ${path}`);
-
-    // Upload with timeout
-    await Promise.race([
-      uploadBytes(storageRef, blob, {
-        contentType: 'image/jpeg',
-        customMetadata: {
-          uploadedBy: userId,
-          uploadedAt: timestamp.toString()
+      try {
+        // Convert to blob with abort signal
+        const response = await fetch(manipulated.uri, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-      }),
-      new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Upload timeout - please try again')), 30000)
-      )
-    ]);
-    
-    console.log(`[PhotoUploader] Image ${index} uploaded successfully`);
-    
-    // Get download URL
-    const downloadURL = await getDownloadURL(storageRef);
-    console.log(`[PhotoUploader] Image ${index} URL obtained: ${downloadURL}`);
-    
-    return { id: fileId, url: downloadURL, path };
+        
+        const blob = await response.blob();
+        const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+        console.log(`[PhotoUploader] Image ${index} converted to blob: ${sizeMB}MB`);
+
+        // Create storage reference with better naming
+        const storage = getStorage();
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).slice(2, 8);
+        const fileId = `${timestamp}-${randomId}-img${index}.jpg`;
+        const path = `photos/${userId}/${loadId}/${fileId}`;
+        const storageRef = ref(storage, path);
+        
+        console.log(`[PhotoUploader] Uploading image ${index} to: ${path}`);
+
+        // Upload with metadata
+        await uploadBytes(storageRef, blob, {
+          contentType: 'image/jpeg',
+          customMetadata: {
+            uploadedBy: userId,
+            uploadedAt: timestamp.toString(),
+            loadId: loadId,
+            originalSize: blob.size.toString(),
+            compressionLevel: compressionLevel.toString()
+          }
+        });
+        
+        console.log(`[PhotoUploader] Image ${index} uploaded successfully`);
+        
+        // Get download URL with retry logic
+        let downloadURL: string;
+        let urlRetries = 0;
+        const maxUrlRetries = 3;
+        
+        while (urlRetries < maxUrlRetries) {
+          try {
+            downloadURL = await getDownloadURL(storageRef);
+            console.log(`[PhotoUploader] Image ${index} URL obtained: ${downloadURL}`);
+            break;
+          } catch (urlError) {
+            urlRetries++;
+            console.warn(`[PhotoUploader] Failed to get URL for image ${index}, retry ${urlRetries}/${maxUrlRetries}:`, urlError);
+            if (urlRetries >= maxUrlRetries) {
+              throw new Error(`Failed to get download URL after ${maxUrlRetries} attempts`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000 * urlRetries));
+          }
+        }
+        
+        // Return successful upload info
+        const uploadInfo = { id: fileId, url: downloadURL!, path };
+        console.log(`[PhotoUploader] Upload info created:`, uploadInfo);
+        
+        return uploadInfo;
+        
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        throw fetchError;
+      }
+      
+    } catch (error: any) {
+      console.error(`[PhotoUploader] Upload attempt ${retryCount + 1} failed for image ${index}:`, error);
+      
+      // Retry logic
+      if (retryCount < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
+        console.log(`[PhotoUploader] Retrying image ${index} in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return uploadSingleImage(uri, index, retryCount + 1);
+      }
+      
+      // Final failure
+      const errorMessage = error?.message || 'Unknown upload error';
+      throw new Error(`Upload failed after ${maxRetries + 1} attempts: ${errorMessage}`);
+    }
   };
 
   const pick = async () => {
@@ -160,45 +213,46 @@ export default function PhotoUploader({
       const uploadedItems: {id:string;url:string;path:string}[] = [];
       const failedUploads: string[] = [];
       
-      // Upload images concurrently in batches of 3 for better performance
-      const batchSize = 3;
-      for (let i = 0; i < assets.length; i += batchSize) {
-        const batch = assets.slice(i, i + batchSize);
-        const batchPromises = batch.map(async (asset, batchIndex) => {
-          const globalIndex = i + batchIndex;
-          try {
-            console.log(`[PhotoUploader] Starting upload for image ${globalIndex + 1}/${assets.length}`);
-            const uploaded = await uploadSingleImage(asset.uri, globalIndex + 1);
-            setUploadedCount(prev => {
-              const newCount = prev + 1;
-              setProgress(`Uploaded ${newCount}/${assets.length} photos...`);
-              return newCount;
-            });
-            return { success: true, data: uploaded, index: globalIndex + 1 };
-          } catch (error: any) {
-            console.error(`[PhotoUploader] Failed to upload image ${globalIndex + 1}:`, error);
-            const errorMsg = error?.message || 'Unknown error';
-            return { success: false, error: `Image ${globalIndex + 1}: ${errorMsg}`, index: globalIndex + 1 };
+      // Create abort controller for the entire upload session
+      abortControllerRef.current = new AbortController();
+      
+      // Upload images sequentially for better reliability
+      for (let i = 0; i < assets.length; i++) {
+        if (abortControllerRef.current?.signal.aborted) {
+          console.log('[PhotoUploader] Upload cancelled by user');
+          break;
+        }
+        
+        const asset = assets[i];
+        const imageIndex = i + 1;
+        
+        try {
+          console.log(`[PhotoUploader] Starting upload for image ${imageIndex}/${assets.length}`);
+          setProgress(`Uploading image ${imageIndex}/${assets.length}...`);
+          
+          const uploaded = await uploadSingleImage(asset.uri, imageIndex);
+          
+          uploadedItems.push(uploaded);
+          setUploadedCount(prev => {
+            const newCount = prev + 1;
+            setProgress(`Uploaded ${newCount}/${assets.length} photos...`);
+            return newCount;
+          });
+          
+          console.log(`[PhotoUploader] Successfully uploaded image ${imageIndex}`);
+          
+          // Small delay between uploads to prevent overwhelming Firebase
+          if (i < assets.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
-        });
-        
-        // Wait for current batch to complete
-        const batchResults = await Promise.all(batchPromises);
-        
-        // Process batch results
-        batchResults.forEach(result => {
-          if (result.success) {
-            uploadedItems.push(result.data);
-            console.log(`[PhotoUploader] Successfully uploaded image ${result.index}`);
-          } else {
-            failedUploads.push(result.error);
-            console.log(`[PhotoUploader] Failed to upload image ${result.index}`);
-          }
-        });
-        
-        // Small delay between batches to prevent overwhelming the system
-        if (i + batchSize < assets.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (error: any) {
+          console.error(`[PhotoUploader] Failed to upload image ${imageIndex}:`, error);
+          const errorMsg = error?.message || 'Unknown error';
+          failedUploads.push(`Image ${imageIndex}: ${errorMsg}`);
+          
+          // Add to retry queue
+          setRetryQueue(prev => [...prev, { uri: asset.uri, index: imageIndex }]);
         }
       }
 
@@ -239,11 +293,61 @@ export default function PhotoUploader({
   };
 
   const handleCancel = () => {
+    // Abort current uploads
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
     setBusy(false);
     setProgress('');
     setUploadedCount(0);
     setTotalCount(0);
+    setRetryQueue([]);
     Alert.alert('Upload Cancelled', 'Photo upload has been cancelled.');
+  };
+  
+  const handleRetryFailed = async () => {
+    if (retryQueue.length === 0) return;
+    
+    console.log(`[PhotoUploader] Retrying ${retryQueue.length} failed uploads`);
+    setBusy(true);
+    setProgress('Retrying failed uploads...');
+    setTotalCount(retryQueue.length);
+    setUploadedCount(0);
+    
+    const uploadedItems: {id:string;url:string;path:string}[] = [];
+    const stillFailed: {uri: string, index: number}[] = [];
+    
+    for (let i = 0; i < retryQueue.length; i++) {
+      const item = retryQueue[i];
+      try {
+        setProgress(`Retrying image ${i + 1}/${retryQueue.length}...`);
+        const uploaded = await uploadSingleImage(item.uri, item.index);
+        uploadedItems.push(uploaded);
+        setUploadedCount(prev => prev + 1);
+        console.log(`[PhotoUploader] Retry successful for image ${item.index}`);
+      } catch (error: any) {
+        console.error(`[PhotoUploader] Retry failed for image ${item.index}:`, error);
+        stillFailed.push(item);
+      }
+    }
+    
+    setRetryQueue(stillFailed);
+    setBusy(false);
+    setProgress('');
+    setUploadedCount(0);
+    setTotalCount(0);
+    
+    if (uploadedItems.length > 0) {
+      onUploaded?.(uploadedItems);
+      Alert.alert(
+        'Retry Complete',
+        `Successfully uploaded ${uploadedItems.length} photos.${stillFailed.length > 0 ? ` ${stillFailed.length} still failed.` : ''}`
+      );
+    } else {
+      Alert.alert('Retry Failed', 'All retry attempts failed. Please check your connection and try again.');
+    }
   };
 
   return (
@@ -274,6 +378,15 @@ export default function PhotoUploader({
         <View style={styles.actionButtons}>
           <Pressable onPress={handleCancel} style={styles.cancelButton}>
             <Text style={styles.cancelText}>Cancel Upload</Text>
+          </Pressable>
+        </View>
+      )}
+      
+      {!busy && retryQueue.length > 0 && (
+        <View style={styles.retryContainer}>
+          <Text style={styles.retryText}>{retryQueue.length} photos failed to upload</Text>
+          <Pressable onPress={handleRetryFailed} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry Failed Uploads</Text>
           </Pressable>
         </View>
       )}
@@ -344,5 +457,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9ca3af',
     textAlign: 'center',
+  },
+  retryContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+  },
+  retryText: {
+    fontSize: 14,
+    color: '#92400e',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#f59e0b',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
