@@ -176,12 +176,13 @@ export default function ShipperProfileScreen() {
               <TouchableOpacity
                 onPress={() => setIsEditing(!isEditing)}
                 style={styles.headerButton}
+                testID="edit-button"
               >
                 <Edit3 size={20} color={theme.colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSignOut}
-                style={styles.headerButton}
+                style={[styles.headerButton, styles.signOutButton]}
                 testID="sign-out-button"
               >
                 <LogOut size={20} color={theme.colors.danger} />
@@ -979,6 +980,16 @@ const styles = StyleSheet.create({
   },
   headerRightContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    paddingRight: 8,
+  },
+  signOutButton: {
+    backgroundColor: `${theme.colors.danger}10`,
+    borderRadius: theme.borderRadius.sm,
+    minWidth: 36,
+    minHeight: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
