@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { uploadImage } from "@/lib/uploadImage";
 
@@ -59,21 +59,50 @@ export default function PhotoUploader({
   };
 
   return (
-    <View className="w-full">
+    <View style={styles.container}>
       <Pressable
         onPress={pick}
-        className="bg-blue-600 rounded-2xl px-4 py-3 items-center"
+        style={[styles.button, busy && styles.buttonDisabled]}
         disabled={busy}
       >
-        <Text className="text-white font-semibold">{busy ? "Uploading..." : buttonLabel}</Text>
+        <Text style={styles.buttonText}>{busy ? "Uploading..." : buttonLabel}</Text>
       </Pressable>
 
       {busy ? (
-        <View className="mt-3 flex-row items-center gap-3">
+        <View style={styles.progressContainer}>
           <ActivityIndicator />
-          <Text>{progress}% • {selectedCount} selected</Text>
+          <Text style={styles.progressText}>{progress}% • {selectedCount} selected</Text>
         </View>
       ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+  },
+  button: {
+    backgroundColor: '#2563eb',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  progressContainer: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  progressText: {
+    color: '#666',
+  },
+});
