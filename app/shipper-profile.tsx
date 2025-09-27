@@ -111,6 +111,14 @@ export default function ShipperProfileScreen() {
 
   const quickActions = [
     {
+      id: 'photo-upload',
+      title: 'Photo Upload',
+      subtitle: 'Quick photo upload test',
+      icon: Camera,
+      route: '/photo-upload',
+      color: '#10b981'
+    },
+    {
       id: 'ai-tools',
       title: 'AI Tools',
       subtitle: 'Listing Assistant & MatchMaker',
@@ -712,6 +720,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
+    minHeight: 100,
   },
   actionIcon: {
     width: 40,

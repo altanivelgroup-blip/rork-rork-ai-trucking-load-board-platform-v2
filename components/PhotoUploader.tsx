@@ -20,6 +20,7 @@ export default function PhotoUploader({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string>('');
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [uploadTimeout, setUploadTimeout] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Debug Firebase connection
@@ -32,103 +33,126 @@ export default function PhotoUploader({
     
     checkFirebase();
     const unsubscribe = auth.onAuthStateChanged(checkFirebase);
-    return unsubscribe;
-  }, []);
+    return () => {
+      unsubscribe();
+      if (uploadTimeout) {
+        clearTimeout(uploadTimeout);
+      }
+    };
+  }, [uploadTimeout]);
 
   const uploadSingleImage = async (uri: string, index: number, total: number) => {
     console.log(`[PhotoUploader] Uploading image ${index}/${total}`);
     setProgress(`Uploading ${index}/${total}...`);
     
-    try {
-      // Validate auth first
-      if (!auth.currentUser) {
-        throw new Error('User not authenticated');
-      }
-
-      console.log(`[PhotoUploader] Starting image manipulation for ${uri}`);
+    return new Promise<{id:string;url:string;path:string}>((resolve, reject) => {
+      // Set a timeout to prevent infinite buffering
+      const timeout = setTimeout(() => {
+        reject(new Error('Upload timeout - please try again'));
+      }, 30000); // 30 second timeout
       
-      // Compress image with shorter timeout and better error handling
-      let manipulated;
-      try {
-        manipulated = await ImageManipulator.manipulateAsync(
-          uri,
-          [{ resize: { width: 1200 } }], // Reduced size for faster processing
-          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-        );
-        console.log(`[PhotoUploader] Image manipulated successfully`);
-      } catch (manipError) {
-        console.warn(`[PhotoUploader] Image manipulation failed, using original:`, manipError);
-        manipulated = { uri }; // Use original if manipulation fails
-      }
-
-      // Convert to blob with better error handling
-      console.log(`[PhotoUploader] Converting to blob...`);
-      let blob;
-      try {
-        const response = await fetch(manipulated.uri);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        blob = await response.blob();
-        console.log(`[PhotoUploader] Blob created, size: ${blob.size} bytes`);
-      } catch (fetchError: any) {
-        console.error(`[PhotoUploader] Blob conversion failed:`, fetchError);
-        throw new Error(`Failed to process image: ${fetchError?.message || 'Unknown error'}`);
-      }
-
-      // Create storage reference with better path structure
-      const storage = getStorage();
-      const timestamp = Date.now();
-      const randomId = Math.random().toString(36).slice(2, 8);
-      const fileId = `${timestamp}-${randomId}.jpg`;
-      const path = `photos/${userId}/${fileId}`;
-      const storageRef = ref(storage, path);
-      
-      console.log(`[PhotoUploader] Uploading to Firebase Storage: ${path}`);
-
-      // Upload with better error handling
-      try {
-        await uploadBytes(storageRef, blob, {
-          contentType: 'image/jpeg',
-          customMetadata: {
-            uploadedBy: userId,
-            uploadedAt: timestamp.toString(),
-            originalSize: blob.size.toString()
+      const uploadProcess = async () => {
+        try {
+          // Validate auth first
+          if (!auth.currentUser) {
+            throw new Error('User not authenticated');
           }
-        });
-        console.log(`[PhotoUploader] Upload completed successfully`);
-        
-        // Get download URL
-        const downloadURL = await getDownloadURL(storageRef);
-        console.log(`[PhotoUploader] Successfully uploaded image ${index}/${total}: ${downloadURL}`);
-        
-        return { id: fileId, url: downloadURL, path };
-      } catch (uploadError: any) {
-        console.error(`[PhotoUploader] Firebase upload failed:`, uploadError);
-        
-        // Provide specific error messages
-        let errorMessage = 'Upload failed';
-        if (uploadError.code === 'storage/unauthorized') {
-          errorMessage = 'Permission denied. Please check your account permissions.';
-        } else if (uploadError.code === 'storage/canceled') {
-          errorMessage = 'Upload was canceled.';
-        } else if (uploadError.code === 'storage/unknown') {
-          errorMessage = 'Unknown error occurred during upload.';
-        } else if (uploadError.code === 'storage/retry-limit-exceeded') {
-          errorMessage = 'Upload failed after multiple retries.';
+
+          console.log(`[PhotoUploader] Starting image manipulation for ${uri}`);
+          
+          // Compress image with aggressive compression for faster upload
+          let manipulated;
+          try {
+            manipulated = await ImageManipulator.manipulateAsync(
+              uri,
+              [{ resize: { width: 800 } }], // Smaller size for faster processing
+              { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            console.log(`[PhotoUploader] Image manipulated successfully`);
+          } catch (manipError) {
+            console.warn(`[PhotoUploader] Image manipulation failed, using original:`, manipError);
+            manipulated = { uri }; // Use original if manipulation fails
+          }
+
+          // Convert to blob with timeout
+          console.log(`[PhotoUploader] Converting to blob...`);
+          let blob;
+          try {
+            const controller = new AbortController();
+            const fetchTimeout = setTimeout(() => controller.abort(), 10000); // 10s fetch timeout
+            
+            const response = await fetch(manipulated.uri, { signal: controller.signal });
+            clearTimeout(fetchTimeout);
+            
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            blob = await response.blob();
+            console.log(`[PhotoUploader] Blob created, size: ${blob.size} bytes`);
+          } catch (fetchError: any) {
+            console.error(`[PhotoUploader] Blob conversion failed:`, fetchError);
+            throw new Error(`Failed to process image: ${fetchError?.message || 'Unknown error'}`);
+          }
+
+          // Create storage reference with better path structure
+          const storage = getStorage();
+          const timestamp = Date.now();
+          const randomId = Math.random().toString(36).slice(2, 8);
+          const fileId = `${timestamp}-${randomId}.jpg`;
+          const path = `photos/${userId}/${fileId}`;
+          const storageRef = ref(storage, path);
+          
+          console.log(`[PhotoUploader] Uploading to Firebase Storage: ${path}`);
+
+          // Upload with timeout
+          try {
+            await uploadBytes(storageRef, blob, {
+              contentType: 'image/jpeg',
+              customMetadata: {
+                uploadedBy: userId,
+                uploadedAt: timestamp.toString(),
+                originalSize: blob.size.toString()
+              }
+            });
+            console.log(`[PhotoUploader] Upload completed successfully`);
+            
+            // Get download URL
+            const downloadURL = await getDownloadURL(storageRef);
+            console.log(`[PhotoUploader] Successfully uploaded image ${index}/${total}: ${downloadURL}`);
+            
+            clearTimeout(timeout);
+            resolve({ id: fileId, url: downloadURL, path });
+          } catch (uploadError: any) {
+            console.error(`[PhotoUploader] Firebase upload failed:`, uploadError);
+            
+            // Provide specific error messages
+            let errorMessage = 'Upload failed';
+            if (uploadError.code === 'storage/unauthorized') {
+              errorMessage = 'Permission denied. Please check your account permissions.';
+            } else if (uploadError.code === 'storage/canceled') {
+              errorMessage = 'Upload was canceled.';
+            } else if (uploadError.code === 'storage/unknown') {
+              errorMessage = 'Unknown error occurred during upload.';
+            } else if (uploadError.code === 'storage/retry-limit-exceeded') {
+              errorMessage = 'Upload failed after multiple retries.';
+            }
+            
+            throw new Error(errorMessage);
+          }
+        } catch (error: any) {
+          console.error(`[PhotoUploader] Failed to upload image ${index}:`, error);
+          console.error(`[PhotoUploader] Error details:`, {
+            message: error?.message,
+            code: error?.code,
+            name: error?.name
+          });
+          clearTimeout(timeout);
+          reject(error);
         }
-        
-        throw new Error(errorMessage);
-      }
-    } catch (error: any) {
-      console.error(`[PhotoUploader] Failed to upload image ${index}:`, error);
-      console.error(`[PhotoUploader] Error details:`, {
-        message: error?.message,
-        code: error?.code,
-        name: error?.name
-      });
-      throw error;
-    }
+      };
+      
+      uploadProcess();
+    });
   };
 
   const pick = async () => {
@@ -238,8 +262,22 @@ export default function PhotoUploader({
   };
 
   const handleRetry = () => {
+    if (uploadTimeout) {
+      clearTimeout(uploadTimeout);
+      setUploadTimeout(null);
+    }
     setBusy(false);
     setProgress('');
+  };
+
+  const forceStop = () => {
+    if (uploadTimeout) {
+      clearTimeout(uploadTimeout);
+      setUploadTimeout(null);
+    }
+    setBusy(false);
+    setProgress('');
+    Alert.alert('Upload Stopped', 'Photo upload has been stopped. You can try again.');
   };
 
   return (
@@ -260,9 +298,14 @@ export default function PhotoUploader({
       ) : null}
       
       {busy && (
-        <Pressable onPress={handleRetry} style={styles.retryButton}>
-          <Text style={styles.retryText}>Cancel / Retry</Text>
-        </Pressable>
+        <View style={styles.actionButtons}>
+          <Pressable onPress={handleRetry} style={styles.retryButton}>
+            <Text style={styles.retryText}>Cancel</Text>
+          </Pressable>
+          <Pressable onPress={forceStop} style={styles.stopButton}>
+            <Text style={styles.stopText}>Force Stop</Text>
+          </Pressable>
+        </View>
       )}
       
       <Text style={styles.debugText}>{debugInfo}</Text>
@@ -298,8 +341,13 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flex: 1,
   },
-  retryButton: {
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
     marginTop: 8,
+  },
+  retryButton: {
+    flex: 1,
     paddingVertical: 8,
     paddingHorizontal: 12,
     backgroundColor: '#f3f4f6',
@@ -308,6 +356,19 @@ const styles = StyleSheet.create({
   },
   retryText: {
     color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  stopButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  stopText: {
+    color: 'white',
     fontSize: 14,
     fontWeight: '500',
   },
