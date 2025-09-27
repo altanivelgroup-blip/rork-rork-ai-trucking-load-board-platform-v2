@@ -1,12 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { theme } from '@/constants/theme';
 import PhotoUploader from '@/components/PhotoUploader';
 import { auth } from '@/utils/firebase';
+import { testFirebaseConnection } from '@/lib/firebase';
+import { signInAnonymously } from 'firebase/auth';
 
 export default function PhotoTest() {
   const [uploadedPhotos, setUploadedPhotos] = useState<{id:string;url:string;path:string}[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<string>('Checking...');
+  const [authStatus, setAuthStatus] = useState<string>('Checking...');
+
+  useEffect(() => {
+    checkFirebaseConnection();
+    
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setAuthStatus(`Signed in: ${user.uid.slice(0, 8)}... (${user.isAnonymous ? 'Anonymous' : 'Authenticated'})`);
+      } else {
+        setAuthStatus('Not signed in');
+      }
+    });
+    
+    return unsubscribe;
+  }, []);
+
+  const checkFirebaseConnection = async () => {
+    try {
+      setConnectionStatus('Testing connection...');
+      const result = await testFirebaseConnection();
+      if (result.success) {
+        setConnectionStatus('✅ Firebase connected');
+      } else {
+        setConnectionStatus(`❌ Connection failed: ${result.error}`);
+      }
+    } catch (error: any) {
+      setConnectionStatus(`❌ Test failed: ${error?.message}`);
+    }
+  };
+
+  const signInAnonymouslyHandler = async () => {
+    try {
+      setAuthStatus('Signing in...');
+      await signInAnonymously(auth);
+      console.log('[PhotoTest] Anonymous sign-in successful');
+    } catch (error: any) {
+      console.error('[PhotoTest] Anonymous sign-in failed:', error);
+      setAuthStatus(`Sign-in failed: ${error?.message}`);
+    }
+  };
 
   const handlePhotosUploaded = (items: {id:string;url:string;path:string}[]) => {
     console.log('[PhotoTest] Photos uploaded:', items.length);
@@ -18,9 +61,20 @@ export default function PhotoTest() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Photo Upload Test</Text>
         
-        <Text style={styles.subtitle}>
-          User: {auth.currentUser?.uid ? 'Signed In' : 'Not Signed In'}
-        </Text>
+        <View style={styles.statusContainer}>
+          <Text style={styles.statusText}>Connection: {connectionStatus}</Text>
+          <Text style={styles.statusText}>Auth: {authStatus}</Text>
+          
+          {!auth.currentUser && (
+            <Pressable onPress={signInAnonymouslyHandler} style={styles.signInButton}>
+              <Text style={styles.signInButtonText}>Sign In Anonymously</Text>
+            </Pressable>
+          )}
+          
+          <Pressable onPress={checkFirebaseConnection} style={styles.testButton}>
+            <Text style={styles.testButtonText}>Test Connection</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.uploaderContainer}>
           <PhotoUploader
@@ -71,11 +125,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.gray,
-    textAlign: 'center',
-    marginBottom: 24,
+  statusContainer: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  statusText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.dark,
+    marginBottom: 8,
+    fontFamily: 'monospace',
+  },
+  signInButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  signInButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
+  },
+  testButton: {
+    backgroundColor: theme.colors.gray,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  testButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
   },
   uploaderContainer: {
     backgroundColor: theme.colors.white,
