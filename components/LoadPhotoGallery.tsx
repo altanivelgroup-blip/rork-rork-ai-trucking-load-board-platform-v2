@@ -5,17 +5,18 @@ import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 
 export default function LoadPhotoGallery({ loadId }: { loadId: string }) {
   const [items, setItems] = React.useState<any[]>([]);
-  React.useEffect(()=>{
+  
+  React.useEffect(() => {
     const q = query(collection(db, "loads", loadId, "photos"), orderBy("createdAt", "desc"));
-    return onSnapshot(q, snap => setItems(snap.docs.map(d=>({id:d.id, ...d.data()}))));
+    return onSnapshot(q, snap => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [loadId]);
 
   return (
     <FlatList
       data={items}
-      keyExtractor={(it)=>it.id}
+      keyExtractor={(item) => item.id}
       numColumns={3}
-      renderItem={({item})=>(
+      renderItem={({ item }) => (
         <View style={styles.container}>
           <Image source={{ uri: item.url }} style={styles.image} />
         </View>
