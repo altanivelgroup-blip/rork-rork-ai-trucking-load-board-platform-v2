@@ -16,7 +16,7 @@ export default function LoadPhotoGallery({ loadId }: { loadId: string }) {
       keyExtractor={(it)=>it.id}
       numColumns={3}
       renderItem={({item})=>(
-        <View className="m-1">
+        <View style={styles.container}>
           <Image source={{ uri: item.url }} style={styles.image} />
         </View>
       )}
@@ -25,6 +25,9 @@ export default function LoadPhotoGallery({ loadId }: { loadId: string }) {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    margin: 4,
+  },
   image: {
     width: 110,
     height: 110,
