@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { useProfileCache } from '@/hooks/useProfileCache';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench, Camera } from 'lucide-react-native';
-import { PhotoUploader } from '@/components/PhotoUploader';
+import PhotoUploader from '@/components/PhotoUploader';
 import { FuelKind, VehicleType, Driver } from '@/types';
 import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 
@@ -1043,16 +1043,13 @@ const insets = useSafeAreaInsets();
           </Text>
           
           <PhotoUploader
-            entityType="vehicle"
-            entityId={userId ? `driver-profile-${userId}` : 'temp-profile'}
-            minPhotos={1}
-            maxPhotos={10}
-            onChange={(photos, primaryPhoto, uploadsInProgress) => {
-              console.log('[DriverProfile] Profile photos updated:', {
-                count: photos.length,
-                primaryPhoto: !!primaryPhoto,
-                uploadsInProgress
-              });
+            loadId={userId ? `driver-profile-${userId}` : 'temp-profile'}
+            userId={userId || 'temp-user'}
+            role="driver"
+            allowMultiple={true}
+            buttonLabel="Upload Profile Photos"
+            onUploaded={(items) => {
+              console.log('[DriverProfile] Profile photos uploaded:', items.length);
             }}
           />
         </View>
