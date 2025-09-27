@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import LiveAnalyticsDashboard from '@/components/LiveAnalyticsDashboard';
 import { useLoads } from '@/hooks/useLoads';
-import { Crown, Zap, DollarSign, Settings } from 'lucide-react-native';
+import { Crown, Zap, DollarSign, Settings, Camera } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 
 const Tile = memo(function Tile({ title, subtitle, onPress, Icon, testID }: { title: string; subtitle: string; onPress: () => void; Icon: React.ComponentType<{ size?: number; color?: string }>; testID: string; }) {
@@ -47,6 +47,11 @@ export default function ShipperHome() {
   const goAdvancedSecurity = useCallback(() => {
     console.log('shipper.goAdvancedSecurity');
     router.push('/advance-security');
+  }, [router]);
+
+  const goPhotoUploadTest = useCallback(() => {
+    console.log('shipper.goPhotoUploadTest');
+    router.push('/photo-upload-test');
   }, [router]);
   
   // Don't redirect - let the tab layout handle role-based access
@@ -102,6 +107,7 @@ export default function ShipperHome() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Tools & Features</Text>
         </View>
+        <Tile title="Photo Upload Test" subtitle="Test photo uploads directly" onPress={goPhotoUploadTest} Icon={Camera} testID="tile-photo-upload-test" />
         <Tile title="AI Tools" subtitle="Draft posts, quotes and more" onPress={goAiTools} Icon={Zap} testID="tile-ai-tools" />
         <Tile title="Increase Revenue" subtitle="Tips and premium placement" onPress={goIncreaseRevenue} Icon={DollarSign} testID="tile-increase-revenue" />
         <Tile title="Advanced Security" subtitle="Protect posts and payments" onPress={goAdvancedSecurity} Icon={Settings} testID="tile-advanced-security" />
