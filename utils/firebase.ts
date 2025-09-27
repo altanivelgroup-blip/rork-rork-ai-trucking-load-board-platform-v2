@@ -34,7 +34,7 @@ const firebaseConfig = {
   apiKey: requiredEnvVars.apiKey || 'AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ',
   authDomain: requiredEnvVars.authDomain || 'rork-prod.firebaseapp.com',
   projectId: requiredEnvVars.projectId || 'rork-prod',
-  storageBucket: requiredEnvVars.storageBucket || 'rork-prod.firebasestorage.app',
+  storageBucket: requiredEnvVars.storageBucket || 'rork-prod.appspot.com',
   messagingSenderId: requiredEnvVars.messagingSenderId || '935855915227',
   appId: requiredEnvVars.appId || '1:935855915227:web:20c4c517dd32f0e59a4cfe',
 };

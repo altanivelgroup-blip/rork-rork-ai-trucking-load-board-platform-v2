@@ -11,6 +11,7 @@ import { useLoads } from '@/hooks/useLoads';
 import { Load, VehicleType } from '@/types';
 import PhotoUploader from '@/components/PhotoUploader';
 import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
+import { ref as storageRefV9, uploadBytes, getDownloadURL as getDownloadURLv9 } from 'firebase/storage';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
@@ -39,22 +40,22 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], o
     const a = assets[i];
     const safeName = a.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const refPath = `loadPhotos/${uid}/${loadId}/${String(i).padStart(2,'0')}-${safeName}`;
-    const fileRef = storage.ref(refPath);
+    const fileRef = storageRefV9(storage, refPath);
     console.log('[Upload] ->', refPath);
 
     if (a.kind === 'file') {
-      await fileRef.put(a.file as unknown as Blob);
+      await uploadBytes(fileRef, a.file as unknown as Blob);
     } else {
       try {
         const resp = await fetch(a.uri);
         const blob = await resp.blob();
-        await fileRef.put(blob);
+        await uploadBytes(fileRef, blob);
       } catch (e) {
         console.error('[Upload] fetch failed for uri:', a.uri, e);
         throw new Error(`Failed to fetch image from URI: ${a.uri}`);
       }
     }
-    const url = await fileRef.getDownloadURL();
+    const url = await getDownloadURLv9(fileRef);
     urls.push(url);
     if (onProgress) onProgress(i + 1, assets.length);
   }
