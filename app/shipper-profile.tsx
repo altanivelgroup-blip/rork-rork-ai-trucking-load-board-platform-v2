@@ -157,17 +157,12 @@ export default function ShipperProfileScreen() {
               onPress={() => {
                 console.log('Shipper profile back button pressed');
                 try {
-                  // Use router.back() for proper navigation
-                  if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    // Fallback to shipper tab
-                    router.replace('/(tabs)/shipper');
-                  }
+                  // Always go back to shipper tab for consistency
+                  router.replace('/(tabs)/shipper');
                 } catch (error) {
                   console.error('Navigation error:', error);
-                  // Final fallback to shipper tab
-                  router.replace('/(tabs)/shipper');
+                  // Force navigation to shipper tab
+                  router.push('/(tabs)/shipper');
                 }
               }}
               style={styles.backButton}
