@@ -23,13 +23,14 @@ import {
   TrendingUp,
   ArrowLeft,
   Bell,
-  Twitch as SwitchIcon
+  LogOut,
+
 } from 'lucide-react-native';
 
 export default function ShipperProfileScreen() {
   const router = useRouter();
   const toast = useToast();
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, logout } = useAuth();
   const { balance, totalEarnings } = useWallet();
   const { loads } = useLoads();
   const { settings, updateChannel, updateCategory } = useNotificationSettings();
@@ -84,6 +85,29 @@ export default function ShipperProfileScreen() {
     setIsEditing(false);
   }, [user]);
 
+  const handleSignOut = useCallback(() => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/login');
+            } catch (error) {
+              console.error('Sign out error:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  }, [logout, router]);
+
   const quickActions = [
     {
       id: 'ai-tools',
@@ -133,11 +157,16 @@ export default function ShipperProfileScreen() {
               onPress={() => {
                 console.log('Shipper profile back button pressed');
                 try {
-                  // Navigate directly to shipper tab to avoid redirect loop
-                  router.replace('/(tabs)/shipper');
+                  // Use router.back() for proper navigation
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    // Fallback to shipper tab
+                    router.replace('/(tabs)/shipper');
+                  }
                 } catch (error) {
                   console.error('Navigation error:', error);
-                  // Fallback to shipper tab
+                  // Final fallback to shipper tab
                   router.replace('/(tabs)/shipper');
                 }
               }}
@@ -148,12 +177,21 @@ export default function ShipperProfileScreen() {
             </TouchableOpacity>
           ),
           headerRight: () => (
-            <TouchableOpacity
-              onPress={() => setIsEditing(!isEditing)}
-              style={styles.headerButton}
-            >
-              <Edit3 size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
+            <View style={styles.headerRightContainer}>
+              <TouchableOpacity
+                onPress={() => setIsEditing(!isEditing)}
+                style={styles.headerButton}
+              >
+                <Edit3 size={20} color={theme.colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSignOut}
+                style={styles.headerButton}
+                testID="sign-out-button"
+              >
+                <LogOut size={20} color={theme.colors.danger} />
+              </TouchableOpacity>
+            </View>
           )
         }} 
       />
@@ -943,5 +981,9 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.gray,
     marginBottom: theme.spacing.md,
+  },
+  headerRightContainer: {
+    flexDirection: 'row',
+    gap: 8,
   },
 });
