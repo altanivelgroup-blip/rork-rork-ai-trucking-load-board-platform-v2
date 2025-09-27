@@ -44,7 +44,7 @@ export default function ProfileScreen() {
   const { loads } = useLoads();
   const insets = useSafeAreaInsets();
   
-  // Logout handler - must be before early return
+  // Logout handler
   const handleLogout = React.useCallback(() => {
     Alert.alert(
       'Sign Out',
@@ -67,7 +67,7 @@ export default function ProfileScreen() {
     );
   }, [logout, router]);
   
-  // Immediately redirect shippers - no other hooks or state needed
+  // Redirect shippers to their dedicated profile page
   useEffect(() => {
     if (user?.role === 'shipper') {
       console.log('[Profile] Redirecting shipper to dedicated profile page');
@@ -76,7 +76,7 @@ export default function ProfileScreen() {
     }
   }, [user?.role, router]);
   
-  // Don't render anything for shippers - they should be redirected immediately
+  // Early return for shippers - they should be redirected
   if (user?.role === 'shipper') {
     return null;
   }

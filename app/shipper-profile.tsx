@@ -132,8 +132,8 @@ export default function ShipperProfileScreen() {
               onPress={() => {
                 console.log('Shipper profile back button pressed');
                 try {
-                  // Always go back to shipper dashboard for consistent navigation
-                  router.replace('/(tabs)/shipper');
+                  // Go back to the profile tab which will redirect shippers properly
+                  router.back();
                 } catch (error) {
                   console.error('Navigation error:', error);
                   // Fallback to shipper tab

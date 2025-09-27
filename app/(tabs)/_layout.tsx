@@ -119,7 +119,7 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
-          href: isShipper ? '/shipper-profile' : (isDriver || isAdmin) ? '/profile' : null,
+          href: (isDriver || isAdmin || isShipper) ? '/profile' : null,
         }}
       />
       
