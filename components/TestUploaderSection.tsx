@@ -1,27 +1,82 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
 import { ensureTestLoad } from "@/lib/ensureTestLoad";
 import PhotoUploader from "@/components/PhotoUploader";
 import LoadPhotoGallery from "@/components/LoadPhotoGallery";
 
 export default function TestUploaderSection({ role }: { role: "shipper" | "driver" }) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [loadId, setLoadId] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [isCreatingLoad, setIsCreatingLoad] = React.useState(false);
 
   React.useEffect(() => {
-    if (!user?.uid) return;
-    ensureTestLoad(user.uid).then(setLoadId).catch(console.error);
+    if (!user?.uid) {
+      console.log('[TestUploaderSection] No user ID available');
+      return;
+    }
+    
+    console.log('[TestUploaderSection] Creating test load for user:', user.uid);
+    setIsCreatingLoad(true);
+    setError(null);
+    
+    ensureTestLoad(user.uid)
+      .then((id) => {
+        console.log('[TestUploaderSection] Test load ready:', id);
+        setLoadId(id);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error('[TestUploaderSection] Failed to create test load:', err);
+        setError(err?.message || 'Failed to create test load');
+      })
+      .finally(() => {
+        setIsCreatingLoad(false);
+      });
   }, [user?.uid]);
 
-  if (!user?.uid) return null;
+  if (isLoading) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Photo Uploader (TEST)</Text>
+        <Text>Loading user authentication...</Text>
+      </View>
+    );
+  }
+
+  if (!user?.uid) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Photo Uploader (TEST)</Text>
+        <Text style={styles.error}>Please sign in to test photo uploads</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.card}>
       <Text style={styles.title}>Photo Uploader (TEST)</Text>
       <Text style={styles.sub}>Uses your private test load. Safe to try anytime.</Text>
 
-      {loadId ? (
+      {error ? (
+        <View>
+          <Text style={styles.error}>Error: {error}</Text>
+          <Pressable 
+            style={styles.retryButton}
+            onPress={() => {
+              setError(null);
+              setIsCreatingLoad(true);
+              ensureTestLoad(user.uid)
+                .then(setLoadId)
+                .catch((err) => setError(err?.message || 'Failed to create test load'))
+                .finally(() => setIsCreatingLoad(false));
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : loadId ? (
         <>
           <PhotoUploader
             loadId={loadId}
@@ -29,14 +84,16 @@ export default function TestUploaderSection({ role }: { role: "shipper" | "drive
             role={role}
             allowMultiple
             buttonLabel="Pick Photos"
-            onUploaded={()=>{}}
+            onUploaded={(items) => {
+              console.log('[TestUploaderSection] Photos uploaded:', items.length);
+            }}
           />
           <View style={styles.galleryContainer}>
             <LoadPhotoGallery loadId={loadId} />
           </View>
         </>
       ) : (
-        <Text>Preparing test load…</Text>
+        <Text>{isCreatingLoad ? 'Creating test load...' : 'Preparing test load…'}</Text>
       )}
     </View>
   );
@@ -47,4 +104,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "600" },
   sub: { opacity: 0.7, marginBottom: 8 },
   galleryContainer: { marginTop: 12 },
+  error: { color: '#dc2626', marginTop: 8, marginBottom: 8 },
+  retryButton: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
 });

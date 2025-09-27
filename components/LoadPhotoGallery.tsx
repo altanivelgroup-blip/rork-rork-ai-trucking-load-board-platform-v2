@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Image, FlatList, StyleSheet } from "react-native";
-import { db } from "@/lib/firebase";
+import { db } from "@/utils/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 
 export default function LoadPhotoGallery({ loadId }: { loadId: string }) {
