@@ -3,15 +3,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Send, Clock } from 'lucide-react-native';
+import { Send } from 'lucide-react-native';
 
 import { usePostLoad } from '@/hooks/usePostLoad';
-import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Load, VehicleType } from '@/types';
-import { Image } from 'expo-image';
-import { PhotoUploader } from '@/components/PhotoUploader';
+import PhotoUploader from '@/components/PhotoUploader';
 import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
@@ -32,8 +30,6 @@ function normalizeAssets(input: any[]): NormAsset[] {
     return { kind:'uri', uri, name:last, mime };
   });
 }
-
-
 
 async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], onProgress?: (done: number, total: number) => void) {
   const assets = normalizeAssets(picked).filter((a) => (a as any).file || (a as any).uri);
@@ -298,11 +294,11 @@ function Stepper({ current, total }: { current: number; total: number }) {
     </View>
   );
 }
-export default function PostLoadStep5() {
+function PostLoadStep5() {
   const router = useRouter();
   const { draft, setField, reset } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
-  const [uploadsInProgress, setUploadsInProgress] = useState<number>(0);
+
   const toast = useToast();
   const loadsStore = useLoads();
 
@@ -403,24 +399,17 @@ export default function PostLoadStep5() {
             <Text style={styles.summaryTitle}>
               Photos ({draft.vehicleType === 'car-hauler' ? '5 required for vehicle loads' : 'min 1 recommended'})
             </Text>
-            {uploadsInProgress > 0 && (
-              <View style={styles.uploadStatusContainer}>
-                <Clock color={theme.colors.primary} size={18} />
-                <Text style={styles.uploadStatusText}>
-                  Uploading photos ({uploadsInProgress}/{draft.photoUrls?.length || 0})... Please wait.
-                </Text>
-              </View>
-            )}
+
             <Text style={styles.helperText} testID="attachmentsHelper">
               Photos ready: {Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0)} 
               {draft.vehicleType === 'car-hauler' ? ' (5 required for vehicle protection)' : ' (1+ recommended)'}
             </Text>
-            {draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5 && uploadsInProgress === 0 && (
+            {draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5 && (
               <Text style={styles.errorText} testID="attachmentsError">
                 Vehicle loads require 5 photos for shipper and driver protection.
               </Text>
             )}
-            {draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1 && uploadsInProgress === 0 && (
+            {draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1 && (
               <Text style={styles.warningText} testID="attachmentsWarning">
                 At least 1 photo is recommended for better load visibility.
               </Text>
@@ -428,13 +417,15 @@ export default function PostLoadStep5() {
 
             <View style={styles.photoUploaderContainer}>
               <PhotoUploader
-                entityType="load"
-                entityId={auth?.currentUser?.uid ? `${auth.currentUser.uid}-${draft.reference}` : draft.reference}
-                loadType={draft.vehicleType === 'car-hauler' ? 'vehicle' : 'other'} // Vehicle loads require 5 photos, others are flexible
-                onChange={useCallback((photos: string[], primary: string, inProgress: number) => {
-                  console.log('[PostLoadStep5] PhotoUploader onChange', { count: photos.length, inProgress, primary });
-                  setUploadsInProgress(inProgress);
-                  setField('photoUrls', photos);
+                loadId={auth?.currentUser?.uid ? `${auth.currentUser.uid}-${draft.reference}` : draft.reference}
+                userId={auth?.currentUser?.uid || 'anonymous'}
+                role="shipper"
+                allowMultiple={draft.vehicleType === 'car-hauler'}
+                buttonLabel={draft.vehicleType === 'car-hauler' ? 'Upload 5 Photos (Required)' : 'Upload Photos'}
+                onUploaded={useCallback((items: {id:string;url:string;path:string}[]) => {
+                  console.log('[PostLoadStep5] PhotoUploader onUploaded', { count: items.length });
+                  const urls = items.map(item => item.url);
+                  setField('photoUrls', urls);
                 }, [setField])}
               />
             </View>
@@ -474,14 +465,12 @@ export default function PostLoadStep5() {
               onPress={handlePostLoad} 
               style={[
                 styles.postBtn, 
-                (uploadsInProgress > 0 || 
-                 !contact?.trim() ||
+                (!contact?.trim() ||
                  (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
                  (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
                  draft.isPosting) && styles.postBtnDisabled
               ]} 
               disabled={
-                uploadsInProgress > 0 || 
                 !contact?.trim() ||
                 (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
                 (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
@@ -489,8 +478,7 @@ export default function PostLoadStep5() {
               } 
               accessibilityRole="button" 
               accessibilityState={{ 
-                disabled: uploadsInProgress > 0 || 
-                         !contact?.trim() ||
+                disabled: !contact?.trim() ||
                          (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
                          (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
                          draft.isPosting 
@@ -503,9 +491,7 @@ export default function PostLoadStep5() {
                 <Send color={theme.colors.white} size={18} />
               )}
               <Text style={styles.postBtnText}>
-                {uploadsInProgress > 0 
-                  ? `Uploading photos (${uploadsInProgress}/${Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) + uploadsInProgress})...` 
-                  : draft.isPosting 
+                {draft.isPosting 
                   ? 'Posting...' 
                   : !contact?.trim()
                   ? 'Enter Contact Info'
@@ -618,3 +604,5 @@ const styles = StyleSheet.create({
   postBtnText: { color: theme.colors.white, fontSize: theme.fontSize.lg, fontWeight: '800' },
   photoUploaderContainer: { marginTop: 8 },
 });
+
+export default PostLoadStep5;
