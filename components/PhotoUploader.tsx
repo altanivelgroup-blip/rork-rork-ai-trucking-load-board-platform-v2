@@ -72,6 +72,9 @@ export default function PhotoUploader({
       throw new Error("Invalid role: must be shipper or driver");
     }
     
+    console.log("[PhotoUploader] Upload path:", path);
+    console.log("[PhotoUploader] Using role:", role, "user:", userId, "loadId:", loadId);
+    
     const storageRef = ref(storage, path);
 
     // Upload with timeout
@@ -114,6 +117,8 @@ export default function PhotoUploader({
     }
     
     // All attempts failed
+    console.error(`[PhotoUploader] Final error after retries for image ${index}:`, lastError);
+    
     const errorMessage = lastError?.message || 'Unknown upload error';
     // Check if it's a timeout or auth error for better messaging
     if (lastError?.message?.includes('timeout') || lastError?.message?.includes('abort')) {
@@ -279,7 +284,7 @@ export default function PhotoUploader({
       } else if (failedUploads.length > 0) {
         const errorDetails = failedUploads.slice(0, 3).join('\n');
         const moreErrors = failedUploads.length > 3 ? `\n...and ${failedUploads.length - 3} more` : '';
-        Alert.alert("Upload Failed", `Network issues prevented upload:\n${errorDetails}${moreErrors}`);
+        Alert.alert("Upload Failed", `Upload was denied:\n${errorDetails}${moreErrors}`);
       } else {
         Alert.alert("No Photos Selected", "Please select photos to upload.");
       }
