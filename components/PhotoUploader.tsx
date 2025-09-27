@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth } from "@/utils/firebase";
 import * as ImageManipulator from "expo-image-manipulator";
 
@@ -74,33 +74,19 @@ export default function PhotoUploader({
     
     const storageRef = ref(storage, path);
 
-    // Upload with resumable upload and timeout
-    const uploadTask = uploadBytesResumable(storageRef, blob, {
-      contentType: 'image/jpeg',
-      customMetadata: {
-        uploadedBy: auth.currentUser.uid,
-        uploadedAt: timestamp.toString(),
-      },
-    });
-
-    const result = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        uploadTask.cancel();
-        reject(new Error("Upload timeout (30s)"));
-      }, 30000);
-
-      uploadTask.on('state_changed',
-        null,
-        (error) => {
-          clearTimeout(timer);
-          reject(error);
-        },
-        () => {
-          clearTimeout(timer);
-          resolve(true);
+    // Upload with timeout
+    await Promise.race([
+      uploadBytes(storageRef, blob, {
+        contentType: "image/jpeg",
+        customMetadata: {
+          uploadedBy: userId,
+          uploadedAt: timestamp.toString(),
         }
-      );
-    });
+      }),
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("Upload timeout (30s)")), 30000)
+      )
+    ]);
 
     // Get URL
     const url = await getDownloadURL(storageRef);
