@@ -235,43 +235,73 @@ export default function PhotoUploader({
       // Create abort controller for the entire upload session
       abortControllerRef.current = new AbortController();
       
-      // Upload images sequentially for better reliability
-      for (let i = 0; i < assets.length; i++) {
+      // Upload images in batches of 3 with 500ms delay between batches
+      const BATCH_SIZE = 3;
+      const BATCH_DELAY = 500;
+      
+      for (let batchStart = 0; batchStart < assets.length; batchStart += BATCH_SIZE) {
         if (abortControllerRef.current?.signal.aborted) {
           console.log('[PhotoUploader] Upload cancelled by user');
           break;
         }
         
-        const asset = assets[i];
-        const imageIndex = i + 1;
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, assets.length);
+        const batch = assets.slice(batchStart, batchEnd);
+        const batchNumber = Math.floor(batchStart / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(assets.length / BATCH_SIZE);
         
-        try {
-          console.log(`[PhotoUploader] Starting upload for image ${imageIndex}/${assets.length}`);
-          setProgress(`Uploading image ${imageIndex}/${assets.length}...`);
+        console.log(`[PhotoUploader] Processing batch ${batchNumber}/${totalBatches} (${batch.length} images)`);
+        setProgress(`Processing batch ${batchNumber}/${totalBatches}...`);
+        
+        // Process batch concurrently (up to 3 uploads at once)
+        const batchPromises = batch.map(async (asset, batchIndex) => {
+          const globalIndex = batchStart + batchIndex + 1;
           
-          const uploaded = await uploadWithRetry(asset.uri, imageIndex);
-          
-          uploadedItems.push(uploaded);
-          setUploadedCount(prev => {
-            const newCount = prev + 1;
-            setProgress(`Uploaded ${newCount}/${assets.length} photos...`);
-            return newCount;
-          });
-          
-          console.log(`[PhotoUploader] Successfully uploaded image ${imageIndex}`);
-          
-          // Small delay between uploads to prevent overwhelming Firebase
-          if (i < assets.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+          try {
+            console.log(`[PhotoUploader] Starting upload for image ${globalIndex}/${assets.length} in batch ${batchNumber}`);
+            const uploaded = await uploadWithRetry(asset.uri, globalIndex);
+            
+            // Update progress atomically
+            setUploadedCount(prev => {
+              const newCount = prev + 1;
+              setProgress(`Uploaded ${newCount}/${assets.length} photos...`);
+              return newCount;
+            });
+            
+            console.log(`[PhotoUploader] Successfully uploaded image ${globalIndex}`);
+            return { success: true, data: uploaded, index: globalIndex };
+            
+          } catch (error: any) {
+            console.error(`[PhotoUploader] Failed to upload image ${globalIndex}:`, error);
+            const errorMsg = error?.message || 'Unknown error';
+            return { 
+              success: false, 
+              error: `Image ${globalIndex}: ${errorMsg}`, 
+              retryData: { uri: asset.uri, index: globalIndex },
+              index: globalIndex 
+            };
           }
-          
-        } catch (error: any) {
-          console.error(`[PhotoUploader] Failed to upload image ${imageIndex}:`, error);
-          const errorMsg = error?.message || 'Unknown error';
-          failedUploads.push(`Image ${imageIndex}: ${errorMsg}`);
-          
-          // Add to retry queue
-          setRetryQueue(prev => [...prev, { uri: asset.uri, index: imageIndex }]);
+        });
+        
+        // Wait for all uploads in this batch to complete
+        const batchResults = await Promise.all(batchPromises);
+        
+        // Process batch results
+        batchResults.forEach(result => {
+          if (result.success) {
+            uploadedItems.push(result.data);
+          } else {
+            failedUploads.push(result.error);
+            setRetryQueue(prev => [...prev, result.retryData]);
+          }
+        });
+        
+        console.log(`[PhotoUploader] Batch ${batchNumber} complete: ${batchResults.filter(r => r.success).length} successful, ${batchResults.filter(r => !r.success).length} failed`);
+        
+        // Add delay between batches (except for the last batch)
+        if (batchEnd < assets.length) {
+          console.log(`[PhotoUploader] Waiting ${BATCH_DELAY}ms before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
       }
 
