@@ -2,30 +2,50 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
-export default function BarePhotoUploader() {
+interface BarePhotoUploaderProps {
+  minPhotos?: number;
+  maxPhotos?: number;
+}
+
+export default function BarePhotoUploader({ 
+  minPhotos = 5, 
+  maxPhotos = 20 
+}: BarePhotoUploaderProps) {
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
 
-  const selectPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 1,
-      allowsMultipleSelection: false,
-    });
+  const selectPhotos = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 1,
+      });
 
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setSelectedPhotos(prev => [...prev, uri]);
+      if (!result.canceled && result.assets) {
+        const newUris = result.assets.map(asset => asset.uri);
+        setSelectedPhotos(prev => {
+          const combined = [...prev, ...newUris];
+          return combined.slice(0, maxPhotos);
+        });
+      }
+    } catch (error) {
+      console.log('Error selecting photos:', error);
     }
   };
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.button} onPress={selectPhoto}>
-        <Text style={styles.buttonText}>Select Photo</Text>
+      <TouchableOpacity style={styles.button} onPress={selectPhotos}>
+        <Text style={styles.buttonText}>Select Photos</Text>
       </TouchableOpacity>
       
-      <Text style={styles.counter}>Selected: {selectedPhotos.length} photos</Text>
+      <Text style={styles.counter}>Selected: {selectedPhotos.length} / {maxPhotos}</Text>
+      
+      {selectedPhotos.length < minPhotos && (
+        <Text style={styles.warning}>
+          Need at least {minPhotos} photos
+        </Text>
+      )}
       
       {selectedPhotos.length > 0 && (
         <View style={styles.grid}>
@@ -60,13 +80,19 @@ const styles = StyleSheet.create({
   },
   counter: {
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  warning: {
+    color: '#FF3B30',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   thumbnail: {
     width: 100,
