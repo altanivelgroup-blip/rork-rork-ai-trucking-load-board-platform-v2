@@ -209,8 +209,19 @@ export default function PhotoUploader({
       console.log('[PhotoUploader] Real mode: uploading to Firebase for photo', photo.id);
       
       try {
+        // Check if Firebase storage is available
+        if (!storage) {
+          console.warn('[PhotoUploader] Firebase storage not available, falling back to mock mode');
+          throw new Error('Firebase storage not configured');
+        }
+        
         const response = await fetch(photo.uri);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.status}`);
+        }
+        
         const blob = await response.blob();
+        console.log('[PhotoUploader] Image blob created, size:', blob.size, 'bytes');
         
         const fileName = `${Date.now()}_${photo.id}.jpg`;
         const storageRef = ref(storage, `${storagePath}/${fileName}`);
@@ -227,7 +238,17 @@ export default function PhotoUploader({
             },
             (error) => {
               console.error('[PhotoUploader] Upload error for photo', photo.id, ':', error);
-              reject(error);
+              let errorMessage = 'Upload failed';
+              if (error.code === 'storage/unauthorized') {
+                errorMessage = 'Permission denied - please sign in';
+              } else if (error.code === 'storage/canceled') {
+                errorMessage = 'Upload canceled';
+              } else if (error.code === 'storage/unknown') {
+                errorMessage = 'Network error - please try again';
+              } else if (error.message) {
+                errorMessage = error.message;
+              }
+              reject(new Error(errorMessage));
             },
             async () => {
               try {
@@ -236,7 +257,7 @@ export default function PhotoUploader({
                 resolve(downloadURL);
               } catch (error) {
                 console.error('[PhotoUploader] Error getting download URL for photo', photo.id, ':', error);
-                reject(error);
+                reject(new Error('Failed to get download URL'));
               }
             }
           );
@@ -264,8 +285,19 @@ export default function PhotoUploader({
       toast.show('Photo uploaded successfully!', 'success');
     } catch (error) {
       console.error('[PhotoUploader] ❌ Upload failed for photo:', photo.id, error);
-      updatePhotoStatus(photo.id, 'failed', undefined, error instanceof Error ? error.message : 'Upload failed');
-      toast.show('Failed to upload photo. Tap retry to try again.', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+      updatePhotoStatus(photo.id, 'failed', undefined, errorMessage);
+      
+      // Show more specific error messages
+      if (errorMessage.includes('Permission denied')) {
+        toast.show('Permission denied - please sign in and try again', 'error');
+      } else if (errorMessage.includes('Network error')) {
+        toast.show('Network error - check connection and retry', 'error');
+      } else if (errorMessage.includes('Firebase storage not configured')) {
+        toast.show('Storage not configured - contact support', 'error');
+      } else {
+        toast.show(`Upload failed: ${errorMessage}`, 'error');
+      }
     } finally {
       setIsUploading(false);
     }
@@ -464,7 +496,14 @@ export default function PhotoUploader({
       {failedPhotos > 0 && (
         <View style={styles.errorContainer} testID="upload-error">
           <AlertCircle size={16} color="#FF3B30" />
-          <Text style={styles.errorText}>Failed to load photos.</Text>
+          <View style={styles.errorTextContainer}>
+            <Text style={styles.errorText}>
+              {failedPhotos} photo{failedPhotos > 1 ? 's' : ''} failed to upload.
+            </Text>
+            <Text style={styles.errorSubtext}>
+              Tap the retry button on failed photos to try again.
+            </Text>
+          </View>
         </View>
       )}
 
@@ -643,11 +682,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
   },
+  errorTextContainer: {
+    flex: 1,
+  },
   errorText: {
     fontSize: 14,
     color: '#FF3B30',
     fontWeight: '500',
-    flex: 1,
+    marginBottom: 2,
+  },
+  errorSubtext: {
+    fontSize: 12,
+    color: '#FF3B30',
+    opacity: 0.8,
   },
   requirementsContainer: {
     flexDirection: 'row',
