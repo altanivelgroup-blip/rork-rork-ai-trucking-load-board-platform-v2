@@ -297,6 +297,21 @@ export default function PhotoUploader({
           {getStatusIcon()}
         </View>
 
+        {/* Progress percentage bubble */}
+        {photo.status === 'uploading' && (
+          <View style={styles.progressBubble}>
+            <Text style={styles.progressText}>{Math.round(photo.progress ?? 0)}%</Text>
+          </View>
+        )}
+
+        {/* Saved pill */}
+        {photo.status === 'completed' && (
+          <View style={styles.savedPill}>
+            <CheckCircle size={12} color="#FFFFFF" />
+            <Text style={styles.savedPillText}>Saved</Text>
+          </View>
+        )}
+
         {/* Progress bar for uploading */}
         {photo.status === 'uploading' && photo.progress !== undefined && (
           <View style={styles.progressContainer}>
@@ -328,6 +343,10 @@ export default function PhotoUploader({
   const canAddMore = photos.length < maxPhotos;
   const completedPhotos = photos.filter(p => p.status === 'completed').length;
   const failedPhotos = photos.filter(p => p.status === 'failed').length;
+  const uploading = photos.filter(p => p.status === 'uploading');
+  const overallProgress = uploading.length
+    ? Math.round(uploading.reduce((acc, p) => acc + (p.progress ?? 0), 0) / uploading.length)
+    : completedPhotos > 0 ? 100 : 0;
 
   const showAddPhotosOptions = () => {
     console.log('[PhotoUploader] Showing add photos options');
@@ -390,6 +409,21 @@ export default function PhotoUploader({
         </ScrollView>
       )}
 
+      {/* Overall upload status */}
+      <View style={styles.statusRow}>
+        {uploading.length > 0 ? (
+          <>
+            <ActivityIndicator size="small" color="#007AFF" />
+            <Text style={styles.statusText}>Uploading {uploading.length} photo(s)... {overallProgress}%</Text>
+          </>
+        ) : (
+          <>
+            <CheckCircle size={16} color="#34C759" />
+            <Text style={styles.statusText}>{completedPhotos} saved{completedPhotos > 0 ? ' • All set' : ''}</Text>
+          </>
+        )}
+      </View>
+
       {/* Warning for minimum photos */}
       {completedPhotos < 5 && (
         <View style={styles.warningContainer}>
@@ -431,6 +465,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#3C3C43',
+    fontWeight: '500',
   },
   photosTitle: {
     fontSize: 16,
@@ -498,6 +543,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
+  },
+  progressBubble: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  progressText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  savedPill: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: '#34C759',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  savedPillText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   removeButton: {
     position: 'absolute',
