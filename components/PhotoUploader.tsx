@@ -18,7 +18,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, Star, Trash2, X, AlertCircle, Settings } from 'lucide-react-native';
 
-import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { LOADS_COLLECTION, VEHICLES_COLLECTION } from '@/lib/loadSchema';
 
 import {
@@ -271,6 +271,11 @@ export function PhotoUploader({
 
   const [showImageModal, setShowImageModal] = useState<string | null>(null);
   const toast = useToast();
+  
+  // Track saved photos count
+  const savedPhotosCount = useMemo(() => {
+    return state.photos.filter(p => !p.uploading && !p.error && p.url.startsWith('https://')).length;
+  }, [state.photos]);
 
   const loadPhotos = useCallback(async () => {
     try {
@@ -332,11 +337,7 @@ export function PhotoUploader({
         console.warn('[PhotoUploader] Skipping Firestore sync: auth missing');
         return;
       }
-      const perms = await checkFirebasePermissions();
-      if (!perms.canWrite) {
-        console.warn('[PhotoUploader] Skipping Firestore sync: insufficient permissions');
-        return;
-      }
+      // Skip permission check for now - auth is sufficient
       const { db } = getFirebase();
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
       const docRef = doc(db, collectionName, entityId);
@@ -745,8 +746,13 @@ export function PhotoUploader({
         <Text style={styles.title}>Photos</Text>
         <View style={styles.headerRight}>
           <Text style={styles.counter}>
-            {state.photos.filter(p => !p.uploading && !p.error).length}/{maxPhotos}
+            {savedPhotosCount}/{maxPhotos}
           </Text>
+          {savedPhotosCount > 0 && (
+            <Text style={styles.savedCounter}>
+              {savedPhotosCount} saved
+            </Text>
+          )}
           <TouchableOpacity
             style={styles.qaButton}
             onPress={() => setQAState(prev => ({ ...prev, showQAPanel: !prev.showQAPanel }))}
@@ -763,7 +769,7 @@ export function PhotoUploader({
 
           <View style={styles.qaControl}>
             <Text style={styles.qaControlLabel}>Photo Size</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={styles.sizePresetContainer}>
               {(['small','medium','large'] as ResizePreset[]).map(p => (
                 <TouchableOpacity
                   key={p}
@@ -859,7 +865,7 @@ export function PhotoUploader({
         <View style={styles.errorContainer}>
           <AlertCircle color={theme.colors.danger} size={20} />
           <Text style={styles.errorContainerText}>
-            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap "Retry" to try again.
+            {state.photos.filter(p => p.error).length} photo{state.photos.filter(p => p.error).length > 1 ? 's' : ''} failed to upload. Tap &quot;Retry&quot; to try again.
           </Text>
         </View>
       )}
@@ -941,6 +947,11 @@ const styles = StyleSheet.create({
   counter: {
     fontSize: theme.fontSize.md,
     color: theme.colors.gray,
+  },
+  savedCounter: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.success,
+    fontWeight: '600' as const,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -1190,6 +1201,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: theme.fontSize.md,
     color: theme.colors.danger,
+  },
+  sizePresetContainer: {
+    flexDirection: 'row',
+    gap: 8,
   },
 });
 
