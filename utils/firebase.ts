@@ -1,45 +1,69 @@
-// utils/firebase.ts — drop-in, stable, copy–paste
+// utils/firebase.ts — tolerant to your env names
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-/** Read env (you already set these in Rork/Expo) */
-const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY!,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID!,
-  // IMPORTANT: Firebase Storage buckets end with .appspot.com
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "rork-prod.appspot.com",
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID!,
+/** Map both canonical env names and your custom ones */
+const ENV = {
+  apiKey:
+    process.env.EXPO_PUBLIC_FIREBASE_API_KEY ||
+    process.env.EXPO_PUBLIC_RORK_AF, // your screenshot
+  appId:
+    process.env.EXPO_PUBLIC_FIREBASE_APP_ID ||
+    process.env.EXPO_PUBLIC_FEATURE_LIVE_LOGISTICS || // your note
+    process.env.EXPO_PUBLIC_FEATURE,
+  projectId:
+    process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ||
+    process.env.EXPO_PUBLIC_FIREBASE, // saw this used as "rork-prod"
+  authDomain:
+    process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  storageBucket:
+    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId:
+    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
 };
 
-/** Initialize once (safe on web/native) */
+// Derive domain/bucket if missing but projectId is present
+const derivedAuthDomain =
+  ENV.authDomain || (ENV.projectId ? `${ENV.projectId}.firebaseapp.com` : undefined);
+
+const derivedStorageBucket =
+  ENV.storageBucket || (ENV.projectId ? `${ENV.projectId}.appspot.com` : undefined); // must be .appspot.com
+
+const firebaseConfig = {
+  apiKey: ENV.apiKey!,
+  authDomain: derivedAuthDomain!,
+  projectId: ENV.projectId!,
+  storageBucket: derivedStorageBucket!,
+  messagingSenderId: ENV.messagingSenderId!,
+  appId: ENV.appId!,
+};
+
+// Helpful log once (not secrets)
+console.log("[Firebase] project:", firebaseConfig.projectId);
+console.log("[Firebase] authDomain:", firebaseConfig.authDomain);
+console.log("[Firebase] storageBucket:", firebaseConfig.storageBucket);
+
+// Initialize once safely
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-/** SDK handles */
+// Handles
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export { app };
 
-/** Convenience getter used by your PhotoUploader */
+// Getter used by PhotoUploader
 export function getFirebase() {
   return { app, auth, db, storage };
 }
 
-/**
- * Ensure there’s a signed-in user so Storage rules get a UID.
- * - If you already use real auth, this resolves immediately.
- * - If no user, it signs in anonymously (enable Anonymous in Console).
- */
+// Ensure a user exists (uses Anonymous if no one signed in)
 export async function ensureFirebaseAuth(): Promise<boolean> {
   try {
-    // Already signed in?
     if (auth.currentUser) return true;
 
-    // Give auth state a moment to hydrate (if persisted)
     await new Promise<void>((resolve) => {
       const unsub = onAuthStateChanged(auth, () => {
         unsub();
@@ -48,7 +72,6 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
     });
     if (auth.currentUser) return true;
 
-    // Still no user — sign in anonymously (easy + safe)
     try {
       await signInAnonymously(auth);
       return true;
