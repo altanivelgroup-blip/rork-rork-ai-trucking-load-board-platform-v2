@@ -79,12 +79,16 @@ export default function PhotoUploader({
 
     try {
       // Request media library permission specifically
+      console.log('[PhotoUploader] Requesting media library permissions...');
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('[PhotoUploader] Media library permission status:', status);
+      
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Please grant photo library permissions to select photos.');
         return;
       }
 
+      console.log('[PhotoUploader] Launching image library...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -92,6 +96,8 @@ export default function PhotoUploader({
         quality: 0.8,
         allowsMultipleSelection: false,
       });
+
+      console.log('[PhotoUploader] Image picker result:', { canceled: result.canceled, assetsLength: result.assets?.length });
 
       if (!result.canceled && result.assets[0]) {
         console.log('[PhotoUploader] Image selected, creating photo data');
@@ -107,6 +113,8 @@ export default function PhotoUploader({
         
         // Start upload immediately
         uploadPhoto(newPhoto);
+      } else {
+        console.log('[PhotoUploader] Image picker was canceled or no assets');
       }
     } catch (error) {
       console.error('[PhotoUploader] Error picking image:', error);
@@ -124,17 +132,23 @@ export default function PhotoUploader({
 
     try {
       // Request camera permission specifically
+      console.log('[PhotoUploader] Requesting camera permissions...');
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      console.log('[PhotoUploader] Camera permission status:', status);
+      
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Please grant camera permissions to take photos.');
         return;
       }
 
+      console.log('[PhotoUploader] Launching camera...');
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
       });
+
+      console.log('[PhotoUploader] Camera result:', { canceled: result.canceled, assetsLength: result.assets?.length });
 
       if (!result.canceled && result.assets[0]) {
         console.log('[PhotoUploader] Photo taken, creating photo data');
@@ -150,6 +164,8 @@ export default function PhotoUploader({
         
         // Start upload immediately
         uploadPhoto(newPhoto);
+      } else {
+        console.log('[PhotoUploader] Camera was canceled or no assets');
       }
     } catch (error) {
       console.error('[PhotoUploader] Error taking photo:', error);
@@ -314,13 +330,22 @@ export default function PhotoUploader({
   const failedPhotos = photos.filter(p => p.status === 'failed').length;
 
   const showAddPhotosOptions = () => {
+    console.log('[PhotoUploader] Showing add photos options');
     Alert.alert(
       'Add Photos',
       'Choose how you want to add photos',
       [
-        { text: 'Camera', onPress: takePhoto },
-        { text: 'Gallery', onPress: pickImage },
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Camera', onPress: () => {
+          console.log('[PhotoUploader] User selected Camera');
+          takePhoto();
+        }},
+        { text: 'Gallery', onPress: () => {
+          console.log('[PhotoUploader] User selected Gallery');
+          pickImage();
+        }},
+        { text: 'Cancel', style: 'cancel', onPress: () => {
+          console.log('[PhotoUploader] User canceled photo selection');
+        }},
       ]
     );
   };
@@ -336,12 +361,18 @@ export default function PhotoUploader({
       {/* Add Photos Button */}
       {canAddMore && (
         <TouchableOpacity
-          style={styles.addPhotosButton}
-          onPress={showAddPhotosOptions}
+          style={[styles.addPhotosButton, isUploading && styles.addPhotosButtonDisabled]}
+          onPress={() => {
+            console.log('[PhotoUploader] Add Photos button pressed');
+            showAddPhotosOptions();
+          }}
           disabled={isUploading}
+          testID="add-photos-button"
         >
           <Upload size={20} color="#FFFFFF" />
-          <Text style={styles.addPhotosButtonText}>Add Photos</Text>
+          <Text style={styles.addPhotosButtonText}>
+            {isUploading ? 'Uploading...' : 'Add Photos'}
+          </Text>
         </TouchableOpacity>
       )}
 
@@ -419,6 +450,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  addPhotosButtonDisabled: {
+    opacity: 0.6,
   },
   photoScroll: {
     flexDirection: 'row',
