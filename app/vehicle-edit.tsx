@@ -15,7 +15,7 @@ import { theme } from '@/constants/theme';
 import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
 import { TRUCK_SUBTYPES, TRAILER_SUBTYPES, AnySubtype } from '@/constants/vehicleOptions';
 
-// import { PhotoUploader } from '@/components/PhotoUploader'; // Removed for restructuring
+import PhotoUploader, { PhotoData } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { getVehicle, updateVehicle, createVehicleWithId } from '@/lib/firebase';
@@ -45,7 +45,7 @@ interface VehicleData {
 
 interface VehicleEditState {
   vehicle: VehicleData;
-  photos: string[];
+  photos: PhotoData[];
   primaryPhoto: string;
   uploadsInProgress: number;
   loading: boolean;
@@ -242,8 +242,12 @@ export default function VehicleEditScreen() {
   }, []);
 
   // Handle photo uploader changes
-  const handlePhotoChange = useCallback((photos: string[], primaryPhoto: string, uploadsInProgress: number) => {
-    console.log('[VehicleEdit] Photo change:', { photos: photos.length, primaryPhoto: !!primaryPhoto, uploadsInProgress });
+  const handlePhotoChange = useCallback((photos: PhotoData[]) => {
+    console.log('[VehicleEdit] Photo change:', { photos: photos.length });
+    const photoUrls = photos.filter(p => p.status === 'completed').map(p => p.uploadUrl || p.uri);
+    const primaryPhoto = photoUrls[0] || '';
+    const uploadsInProgress = photos.filter(p => p.status === 'uploading').length;
+    
     setState(prev => ({
       ...prev,
       photos,
@@ -251,7 +255,7 @@ export default function VehicleEditScreen() {
       uploadsInProgress,
       vehicle: {
         ...prev.vehicle,
-        photos,
+        photos: photoUrls,
         primaryPhoto,
       },
     }));
@@ -292,7 +296,8 @@ export default function VehicleEditScreen() {
       return 'Please wait for photos to finish uploading';
     }
     
-    if (photos.length < 5) {
+    const completedPhotos = photos.filter(p => p.status === 'completed');
+    if (completedPhotos.length < 5) {
       return 'At least 5 photos are required to publish';
     }
     
@@ -363,7 +368,7 @@ export default function VehicleEditScreen() {
         vin: state.vehicle.vin,
         licensePlate: state.vehicle.licensePlate,
         mpg: state.vehicle.mpg,
-        photos: state.photos,
+        photos: state.photos.filter(p => p.status === 'completed').map(p => p.uploadUrl || p.uri),
         primaryPhoto: state.primaryPhoto,
         status: publish ? 'published' : 'draft',
       } as const;
@@ -431,7 +436,8 @@ export default function VehicleEditScreen() {
     );
   }, [validateVehicle, toast, handleSave]);
 
-  const canPublish = state.photos.length >= 5 && state.uploadsInProgress === 0 && !state.saving;
+  const completedPhotos = state.photos.filter(p => p.status === 'completed');
+  const canPublish = completedPhotos.length >= 5 && state.uploadsInProgress === 0 && !state.saving;
   const canSave = !state.saving;
   
 
@@ -604,9 +610,13 @@ export default function VehicleEditScreen() {
             Add at least 5 high-quality photos of your vehicle. The first photo will be used as the cover image.
           </Text>
           
-          <Text style={styles.placeholderText}>
-            Photo upload component removed for restructuring.
-          </Text>
+          <PhotoUploader
+            photos={state.photos}
+            onPhotosChange={handlePhotoChange}
+            maxPhotos={10}
+            storagePath={`vehicles/${state.vehicle.id}`}
+            mockMode={true}
+          />
         </View>
         
         {/* Authentication Error */}
