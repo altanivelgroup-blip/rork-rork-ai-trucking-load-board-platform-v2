@@ -104,9 +104,13 @@ export default function LoadsScreen() {
     startAudit('loads-screen-refresh');
     setRefreshing(true);
     try {
+      console.log('[LOADS_RESTORE] 🔄 Manual refresh triggered from loads page');
       await refreshLoads();
+      console.log('[LOADS_RESTORE] ✅ Manual refresh completed successfully');
       endAudit('loads-screen-refresh', { success: true });
-    } catch {
+      show('Loads refreshed successfully', 'success');
+    } catch (error) {
+      console.error('[LOADS_RESTORE] ❌ Manual refresh failed:', error);
       endAudit('loads-screen-refresh', { success: false });
       show('Failed to refresh loads', 'error');
     } finally {
@@ -129,7 +133,7 @@ export default function LoadsScreen() {
     setDeleteConfirmModal({ visible: true, loadId });
   }, []);
   
-  // Load last bulk import ID on component mount
+  // Load last bulk import ID and trigger initial load restoration
   useEffect(() => {
     const loadLastBulkImportId = async () => {
       try {
@@ -142,8 +146,19 @@ export default function LoadsScreen() {
       }
     };
     
+    const initializeLoads = async () => {
+      console.log('[LOADS_RESTORE] 🚀 Initializing loads on component mount');
+      try {
+        await refreshLoads();
+        console.log('[LOADS_RESTORE] ✅ Initial load restoration completed');
+      } catch (error) {
+        console.warn('[LOADS_RESTORE] ⚠️ Initial load restoration failed:', error);
+      }
+    };
+    
     loadLastBulkImportId();
-  }, []);
+    initializeLoads();
+  }, [refreshLoads]);
   
   return (
     <>
@@ -162,6 +177,23 @@ export default function LoadsScreen() {
                 color={refreshing ? theme.colors.gray : theme.colors.primary} 
                 style={refreshing ? { transform: [{ rotate: '180deg' }] } : undefined}
               />
+            </TouchableOpacity>
+            {/* Debug: Force Load Restoration Button */}
+            <TouchableOpacity 
+              style={[styles.headerButton, { backgroundColor: theme.colors.success }]}
+              onPress={async () => {
+                console.log('[LOADS_RESTORE] 🔧 Debug: Force load restoration triggered');
+                show('Restoring loads from all sources...', 'info');
+                try {
+                  await refreshLoads();
+                  show(`Successfully restored ${filteredLoads.length} loads!`, 'success');
+                } catch (error) {
+                  console.error('[LOADS_RESTORE] Debug restoration failed:', error);
+                  show('Load restoration failed', 'error');
+                }
+              }}
+            >
+              <RefreshCw size={16} color={theme.colors.white} />
             </TouchableOpacity>
             {isShipper && (
               <>
