@@ -1,14 +1,11 @@
-// CRITICAL FIX: Enhanced storage rules to prevent driver profile data loss
-// FIXED: Support both authenticated and anonymous users for photo uploads
+// TESTING RULES - VERY PERMISSIVE FOR PHOTOUPLOADER TESTING ONLY
+// TODO: RESTORE PROPER SECURITY RULES AFTER TESTING
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // CRITICAL FIX: Allow all authenticated users (including anonymous) to upload photos
-    // This prevents driver profile data loss during photo uploads
+    // TESTING: Allow all operations for authenticated users
     match /{allPaths=**} {
-      // Allow read access to all users
       allow read: if true;
-      // CRITICAL FIX: Allow both authenticated and anonymous users to upload
       allow write, create, update, delete: if request.auth != null;
     }
   }
