@@ -658,6 +658,13 @@ export default function DashboardScreen() {
                   style={[styles.aiLoadsButton, { backgroundColor: theme.colors.dark }]}>
                   <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>Refresh</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push('/photo-uploader-test')}
+                  testID="btnPhotoTest"
+                  accessibilityRole="button"
+                  style={[styles.aiLoadsButton, { backgroundColor: '#FF6B35' }]}>
+                  <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>Photo Test</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
