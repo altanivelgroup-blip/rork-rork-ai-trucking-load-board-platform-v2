@@ -230,6 +230,15 @@ export default function LoginScreen() {
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
+
+          <View style={styles.testSection}>
+            <TouchableOpacity 
+              style={styles.testButton} 
+              onPress={() => router.push('/photo-uploader-test')}
+            >
+              <Text style={styles.testButtonText}>Test Photo Uploader</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -385,5 +394,20 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
     fontSize: theme.fontSize.sm,
     textAlign: 'center',
+  },
+  testSection: {
+    marginTop: theme.spacing.lg,
+    alignItems: 'center',
+  },
+  testButton: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.colors.gray,
+    borderRadius: theme.borderRadius.md,
+  },
+  testButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
   },
 });
