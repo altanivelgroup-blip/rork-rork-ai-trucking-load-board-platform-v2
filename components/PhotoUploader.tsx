@@ -290,59 +290,73 @@ export default function PhotoUploader({
   const completedPhotos = photos.filter(p => p.status === 'completed').length;
   const failedPhotos = photos.filter(p => p.status === 'failed').length;
 
+  const showAddPhotosOptions = () => {
+    Alert.alert(
+      'Add Photos',
+      'Choose how you want to add photos',
+      [
+        { text: 'Camera', onPress: takePhoto },
+        { text: 'Gallery', onPress: pickImage },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Photos ({photos.length}/{maxPhotos})</Text>
-        {mockMode && (
-          <Text style={styles.mockBadge}>MOCK MODE</Text>
-        )}
+      {/* Photos header with count */}
+      <View style={styles.photosHeader}>
+        <Text style={styles.photosTitle}>Photos</Text>
+        <Text style={styles.photosCount}>{completedPhotos}/20</Text>
       </View>
 
-      {/* Status summary */}
-      {photos.length > 0 && (
-        <View style={styles.statusSummary}>
-          <Text style={styles.statusText}>
-            {completedPhotos} uploaded, {failedPhotos} failed
-          </Text>
-        </View>
+      {/* Add Photos Button */}
+      {canAddMore && (
+        <TouchableOpacity
+          style={styles.addPhotosButton}
+          onPress={showAddPhotosOptions}
+          disabled={isUploading}
+        >
+          <Upload size={20} color="#FFFFFF" />
+          <Text style={styles.addPhotosButtonText}>Add Photos</Text>
+        </TouchableOpacity>
       )}
 
       {/* Photo grid */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
-        {photos.map(renderPhoto)}
-        
-        {/* Add photo buttons */}
-        {canAddMore && (
-          <View style={styles.addButtonsContainer}>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={takePhoto}
-              disabled={isUploading}
-            >
-              <Camera size={24} color="#007AFF" />
-              <Text style={styles.addButtonText}>Camera</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={pickImage}
-              disabled={isUploading}
-            >
-              <Upload size={24} color="#007AFF" />
-              <Text style={styles.addButtonText}>Gallery</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Error messages */}
-      {failedPhotos > 0 && (
-        <Text style={styles.errorText}>
-          Some photos failed to upload. Tap the retry button to try again.
-        </Text>
+      {photos.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+          {photos.map(renderPhoto)}
+        </ScrollView>
       )}
+
+      {/* Warning for minimum photos */}
+      {completedPhotos < 5 && (
+        <View style={styles.warningContainer}>
+          <AlertCircle size={16} color="#FF9500" />
+          <Text style={styles.warningText}>You need at least 5 photos to publish.</Text>
+        </View>
+      )}
+
+      {/* Error for failed uploads */}
+      {failedPhotos > 0 && (
+        <View style={styles.errorContainer}>
+          <AlertCircle size={16} color="#FF3B30" />
+          <Text style={styles.errorText}>Failed to load photos.</Text>
+        </View>
+      )}
+
+      {/* Requirements */}
+      <View style={styles.requirementsContainer}>
+        <AlertCircle size={16} color="#FF9500" />
+        <View style={styles.requirementsTextContainer}>
+          <Text style={styles.requirementsTitle}>Requirements for Publishing</Text>
+          <Text style={styles.requirementsText}>
+            • Complete all required fields{"\n"}
+            • Upload at least 5 photos{"\n"}
+            • Wait for all photos to finish uploading
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -351,35 +365,41 @@ const styles = StyleSheet.create({
   container: {
     marginVertical: 16,
   },
-  header: {
+  photosHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  title: {
+  photosTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#000000',
   },
-  mockBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FF9500',
-    backgroundColor: '#FFF3CD',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  statusSummary: {
-    marginBottom: 8,
-  },
-  statusText: {
+  photosCount: {
     fontSize: 14,
-    color: '#666666',
+    color: '#8E8E93',
+    fontWeight: '500',
+  },
+  addPhotosButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    gap: 8,
+  },
+  addPhotosButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   photoScroll: {
     flexDirection: 'row',
+    marginBottom: 16,
   },
   photoContainer: {
     position: 'relative',
@@ -431,33 +451,56 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 4,
   },
-  addButtonsContainer: {
-    flexDirection: 'column',
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3CD',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
     gap: 8,
   },
-  addButton: {
-    width: 100,
-    height: 46,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 4,
-  },
-  addButtonText: {
-    fontSize: 12,
-    color: '#007AFF',
+  warningText: {
+    fontSize: 14,
+    color: '#FF9500',
     fontWeight: '500',
+    flex: 1,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
   },
   errorText: {
     fontSize: 14,
     color: '#FF3B30',
-    marginTop: 8,
-    textAlign: 'center',
+    fontWeight: '500',
+    flex: 1,
+  },
+  requirementsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF3CD',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  requirementsTextContainer: {
+    flex: 1,
+  },
+  requirementsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF9500',
+    marginBottom: 4,
+  },
+  requirementsText: {
+    fontSize: 13,
+    color: '#FF9500',
+    lineHeight: 18,
   },
 });
 
