@@ -136,11 +136,22 @@ export default function PhotoUploader({
 
   const uploadSmart = async (photo: PhotoData): Promise<string> => {
     if (mockMode) {
-      console.log('[PhotoUploader] Mock mode: simulating upload for photo', photo.id);
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      // Return a mock URL from picsum
-      return `https://picsum.photos/400/300?random=${photo.id}`;
+      console.log('[PhotoUploader] Starting fake upload');
+      
+      // Simulate progress updates
+      updatePhotoProgress(photo.id, 10);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      updatePhotoProgress(photo.id, 50);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      updatePhotoProgress(photo.id, 100);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Return a fake URL
+      const fakeUrl = `https://picsum.photos/800/600?random=${new Date().getTime()}`;
+      console.log('[PhotoUploader] Fake photo added:', fakeUrl);
+      return fakeUrl;
     } else {
       console.log('[PhotoUploader] Real mode: uploading to Firebase for photo', photo.id);
       const response = await fetch(photo.uri);

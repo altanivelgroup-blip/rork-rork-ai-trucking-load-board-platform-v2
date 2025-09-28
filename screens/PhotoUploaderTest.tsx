@@ -18,7 +18,7 @@ export default function PhotoUploaderTest() {
         onPhotosChange={handlePhotosChange}
         maxPhotos={10}
         storagePath="test/photos"
-        mockMode={true}  // Fake uploads only
+        mockMode={true}
       />
     </View>
   );
