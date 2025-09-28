@@ -595,11 +595,6 @@ export default function VehicleEditScreen() {
             Add at least 5 high-quality photos of your vehicle.{"\n"}The first photo will be used as the cover image.
           </Text>
           
-          <View style={styles.photosHeader}>
-            <Text style={styles.photosTitle}>Photos</Text>
-            <Text style={styles.photosCount}>{completedPhotos.length}/20</Text>
-          </View>
-          
           <PhotoUploader
             photos={state.photos}
             onPhotosChange={handlePhotoChange}
@@ -659,25 +654,7 @@ export default function VehicleEditScreen() {
           </View>
         )}
         
-        {/* Warning Messages */}
-        {completedPhotos.length < 5 && (
-          <View style={styles.warningContainer}>
-            <AlertCircle color={theme.colors.warning} size={20} />
-            <Text style={styles.warningText}>You need at least 5 photos to publish.</Text>
-          </View>
-        )}
-        
-        <View style={styles.requirementsContainer}>
-          <AlertCircle color={theme.colors.warning} size={20} />
-          <View style={styles.requirementsTextContainer}>
-            <Text style={styles.requirementsTitle}>Requirements for Publishing</Text>
-            <Text style={styles.requirementsText}>
-              • Complete all required fields{"\n"}
-              • Upload at least 5 photos{"\n"}
-              • Wait for all photos to finish uploading
-            </Text>
-          </View>
-        </View>
+
         
 
       </ScrollView>
@@ -842,57 +819,7 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: '600' as const,
   },
-  photosHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  photosTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600' as const,
-    color: theme.colors.dark,
-  },
-  photosCount: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    fontWeight: '500' as const,
-  },
-  warningContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.warning + '20',
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  warningText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.warning,
-    fontWeight: '500' as const,
-  },
-  requirementsContainer: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.danger + '20',
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    gap: theme.spacing.sm,
-  },
-  requirementsTextContainer: {
-    flex: 1,
-  },
-  requirementsTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600' as const,
-    color: theme.colors.danger,
-    marginBottom: theme.spacing.xs,
-  },
-  requirementsText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.danger,
-    lineHeight: 18,
-  },
+
   typeSelectorContainer: {
     marginTop: theme.spacing.sm,
   },
