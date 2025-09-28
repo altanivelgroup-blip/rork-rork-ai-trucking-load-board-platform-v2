@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Image, Platform } from 'react-native';
 import { Stack } from 'expo-router';
-import PhotoUploader from '@/components/PhotoUploader';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -97,17 +96,10 @@ export default function PhotoUploaderDemo() {
           <Text style={styles.helper}>Platform: {Platform.OS}</Text>
 
           {canUpload ? (
-            <PhotoUploader
-              loadId={loadId}
-              userId={userId}
-              role={role}
-              allowMultiple
-              buttonLabel="Pick Photos"
-              onUploaded={(newItems) => {
-                console.log('[PhotoUploaderDemo] onUploaded', newItems.length);
-                setItems((prev) => [...newItems, ...prev]);
-              }}
-            />
+            <View style={styles.notice} testID="uploader-removed">
+              <Text style={styles.noticeTitle}>PhotoUploader removed</Text>
+              <Text style={styles.noticeText}>This demo is disabled while we restructure uploads.</Text>
+            </View>
           ) : (
             <Text style={styles.error} testID="error-missing-config">Enter Load ID and User ID to enable uploader</Text>
           )}

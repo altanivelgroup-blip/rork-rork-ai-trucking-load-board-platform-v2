@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView, Alert
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { theme } from '@/constants/theme';
-import PhotoUploader from '@/components/PhotoUploader';
 import { useAuth } from '@/hooks/useAuth';
 import { ensureTestLoad } from '@/lib/ensureTestLoad';
 import { RefreshCcw, CheckCircle, AlertCircle, Upload } from 'lucide-react-native';
@@ -110,21 +109,10 @@ export default function PhotoUploadTestScreen() {
               </Pressable>
             </View>
           ) : loadId ? (
-            <PhotoUploader
-              loadId={loadId}
-              userId={userId}
-              role="driver"
-              allowMultiple
-              buttonLabel={creating ? 'Preparing…' : 'Test Photo Upload'}
-              onUploaded={(items) => {
-                console.log('[PhotoUploadTest] Uploaded', items.length, 'items');
-                setUploadResults(prev => [...prev, ...items]);
-                Alert.alert(
-                  'Success!', 
-                  `${items.length} photo${items.length > 1 ? 's' : ''} uploaded successfully!`
-                );
-              }}
-            />
+            <View style={styles.loadingContainer}>
+              <AlertCircle size={20} color={theme.colors.danger} />
+              <Text style={styles.error}>PhotoUploader removed while we restructure uploads.</Text>
+            </View>
           ) : (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
