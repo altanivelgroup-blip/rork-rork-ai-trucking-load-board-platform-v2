@@ -39,10 +39,11 @@ export default function PhotoUploaderTestScreen() {
   const currentUser = auth.currentUser;
 
   // Debug logging for uploader props
-  const loadId = `test-upload-${testId}`;
+  const loadId = "demoLoad123";
   const userId = currentUser?.uid || user?.id || 'anonymous';
   const role = "shipper";
   
+  console.log("[Debug] Using test loadId: demoLoad123");
   console.log("[Debug] Uploader props:", { loadId, userId, role });
 
   return (
