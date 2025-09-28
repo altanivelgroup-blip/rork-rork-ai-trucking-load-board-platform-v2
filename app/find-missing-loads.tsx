@@ -281,6 +281,104 @@ export default function FindMissingLoadsScreen() {
     }
   };
 
+  const forceRestoreAllLoads = async () => {
+    Alert.alert(
+      'Restore All Missing Loads',
+      'This will restore all loads from all available sources (storage, cache, Firestore, and mock data). Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore All',
+          style: 'default',
+          onPress: async () => {
+            try {
+              console.log('[RESTORE ALL] 🚀 Starting comprehensive load restoration...');
+              
+              let allLoadsToRestore: any[] = [];
+              
+              // 1. Add mock loads as base
+              allLoadsToRestore = [...mockLoads];
+              console.log(`[RESTORE ALL] Added ${mockLoads.length} mock loads`);
+              
+              // 2. Add all storage items
+              for (const item of storageInfo) {
+                if (item.source !== 'Mock Data' && item.data.length > 0) {
+                  const validLoads = item.data.filter(load => 
+                    load && typeof load === 'object' && load.id
+                  );
+                  allLoadsToRestore = [...allLoadsToRestore, ...validLoads];
+                  console.log(`[RESTORE ALL] Added ${validLoads.length} loads from ${item.key}`);
+                }
+              }
+              
+              // 3. Add Firestore loads
+              if (firestoreResults.length > 0) {
+                const transformedFirestoreLoads = firestoreResults.map((item: any) => ({
+                  id: item.id,
+                  shipperId: item.createdBy || 'unknown',
+                  shipperName: '',
+                  origin: {
+                    address: '',
+                    city: formatLocation(item.origin),
+                    state: '',
+                    zipCode: '',
+                    lat: 0,
+                    lng: 0,
+                  },
+                  destination: {
+                    address: '',
+                    city: formatLocation(item.destination),
+                    state: '',
+                    zipCode: '',
+                    lat: 0,
+                    lng: 0,
+                  },
+                  distance: 0,
+                  weight: 0,
+                  vehicleType: 'cargo-van' as any,
+                  rate: Number(item.rate || 0),
+                  ratePerMile: 0,
+                  pickupDate: new Date(),
+                  deliveryDate: new Date(),
+                  status: 'available' as any,
+                  description: String(item.title || ''),
+                  isBackhaul: false,
+                  bulkImportId: item.bulkImportId,
+                }));
+                allLoadsToRestore = [...allLoadsToRestore, ...transformedFirestoreLoads];
+                console.log(`[RESTORE ALL] Added ${transformedFirestoreLoads.length} Firestore loads`);
+              }
+              
+              // 4. Remove duplicates by ID
+              const uniqueLoads = new Map();
+              allLoadsToRestore.forEach(load => {
+                if (load.id && !uniqueLoads.has(load.id)) {
+                  uniqueLoads.set(load.id, load);
+                }
+              });
+              const finalLoads = Array.from(uniqueLoads.values());
+              
+              console.log(`[RESTORE ALL] Final count: ${finalLoads.length} unique loads`);
+              
+              // 5. Restore all loads
+              await addLoadsBulk(finalLoads);
+              
+              Alert.alert(
+                'Success!', 
+                `Restored ${finalLoads.length} loads from all sources!\n\nMock: ${mockLoads.length}\nStorage: ${storageInfo.reduce((sum, item) => sum + (item.source !== 'Mock Data' ? item.count : 0), 0)}\nFirestore: ${firestoreResults.length}`,
+                [{ text: 'OK', onPress: () => router.back() }]
+              );
+              
+            } catch (error) {
+              console.error('Comprehensive restore failed:', error);
+              Alert.alert('Error', 'Failed to restore all loads');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const forceResetLoads = async () => {
     Alert.alert(
       'Reset All Loads',
@@ -574,6 +672,14 @@ export default function FindMissingLoadsScreen() {
         )}
 
         <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.refreshButton, { backgroundColor: '#10B981' }]}
+            onPress={forceRestoreAllLoads}
+          >
+            <Upload size={20} color={theme.colors.white} />
+            <Text style={styles.refreshButtonText}>🚀 Restore All Missing Loads</Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity
             style={styles.refreshButton}
             onPress={async () => {

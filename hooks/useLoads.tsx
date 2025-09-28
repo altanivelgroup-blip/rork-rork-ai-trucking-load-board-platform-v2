@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Load, VehicleType } from '@/types';
+import { Load, VehicleType, LoadStatus } from '@/types';
 import { mockLoads } from '@/mocks/loads';
 
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -319,25 +319,110 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
   }, [USER_POSTED_LOADS_KEY, reviveLoad]);
 
   const refreshLoads = useCallback(async () => {
-    console.log('[LOADS_RESTORE] 🚀 Starting simple load restoration...');
+    console.log('[LOADS_RESTORE] 🚀 Starting comprehensive load restoration...');
     setIsLoading(true);
     setSyncStatus('syncing');
     
     try {
-      // Get persisted loads from local storage
+      // 1. Get persisted loads from local storage
       const persisted = await readPersisted();
       console.log(`[LOADS_RESTORE] 📂 Found ${persisted.length} persisted loads`);
       
-      // Always merge with mock loads to ensure we have data
-      const allLoads = mergeUniqueById(mockLoads, persisted);
-      console.log(`[LOADS_RESTORE] 📊 Total loads: ${mockLoads.length} mock + ${persisted.length} persisted = ${allLoads.length}`);
+      // 2. Always start with mock loads as base
+      let allLoads = [...mockLoads];
+      console.log(`[LOADS_RESTORE] 📊 Starting with ${mockLoads.length} mock loads`);
+      
+      // 3. Try to get cached loads
+      try {
+        const cacheResult = await getCache<Load[]>(CACHE_KEY);
+        if (cacheResult.hit && cacheResult.data && Array.isArray(cacheResult.data)) {
+          allLoads = mergeUniqueById(allLoads, cacheResult.data);
+          console.log(`[LOADS_RESTORE] 💾 Added ${cacheResult.data.length} cached loads`);
+        }
+      } catch (cacheErr) {
+        console.warn('[LOADS_RESTORE] Cache read failed:', cacheErr);
+      }
+      
+      // 4. Merge with persisted loads
+      if (persisted.length > 0) {
+        allLoads = mergeUniqueById(allLoads, persisted);
+        console.log(`[LOADS_RESTORE] 📂 Merged ${persisted.length} persisted loads`);
+      }
+      
+      // 5. Try to get Firebase loads if online
+      if (online) {
+        try {
+          const { db } = getFirebase();
+          if (db) {
+            const loadsQuery = query(
+              collection(db, LOADS_COLLECTION),
+              orderBy("createdAt", "desc"),
+              limit(100)
+            );
+            const snap = await getDocs(loadsQuery);
+            
+            const firebaseLoads = snap.docs.map((doc) => {
+              const d: any = doc.data();
+              if (d?.isArchived === true) return null;
+              
+              const pickup = d?.pickupDate?.toDate ? d.pickupDate.toDate() : new Date(d?.pickupDate ?? Date.now());
+              const delivery = d?.deliveryDate?.toDate ? d.deliveryDate.toDate() : new Date(d?.deliveryDate ?? Date.now());
+              
+              const originText = typeof d?.origin === "object" ? d.origin?.city : (d?.originCity || '');
+              const originState = typeof d?.origin === "object" ? d.origin?.state : (d?.originState || '');
+              const destText = typeof d?.destination === "object" ? d.destination?.city : (d?.destCity || '');
+              const destState = typeof d?.destination === "object" ? d.destination?.state : (d?.destState || '');
+              
+              const rateVal = d?.rate ?? d?.rateAmount ?? d?.rateTotalUSD ?? 0;
+              
+              const mapped: Load = {
+                id: String(doc.id),
+                shipperId: String(d?.createdBy ?? 'unknown'),
+                shipperName: '',
+                origin: { address: '', city: originText, state: originState, zipCode: '', lat: 0, lng: 0 },
+                destination: { address: '', city: destText, state: destState, zipCode: '', lat: 0, lng: 0 },
+                distance: Number(d?.distance ?? d?.distanceMi ?? 0),
+                weight: Number(d?.weight ?? d?.weightLbs ?? 0),
+                vehicleType: (d?.vehicleType ?? d?.equipmentType as any) ?? 'cargo-van',
+                rate: Number(rateVal),
+                ratePerMile: 0,
+                pickupDate: pickup,
+                deliveryDate: delivery,
+                status: d?.status || 'available',
+                description: String(d?.title ?? d?.description ?? ''),
+                special_requirements: undefined,
+                isBackhaul: false,
+                bulkImportId: d?.bulkImportId ? String(d.bulkImportId) : undefined,
+              };
+              return mapped;
+            }).filter((x): x is Load => x !== null);
+            
+            if (firebaseLoads.length > 0) {
+              allLoads = mergeUniqueById(allLoads, firebaseLoads);
+              console.log(`[LOADS_RESTORE] 🔥 Added ${firebaseLoads.length} Firebase loads`);
+            }
+          }
+        } catch (firebaseErr) {
+          console.warn('[LOADS_RESTORE] Firebase query failed:', firebaseErr);
+        }
+      }
+      
+      console.log(`[LOADS_RESTORE] 📊 Final total: ${allLoads.length} unique loads`);
       
       // Set the loads immediately
       setLoads(allLoads);
       setLastSyncTime(new Date());
       setSyncStatus('idle');
       
-      console.log(`[LOADS_RESTORE] ✅ Successfully restored ${allLoads.length} loads`);
+      // Cache the result for future use
+      try {
+        await setCache<Load[]>(CACHE_KEY, allLoads, 30 * 60 * 1000); // 30 minutes cache
+        console.log(`[LOADS_RESTORE] 💾 Cached ${allLoads.length} loads`);
+      } catch (cacheErr) {
+        console.warn('[LOADS_RESTORE] Cache save failed:', cacheErr);
+      }
+      
+      console.log(`[LOADS_RESTORE] ✅ Successfully restored ${allLoads.length} loads from all sources`);
       
     } catch (error: any) {
       console.warn('[LOADS_RESTORE] Error during refresh, using mock data:', error);
@@ -346,7 +431,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
     } finally {
       setIsLoading(false);
     }
-  }, [mergeUniqueById, readPersisted]);
+  }, [mergeUniqueById, readPersisted, online]);
 
   const refreshMyPostedLoads = useCallback(async () => {
     console.log('[MY_POSTED_LOADS] 🚀 Starting my posted loads query...');
