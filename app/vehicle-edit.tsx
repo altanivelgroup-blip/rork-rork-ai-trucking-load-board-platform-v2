@@ -15,7 +15,7 @@ import { theme } from '@/constants/theme';
 import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
 import { TRUCK_SUBTYPES, TRAILER_SUBTYPES, AnySubtype } from '@/constants/vehicleOptions';
 
-import PhotoUploader, { PhotoData } from '@/components/PhotoUploader';
+import { PhotoUploader } from '@/components/PhotoUploader';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { getVehicle, updateVehicle, createVehicleWithId } from '@/lib/firebase';
@@ -45,7 +45,7 @@ interface VehicleData {
 
 interface VehicleEditState {
   vehicle: VehicleData;
-  photos: PhotoData[];
+  photos: string[];
   primaryPhoto: string;
   uploadsInProgress: number;
   loading: boolean;
@@ -242,11 +242,8 @@ export default function VehicleEditScreen() {
   }, []);
 
   // Handle photo uploader changes
-  const handlePhotoChange = useCallback((photos: PhotoData[]) => {
-    console.log('[VehicleEdit] Photo change:', { photos: photos.length });
-    const photoUrls = photos.filter(p => p.status === 'completed').map(p => p.uploadUrl || p.uri);
-    const primaryPhoto = photoUrls[0] || '';
-    const uploadsInProgress = photos.filter(p => p.status === 'uploading').length;
+  const handlePhotoChange = useCallback((photos: string[], primaryPhoto: string, uploadsInProgress: number) => {
+    console.log('[VehicleEdit] Photo change:', { photos: photos.length, uploadsInProgress });
     
     setState(prev => ({
       ...prev,
@@ -255,7 +252,7 @@ export default function VehicleEditScreen() {
       uploadsInProgress,
       vehicle: {
         ...prev.vehicle,
-        photos: photoUrls,
+        photos,
         primaryPhoto,
       },
     }));
@@ -296,8 +293,7 @@ export default function VehicleEditScreen() {
       return 'Please wait for photos to finish uploading';
     }
     
-    const completedPhotos = photos.filter(p => p.status === 'completed');
-    if (completedPhotos.length < 5) {
+    if (photos.length < 5) {
       return 'At least 5 photos are required to publish';
     }
     
@@ -336,7 +332,7 @@ export default function VehicleEditScreen() {
         }
       }
       
-      console.log('[VehicleEdit] ✅ Authentication verified for save - User ID:', auth.currentUser.uid);
+      console.log('[VehicleEdit] ✅ Authentication verified for save - User ID:', auth.currentUser?.uid);
       
       const validationError = validateVehicle();
       if (validationError) {
@@ -351,7 +347,7 @@ export default function VehicleEditScreen() {
       // CRITICAL FIX: Force fresh token to prevent permission errors
       try {
         console.log('[VehicleEdit] 🔑 Refreshing authentication token...');
-        const freshToken = await currentUser.getIdToken(true);
+        const freshToken = await currentUser?.getIdToken(true);
         console.log('[VehicleEdit] ✅ Fresh token obtained:', !!freshToken);
       } catch (tokenError) {
         console.warn('[VehicleEdit] ⚠️ Token refresh failed, continuing anyway:', tokenError);
@@ -368,14 +364,14 @@ export default function VehicleEditScreen() {
         vin: state.vehicle.vin,
         licensePlate: state.vehicle.licensePlate,
         mpg: state.vehicle.mpg,
-        photos: state.photos.filter(p => p.status === 'completed').map(p => p.uploadUrl || p.uri),
+        photos: state.photos,
         primaryPhoto: state.primaryPhoto,
         status: publish ? 'published' : 'draft',
       } as const;
 
       if (!vehicle_id) {
         // ADD MODE — create at drivers/{uid}/vehicles/{forcedId}
-        await createVehicleWithId(forcedId, basePatch as any);
+        await createVehicleWithId(forcedId!, basePatch as any);
       } else {
         // EDIT MODE — update existing
         await updateVehicle(vehicle_id, basePatch as any);
@@ -436,8 +432,7 @@ export default function VehicleEditScreen() {
     );
   }, [validateVehicle, toast, handleSave]);
 
-  const completedPhotos = state.photos.filter(p => p.status === 'completed');
-  const canPublish = completedPhotos.length >= 5 && state.uploadsInProgress === 0 && !state.saving;
+  const canPublish = state.photos.length >= 5 && state.uploadsInProgress === 0 && !state.saving;
   const canSave = !state.saving;
   
 
@@ -584,11 +579,10 @@ export default function VehicleEditScreen() {
           </Text>
           
           <PhotoUploader
-            photos={state.photos}
-            onPhotosChange={handlePhotoChange}
+            entityType="vehicle"
+            entityId={state.vehicle.id || 'temp-id'}
             maxPhotos={20}
-            storagePath={`vehicles/${state.vehicle.id}`}
-            mockMode={true}
+            onChange={handlePhotoChange}
           />
         </View>
         
@@ -596,7 +590,7 @@ export default function VehicleEditScreen() {
         {authError && (
           <View style={styles.authErrorContainer}>
             <AlertCircle color={theme.colors.danger} size={20} />
-            <View style={styles.statusTextContainer}>
+            <View>
               <Text style={styles.authErrorText}>{authError}</Text>
               <Text style={styles.authErrorSubtext}>
                 Current user: {user?.email || 'None'} | Auth: {isAuthenticated ? 'Yes' : 'No'}
