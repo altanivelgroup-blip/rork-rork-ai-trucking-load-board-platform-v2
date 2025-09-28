@@ -49,30 +49,48 @@ export default function PhotoUploader({
 
   const requestPermissions = async () => {
     console.log('[PhotoUploader] Requesting camera permissions');
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant camera roll permissions to upload photos.');
+    
+    // Request both camera and media library permissions
+    const [mediaLibraryResult, cameraResult] = await Promise.all([
+      ImagePicker.requestMediaLibraryPermissionsAsync(),
+      ImagePicker.requestCameraPermissionsAsync()
+    ]);
+    
+    if (mediaLibraryResult.status !== 'granted') {
+      Alert.alert('Permission needed', 'Please grant photo library permissions to upload photos.');
       return false;
     }
+    
+    if (cameraResult.status !== 'granted') {
+      Alert.alert('Permission needed', 'Please grant camera permissions to take photos.');
+      return false;
+    }
+    
     return true;
   };
 
   const pickImage = async () => {
     console.log('[PhotoUploader] Starting image picker');
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
-
+    
     if (photos.length >= maxPhotos) {
       Alert.alert('Limit reached', `You can only upload up to ${maxPhotos} photos.`);
       return;
     }
 
     try {
+      // Request media library permission specifically
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant photo library permissions to select photos.');
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
+        allowsMultipleSelection: false,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -98,15 +116,20 @@ export default function PhotoUploader({
 
   const takePhoto = async () => {
     console.log('[PhotoUploader] Starting camera');
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
-
+    
     if (photos.length >= maxPhotos) {
       Alert.alert('Limit reached', `You can only upload up to ${maxPhotos} photos.`);
       return;
     }
 
     try {
+      // Request camera permission specifically
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant camera permissions to take photos.');
+        return;
+      }
+
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [4, 3],
