@@ -461,17 +461,17 @@ export default function VehicleEditScreen() {
           title: vehicle_id ? 'Edit Vehicle' : 'Add Vehicle',
           headerRight: () => (
             <TouchableOpacity
-              style={[styles.headerButton, styles.publishButton, !canPublish && styles.headerButtonDisabled]}
-              onPress={handlePublish}
-              disabled={!canPublish}
+              style={[styles.headerButton, !canSave && styles.headerButtonDisabled]}
+              onPress={() => handleSave(false)}
+              disabled={!canSave}
             >
               {state.saving ? (
                 <ActivityIndicator size="small" color={theme.colors.white} testID="vehicle-saving-indicator" />
               ) : (
                 <>
                   <Save size={16} color={theme.colors.white} />
-                  <Text style={[styles.headerButtonText, styles.publishButtonText]}>
-                    Publish
+                  <Text style={styles.headerButtonText}>
+                    Save
                   </Text>
                 </>
               )}
