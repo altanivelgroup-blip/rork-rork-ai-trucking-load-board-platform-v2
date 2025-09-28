@@ -558,23 +558,8 @@ export default function VehicleEditScreen() {
           )}
         </View>
         
-        {/* Optional Information */}
+        {/* Vehicle Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Optional Information</Text>
-          
-          <View style={styles.field}>
-            <Text style={styles.label}>VIN</Text>
-            <TextInput
-              style={styles.input}
-              value={state.vehicle.vin}
-              onChangeText={(value) => updateField('vin', value)}
-              placeholder="Vehicle Identification Number"
-              placeholderTextColor={theme.colors.gray}
-              autoCapitalize="characters"
-              testID="vehicle-vin-input"
-            />
-          </View>
-          
           <View style={styles.field}>
             <Text style={styles.label}>License Plate</Text>
             <TextInput
@@ -607,13 +592,18 @@ export default function VehicleEditScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>
           <Text style={styles.sectionSubtitle}>
-            Add at least 5 high-quality photos of your vehicle. The first photo will be used as the cover image.
+            Add at least 5 high-quality photos of your vehicle.{"\n"}The first photo will be used as the cover image.
           </Text>
+          
+          <View style={styles.photosHeader}>
+            <Text style={styles.photosTitle}>Photos</Text>
+            <Text style={styles.photosCount}>{completedPhotos.length}/20</Text>
+          </View>
           
           <PhotoUploader
             photos={state.photos}
             onPhotosChange={handlePhotoChange}
-            maxPhotos={10}
+            maxPhotos={20}
             storagePath={`vehicles/${state.vehicle.id}`}
             mockMode={true}
           />
@@ -669,20 +659,25 @@ export default function VehicleEditScreen() {
           </View>
         )}
         
-        {/* Status Information */}
-        {!canPublish && !authError && (
-          <View style={styles.statusContainer}>
+        {/* Warning Messages */}
+        {completedPhotos.length < 5 && (
+          <View style={styles.warningContainer}>
             <AlertCircle color={theme.colors.warning} size={20} />
-            <View style={styles.statusTextContainer}>
-              <Text style={styles.statusTitle}>Requirements for Publishing</Text>
-              <Text style={styles.statusText}>
-                • Complete all required fields{"\n"}
-                • Upload at least 5 photos{"\n"}
-                • Wait for all photos to finish uploading
-              </Text>
-            </View>
+            <Text style={styles.warningText}>You need at least 5 photos to publish.</Text>
           </View>
         )}
+        
+        <View style={styles.requirementsContainer}>
+          <AlertCircle color={theme.colors.warning} size={20} />
+          <View style={styles.requirementsTextContainer}>
+            <Text style={styles.requirementsTitle}>Requirements for Publishing</Text>
+            <Text style={styles.requirementsText}>
+              • Complete all required fields{"\n"}
+              • Upload at least 5 photos{"\n"}
+              • Wait for all photos to finish uploading
+            </Text>
+          </View>
+        </View>
         
 
       </ScrollView>
@@ -847,25 +842,55 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: '600' as const,
   },
-  statusContainer: {
+  photosHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  photosTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600' as const,
+    color: theme.colors.dark,
+  },
+  photosCount: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    fontWeight: '500' as const,
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.warning + '20',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
     gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
-  statusTextContainer: {
-    flex: 1,
-  },
-  statusTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600' as const,
-    color: theme.colors.warning,
-    marginBottom: theme.spacing.xs,
-  },
-  statusText: {
+  warningText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.warning,
+    fontWeight: '500' as const,
+  },
+  requirementsContainer: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.danger + '20',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing.sm,
+  },
+  requirementsTextContainer: {
+    flex: 1,
+  },
+  requirementsTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600' as const,
+    color: theme.colors.danger,
+    marginBottom: theme.spacing.xs,
+  },
+  requirementsText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.danger,
     lineHeight: 18,
   },
   typeSelectorContainer: {
