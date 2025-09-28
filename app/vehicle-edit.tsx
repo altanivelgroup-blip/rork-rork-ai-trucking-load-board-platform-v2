@@ -460,34 +460,22 @@ export default function VehicleEditScreen() {
         options={{ 
           title: vehicle_id ? 'Edit Vehicle' : 'Add Vehicle',
           headerRight: () => (
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                style={[styles.headerButton, !canSave && styles.headerButtonDisabled]}
-                onPress={() => handleSave(false)}
-                disabled={!canSave}
-              >
-                <Text style={[styles.headerButtonText, !canSave && styles.headerButtonTextDisabled]}>
-                  Save Draft
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.headerButton, styles.publishButton, !canPublish && styles.headerButtonDisabled]}
-                onPress={handlePublish}
-                disabled={!canPublish}
-              >
-                {state.saving ? (
-                  <ActivityIndicator size="small" color={theme.colors.white} testID="vehicle-saving-indicator" />
-                ) : (
-                  <>
-                    <Save size={16} color={theme.colors.white} />
-                    <Text style={[styles.headerButtonText, styles.publishButtonText]}>
-                      Publish
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={[styles.headerButton, styles.publishButton, !canPublish && styles.headerButtonDisabled]}
+              onPress={handlePublish}
+              disabled={!canPublish}
+            >
+              {state.saving ? (
+                <ActivityIndicator size="small" color={theme.colors.white} testID="vehicle-saving-indicator" />
+              ) : (
+                <>
+                  <Save size={16} color={theme.colors.white} />
+                  <Text style={[styles.headerButtonText, styles.publishButtonText]}>
+                    Publish
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
           ),
         }} 
       />
