@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Upload, CheckCircle } from 'lucide-react-native';
-import { PhotoUploader } from '@/components/PhotoUploader';
+// import { PhotoUploader } from '@/components/PhotoUploader'; // Removed for restructuring
 import { useAuth } from '@/hooks/useAuth';
 
 export default function RulesTestScreen() {
@@ -71,12 +71,7 @@ export default function RulesTestScreen() {
 
         <View style={styles.testSection}>
           <Text style={styles.sectionTitle}>Upload Test</Text>
-          <PhotoUploader
-            onPhotosChange={handlePhotoUpload}
-            maxPhotos={3}
-            loadId="test-load-123"
-            disabled={isUploading}
-          />
+          <Text style={{ color: '#666', fontStyle: 'italic' }}>PhotoUploader removed for restructuring</Text>
           {isUploading && (
             <View style={styles.uploadingIndicator}>
               <Upload size={16} color="#007AFF" />

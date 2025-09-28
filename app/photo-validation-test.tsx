@@ -8,7 +8,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { PhotoUploader } from '@/components/PhotoUploader';
+// import { PhotoUploader } from '@/components/PhotoUploader'; // Removed for restructuring
 import { theme } from '@/constants/theme';
 import { ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -41,16 +41,7 @@ export default function PhotoValidationTestScreen() {
             Vehicle loads require exactly 5 photos for protection. This is mandatory.
           </Text>
           
-          <PhotoUploader
-            entityType="load"
-            entityId="test-vehicle-load-123"
-            loadType="vehicle"
-            onChange={(photos, primary, uploadsInProgress) => {
-              setVehiclePhotos(photos);
-              setVehiclePrimary(primary);
-              setVehicleUploadsInProgress(uploadsInProgress);
-            }}
-          />
+          <Text style={{ color: '#666', fontStyle: 'italic' }}>PhotoUploader removed for restructuring</Text>
           
           <View style={styles.statusContainer}>
             <Text style={styles.statusText}>
@@ -75,16 +66,7 @@ export default function PhotoValidationTestScreen() {
             Other load types need at least 2 photos, up to 3 photos allowed.
           </Text>
           
-          <PhotoUploader
-            entityType="load"
-            entityId="test-other-load-456"
-            loadType="other"
-            onChange={(photos, primary, uploadsInProgress) => {
-              setOtherPhotos(photos);
-              setOtherPrimary(primary);
-              setOtherUploadsInProgress(uploadsInProgress);
-            }}
-          />
+          <Text style={{ color: '#666', fontStyle: 'italic' }}>PhotoUploader removed for restructuring</Text>
           
           <View style={styles.statusContainer}>
             <Text style={styles.statusText}>

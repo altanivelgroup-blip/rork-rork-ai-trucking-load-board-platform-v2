@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { useProfileCache } from '@/hooks/useProfileCache';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench, Camera } from 'lucide-react-native';
-import PhotoUploader from '@/components/PhotoUploader';
+// import PhotoUploader from '@/components/PhotoUploader'; // Removed for restructuring
 import { FuelKind, VehicleType, Driver } from '@/types';
 import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 
@@ -1042,16 +1042,7 @@ const insets = useSafeAreaInsets();
             Add photos of yourself, your truck, and equipment to build trust with shippers.
           </Text>
           
-          <PhotoUploader
-            loadId={userId ? `driver-profile-${userId}` : 'temp-profile'}
-            userId={userId || 'temp-user'}
-            role="driver"
-            allowMultiple={true}
-            buttonLabel="Upload Profile Photos"
-            onUploaded={(items) => {
-              console.log('[DriverProfile] Profile photos uploaded:', items.length);
-            }}
-          />
+          <Text style={{ color: '#666', fontStyle: 'italic' }}>Photo upload temporarily disabled during restructuring</Text>
         </View>
 
         {/* Equipment & Maintenance */}

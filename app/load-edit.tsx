@@ -12,7 +12,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react-native';
-import { PhotoUploader, useCanPublish } from '@/components/PhotoUploader';
+// import { PhotoUploader, useCanPublish } from '@/components/PhotoUploader'; // Removed for restructuring
 import { theme } from '@/constants/theme';
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
@@ -54,7 +54,7 @@ export default function LoadEditScreen() {
   const [rate, setRate] = useState('');
   const [description, setDescription] = useState('');
   
-  const canPublish = useCanPublish('load', photos, 2) && uploadsInProgress === 0;
+  const canPublish = photos.length >= 2 && uploadsInProgress === 0; // Simplified validation
   
   // Load existing load data function
   const loadLoadData = useCallback(async () => {
@@ -109,16 +109,16 @@ export default function LoadEditScreen() {
     loadLoadData();
   }, [load_id, loadLoadData]);
   
-  // Handle photo changes from PhotoUploader
+  // Handle photo changes - temporarily disabled
   const handlePhotosChange = (newPhotos: string[], newPrimaryPhoto: string, newUploadsInProgress: number) => {
-    console.log('[LoadEdit] Photos updated:', { 
+    console.log('[LoadEdit] Photos updated (disabled):', { 
       count: newPhotos.length, 
       primary: newPrimaryPhoto, 
       uploadsInProgress: newUploadsInProgress 
     });
-    setPhotos(newPhotos);
-    setPrimaryPhoto(newPrimaryPhoto);
-    setUploadsInProgress(newUploadsInProgress);
+    // setPhotos(newPhotos);
+    // setPrimaryPhoto(newPrimaryPhoto);
+    // setUploadsInProgress(newUploadsInProgress);
   };
   
   // Save load data
@@ -309,13 +309,7 @@ export default function LoadEditScreen() {
         
         {/* Photo Upload Section */}
         <View style={styles.section}>
-          <PhotoUploader
-            entityType="load"
-            entityId={load_id!}
-            minPhotos={2}
-            maxPhotos={20}
-            onChange={handlePhotosChange}
-          />
+          <Text style={{ color: '#666', fontStyle: 'italic' }}>Photo upload temporarily disabled during restructuring</Text>
         </View>
         
         {/* Save Button (Mobile) */}
