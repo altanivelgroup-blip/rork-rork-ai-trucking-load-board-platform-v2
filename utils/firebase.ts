@@ -1,94 +1,69 @@
-// utils/firebase.ts — minimal & stable
-
+// utils/firebase.ts — drop-in, stable, copy–paste
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// Validate Firebase environment variables
-const requiredEnvVars = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-};
-
-// Check for missing environment variables
-const missingVars = Object.entries(requiredEnvVars)
-  .filter(([key, value]) => !value || value.includes('your_'))
-  .map(([key]) => `EXPO_PUBLIC_FIREBASE_${key.toUpperCase()}`);
-
-if (missingVars.length > 0) {
-  console.error('❌ Missing or invalid Firebase environment variables:');
-  missingVars.forEach(varName => console.error(`   - ${varName}`));
-  console.error('\n📝 Please update your .env file with your actual Firebase project credentials.');
-  console.error('   You can find these in your Firebase Console > Project Settings > General tab.');
-  console.warn('⚠️ Continuing with fallback configuration to prevent app crash');
-  
-  // Don't throw error, use fallback values to prevent red screen
-}
-
+/** Read env (you already set these in Rork/Expo) */
 const firebaseConfig = {
-  apiKey: requiredEnvVars.apiKey || 'AIzaSyCY-gau4JqR4GZCMYkklAys9F09tVgZiEQ',
-  authDomain: requiredEnvVars.authDomain || 'rork-prod.firebaseapp.com',
-  projectId: requiredEnvVars.projectId || 'rork-prod',
-  storageBucket: requiredEnvVars.storageBucket || 'rork-prod.firebasestorage.app',
-  messagingSenderId: requiredEnvVars.messagingSenderId || '935855915227',
-  appId: requiredEnvVars.appId || '1:935855915227:web:20c4c517dd32f0e59a4cfe',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY!,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID!,
+  // IMPORTANT: Firebase Storage buckets end with .appspot.com
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "rork-prod.appspot.com",
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID!,
 };
 
-console.log('✅ Firebase configuration loaded successfully');
-console.log('   Project ID:', firebaseConfig.projectId);
-console.log('   Auth Domain:', firebaseConfig.authDomain);
-
+/** Initialize once (safe on web/native) */
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
+/** SDK handles */
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export { app };
 
-// Export getFirebase function for compatibility
+/** Convenience getter used by your PhotoUploader */
 export function getFirebase() {
   return { app, auth, db, storage };
 }
 
-// Export ensureFirebaseAuth function for compatibility
+/**
+ * Ensure there’s a signed-in user so Storage rules get a UID.
+ * - If you already use real auth, this resolves immediately.
+ * - If no user, it signs in anonymously (enable Anonymous in Console).
+ */
 export async function ensureFirebaseAuth(): Promise<boolean> {
   try {
-    if (auth.currentUser) {
-      console.log('✅ Firebase auth already available:', auth.currentUser.uid);
-      return true;
-    }
-    
-    // Try to wait for auth state to initialize
-    return new Promise((resolve) => {
-      const unsubscribe = auth.onAuthStateChanged((user) => {
-        unsubscribe();
-        if (user) {
-          console.log('✅ Firebase auth state restored:', user.uid);
-          resolve(true);
-        } else {
-          console.log('❌ No Firebase auth user found');
-          resolve(false);
-        }
+    // Already signed in?
+    if (auth.currentUser) return true;
+
+    // Give auth state a moment to hydrate (if persisted)
+    await new Promise<void>((resolve) => {
+      const unsub = onAuthStateChanged(auth, () => {
+        unsub();
+        resolve();
       });
-      
-      // Timeout after 3 seconds
-      setTimeout(() => {
-        unsubscribe();
-        resolve(false);
-      }, 3000);
     });
-  } catch (error) {
-    console.error('❌ Firebase auth check failed:', error);
+    if (auth.currentUser) return true;
+
+    // Still no user — sign in anonymously (easy + safe)
+    try {
+      await signInAnonymously(auth);
+      return true;
+    } catch (e) {
+      console.warn("[ensureFirebaseAuth] signInAnonymously failed:", e);
+      return false;
+    }
+  } catch (err) {
+    console.error("[ensureFirebaseAuth] error:", err);
     return false;
   }
 }
 
 export default { app, auth, db, storage, getFirebase, ensureFirebaseAuth };
+
 
 
 
