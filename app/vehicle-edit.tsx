@@ -588,7 +588,7 @@ export default function VehicleEditScreen() {
             onPhotosChange={handlePhotoChange}
             maxPhotos={20}
             storagePath={`vehicles/${state.vehicle.id}`}
-            mockMode={false}
+            mockMode={true}
           />
         </View>
         
