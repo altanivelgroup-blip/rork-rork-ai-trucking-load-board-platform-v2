@@ -114,8 +114,12 @@ export default function PhotoUploader({
         const updatedPhotos = [...photos, ...newPhotos].slice(0, maxPhotos);
         onPhotosChange(updatedPhotos);
         
-        // Start upload immediately
-        newPhotos.forEach((p) => uploadPhoto(p));
+        // Start upload immediately for each new photo
+        console.log('[PhotoUploader] 🚀 Starting uploads for', newPhotos.length, 'new photos');
+        newPhotos.forEach((p) => {
+          console.log('[PhotoUploader] 📤 Queuing upload for photo:', p.id);
+          uploadPhoto(p);
+        });
       } else {
         console.log('[PhotoUploader] Image picker was canceled or no assets');
       }
@@ -166,6 +170,7 @@ export default function PhotoUploader({
         onPhotosChange(updatedPhotos);
         
         // Start upload immediately
+        console.log('[PhotoUploader] 📤 Queuing upload for camera photo:', newPhoto.id);
         uploadPhoto(newPhoto);
       } else {
         console.log('[PhotoUploader] Camera was canceled or no assets');
@@ -178,79 +183,96 @@ export default function PhotoUploader({
 
   const uploadSmart = async (photo: PhotoData): Promise<string> => {
     if (mockMode) {
-      console.log('[PhotoUploader] Starting fake upload');
+      console.log('[PhotoUploader] Starting fake upload for photo:', photo.id);
       
-      // Simulate progress updates
+      // Simulate progress updates with proper state updates
       updatePhotoProgress(photo.id, 10);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      updatePhotoProgress(photo.id, 50);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      updatePhotoProgress(photo.id, 30);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      updatePhotoProgress(photo.id, 60);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      updatePhotoProgress(photo.id, 90);
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       updatePhotoProgress(photo.id, 100);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       // Return a fake URL
-      const fakeUrl = `https://picsum.photos/800/600?random=${new Date().getTime()}`;
-      console.log('[PhotoUploader] Fake photo added:', fakeUrl);
+      const fakeUrl = `https://picsum.photos/800/600?random=${photo.id}`;
+      console.log('[PhotoUploader] ✅ Fake upload completed for photo:', photo.id, 'URL:', fakeUrl);
       return fakeUrl;
     } else {
       console.log('[PhotoUploader] Real mode: uploading to Firebase for photo', photo.id);
-      const response = await fetch(photo.uri);
-      const blob = await response.blob();
       
-      const fileName = `${Date.now()}_${photo.id}.jpg`;
-      const storageRef = ref(storage, `${storagePath}/${fileName}`);
-      
-      return new Promise((resolve, reject) => {
-        const uploadTask = uploadBytesResumable(storageRef, blob);
+      try {
+        const response = await fetch(photo.uri);
+        const blob = await response.blob();
         
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            updatePhotoProgress(photo.id, progress);
-          },
-          (error) => {
-            console.error('[PhotoUploader] Upload error:', error);
-            reject(error);
-          },
-          async () => {
-            try {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(downloadURL);
-            } catch (error) {
+        const fileName = `${Date.now()}_${photo.id}.jpg`;
+        const storageRef = ref(storage, `${storagePath}/${fileName}`);
+        
+        return new Promise((resolve, reject) => {
+          const uploadTask = uploadBytesResumable(storageRef, blob);
+          
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              console.log('[PhotoUploader] Upload progress for', photo.id, ':', Math.round(progress) + '%');
+              updatePhotoProgress(photo.id, progress);
+            },
+            (error) => {
+              console.error('[PhotoUploader] Upload error for photo', photo.id, ':', error);
               reject(error);
+            },
+            async () => {
+              try {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                console.log('[PhotoUploader] ✅ Real upload completed for photo:', photo.id, 'URL:', downloadURL);
+                resolve(downloadURL);
+              } catch (error) {
+                console.error('[PhotoUploader] Error getting download URL for photo', photo.id, ':', error);
+                reject(error);
+              }
             }
-          }
-        );
-      });
+          );
+        });
+      } catch (error) {
+        console.error('[PhotoUploader] Error preparing upload for photo', photo.id, ':', error);
+        throw error;
+      }
     }
   };
 
   const uploadPhoto = async (photo: PhotoData) => {
-    console.log('[PhotoUploader] Starting upload for photo:', photo.id);
+    console.log('[PhotoUploader] 🚀 Starting upload for photo:', photo.id);
     setIsUploading(true);
     
-    // Update photo status to uploading
+    // Update photo status to uploading with 0% progress
     updatePhotoStatus(photo.id, 'uploading');
+    updatePhotoProgress(photo.id, 0);
 
     try {
       const uploadUrl = await uploadSmart(photo);
       
-      console.log('[PhotoUploader] Upload completed for photo:', photo.id);
+      console.log('[PhotoUploader] ✅ Upload completed for photo:', photo.id, 'URL:', uploadUrl);
       updatePhotoStatus(photo.id, 'completed', uploadUrl);
-      toast.show('Photo saved', 'success');
+      toast.show('Photo uploaded successfully!', 'success');
     } catch (error) {
-      console.error('[PhotoUploader] Upload failed for photo:', photo.id, error);
+      console.error('[PhotoUploader] ❌ Upload failed for photo:', photo.id, error);
       updatePhotoStatus(photo.id, 'failed', undefined, error instanceof Error ? error.message : 'Upload failed');
-      toast.show('Failed to load photos', 'error');
+      toast.show('Failed to upload photo. Tap retry to try again.', 'error');
     } finally {
       setIsUploading(false);
     }
   };
 
   const updatePhotoStatus = (photoId: string, status: PhotoData['status'], uploadUrl?: string, error?: string) => {
+    console.log('[PhotoUploader] 📊 Updating photo status:', photoId, 'to', status, uploadUrl ? 'with URL' : 'no URL');
     const updatedPhotos = photos.map(photo => 
       photo.id === photoId 
         ? { ...photo, status, uploadUrl, error, progress: status === 'completed' ? 100 : photo.progress }
@@ -260,9 +282,10 @@ export default function PhotoUploader({
   };
 
   const updatePhotoProgress = (photoId: string, progress: number) => {
+    console.log('[PhotoUploader] 📈 Updating progress for photo:', photoId, 'to', Math.round(progress) + '%');
     const updatedPhotos = photos.map(photo => 
       photo.id === photoId 
-        ? { ...photo, progress }
+        ? { ...photo, progress: Math.round(progress) }
         : photo
     );
     onPhotosChange(updatedPhotos);
