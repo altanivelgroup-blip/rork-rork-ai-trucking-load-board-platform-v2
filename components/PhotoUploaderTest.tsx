@@ -38,6 +38,13 @@ export default function PhotoUploaderTestScreen() {
 
   const currentUser = auth.currentUser;
 
+  // Debug logging for uploader props
+  const loadId = `test-upload-${testId}`;
+  const userId = currentUser?.uid || user?.id || 'anonymous';
+  const role = "shipper";
+  
+  console.log("[Debug] Uploader props:", { loadId, userId, role });
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen 
@@ -143,9 +150,9 @@ export default function PhotoUploaderTestScreen() {
           
           <PhotoUploader
             key={testId} // Force re-render when reset
-            loadId={`test-upload-${testId}`}
-            userId={currentUser?.uid || user?.id || 'anonymous'}
-            role="shipper"
+            loadId={loadId}
+            userId={userId}
+            role={role}
             allowMultiple={true}
             buttonLabel="🔥 Upload Photos (Fixed)"
             onUploaded={handlePhotosUploaded}
