@@ -68,6 +68,7 @@ try {
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
 export { app };
 
 // Getter used by PhotoUploader
