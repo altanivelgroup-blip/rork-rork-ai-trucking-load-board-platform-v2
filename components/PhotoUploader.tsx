@@ -83,7 +83,7 @@ export default function PhotoUploader({
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       console.log('[PhotoUploader] Media library permission status:', status);
       
-      if (status !== 'granted') {
+      if (Platform.OS !== 'web' && status !== 'granted') {
         Alert.alert('Permission needed', 'Please grant photo library permissions to select photos.');
         return;
       }
@@ -94,25 +94,25 @@ export default function PhotoUploader({
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
-        allowsMultipleSelection: false,
+        allowsMultipleSelection: true,
       });
 
       console.log('[PhotoUploader] Image picker result:', { canceled: result.canceled, assetsLength: result.assets?.length });
 
-      if (!result.canceled && result.assets[0]) {
-        console.log('[PhotoUploader] Image selected, creating photo data');
-        const newPhoto: PhotoData = {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        console.log('[PhotoUploader] Images selected, creating photo data for', result.assets.length);
+        const newPhotos: PhotoData[] = result.assets.map((asset) => ({
           id: uuid.v4() as string,
-          uri: result.assets[0].uri,
+          uri: asset.uri,
           status: 'pending',
           timestamp: Date.now(),
-        };
+        }));
 
-        const updatedPhotos = [...photos, newPhoto];
+        const updatedPhotos = [...photos, ...newPhotos].slice(0, maxPhotos);
         onPhotosChange(updatedPhotos);
         
         // Start upload immediately
-        uploadPhoto(newPhoto);
+        newPhotos.forEach((p) => uploadPhoto(p));
       } else {
         console.log('[PhotoUploader] Image picker was canceled or no assets');
       }
@@ -136,7 +136,7 @@ export default function PhotoUploader({
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       console.log('[PhotoUploader] Camera permission status:', status);
       
-      if (status !== 'granted') {
+      if (Platform.OS !== 'web' && status !== 'granted') {
         Alert.alert('Permission needed', 'Please grant camera permissions to take photos.');
         return;
       }
@@ -331,6 +331,11 @@ export default function PhotoUploader({
 
   const showAddPhotosOptions = () => {
     console.log('[PhotoUploader] Showing add photos options');
+    if (Platform.OS === 'web') {
+      // Web Alert buttons are limited; open gallery directly
+      pickImage();
+      return;
+    }
     Alert.alert(
       'Add Photos',
       'Choose how you want to add photos',
@@ -368,6 +373,8 @@ export default function PhotoUploader({
           }}
           disabled={isUploading}
           testID="add-photos-button"
+          accessibilityRole="button"
+          accessibilityLabel="Add Photos"
         >
           <Upload size={20} color="#FFFFFF" />
           <Text style={styles.addPhotosButtonText}>
