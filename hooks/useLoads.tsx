@@ -661,18 +661,23 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
           return;
         }
         
-        // TIMEOUT DISABLED: Allow unlimited time for auth to complete
-        // Quick auth check with timeout
-        const authed = await ensureFirebaseAuth();
-        
+        // Get Firebase instance - auth is optional for public read access
         const { db } = getFirebase();
-        if (!mounted || !authed || !db) {
-          console.log('[LOADS_DISAPPEAR_FIX] Auth failed or component unmounted - will retry');
+        if (!mounted || !db) {
+          console.log('[LOADS_DISAPPEAR_FIX] Firebase not available or component unmounted - will retry');
           if (mounted) {
             // TIMEOUT DISABLED: Drivers need unlimited time to browse loads
             // reconnectTimer = setTimeout(startCrossPlatformListener, 10000);
           }
           return;
+        }
+        
+        // Try to ensure auth but don't fail if it's not available (public read access)
+        try {
+          await ensureFirebaseAuth();
+          console.log('[LOADS_DISAPPEAR_FIX] Firebase auth available for real-time listener');
+        } catch (authError) {
+          console.log('[LOADS_DISAPPEAR_FIX] Auth not available, using public read access:', authError);
         }
         
         // Clean up existing listener

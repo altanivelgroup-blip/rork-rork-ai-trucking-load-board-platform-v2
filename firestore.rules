@@ -18,8 +18,13 @@ service cloud.firestore {
 
     match /loads/{id} {
       allow create: if isOwnerCreate();
-      allow read: if true; // switch to: if isOwnerExisting();  (later if needed)
+      allow read: if true; // Public read access for all loads
       allow update, delete: if isOwnerExisting();
+    }
+    
+    // Allow public read access to loads collection for real-time listeners
+    match /loads/{document=**} {
+      allow read: if true;
     }
 
     match /users/{userId} {
