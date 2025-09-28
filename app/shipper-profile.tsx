@@ -26,7 +26,7 @@ import {
   Camera,
 
 } from 'lucide-react-native';
-// import PhotoUploader from '@/components/PhotoUploader'; // Removed for restructuring
+import { PhotoUploader } from '@/components/PhotoUploader';
 
 export default function ShipperProfileScreen() {
   const router = useRouter();
@@ -518,7 +518,16 @@ export default function ShipperProfileScreen() {
             <Text style={styles.testUploaderSubtitle}>
               Test the photo upload functionality directly here without going through multiple steps.
             </Text>
-            <Text style={{ color: '#666', fontStyle: 'italic' }}>Photo upload temporarily disabled during restructuring</Text>
+            <PhotoUploader 
+              entityType="shipper-profile"
+              entityId={user?.id || 'test-shipper'}
+              minPhotos={1}
+              maxPhotos={10}
+              mockMode={true}
+              onChange={(photos, primary, inProgress) => {
+                console.log('[ShipperProfile] Photos changed. Total:', photos.length, 'Uploading:', inProgress);
+              }}
+            />
           </View>
         </View>
 
