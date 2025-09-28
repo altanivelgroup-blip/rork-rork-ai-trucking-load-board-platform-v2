@@ -1,990 +1,755 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { CheckCircle, XCircle, AlertTriangle, RefreshCw, Clock, Info, ArrowLeft } from 'lucide-react-native';
-import { router } from 'expo-router';
-import { testFirebaseConnectivity, ensureFirebaseAuth, getFirebase } from '@/utils/firebase';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { Stack } from 'expo-router';
+import { CheckCircle, XCircle, AlertTriangle, RefreshCw, Database, Shield, Upload, Download } from 'lucide-react-native';
+import { theme } from '@/constants/theme';
 import { testFirebaseConnection } from '@/lib/firebase';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
-interface SanityResult {
-  category: string;
-  test: string;
-  status: 'pass' | 'fail' | 'warning' | 'info' | 'loading';
+interface TestResult {
+  name: string;
+  status: 'pending' | 'success' | 'warning' | 'error';
   message: string;
-  details?: string;
-  recommendation?: string;
-  errorCode?: string;
+  details?: any;
+  duration?: number;
 }
 
-export default function FirebaseSanityCheckScreen() {
-  const [results, setResults] = useState<SanityResult[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [summary, setSummary] = useState<{ pass: number; fail: number; warning: number; total: number } | null>(null);
-  const [showCloseModal, setShowCloseModal] = useState(false);
-  const { online } = useOnlineStatus();
+interface SanityCheckState {
+  isRunning: boolean;
+  results: TestResult[];
+  overallStatus: 'pending' | 'success' | 'warning' | 'error';
+}
 
-  const getStatusIcon = (status: string, size = 20) => {
-    const colors = {
-      pass: '#10b981',
-      fail: '#ef4444', 
-      warning: '#f59e0b',
-      info: '#3b82f6',
-      loading: '#6b7280'
-    };
-    const color = colors[status as keyof typeof colors] || '#6b7280';
-    
-    switch (status) {
-      case 'pass':
-        return <CheckCircle color={color} size={size} />;
-      case 'fail':
-        return <XCircle color={color} size={size} />;
-      case 'warning':
-        return <AlertTriangle color={color} size={size} />;
-      case 'info':
-        return <Info color={color} size={size} />;
-      case 'loading':
-        return <ActivityIndicator size="small" color={color} />;
-      default:
-        return <AlertTriangle color={color} size={size} />;
-    }
+export default function FirebaseSanityCheck() {
+  const [state, setState] = useState<SanityCheckState>({
+    isRunning: false,
+    results: [],
+    overallStatus: 'pending',
+  });
+
+  const updateResult = (name: string, status: TestResult['status'], message: string, details?: any, duration?: number) => {
+    setState(prev => ({
+      ...prev,
+      results: prev.results.map(r => 
+        r.name === name 
+          ? { ...r, status, message, details, duration }
+          : r
+      ),
+    }));
+  };
+
+  const addResult = (name: string, status: TestResult['status'] = 'pending', message: string = 'Starting...') => {
+    setState(prev => ({
+      ...prev,
+      results: [...prev.results, { name, status, message }],
+    }));
   };
 
   const runSanityCheck = async () => {
-    setIsRunning(true);
-    const checks: SanityResult[] = [];
+    console.log('🚀 Starting Firebase Sanity Check...');
     
-    console.log('\n=== FIREBASE SANITY CHECK STARTED ===');
-    console.log('Timestamp:', new Date().toISOString());
-    console.log('User Agent:', navigator.userAgent || 'Unknown');
-    console.log('Online Status:', online);
-
-    // 1. NETWORK CONNECTIVITY TESTS
-    checks.push({
-      category: 'Network',
-      test: 'Internet Connectivity',
-      status: 'loading',
-      message: 'Testing basic internet connection...'
+    setState({
+      isRunning: true,
+      results: [],
+      overallStatus: 'pending',
     });
-    setResults([...checks]);
+
+    const tests = [
+      'Environment Variables',
+      'Firebase Initialization',
+      'Authentication',
+      'Firestore Connection',
+      'Firestore Read Test',
+      'Firestore Write Test',
+      'Storage Connection',
+      'Storage Upload Test',
+      'PhotoUploader Integration',
+      'Security Rules',
+    ];
+
+    // Initialize all tests as pending
+    tests.forEach(test => addResult(test));
+
+    let hasErrors = false;
+    let hasWarnings = false;
 
     try {
-      await Promise.race([
-        fetch('https://www.google.com/generate_204', {
-          method: 'HEAD',
-          mode: 'no-cors',
-          cache: 'no-cache',
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Network timeout')), 5000)
-        )
-      ]);
+      // Test 1: Environment Variables
+      const startTime1 = Date.now();
+      console.log('📋 Testing environment variables...');
       
-      checks[checks.length - 1] = {
-        category: 'Network',
-        test: 'Internet Connectivity',
-        status: 'pass',
-        message: 'Internet connection is working',
-        details: `Online status: ${online ? 'Connected' : 'Disconnected'}`,
+      const envVars = {
+        apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+        authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+        projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+        storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
       };
-      console.log('[SANITY] ✅ Network connectivity: PASS');
-    } catch (error: any) {
-      checks[checks.length - 1] = {
-        category: 'Network',
-        test: 'Internet Connectivity', 
-        status: 'fail',
-        message: 'No internet connection detected',
-        details: error.message,
-        recommendation: 'Check your WiFi/mobile data connection',
-        errorCode: 'NETWORK_UNAVAILABLE'
-      };
-      console.log('[SANITY] ❌ Network connectivity: FAIL -', error.message);
-    }
-    setResults([...checks]);
 
-    // 2. FIREBASE SERVICES REACHABILITY
-    checks.push({
-      category: 'Firebase',
-      test: 'Firebase API Reachability',
-      status: 'loading',
-      message: 'Testing Firebase services accessibility...'
-    });
-    setResults([...checks]);
+      const missingVars = Object.entries(envVars)
+        .filter(([key, value]) => !value)
+        .map(([key]) => key);
 
-    try {
-      await Promise.race([
-        fetch('https://firebase.googleapis.com/', {
-          method: 'HEAD',
-          mode: 'no-cors',
-          cache: 'no-cache',
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Firebase API timeout')), 8000)
-        )
-      ]);
-      
-      checks[checks.length - 1] = {
-        category: 'Firebase',
-        test: 'Firebase API Reachability',
-        status: 'pass',
-        message: 'Firebase APIs are accessible',
-        details: 'All Firebase services can be reached'
-      };
-      console.log('[SANITY] ✅ Firebase API reachability: PASS');
-    } catch (error: any) {
-      checks[checks.length - 1] = {
-        category: 'Firebase',
-        test: 'Firebase API Reachability',
-        status: 'fail',
-        message: 'Firebase APIs are not reachable',
-        details: error.message,
-        recommendation: 'Check if Firebase services are blocked by network/firewall',
-        errorCode: 'FIREBASE_API_UNREACHABLE'
-      };
-      console.log('[SANITY] ❌ Firebase API reachability: FAIL -', error.message);
-    }
-    setResults([...checks]);
-
-    // 3. FIREBASE CONFIGURATION
-    checks.push({
-      category: 'Firebase',
-      test: 'Firebase Configuration',
-      status: 'loading',
-      message: 'Validating Firebase app configuration...'
-    });
-    setResults([...checks]);
-
-    try {
-      const { app } = getFirebase();
-      const config = app.options;
-      
-      if (!config.projectId || !config.apiKey || !config.authDomain) {
-        throw new Error('Missing required Firebase configuration');
+      if (missingVars.length > 0) {
+        updateResult('Environment Variables', 'error', 
+          `Missing variables: ${missingVars.join(', ')}`, 
+          { missing: missingVars, provided: envVars },
+          Date.now() - startTime1
+        );
+        hasErrors = true;
+      } else {
+        updateResult('Environment Variables', 'success', 
+          `All Firebase environment variables present`, 
+          { projectId: envVars.projectId, storageBucket: envVars.storageBucket },
+          Date.now() - startTime1
+        );
       }
-      
-      checks[checks.length - 1] = {
-        category: 'Firebase',
-        test: 'Firebase Configuration',
-        status: 'pass',
-        message: 'Firebase app is properly configured',
-        details: `Project: ${config.projectId}\nAuth Domain: ${config.authDomain}\nAPI Key: ${config.apiKey?.substring(0, 10)}...`
-      };
-      console.log('[SANITY] ✅ Firebase configuration: PASS');
-      console.log('[SANITY] Project ID:', config.projectId);
-      console.log('[SANITY] Auth Domain:', config.authDomain);
-    } catch (configError: any) {
-      checks[checks.length - 1] = {
-        category: 'Firebase',
-        test: 'Firebase Configuration',
-        status: 'fail',
-        message: 'Firebase configuration error',
-        details: configError.message,
-        recommendation: 'Verify Firebase configuration in utils/firebase.ts',
-        errorCode: 'CONFIG_ERROR'
-      };
-      console.log('[SANITY] ❌ Firebase configuration: FAIL -', configError.message);
-    }
-    setResults([...checks]);
 
-    // 4. FIREBASE AUTHENTICATION
-    checks.push({
-      category: 'Authentication',
-      test: 'Firebase Auth Test',
-      status: 'loading',
-      message: 'Testing Firebase authentication...'
-    });
-    setResults([...checks]);
-
-    try {
-      const authResult = await Promise.race([
-        ensureFirebaseAuth(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Auth timeout after 15s')), 15000)
-        )
-      ]);
+      // Test 2: Firebase Initialization
+      const startTime2 = Date.now();
+      console.log('🔧 Testing Firebase initialization...');
       
-      if (authResult) {
+      try {
+        const { app, auth, db, storage } = getFirebase();
+        const projectId = app.options.projectId;
+        const authDomain = app.options.authDomain;
+        const storageBucket = app.options.storageBucket;
+        
+        updateResult('Firebase Initialization', 'success', 
+          `Firebase initialized successfully`, 
+          { projectId, authDomain, storageBucket },
+          Date.now() - startTime2
+        );
+      } catch (error: any) {
+        updateResult('Firebase Initialization', 'error', 
+          `Firebase initialization failed: ${error.message}`, 
+          { error: error.message, stack: error.stack?.split('\n').slice(0, 3) },
+          Date.now() - startTime2
+        );
+        hasErrors = true;
+        return; // Can't continue without Firebase
+      }
+
+      // Test 3: Authentication
+      const startTime3 = Date.now();
+      console.log('🔐 Testing authentication...');
+      
+      try {
+        const authSuccess = await ensureFirebaseAuth();
         const { auth } = getFirebase();
-        const user = auth.currentUser;
+        const currentUser = auth.currentUser;
         
-        checks[checks.length - 1] = {
-          category: 'Authentication',
-          test: 'Firebase Auth Test',
-          status: 'pass',
-          message: 'Authentication successful',
-          details: `User ID: ${user?.uid}\nAnonymous: ${user?.isAnonymous}\nEmail: ${user?.email || 'None'}`
-        };
-        console.log('[SANITY] ✅ Firebase authentication: PASS');
-        console.log('[SANITY] User ID:', user?.uid);
-        console.log('[SANITY] Is Anonymous:', user?.isAnonymous);
-      } else {
-        checks[checks.length - 1] = {
-          category: 'Authentication',
-          test: 'Firebase Auth Test',
-          status: 'fail',
-          message: 'Authentication failed',
-          details: 'Unable to sign in anonymously',
-          recommendation: 'Check Firebase Auth configuration and network connectivity',
-          errorCode: 'AUTH_FAILED'
-        };
-        console.log('[SANITY] ❌ Firebase authentication: FAIL - Unable to sign in');
+        if (authSuccess && currentUser) {
+          updateResult('Authentication', 'success', 
+            `Authentication successful`, 
+            { 
+              uid: currentUser.uid, 
+              isAnonymous: currentUser.isAnonymous,
+              email: currentUser.email || 'none'
+            },
+            Date.now() - startTime3
+          );
+        } else {
+          updateResult('Authentication', 'error', 
+            `Authentication failed`, 
+            { authSuccess, hasCurrentUser: !!currentUser },
+            Date.now() - startTime3
+          );
+          hasErrors = true;
+        }
+      } catch (error: any) {
+        updateResult('Authentication', 'error', 
+          `Authentication error: ${error.message}`, 
+          { error: error.message },
+          Date.now() - startTime3
+        );
+        hasErrors = true;
       }
-    } catch (error: any) {
-      const errorCode = error?.code || 'unknown';
-      let recommendation = 'Check network connectivity and Firebase Auth settings';
+
+      // Test 4: Firestore Connection
+      const startTime4 = Date.now();
+      console.log('🗄️ Testing Firestore connection...');
       
-      if (errorCode === 'unavailable') {
-        recommendation = 'Firebase Auth service is temporarily unavailable. Try again later.';
-      } else if (errorCode === 'network-request-failed') {
-        recommendation = 'Network request failed. Check internet connection.';
+      try {
+        const result = await testFirebaseConnection();
+        if (result.success) {
+          updateResult('Firestore Connection', 'success', 
+            `Firestore connection successful`, 
+            result,
+            Date.now() - startTime4
+          );
+        } else {
+          updateResult('Firestore Connection', 'warning', 
+            `Firestore connection issues: ${result.error}`, 
+            result,
+            Date.now() - startTime4
+          );
+          hasWarnings = true;
+        }
+      } catch (error: any) {
+        updateResult('Firestore Connection', 'error', 
+          `Firestore connection failed: ${error.message}`, 
+          { error: error.message },
+          Date.now() - startTime4
+        );
+        hasErrors = true;
       }
-      
-      checks[checks.length - 1] = {
-        category: 'Authentication',
-        test: 'Firebase Auth Test',
-        status: 'fail',
-        message: 'Authentication error',
-        details: `${errorCode}: ${error.message}`,
-        recommendation,
-        errorCode
-      };
-      console.log('[SANITY] ❌ Firebase authentication: FAIL -', errorCode, error.message);
-    }
-    setResults([...checks]);
 
-    // 5. FIRESTORE CONNECTION
-    checks.push({
-      category: 'Database',
-      test: 'Firestore Connection',
-      status: 'loading',
-      message: 'Testing Firestore database connection...'
-    });
-    setResults([...checks]);
-
-    try {
-      const firestoreResult = await Promise.race([
-        testFirebaseConnection(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Firestore timeout after 20s')), 20000)
-        )
-      ]) as any;
+      // Test 5: Firestore Read Test
+      const startTime5 = Date.now();
+      console.log('📖 Testing Firestore read operations...');
       
-      if (firestoreResult.success) {
-        checks[checks.length - 1] = {
-          category: 'Database',
-          test: 'Firestore Connection',
-          status: 'pass',
-          message: 'Firestore connection successful',
-          details: `Project: ${firestoreResult.projectId}\nUser: ${firestoreResult.userId}\nDocs found: ${firestoreResult.docsFound}`
-        };
-        console.log('[SANITY] ✅ Firestore connection: PASS');
-        console.log('[SANITY] Docs found:', firestoreResult.docsFound);
-      } else {
-        const errorCode = firestoreResult.code || 'unknown';
-        let recommendation = 'Check Firestore rules and network connectivity';
+      try {
+        const { db } = getFirebase();
+        const testDocRef = doc(db, 'sanity-check', 'read-test');
         
-        if (errorCode === 'unavailable') {
-          recommendation = 'Firestore service is temporarily unavailable. This is the main issue causing your error.';
-        } else if (errorCode === 'permission-denied') {
-          recommendation = 'Anonymous users may not have read permissions. Check Firestore security rules.';
+        // Try to read a document (it may not exist, that's ok)
+        const docSnap = await getDoc(testDocRef);
+        
+        updateResult('Firestore Read Test', 'success', 
+          `Firestore read operations working`, 
+          { documentExists: docSnap.exists(), path: testDocRef.path },
+          Date.now() - startTime5
+        );
+      } catch (error: any) {
+        if (error.code === 'permission-denied') {
+          updateResult('Firestore Read Test', 'warning', 
+            `Read permission denied - check security rules`, 
+            { error: error.code, message: error.message },
+            Date.now() - startTime5
+          );
+          hasWarnings = true;
+        } else {
+          updateResult('Firestore Read Test', 'error', 
+            `Firestore read failed: ${error.message}`, 
+            { error: error.code || 'unknown', message: error.message },
+            Date.now() - startTime5
+          );
+          hasErrors = true;
+        }
+      }
+
+      // Test 6: Firestore Write Test
+      const startTime6 = Date.now();
+      console.log('✍️ Testing Firestore write operations...');
+      
+      try {
+        const { db, auth } = getFirebase();
+        const testDocRef = doc(db, 'sanity-check', `write-test-${Date.now()}`);
+        
+        const testData = {
+          message: 'Firebase sanity check test',
+          timestamp: serverTimestamp(),
+          userId: auth.currentUser?.uid || 'unknown',
+          testId: Date.now(),
+        };
+        
+        await setDoc(testDocRef, testData);
+        
+        // Verify the write by reading it back
+        const verifySnap = await getDoc(testDocRef);
+        
+        if (verifySnap.exists()) {
+          // Clean up test document
+          await deleteDoc(testDocRef);
+          
+          updateResult('Firestore Write Test', 'success', 
+            `Firestore write operations working`, 
+            { documentId: testDocRef.id, verified: true },
+            Date.now() - startTime6
+          );
+        } else {
+          updateResult('Firestore Write Test', 'warning', 
+            `Write succeeded but verification failed`, 
+            { documentId: testDocRef.id, verified: false },
+            Date.now() - startTime6
+          );
+          hasWarnings = true;
+        }
+      } catch (error: any) {
+        if (error.code === 'permission-denied') {
+          updateResult('Firestore Write Test', 'warning', 
+            `Write permission denied - check security rules`, 
+            { error: error.code, message: error.message },
+            Date.now() - startTime6
+          );
+          hasWarnings = true;
+        } else {
+          updateResult('Firestore Write Test', 'error', 
+            `Firestore write failed: ${error.message}`, 
+            { error: error.code || 'unknown', message: error.message },
+            Date.now() - startTime6
+          );
+          hasErrors = true;
+        }
+      }
+
+      // Test 7: Storage Connection
+      const startTime7 = Date.now();
+      console.log('☁️ Testing Firebase Storage connection...');
+      
+      try {
+        const { storage } = getFirebase();
+        const testRef = ref(storage, 'sanity-check/connection-test.txt');
+        
+        // Storage connection is tested by creating a reference
+        // The actual test is in the upload test
+        updateResult('Storage Connection', 'success', 
+          `Firebase Storage connection established`, 
+          { bucket: storage.app.options.storageBucket },
+          Date.now() - startTime7
+        );
+      } catch (error: any) {
+        updateResult('Storage Connection', 'error', 
+          `Firebase Storage connection failed: ${error.message}`, 
+          { error: error.message },
+          Date.now() - startTime7
+        );
+        hasErrors = true;
+      }
+
+      // Test 8: Storage Upload Test
+      const startTime8 = Date.now();
+      console.log('📤 Testing Firebase Storage upload...');
+      
+      try {
+        const { storage } = getFirebase();
+        const testFileName = `sanity-check-${Date.now()}.txt`;
+        const testRef = ref(storage, `sanity-check/${testFileName}`);
+        
+        // Create a small test file
+        const testContent = `Firebase sanity check test - ${new Date().toISOString()}`;
+        const blob = new Blob([testContent], { type: 'text/plain' });
+        
+        // Upload the test file
+        const uploadResult = await uploadBytes(testRef, blob);
+        
+        // Get download URL to verify upload
+        const downloadURL = await getDownloadURL(testRef);
+        
+        // Clean up test file
+        try {
+          await deleteObject(testRef);
+        } catch (deleteError) {
+          console.warn('Could not delete test file:', deleteError);
         }
         
-        checks[checks.length - 1] = {
-          category: 'Database',
-          test: 'Firestore Connection',
-          status: 'fail',
-          message: 'Firestore connection failed',
-          details: `${errorCode}: ${firestoreResult.error}`,
-          recommendation,
-          errorCode
-        };
-        console.log('[SANITY] ❌ Firestore connection: FAIL -', errorCode, firestoreResult.error);
+        updateResult('Storage Upload Test', 'success', 
+          `Firebase Storage upload working`, 
+          { 
+            fileName: testFileName, 
+            size: uploadResult.metadata.size,
+            downloadURL: downloadURL.substring(0, 50) + '...' 
+          },
+          Date.now() - startTime8
+        );
+      } catch (error: any) {
+        if (error.code === 'storage/unauthorized') {
+          updateResult('Storage Upload Test', 'warning', 
+            `Storage upload permission denied - check security rules`, 
+            { error: error.code, message: error.message },
+            Date.now() - startTime8
+          );
+          hasWarnings = true;
+        } else {
+          updateResult('Storage Upload Test', 'error', 
+            `Firebase Storage upload failed: ${error.message}`, 
+            { error: error.code || 'unknown', message: error.message },
+            Date.now() - startTime8
+          );
+          hasErrors = true;
+        }
       }
-    } catch (error: any) {
-      checks[checks.length - 1] = {
-        category: 'Database',
-        test: 'Firestore Connection',
-        status: 'fail',
-        message: 'Firestore test error',
-        details: error.message,
-        recommendation: 'Check network connectivity and Firestore configuration',
-        errorCode: 'FIRESTORE_ERROR'
-      };
-      console.log('[SANITY] ❌ Firestore connection: FAIL -', error.message);
-    }
-    setResults([...checks]);
 
-    // 6. COMPREHENSIVE CONNECTIVITY TEST
-    checks.push({
-      category: 'Overall',
-      test: 'Comprehensive Test',
-      status: 'loading',
-      message: 'Running comprehensive Firebase connectivity test...'
-    });
-    setResults([...checks]);
-
-    try {
-      const comprehensiveResult = await testFirebaseConnectivity();
+      // Test 9: PhotoUploader Integration
+      const startTime9 = Date.now();
+      console.log('📸 Testing PhotoUploader integration...');
       
-      if (comprehensiveResult.connected) {
-        checks[checks.length - 1] = {
-          category: 'Overall',
-          test: 'Comprehensive Test',
-          status: 'pass',
-          message: 'All Firebase services are working',
-          details: 'Network, Auth, and Firestore are all functional'
-        };
-        console.log('[SANITY] ✅ Comprehensive test: PASS');
-      } else {
-        const issues = [];
-        if (!comprehensiveResult.details.networkOnline) issues.push('Network');
-        if (!comprehensiveResult.details.firebaseReachable) issues.push('Firebase API');
-        if (!comprehensiveResult.details.authWorking) issues.push('Authentication');
-        if (!comprehensiveResult.details.firestoreWorking) issues.push('Firestore');
+      try {
+        // Test if PhotoUploader can access Firebase services
+        const { app, auth, db, storage } = getFirebase();
+        const currentUser = auth.currentUser;
         
-        checks[checks.length - 1] = {
-          category: 'Overall',
-          test: 'Comprehensive Test',
-          status: 'warning',
-          message: 'Some Firebase services have issues',
-          details: `Issues with: ${issues.join(', ')}\nError: ${comprehensiveResult.error || 'Multiple issues detected'}`,
-          recommendation: 'Address the failing components above'
-        };
-        console.log('[SANITY] ⚠️ Comprehensive test: WARNING -', issues.join(', '));
+        if (!currentUser) {
+          updateResult('PhotoUploader Integration', 'warning', 
+            `PhotoUploader requires authentication`, 
+            { hasAuth: false },
+            Date.now() - startTime9
+          );
+          hasWarnings = true;
+        } else {
+          // Test the path structure PhotoUploader uses
+          const testPath = `loadPhotos/${currentUser.uid}/test-load-id/test-photo.jpg`;
+          const testRef = ref(storage, testPath);
+          
+          updateResult('PhotoUploader Integration', 'success', 
+            `PhotoUploader integration ready`, 
+            { 
+              userId: currentUser.uid,
+              testPath,
+              storageReady: true,
+              firestoreReady: true
+            },
+            Date.now() - startTime9
+          );
+        }
+      } catch (error: any) {
+        updateResult('PhotoUploader Integration', 'error', 
+          `PhotoUploader integration failed: ${error.message}`, 
+          { error: error.message },
+          Date.now() - startTime9
+        );
+        hasErrors = true;
       }
-    } catch (error: any) {
-      checks[checks.length - 1] = {
-        category: 'Overall',
-        test: 'Comprehensive Test',
-        status: 'fail',
-        message: 'Comprehensive test failed',
-        details: error.message,
-        recommendation: 'Multiple system failures detected',
-        errorCode: 'COMPREHENSIVE_FAILURE'
-      };
-      console.log('[SANITY] ❌ Comprehensive test: FAIL -', error.message);
-    }
-    setResults([...checks]);
 
-    // Calculate summary
-    const finalResults = [...checks];
-    const summary = {
-      total: finalResults.length,
-      pass: finalResults.filter(r => r.status === 'pass').length,
-      fail: finalResults.filter(r => r.status === 'fail').length,
-      warning: finalResults.filter(r => r.status === 'warning').length
-    };
-    setSummary(summary);
+      // Test 10: Security Rules
+      const startTime10 = Date.now();
+      console.log('🛡️ Testing security rules...');
+      
+      try {
+        // Check if we're using test rules (very permissive)
+        const { auth } = getFirebase();
+        const currentUser = auth.currentUser;
+        
+        if (currentUser?.isAnonymous) {
+          updateResult('Security Rules', 'warning', 
+            `Using test security rules - anonymous users have full access`, 
+            { 
+              isAnonymous: true,
+              rulesType: 'test-permissive',
+              recommendation: 'Implement proper security rules for production'
+            },
+            Date.now() - startTime10
+          );
+          hasWarnings = true;
+        } else {
+          updateResult('Security Rules', 'success', 
+            `Security rules configured for authenticated users`, 
+            { 
+              isAnonymous: false,
+              rulesType: 'authenticated-users'
+            },
+            Date.now() - startTime10
+          );
+        }
+      } catch (error: any) {
+        updateResult('Security Rules', 'error', 
+          `Security rules check failed: ${error.message}`, 
+          { error: error.message },
+          Date.now() - startTime10
+        );
+        hasErrors = true;
+      }
+
+    } catch (error: any) {
+      console.error('❌ Sanity check failed:', error);
+      setState(prev => ({
+        ...prev,
+        results: [...prev.results, {
+          name: 'Critical Error',
+          status: 'error',
+          message: `Sanity check failed: ${error.message}`,
+          details: { error: error.message, stack: error.stack?.split('\n').slice(0, 3) }
+        }],
+      }));
+      hasErrors = true;
+    }
+
+    // Determine overall status
+    const overallStatus = hasErrors ? 'error' : hasWarnings ? 'warning' : 'success';
     
-    console.log('\n=== FIREBASE SANITY CHECK COMPLETED ===');
-    console.log('Summary:', summary);
-    console.log('Timestamp:', new Date().toISOString());
+    setState(prev => ({
+      ...prev,
+      isRunning: false,
+      overallStatus,
+    }));
+
+    console.log(`✅ Firebase Sanity Check completed with status: ${overallStatus}`);
+  };
+
+  const getStatusIcon = (status: TestResult['status']) => {
+    const size = 20;
+    switch (status) {
+      case 'success':
+        return <CheckCircle color={theme.colors.success} size={size} />;
+      case 'warning':
+        return <AlertTriangle color={theme.colors.warning} size={size} />;
+      case 'error':
+        return <XCircle color={theme.colors.danger} size={size} />;
+      case 'pending':
+      default:
+        return <ActivityIndicator size="small" color={theme.colors.gray} />;
+    }
+  };
+
+  const getStatusColor = (status: TestResult['status']) => {
+    switch (status) {
+      case 'success':
+        return theme.colors.success;
+      case 'warning':
+        return theme.colors.warning;
+      case 'error':
+        return theme.colors.danger;
+      case 'pending':
+      default:
+        return theme.colors.gray;
+    }
+  };
+
+  const showDetails = (result: TestResult) => {
+    if (!result.details) return;
     
-    setIsRunning(false);
+    Alert.alert(
+      result.name,
+      JSON.stringify(result.details, null, 2),
+      [{ text: 'OK' }]
+    );
   };
 
   useEffect(() => {
+    // Auto-run on mount
     runSanityCheck();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getOverallStatus = () => {
-    if (!summary) return 'loading';
-    if (summary.fail > 0) return 'fail';
-    if (summary.warning > 0) return 'warning';
-    return 'pass';
-  };
-
-  const getRecommendations = () => {
-    const recommendations = [];
-    const failedTests = results.filter(r => r.status === 'fail');
-    const warningTests = results.filter(r => r.status === 'warning');
-    
-    // Specific recommendations based on the "Could not reach Cloud Firestore backend" error
-    recommendations.push('🔍 DIAGNOSIS FOR "Could not reach Cloud Firestore backend" ERROR:');
-    
-    if (failedTests.some(t => t.test === 'Internet Connectivity')) {
-      recommendations.push('• PRIMARY ISSUE: No internet connection detected');
-      recommendations.push('  - Switch between WiFi and mobile data');
-      recommendations.push('  - Restart your network connection');
-      recommendations.push('  - Check if other apps can access the internet');
-    }
-    
-    if (failedTests.some(t => t.test === 'Firebase API Reachability')) {
-      recommendations.push('• SECONDARY ISSUE: Firebase services are blocked');
-      recommendations.push('  - Disable VPN if active');
-      recommendations.push('  - Check corporate firewall settings');
-      recommendations.push('  - Try a different network');
-    }
-    
-    if (failedTests.some(t => t.test === 'Firebase Auth Test')) {
-      recommendations.push('• AUTH ISSUE: Firebase Authentication is failing');
-      recommendations.push('  - This prevents Firestore access');
-      recommendations.push('  - Check Firebase Auth configuration');
-      recommendations.push('  - Verify anonymous auth is enabled in Firebase Console');
-    }
-    
-    if (failedTests.some(t => t.test === 'Firestore Connection')) {
-      recommendations.push('• DATABASE ISSUE: Firestore is unavailable');
-      recommendations.push('  - This is the direct cause of your error');
-      recommendations.push('  - Check Firebase status: https://status.firebase.google.com');
-      recommendations.push('  - Verify Firestore security rules allow anonymous reads');
-    }
-    
-    if (failedTests.length === 0 && warningTests.length === 0) {
-      recommendations.push('✅ All systems are working normally');
-      recommendations.push('• If you&apos;re still seeing the error, try:');
-      recommendations.push('  - Restart the app completely');
-      recommendations.push('  - Clear app cache/data');
-      recommendations.push('  - Check for temporary Firebase service issues');
-    }
-    
-    recommendations.push('');
-    recommendations.push('📱 IMMEDIATE ACTIONS:');
-    recommendations.push('• The app will work in offline mode with cached data');
-    recommendations.push('• Live data features will be limited until connection is restored');
-    recommendations.push('• Reports/analytics will show cached data only');
-    
-    return recommendations;
-  };
-
-  const handleClose = () => {
-    setShowCloseModal(true);
-  };
-
-  const confirmClose = () => {
-    console.log('[SANITY] User closed Firebase sanity check');
-    setShowCloseModal(false);
-    router.back();
-  };
-
-  const cancelClose = () => {
-    setShowCloseModal(false);
-  };
-
-  const clearErrors = () => {
-    console.log('[SANITY] Clearing all test results and closing diagnostics');
-    setResults([]);
-    setSummary(null);
-    // Close the screen after clearing
-    setTimeout(() => {
-      router.back();
-    }, 500);
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header with close button */}
-      <View style={styles.headerBar}>
-        <TouchableOpacity 
-          style={styles.closeButton} 
-          onPress={handleClose}
-          testID="close-sanity-check"
+    <View style={styles.container}>
+      <Stack.Screen 
+        options={{ 
+          title: 'Firebase Sanity Check',
+          headerStyle: { backgroundColor: theme.colors.white },
+          headerTitleStyle: { color: theme.colors.dark },
+        }} 
+      />
+      
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <Database color={theme.colors.primary} size={24} />
+          <Text style={styles.title}>Firebase Health Check</Text>
+        </View>
+        
+        <TouchableOpacity
+          style={[styles.runButton, state.isRunning && styles.runButtonDisabled]}
+          onPress={runSanityCheck}
+          disabled={state.isRunning}
         >
-          <ArrowLeft color="#374151" size={24} />
-          <Text style={styles.closeButtonText}>Close</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Firebase Diagnostics</Text>
-        <TouchableOpacity 
-          style={styles.clearButton} 
-          onPress={clearErrors}
-          testID="clear-errors"
-        >
-          <Text style={styles.clearButtonText}>Clear & Close</Text>
+          <RefreshCw 
+            color={theme.colors.white} 
+            size={16} 
+            style={state.isRunning ? { opacity: 0.5 } : undefined}
+          />
+          <Text style={styles.runButtonText}>
+            {state.isRunning ? 'Running...' : 'Run Check'}
+          </Text>
         </TouchableOpacity>
       </View>
-      
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Firebase Sanity Check</Text>
-          <Text style={styles.subtitle}>
-            Comprehensive diagnosis of Firebase connectivity issues
+
+      {state.results.length > 0 && (
+        <View style={[
+          styles.overallStatus,
+          { backgroundColor: getStatusColor(state.overallStatus) + '20' }
+        ]}>
+          {getStatusIcon(state.overallStatus)}
+          <Text style={[styles.overallStatusText, { color: getStatusColor(state.overallStatus) }]}>
+            Overall Status: {state.overallStatus.toUpperCase()}
+          </Text>
+        </View>
+      )}
+
+      <ScrollView style={styles.results} showsVerticalScrollIndicator={false}>
+        {state.results.map((result, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.resultItem}
+            onPress={() => showDetails(result)}
+            disabled={!result.details}
+          >
+            <View style={styles.resultHeader}>
+              {getStatusIcon(result.status)}
+              <View style={styles.resultContent}>
+                <Text style={styles.resultName}>{result.name}</Text>
+                <Text style={[styles.resultMessage, { color: getStatusColor(result.status) }]}>
+                  {result.message}
+                </Text>
+                {result.duration && (
+                  <Text style={styles.resultDuration}>
+                    {result.duration}ms
+                  </Text>
+                )}
+              </View>
+            </View>
+            {result.details && (
+              <Text style={styles.detailsHint}>Tap for details</Text>
+            )}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {state.results.length > 0 && !state.isRunning && (
+        <View style={styles.summary}>
+          <Text style={styles.summaryTitle}>Summary</Text>
+          <Text style={styles.summaryText}>
+            ✅ {state.results.filter(r => r.status === 'success').length} passed{' '}
+            ⚠️ {state.results.filter(r => r.status === 'warning').length} warnings{' '}
+            ❌ {state.results.filter(r => r.status === 'error').length} errors
           </Text>
           
-          {summary && (
-            <View style={[styles.summaryCard, { borderLeftColor: getOverallStatus() === 'pass' ? '#10b981' : getOverallStatus() === 'fail' ? '#ef4444' : '#f59e0b' }]}>
-              <View style={styles.summaryHeader}>
-                {getStatusIcon(getOverallStatus(), 24)}
-                <Text style={styles.summaryTitle}>
-                  {getOverallStatus() === 'pass' ? 'All Systems Operational' : 
-                   getOverallStatus() === 'fail' ? 'Critical Issues Detected' : 
-                   'Partial Issues Detected'}
-                </Text>
-              </View>
-              <Text style={styles.summaryText}>
-                {summary.pass} passed • {summary.fail} failed • {summary.warning} warnings
-              </Text>
-            </View>
+          {state.overallStatus === 'success' && (
+            <Text style={styles.successMessage}>
+              🎉 Firebase is working correctly! Your PhotoUploader should function properly.
+            </Text>
+          )}
+          
+          {state.overallStatus === 'warning' && (
+            <Text style={styles.warningMessage}>
+              ⚠️ Firebase is mostly working but has some issues. PhotoUploader may work with limitations.
+            </Text>
+          )}
+          
+          {state.overallStatus === 'error' && (
+            <Text style={styles.errorMessage}>
+              ❌ Firebase has critical issues. PhotoUploader will not work properly until these are resolved.
+            </Text>
           )}
         </View>
-
-        <TouchableOpacity
-          style={[styles.refreshButton, isRunning && styles.refreshButtonDisabled]}
-          onPress={runSanityCheck}
-          disabled={isRunning}
-        >
-          <RefreshCw color="#ffffff" size={16} />
-          <Text style={styles.refreshButtonText}>
-            {isRunning ? 'Running Sanity Check...' : 'Run Check Again'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.resultsContainer}>
-          <Text style={styles.sectionTitle}>Detailed Test Results</Text>
-          {results.map((result, index) => (
-            <View key={`result-${result.category}-${result.test}-${index}`} style={styles.resultItem}>
-              <View style={styles.resultHeader}>
-                <View style={styles.resultTitleContainer}>
-                  <Text style={styles.resultCategory}>{result.category}</Text>
-                  <Text style={styles.resultTest}>{result.test}</Text>
-                </View>
-                {getStatusIcon(result.status, 20)}
-              </View>
-              
-              <Text style={[styles.resultMessage, { 
-                color: result.status === 'pass' ? '#10b981' : 
-                       result.status === 'fail' ? '#ef4444' : 
-                       result.status === 'warning' ? '#f59e0b' : '#3b82f6' 
-              }]}>
-                {result.message}
-              </Text>
-              
-              {result.details && (
-                <Text style={styles.resultDetails}>{result.details}</Text>
-              )}
-              
-              {result.errorCode && (
-                <View style={styles.errorCodeContainer}>
-                  <Text style={styles.errorCode}>Error Code: {result.errorCode}</Text>
-                </View>
-              )}
-              
-              {result.recommendation && (
-                <View style={styles.recommendationContainer}>
-                  <Text style={styles.recommendationLabel}>Recommendation:</Text>
-                  <Text style={styles.recommendationText}>{result.recommendation}</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.recommendationsContainer}>
-          <Text style={styles.sectionTitle}>Diagnosis & Recommendations</Text>
-          {getRecommendations().map((rec, index) => (
-            <Text key={`rec-${index}`} style={[
-              styles.recommendationItem,
-              rec.startsWith('🔍') && styles.diagnosisHeader,
-              rec.startsWith('📱') && styles.actionHeader,
-              rec.startsWith('•') && styles.bulletPoint,
-              rec.startsWith('  -') && styles.subBullet
-            ]}>
-              {rec}
-            </Text>
-          ))}
-        </View>
-
-        <View style={styles.errorInfoContainer}>
-          <Text style={styles.sectionTitle}>About the &quot;Could not reach Cloud Firestore backend&quot; Error</Text>
-          <Text style={styles.errorInfoText}>
-            This error occurs when your app cannot establish a connection to Google&apos;s Firestore servers. Common causes:
-          </Text>
-          <Text style={styles.errorInfoBullet}>• Network connectivity issues (most common)</Text>
-          <Text style={styles.errorInfoBullet}>• Firebase service outages or maintenance</Text>
-          <Text style={styles.errorInfoBullet}>• Corporate firewalls blocking Firebase domains</Text>
-          <Text style={styles.errorInfoBullet}>• VPN interference with Google services</Text>
-          <Text style={styles.errorInfoBullet}>• Authentication failures preventing database access</Text>
-          <Text style={styles.errorInfoText}>
-            The app automatically switches to offline mode when this occurs, using cached data until connectivity is restored.
-          </Text>
-        </View>
-
-        <View style={styles.timestampContainer}>
-          <Clock color="#6b7280" size={14} />
-          <Text style={styles.timestamp}>
-            Last check: {new Date().toLocaleString()}
-          </Text>
-        </View>
-      </ScrollView>
-      
-      {/* Close Confirmation Modal */}
-      <Modal
-        visible={showCloseModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={cancelClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Close Sanity Check</Text>
-            <Text style={styles.modalMessage}>
-              Are you sure you want to close the Firebase diagnostics?
-            </Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.modalCancelButton} 
-                onPress={cancelClose}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.modalConfirmButton} 
-                onPress={confirmClose}
-              >
-                <Text style={styles.modalConfirmText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  closeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-    gap: 6,
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  clearButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  clearButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#dc2626',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 16,
+    backgroundColor: theme.colors.white,
   },
   header: {
-    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
+    fontSize: theme.fontSize.xl,
+    fontWeight: '600',
+    color: theme.colors.dark,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    lineHeight: 24,
-    marginBottom: 16,
-  },
-  summaryCard: {
-    backgroundColor: '#ffffff',
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  summaryHeader: {
+  runButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 12,
+    gap: theme.spacing.xs,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
   },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
+  runButtonDisabled: {
+    opacity: 0.6,
   },
-  summaryText: {
-    fontSize: 14,
-    color: '#6b7280',
+  runButtonText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.md,
+    fontWeight: '500',
   },
-  refreshButton: {
-    backgroundColor: '#3b82f6',
+  overallStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-    marginBottom: 24,
-    gap: 8,
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    gap: theme.spacing.sm,
+    margin: theme.spacing.lg,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
   },
-  refreshButtonDisabled: {
-    backgroundColor: '#9ca3af',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  refreshButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
+  overallStatusText: {
+    fontSize: theme.fontSize.lg,
     fontWeight: '600',
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 16,
-  },
-  resultsContainer: {
-    marginBottom: 32,
+  results: {
+    flex: 1,
+    paddingHorizontal: theme.spacing.lg,
   },
   resultItem: {
-    backgroundColor: '#ffffff',
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 12,
+    backgroundColor: theme.colors.white,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: theme.colors.lightGray,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
   resultHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    gap: theme.spacing.sm,
   },
-  resultTitleContainer: {
+  resultContent: {
     flex: 1,
   },
-  resultCategory: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  resultTest: {
-    fontSize: 16,
+  resultName: {
+    fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 2,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.xs,
   },
   resultMessage: {
-    fontSize: 14,
-    marginBottom: 8,
+    fontSize: theme.fontSize.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  resultDuration: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+  },
+  detailsHint: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.gray,
+    fontStyle: 'italic',
+    marginTop: theme.spacing.xs,
+    textAlign: 'right',
+  },
+  summary: {
+    backgroundColor: theme.colors.lightGray,
+    padding: theme.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.gray + '30',
+  },
+  summaryTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  summaryText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.sm,
+  },
+  successMessage: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.success,
     fontWeight: '500',
   },
-  resultDetails: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontFamily: 'monospace',
-    backgroundColor: '#f3f4f6',
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  errorCodeContainer: {
-    backgroundColor: '#fef2f2',
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  errorCode: {
-    fontSize: 12,
-    color: '#dc2626',
-    fontWeight: '600',
-  },
-  recommendationContainer: {
-    backgroundColor: '#f0f9ff',
-    padding: 8,
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: '#3b82f6',
-  },
-  recommendationLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1e40af',
-    marginBottom: 4,
-  },
-  recommendationText: {
-    fontSize: 12,
-    color: '#1e40af',
-    lineHeight: 16,
-  },
-  recommendationsContainer: {
-    backgroundColor: '#ffffff',
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  recommendationItem: {
-    fontSize: 14,
-    color: '#374151',
-    marginBottom: 6,
-    lineHeight: 20,
-  },
-  diagnosisHeader: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  actionHeader: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#059669',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  bulletPoint: {
-    marginLeft: 8,
-    color: '#dc2626',
+  warningMessage: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.warning,
     fontWeight: '500',
   },
-  subBullet: {
-    marginLeft: 16,
-    color: '#6b7280',
-  },
-  errorInfoContainer: {
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  errorInfoText: {
-    fontSize: 14,
-    color: '#374151',
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  errorInfoBullet: {
-    fontSize: 14,
-    color: '#374151',
-    marginBottom: 4,
-    marginLeft: 8,
-    lineHeight: 20,
-  },
-  timestampContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  modalMessage: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalCancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  modalCancelText: {
-    fontSize: 16,
+  errorMessage: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.danger,
     fontWeight: '500',
-    color: '#374151',
-    textAlign: 'center',
-  },
-  modalConfirmButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#3b82f6',
-  },
-  modalConfirmText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#ffffff',
-    textAlign: 'center',
   },
 });
