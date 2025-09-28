@@ -7,7 +7,6 @@ export default function DebugNavScreen() {
   const router = useRouter();
 
   const testRoutes = [
-    { name: 'Add Photo Test', path: '/add-photo-test' },
     { name: 'Settings', path: '/settings' },
     { name: 'Post Load', path: '/post-load' },
     { name: 'Contact', path: '/contact' },
