@@ -183,41 +183,83 @@ function enqueueUpload(job: () => Promise<void>) {
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
   const { storage } = getFirebase();
   console.log('[PhotoUploader] Uploading to Firebase Storage path:', path);
-  try {
-    const storageRef = ref(storage, path);
-    
-    // Use resumable upload with progress tracking
-    const uploadTask = uploadBytesResumable(storageRef, blob, {
-      contentType: mime,
-    });
-    
-    return new Promise((resolve, reject) => {
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          updateProgress?.(progress);
-          console.log('[PhotoUploader] Upload progress:', Math.round(progress) + '%');
-        },
-        (error) => {
-          console.error('[PhotoUploader] Upload error:', error);
-          reject(error);
-        },
-        async () => {
-          try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            console.log('[PhotoUploader] Upload completed, URL:', downloadURL);
-            resolve(downloadURL);
-          } catch (error) {
-            console.error('[PhotoUploader] Error getting download URL:', error);
-            reject(error);
+  
+  const MAX_RETRIES = 3;
+  const TIMEOUT_MS = 60000; // 60 seconds timeout
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(`[PhotoUploader] Upload attempt ${attempt}/${MAX_RETRIES}`);
+      
+      const storageRef = ref(storage, path);
+      
+      // Use resumable upload with progress tracking and timeout
+      const uploadTask = uploadBytesResumable(storageRef, blob, {
+        contentType: mime,
+      });
+      
+      return await new Promise<string>((resolve, reject) => {
+        let timeoutId: NodeJS.Timeout | null = null;
+        let isCompleted = false;
+        
+        // Set timeout
+        timeoutId = setTimeout(() => {
+          if (!isCompleted) {
+            isCompleted = true;
+            console.warn(`[PhotoUploader] Upload timeout after ${TIMEOUT_MS}ms`);
+            uploadTask.cancel();
+            reject(new Error('Upload timeout - please try again'));
           }
-        }
-      );
-    });
-  } catch (error: any) {
-    console.error('[PhotoUploader] Upload error in uploadSmart:', error);
-    throw error;
+        }, TIMEOUT_MS);
+        
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            if (isCompleted) return;
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            updateProgress?.(progress);
+            console.log('[PhotoUploader] Upload progress:', Math.round(progress) + '%');
+          },
+          (error) => {
+            if (isCompleted) return;
+            isCompleted = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            console.error('[PhotoUploader] Upload error:', error);
+            reject(error);
+          },
+          async () => {
+            if (isCompleted) return;
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              isCompleted = true;
+              if (timeoutId) clearTimeout(timeoutId);
+              console.log('[PhotoUploader] Upload completed, URL:', downloadURL);
+              resolve(downloadURL);
+            } catch (error) {
+              if (isCompleted) return;
+              isCompleted = true;
+              if (timeoutId) clearTimeout(timeoutId);
+              console.error('[PhotoUploader] Error getting download URL:', error);
+              reject(error);
+            }
+          }
+        );
+      });
+    } catch (error: any) {
+      console.error(`[PhotoUploader] Upload attempt ${attempt} failed:`, error);
+      
+      // If this is the last attempt, throw the error
+      if (attempt === MAX_RETRIES) {
+        throw error;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+      console.log(`[PhotoUploader] Waiting ${waitTime}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
   }
+  
+  throw new Error('Upload failed after all retries');
 }
 
 async function uploadWithFallback(
@@ -227,15 +269,41 @@ async function uploadWithFallback(
   resizeOpts?: { maxWidth?: number; maxHeight?: number; baseQuality?: number }
 ): Promise<string> {
   try {
+    console.log('[PhotoUploader] Starting upload with fallback...');
     const { blob, mime, ext } = await prepareForUpload(input, resizeOpts);
     const key = uuid.v4() as string;
     const path = `${basePath}/${key}.${ext}`;
+    
+    console.log('[PhotoUploader] Prepared for upload:', {
+      path,
+      mimeType: mime,
+      extension: ext,
+      blobSize: blob.size
+    });
 
     try {
-      return await uploadSmart(path, blob, mime, key, updateProgress);
+      // Test Firebase connectivity before attempting upload
+      const { storage } = getFirebase();
+      console.log('[PhotoUploader] Firebase Storage instance:', !!storage);
+      
+      const url = await uploadSmart(path, blob, mime, key, updateProgress);
+      console.log('[PhotoUploader] ✅ Upload successful:', url);
+      return url;
     } catch (err: any) {
       const code = String(err?.code || err?.message || "");
-      console.log('[PhotoUploader] Upload failed, attempting fallback:', code);
+      console.error('[PhotoUploader] ❌ Upload failed:', {
+        code: err?.code,
+        message: err?.message,
+        fullError: err
+      });
+      
+      // Don't use fallback for retry-limit-exceeded - throw the error so user can retry
+      if (code.includes('retry-limit-exceeded') || code.includes('timeout')) {
+        throw err;
+      }
+      
+      // For other errors, use fallback
+      console.log('[PhotoUploader] Using fallback placeholder image');
       const fallbackKey = uuid.v4() as string;
       updateProgress?.(100);
       return `https://picsum.photos/800/600?random=${fallbackKey}`;
@@ -459,7 +527,9 @@ export function PhotoUploader({
         if (code.includes('unauthorized') || code.includes('permission') || code.includes('unauthenticated')) {
           errorMessage = 'Authentication error. Check connection and retry.';
         } else if (code.includes('retry-limit-exceeded')) {
-          errorMessage = 'Network is slow — please retry this photo.';
+          errorMessage = 'Upload timeout - network is slow. Please check your connection and retry.';
+        } else if (code.includes('timeout')) {
+          errorMessage = 'Upload timed out. Please check your connection and retry.';
         } else if (code.includes('File too large')) {
           errorMessage = 'Photo too large. Keep under 5MB.';
         } else if (code.includes('api-key-not-valid')) {

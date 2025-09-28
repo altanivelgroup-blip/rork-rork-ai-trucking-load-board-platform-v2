@@ -12,7 +12,7 @@ import { Stack } from 'expo-router';
 import { CheckCircle, XCircle, AlertTriangle, RefreshCw, Database, Shield, Upload, Download } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 import { testFirebaseConnection } from '@/lib/firebase';
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth, testFirebaseStorageUpload } from '@/utils/firebase';
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
@@ -319,57 +319,50 @@ export default function FirebaseSanityCheck() {
         hasErrors = true;
       }
 
-      // Test 8: Storage Upload Test
+      // Test 8: Storage Upload Test (using improved test function)
       const startTime8 = Date.now();
-      console.log('📤 Testing Firebase Storage upload...');
+      console.log('📤 Testing Firebase Storage upload with PhotoUploader simulation...');
       
       try {
-        const { storage } = getFirebase();
-        const testFileName = `sanity-check-${Date.now()}.txt`;
-        const testRef = ref(storage, `sanity-check/${testFileName}`);
+        const uploadTestResult = await testFirebaseStorageUpload();
         
-        // Create a small test file
-        const testContent = `Firebase sanity check test - ${new Date().toISOString()}`;
-        const blob = new Blob([testContent], { type: 'text/plain' });
-        
-        // Upload the test file
-        const uploadResult = await uploadBytes(testRef, blob);
-        
-        // Get download URL to verify upload
-        const downloadURL = await getDownloadURL(testRef);
-        
-        // Clean up test file
-        try {
-          await deleteObject(testRef);
-        } catch (deleteError) {
-          console.warn('Could not delete test file:', deleteError);
+        if (uploadTestResult.success) {
+          updateResult('Storage Upload Test', 'success', 
+            uploadTestResult.message || 'Firebase Storage upload working', 
+            { 
+              uploadPath: uploadTestResult.uploadPath,
+              downloadURL: uploadTestResult.downloadURL ? uploadTestResult.downloadURL.substring(0, 50) + '...' : 'Generated',
+              testType: 'PhotoUploader-compatible'
+            },
+            Date.now() - startTime8
+          );
+        } else {
+          const isRetryError = uploadTestResult.code === 'storage/retry-limit-exceeded';
+          const status = isRetryError ? 'warning' : 'error';
+          
+          updateResult('Storage Upload Test', status, 
+            uploadTestResult.error || 'Storage upload failed', 
+            { 
+              error: uploadTestResult.code,
+              recommendations: uploadTestResult.recommendations || [],
+              testType: 'PhotoUploader-compatible'
+            },
+            Date.now() - startTime8
+          );
+          
+          if (isRetryError) {
+            hasWarnings = true;
+          } else {
+            hasErrors = true;
+          }
         }
-        
-        updateResult('Storage Upload Test', 'success', 
-          `Firebase Storage upload working`, 
-          { 
-            fileName: testFileName, 
-            size: uploadResult.metadata.size,
-            downloadURL: downloadURL.substring(0, 50) + '...' 
-          },
+      } catch (error: any) {
+        updateResult('Storage Upload Test', 'error', 
+          `Storage upload test failed: ${error.message}`, 
+          { error: error.code || 'unknown', message: error.message },
           Date.now() - startTime8
         );
-      } catch (error: any) {
-        if (error.code === 'storage/unauthorized') {
-          updateResult('Storage Upload Test', 'warning', 
-            `Storage upload permission denied - check security rules`, 
-            { error: error.code, message: error.message },
-            Date.now() - startTime8
-          );
-          hasWarnings = true;
-        } else {
-          updateResult('Storage Upload Test', 'error', 
-            `Firebase Storage upload failed: ${error.message}`, 
-            { error: error.code || 'unknown', message: error.message },
-            Date.now() - startTime8
-          );
-          hasErrors = true;
-        }
+        hasErrors = true;
       }
 
       // Test 9: PhotoUploader Integration
@@ -621,6 +614,16 @@ export default function FirebaseSanityCheck() {
               ❌ Firebase has critical issues. PhotoUploader will not work properly until these are resolved.
             </Text>
           )}
+          
+          <View style={styles.troubleshootingSection}>
+            <Text style={styles.troubleshootingTitle}>PhotoUploader Troubleshooting:</Text>
+            <Text style={styles.troubleshootingText}>
+              • "retry-limit-exceeded" error: Check network stability, try smaller images{"\n"}
+              • Upload timeouts: Use "Small" size preset in PhotoUploader{"\n"}
+              • Permission errors: Verify Firebase Storage security rules{"\n"}
+              • Connection issues: Check Firebase project status and API keys
+            </Text>
+          </View>
         </View>
       )}
     </View>
@@ -751,5 +754,24 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.danger,
     fontWeight: '500',
+  },
+  troubleshootingSection: {
+    marginTop: theme.spacing.lg,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '30',
+  },
+  troubleshootingTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  troubleshootingText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.gray,
+    lineHeight: 18,
   },
 });
