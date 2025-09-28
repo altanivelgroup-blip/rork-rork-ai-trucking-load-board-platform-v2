@@ -22,11 +22,8 @@ import {
   TrendingUp,
   ArrowLeft,
   Bell,
-  LogOut,
-  Camera,
-
+  LogOut
 } from 'lucide-react-native';
-import PhotoUploader, { PhotoData } from '@/components/PhotoUploader';
 
 export default function ShipperProfileScreen() {
   const router = useRouter();
@@ -38,7 +35,7 @@ export default function ShipperProfileScreen() {
   const insets = useSafeAreaInsets();
   const isShipper = user?.role === 'shipper';
   
-  const [testPhotos, setTestPhotos] = useState<PhotoData[]>([]);
+
   
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [formData, setFormData] = useState({
@@ -502,26 +499,7 @@ export default function ShipperProfileScreen() {
           </View>
         </View>
 
-        {/* Photo Upload Test Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photo Upload Test</Text>
-          <View style={styles.testUploaderPill}>
-            <View style={styles.testUploaderHeader}>
-              <Camera size={24} color={theme.colors.primary} />
-              <Text style={styles.testUploaderTitle}>Test Photo Uploader</Text>
-            </View>
-            <Text style={styles.testUploaderSubtitle}>
-              Test the photo upload functionality directly here without going through multiple steps.
-            </Text>
-            <PhotoUploader 
-              photos={testPhotos}
-              onPhotosChange={setTestPhotos}
-              maxPhotos={10}
-              storagePath={`shipper-profiles/${user?.id || 'test-shipper'}`}
-              mockMode={true}
-            />
-          </View>
-        </View>
+
 
         {/* Business Stats */}
         <View style={styles.section}>
@@ -972,34 +950,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.dark,
   },
-  testUploaderPill: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-  },
-  testUploaderHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.xs,
-  },
-  testUploaderTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '700',
-    color: theme.colors.primary,
-  },
-  testUploaderSubtitle: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.gray,
-    marginBottom: theme.spacing.md,
-  },
+
   headerRightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
