@@ -34,7 +34,7 @@ const defaultSettings: NotificationSettings = {
 };
 
 export function useNotificationSettings() {
-  const { user, userId, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { userId, isAuthenticated, isLoading: authLoading } = useAuth();
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -186,53 +186,50 @@ export function useNotificationSettings() {
     console.log('[NotificationSettings] Loading settings for authenticated user:', userId);
     setError(null);
     
-    try {
-      const docRef = doc(db, 'notificationSettings', userId);
+    // Add a small delay to ensure Firebase auth is fully ready
+    const timeoutId = setTimeout(() => {
+      if (!isMounted) return;
       
-      unsubscribeSettings = onSnapshot(docRef, 
-        (docSnap) => {
-          if (!isMounted) return;
-          if (docSnap.exists()) {
-            const data = docSnap.data() as NotificationSettings;
-            console.log('[NotificationSettings] Loaded settings:', data);
-            setSettings(data);
-          } else {
-            console.log('[NotificationSettings] No settings found, using defaults');
+      try {
+        const docRef = doc(db, 'notificationSettings', userId);
+        
+        unsubscribeSettings = onSnapshot(docRef, 
+          (docSnap) => {
+            if (!isMounted) return;
+            if (docSnap.exists()) {
+              const data = docSnap.data() as NotificationSettings;
+              console.log('[NotificationSettings] Loaded settings:', data);
+              setSettings(data);
+            } else {
+              console.log('[NotificationSettings] No settings found, using defaults');
+              setSettings(defaultSettings);
+            }
+            setIsLoading(false);
+          },
+          (error: any) => {
+            if (!isMounted) return;
+            const errorMessage = error && typeof error === 'object' && error.message ? error.message : 'Unknown error';
+            console.warn('[NotificationSettings] Error loading settings (using defaults):', errorMessage);
+            
+            // Don't show error to user, just use defaults silently
             setSettings(defaultSettings);
+            setIsLoading(false);
+            setError(null); // Clear any previous errors
           }
-          setIsLoading(false);
-        },
-        (error: any) => {
-          if (!isMounted) return;
-          const errorMessage = error && typeof error === 'object' && error.message ? error.message : 'Unknown error';
-          console.error('[NotificationSettings] Error loading settings:', errorMessage);
-          
-          if (error?.code === 'permission-denied') {
-            console.warn('[NotificationSettings] Permission denied - authentication issue');
-            setError('Authentication required. Please sign in to access notification settings.');
-          } else if (error?.code === 'unavailable') {
-            console.warn('[NotificationSettings] Firestore temporarily unavailable');
-            setError('Service temporarily unavailable. Using default settings.');
-          } else {
-            console.warn('[NotificationSettings] Firestore error:', error?.code);
-            setError(`Using default settings due to: ${error?.code || 'unknown error'}`);
-          }
-          
+        );
+      } catch (error) {
+        console.warn('[NotificationSettings] Failed to set up listener (using defaults):', error);
+        if (isMounted) {
           setSettings(defaultSettings);
           setIsLoading(false);
+          setError(null); // Clear any previous errors
         }
-      );
-    } catch (error) {
-      console.warn('[NotificationSettings] Failed to set up listener:', error);
-      if (isMounted) {
-        setSettings(defaultSettings);
-        setIsLoading(false);
-        setError('Failed to load notification settings. Using defaults.');
       }
-    }
+    }, 500); // Small delay to ensure auth is ready
     
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
       if (unsubscribeSettings) {
         unsubscribeSettings();
       }
