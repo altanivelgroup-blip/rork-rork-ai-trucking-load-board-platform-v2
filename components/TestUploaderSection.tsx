@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useAuth } from "@/hooks/useAuth";
 import { ensureTestLoad } from "@/lib/ensureTestLoad";
-import PhotoUploader from "@/components/PhotoUploader";
+// import PhotoUploader from "@/components/PhotoUploader"; // Removed for restructuring
 import LoadPhotoGallery from "@/components/LoadPhotoGallery";
 
 export default function TestUploaderSection({ role }: { role: "shipper" | "driver" }) {
@@ -78,16 +78,7 @@ export default function TestUploaderSection({ role }: { role: "shipper" | "drive
         </View>
       ) : loadId ? (
         <>
-          <PhotoUploader
-            loadId={loadId}
-            userId={userId}
-            role={role}
-            allowMultiple
-            buttonLabel="Pick Photos"
-            onUploaded={(items) => {
-              console.log('[TestUploaderSection] Photos uploaded:', items.length);
-            }}
-          />
+          <Text style={{ color: '#666', fontStyle: 'italic' }}>PhotoUploader removed for restructuring</Text>
           <View style={styles.galleryContainer}>
             <LoadPhotoGallery loadId={loadId} />
           </View>

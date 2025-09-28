@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { PhotoUploader } from '@/components/PhotoUploader';
+// import { PhotoUploader } from '@/components/PhotoUploader'; // Removed for restructuring
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
 
 export default function TestFixesScreen() {
@@ -144,15 +144,7 @@ export default function TestFixesScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photo Upload Test</Text>
-          <PhotoUploader
-            entityType="load"
-            entityId="test-load-123"
-            minPhotos={2}
-            maxPhotos={5}
-            onChange={(photos, primaryPhoto, uploadsInProgress) => {
-              console.log('Photo upload test:', { photos: photos.length, primaryPhoto, uploadsInProgress });
-            }}
-          />
+          <Text style={{ color: '#666', fontStyle: 'italic' }}>PhotoUploader removed for restructuring</Text>
         </View>
 
         <View style={styles.actions}>

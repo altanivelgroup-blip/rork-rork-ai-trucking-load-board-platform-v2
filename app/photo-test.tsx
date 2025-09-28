@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { theme } from '@/constants/theme';
-import PhotoUploader from '@/components/PhotoUploader';
+// import PhotoUploader from '@/components/PhotoUploader'; // Removed for restructuring
 import { auth } from '@/utils/firebase';
 import { testFirebaseConnection } from '@/lib/firebase';
 import { signInAnonymously } from 'firebase/auth';
@@ -77,14 +77,7 @@ export default function PhotoTest() {
         </View>
 
         <View style={styles.uploaderContainer}>
-          <PhotoUploader
-            loadId="test-load-123"
-            userId={auth.currentUser?.uid || 'anonymous'}
-            role="shipper"
-            allowMultiple={true}
-            buttonLabel="Test Photo Upload"
-            onUploaded={handlePhotosUploaded}
-          />
+          <Text style={{ color: '#666', fontStyle: 'italic' }}>PhotoUploader removed for restructuring</Text>
         </View>
 
         <View style={styles.resultsContainer}>
