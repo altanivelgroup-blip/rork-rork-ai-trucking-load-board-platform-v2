@@ -237,7 +237,7 @@ function RootLayoutNav() {
       <Stack.Screen name="shipper-profile" options={{ title: "Shipper Profile" }} />
       <Stack.Screen name="post-load" options={{ title: "Post Load" }} />
       <Stack.Screen name="load-edit" options={{ title: "Edit Load" }} />
-
+      <Stack.Screen name="photo-uploader-demo" options={{ title: "Photo Uploader Demo" }} />
       <Stack.Screen name="debug-nav" options={{ title: "Debug Navigation" }} />
       <Stack.Screen name="backend-test" options={{ title: "Backend Test" }} />
       <Stack.Screen name="dev-bulk-tools" options={{ title: "Bulk Tools (Dev)" }} />
@@ -252,7 +252,7 @@ function RootLayoutNav() {
       <Stack.Screen name="profile-cache-test" options={{ title: "Profile Cache Test" }} />
       <Stack.Screen name="loading-fix-test" options={{ title: "Loading Fix Test" }} />
       <Stack.Screen name="startup-test" options={{ title: "Startup Test" }} />
-
+      <Stack.Screen name="photo-upload-test" options={{ title: "Photo Upload Test" }} />
       <Stack.Screen name="simple-login-test" options={{ title: "Simple Login Test" }} />
       <Stack.Screen name="permission-fix-test" options={{ title: "Permission Fix Test" }} />
       <Stack.Screen name="sanity-check" options={{ title: "Sanity Check" }} />
@@ -261,12 +261,12 @@ function RootLayoutNav() {
       <Stack.Screen name="auth-fix-test" options={{ title: "Auth Fix Test" }} />
       <Stack.Screen name="account" options={{ title: "Account" }} />
 
-
+      <Stack.Screen name="auth-photo-test" options={{ title: "Auth & Photo Test" }} />
       <Stack.Screen name="auth-debug" options={{ title: "Auth Debug", headerShown: false }} />
       <Stack.Screen name="emergency-login" options={{ title: "Emergency Login", headerShown: false }} />
       <Stack.Screen name="app-test" options={{ title: "App Test" }} />
       <Stack.Screen name="app-loading-debug" options={{ title: "App Loading Debug" }} />
-
+      <Stack.Screen name="photo-uploader-test" options={{ title: "Photo Uploader Test" }} />
     </Stack>
   );
 }
