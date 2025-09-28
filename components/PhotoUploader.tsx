@@ -98,9 +98,10 @@ interface QAState {
 type ResizePreset = 'small' | 'medium' | 'large';
 
 function presetToOptions(preset: ResizePreset) {
-  if (preset === 'small') return { maxWidth: 1280, maxHeight: 960, baseQuality: 0.75 } as const;
-  if (preset === 'large') return { maxWidth: 2048, maxHeight: 1536, baseQuality: 0.85 } as const;
-  return { maxWidth: 1600, maxHeight: 1200, baseQuality: 0.8 } as const;
+  // Reduced sizes and quality to improve upload reliability
+  if (preset === 'small') return { maxWidth: 1024, maxHeight: 768, baseQuality: 0.65 } as const;
+  if (preset === 'large') return { maxWidth: 1600, maxHeight: 1200, baseQuality: 0.75 } as const;
+  return { maxWidth: 1280, maxHeight: 960, baseQuality: 0.7 } as const;
 }
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -159,7 +160,7 @@ const mapStorageError = (error: any): string => {
   return error?.message || "Upload failed. Please try again.";
 };
 
-const MAX_CONCURRENCY = 2;
+const MAX_CONCURRENCY = 1; // Reduced from 2 to prevent network congestion
 let activeUploads = 0;
 const uploadQueue: (() => Promise<void>)[] = [];
 
@@ -180,12 +181,58 @@ function enqueueUpload(job: () => Promise<void>) {
   runNextUpload();
 }
 
+// Check network connectivity before upload
+async function checkNetworkConnectivity(): Promise<boolean> {
+  try {
+    // Simple connectivity test
+    const response = await fetch('https://www.google.com/favicon.ico', {
+      method: 'HEAD',
+      cache: 'no-cache',
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Check Firebase Storage connectivity specifically
+async function checkFirebaseStorageConnectivity(): Promise<boolean> {
+  try {
+    const { storage } = getFirebase();
+    const { ref, getMetadata } = await import('firebase/storage');
+    
+    // Try to get metadata for a non-existent file (this tests connectivity without uploading)
+    const testRef = ref(storage, 'connectivity-test/test.txt');
+    await getMetadata(testRef);
+    
+    // If we get here without error, storage is reachable
+    return true;
+  } catch (error: any) {
+    // If error is 'object-not-found', that means we can reach Firebase Storage
+    // Any other error means connectivity issues
+    return error?.code === 'storage/object-not-found';
+  }
+}
+
 async function uploadSmart(path: string, blob: Blob, mime: string, key: string, updateProgress?: (progress: number) => void): Promise<string> {
   const { storage } = getFirebase();
   console.log('[PhotoUploader] Uploading to Firebase Storage path:', path);
   
-  const MAX_RETRIES = 3;
-  const TIMEOUT_MS = 60000; // 60 seconds timeout
+  // Check network connectivity first
+  const isConnected = await checkNetworkConnectivity();
+  if (!isConnected) {
+    throw new Error('No internet connection - please check your network and try again');
+  }
+  
+  // Check Firebase Storage connectivity
+  const isStorageConnected = await checkFirebaseStorageConnectivity();
+  if (!isStorageConnected) {
+    throw new Error('Cannot reach Firebase Storage - please check your connection and try again');
+  }
+  
+  const MAX_RETRIES = 2;
+  const TIMEOUT_MS = 30000; // 30 seconds timeout (reduced from 60s)
   
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -196,19 +243,24 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
       // Use resumable upload with progress tracking and timeout
       const uploadTask = uploadBytesResumable(storageRef, blob, {
         contentType: mime,
+        cacheControl: 'public, max-age=31536000', // 1 year cache
       });
       
       return await new Promise<string>((resolve, reject) => {
         let timeoutId: NodeJS.Timeout | null = null;
         let isCompleted = false;
         
-        // Set timeout
+        // Set timeout with better error handling
         timeoutId = setTimeout(() => {
           if (!isCompleted) {
             isCompleted = true;
             console.warn(`[PhotoUploader] Upload timeout after ${TIMEOUT_MS}ms`);
-            uploadTask.cancel();
-            reject(new Error('Upload timeout - please try again'));
+            try {
+              uploadTask.cancel();
+            } catch (cancelError) {
+              console.warn('[PhotoUploader] Error canceling upload:', cancelError);
+            }
+            reject(new Error(`Upload timeout after ${TIMEOUT_MS/1000}s - check your connection and try again`));
           }
         }, TIMEOUT_MS);
         
@@ -252,9 +304,11 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
         throw error;
       }
       
-      // Wait before retrying (exponential backoff)
-      const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-      console.log(`[PhotoUploader] Waiting ${waitTime}ms before retry...`);
+      // Wait before retrying (exponential backoff with jitter)
+      const baseWait = 1000 * Math.pow(2, attempt - 1);
+      const jitter = Math.random() * 1000; // Add randomness to prevent thundering herd
+      const waitTime = Math.min(baseWait + jitter, 15000);
+      console.log(`[PhotoUploader] Waiting ${Math.round(waitTime)}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
@@ -297,8 +351,8 @@ async function uploadWithFallback(
         fullError: err
       });
       
-      // Don't use fallback for retry-limit-exceeded - throw the error so user can retry
-      if (code.includes('retry-limit-exceeded') || code.includes('timeout')) {
+      // Don't use fallback for retry-limit-exceeded or network issues - throw the error so user can retry
+      if (code.includes('retry-limit-exceeded') || code.includes('timeout') || code.includes('network') || code.includes('connection')) {
         throw err;
       }
       
@@ -527,9 +581,11 @@ export function PhotoUploader({
         if (code.includes('unauthorized') || code.includes('permission') || code.includes('unauthenticated')) {
           errorMessage = 'Authentication error. Check connection and retry.';
         } else if (code.includes('retry-limit-exceeded')) {
-          errorMessage = 'Upload timeout - network is slow. Please check your connection and retry.';
+          errorMessage = 'Network too slow. Try: 1) Smaller photo size 2) Better connection 3) Wait and retry.';
         } else if (code.includes('timeout')) {
-          errorMessage = 'Upload timed out. Please check your connection and retry.';
+          errorMessage = 'Upload timed out. Check connection and try smaller photo.';
+        } else if (code.includes('network') || code.includes('connection')) {
+          errorMessage = 'Network error. Check your internet connection and retry.';
         } else if (code.includes('File too large')) {
           errorMessage = 'Photo too large. Keep under 5MB.';
         } else if (code.includes('api-key-not-valid')) {
