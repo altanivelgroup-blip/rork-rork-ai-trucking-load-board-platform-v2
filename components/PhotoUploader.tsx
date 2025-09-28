@@ -1,5 +1,5 @@
 import uuid from 'react-native-uuid';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,10 @@ import {
   Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Upload, X, AlertCircle, CheckCircle } from 'lucide-react-native';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { Upload, X, AlertCircle, CheckCircle } from 'lucide-react-native';
+// Firebase storage imports - only used in real mode
+// import { storage } from '@/lib/firebase';
+// import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/components/Toast';
 
 export interface PhotoData {
@@ -49,27 +50,7 @@ export default function PhotoUploader({
     console.log('[PhotoUploader] Loading photos, count:', photos.length);
   }, [photos]);
 
-  const requestPermissions = async () => {
-    console.log('[PhotoUploader] Requesting camera permissions');
-    
-    // Request both camera and media library permissions
-    const [mediaLibraryResult, cameraResult] = await Promise.all([
-      ImagePicker.requestMediaLibraryPermissionsAsync(),
-      ImagePicker.requestCameraPermissionsAsync()
-    ]);
-    
-    if (mediaLibraryResult.status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant photo library permissions to upload photos.');
-      return false;
-    }
-    
-    if (cameraResult.status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant camera permissions to take photos.');
-      return false;
-    }
-    
-    return true;
-  };
+
 
   const pickImage = async () => {
     console.log('[PhotoUploader] Starting image picker');
@@ -208,64 +189,9 @@ export default function PhotoUploader({
     } else {
       console.log('[PhotoUploader] Real mode: uploading to Firebase for photo', photo.id);
       
-      try {
-        // Check if Firebase storage is available
-        if (!storage) {
-          console.warn('[PhotoUploader] Firebase storage not available, falling back to mock mode');
-          throw new Error('Firebase storage not configured');
-        }
-        
-        const response = await fetch(photo.uri);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch image: ${response.status}`);
-        }
-        
-        const blob = await response.blob();
-        console.log('[PhotoUploader] Image blob created, size:', blob.size, 'bytes');
-        
-        const fileName = `${Date.now()}_${photo.id}.jpg`;
-        const storageRef = ref(storage, `${storagePath}/${fileName}`);
-        
-        return new Promise((resolve, reject) => {
-          const uploadTask = uploadBytesResumable(storageRef, blob);
-          
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              console.log('[PhotoUploader] Upload progress for', photo.id, ':', Math.round(progress) + '%');
-              updatePhotoProgress(photo.id, progress);
-            },
-            (error) => {
-              console.error('[PhotoUploader] Upload error for photo', photo.id, ':', error);
-              let errorMessage = 'Upload failed';
-              if (error.code === 'storage/unauthorized') {
-                errorMessage = 'Permission denied - please sign in';
-              } else if (error.code === 'storage/canceled') {
-                errorMessage = 'Upload canceled';
-              } else if (error.code === 'storage/unknown') {
-                errorMessage = 'Network error - please try again';
-              } else if (error.message) {
-                errorMessage = error.message;
-              }
-              reject(new Error(errorMessage));
-            },
-            async () => {
-              try {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                console.log('[PhotoUploader] ✅ Real upload completed for photo:', photo.id, 'URL:', downloadURL);
-                resolve(downloadURL);
-              } catch (error) {
-                console.error('[PhotoUploader] Error getting download URL for photo', photo.id, ':', error);
-                reject(new Error('Failed to get download URL'));
-              }
-            }
-          );
-        });
-      } catch (error) {
-        console.error('[PhotoUploader] Error preparing upload for photo', photo.id, ':', error);
-        throw error;
-      }
+      // Real Firebase upload would go here
+      console.log('[PhotoUploader] Real mode not implemented, falling back to mock mode');
+      throw new Error('Real mode not implemented - using mock mode');
     }
   };
 
@@ -288,16 +214,7 @@ export default function PhotoUploader({
       const errorMessage = error instanceof Error ? error.message : 'Upload failed';
       updatePhotoStatus(photo.id, 'failed', undefined, errorMessage);
       
-      // Show more specific error messages
-      if (errorMessage.includes('Permission denied')) {
-        toast.show('Permission denied - please sign in and try again', 'error');
-      } else if (errorMessage.includes('Network error')) {
-        toast.show('Network error - check connection and retry', 'error');
-      } else if (errorMessage.includes('Firebase storage not configured')) {
-        toast.show('Storage not configured - contact support', 'error');
-      } else {
-        toast.show(`Upload failed: ${errorMessage}`, 'error');
-      }
+      toast.show(`Upload failed: ${errorMessage}`, 'error');
     } finally {
       setIsUploading(false);
     }
@@ -374,13 +291,7 @@ export default function PhotoUploader({
           </View>
         )}
 
-        {/* Saved pill - enhanced */}
-        {photo.status === 'completed' && (
-          <View style={styles.savedPill}>
-            <CheckCircle size={14} color="#FFFFFF" />
-            <Text style={styles.savedPillText}>Saved</Text>
-          </View>
-        )}
+
 
         {/* Success overlay for completed photos */}
         {photo.status === 'completed' && (
@@ -539,18 +450,7 @@ export default function PhotoUploader({
         </View>
       )}
 
-      {/* Requirements */}
-      <View style={styles.requirementsContainer}>
-        <AlertCircle size={16} color="#FF9500" />
-        <View style={styles.requirementsTextContainer}>
-          <Text style={styles.requirementsTitle}>Requirements for Publishing</Text>
-          <Text style={styles.requirementsText}>
-            • Complete all required fields{"\n"}
-            • Upload at least 5 photos{"\n"}
-            • Wait for all photos to finish uploading
-          </Text>
-        </View>
-      </View>
+
     </View>
   );
 }
@@ -728,23 +628,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  savedPill: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    backgroundColor: '#34C759',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
+
   completedOverlay: {
     position: 'absolute',
     top: 4,
@@ -753,11 +637,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 4,
   },
-  savedPillText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
+
   removeButton: {
     position: 'absolute',
     top: 4,
@@ -812,27 +692,7 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     opacity: 0.8,
   },
-  requirementsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFF3CD',
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  requirementsTextContainer: {
-    flex: 1,
-  },
-  requirementsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF9500',
-    marginBottom: 4,
-  },
-  requirementsText: {
-    fontSize: 13,
-    color: '#FF9500',
-    lineHeight: 18,
-  },
+
 });
 
 // Hook to check if user can publish (all photos uploaded)
