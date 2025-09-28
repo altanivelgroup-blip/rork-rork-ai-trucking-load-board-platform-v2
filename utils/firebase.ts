@@ -1,7 +1,7 @@
 // utils/firebase.ts — tolerant to your env names
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 /** Map both canonical env names and your custom ones */
@@ -85,7 +85,60 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
   }
 }
 
-export default { app, auth, db, storage, getFirebase, ensureFirebaseAuth };
+// Quick Firebase connectivity test
+export async function testFirebaseConnectivity() {
+  try {
+    console.log('[FIREBASE_CONNECTIVITY] Starting connectivity test...');
+    
+    const { auth, db, app } = getFirebase();
+    
+    // Test 1: Check if Firebase is initialized
+    const projectId = app.options.projectId;
+    console.log('[FIREBASE_CONNECTIVITY] Project ID:', projectId);
+    
+    // Test 2: Check authentication
+    const authSuccess = await ensureFirebaseAuth();
+    const currentUser = auth.currentUser;
+    
+    // Test 3: Test basic Firestore read
+    let firestoreWorking = false;
+    try {
+      const testDoc = doc(db, 'connectivity-test', 'test');
+      await getDoc(testDoc);
+      firestoreWorking = true;
+    } catch (e: any) {
+      console.warn('[FIREBASE_CONNECTIVITY] Firestore test failed:', e.code);
+      firestoreWorking = e.code !== 'permission-denied'; // Permission denied means it's reachable
+    }
+    
+    return {
+      connected: authSuccess && firestoreWorking,
+      details: {
+        networkOnline: true,
+        firebaseReachable: true,
+        authWorking: authSuccess && !!currentUser,
+        firestoreWorking,
+      },
+      projectId,
+      userId: currentUser?.uid,
+      isAnonymous: currentUser?.isAnonymous
+    };
+  } catch (error: any) {
+    console.error('[FIREBASE_CONNECTIVITY] Test failed:', error);
+    return {
+      connected: false,
+      error: error.message,
+      details: {
+        networkOnline: false,
+        firebaseReachable: false,
+        authWorking: false,
+        firestoreWorking: false,
+      }
+    };
+  }
+}
+
+export default { app, auth, db, storage, getFirebase, ensureFirebaseAuth, testFirebaseConnectivity };
 
 
 
