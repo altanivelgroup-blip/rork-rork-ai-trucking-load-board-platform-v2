@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Camera, Upload, X, AlertCircle, CheckCircle } from 'lucide-react-native';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { useToast } from '@/components/Toast';
 
 export interface PhotoData {
   id: string;
@@ -41,7 +42,8 @@ export default function PhotoUploader({
   storagePath,
   mockMode = true,
 }: PhotoUploaderProps) {
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const toast = useToast();
 
   useEffect(() => {
     console.log('[PhotoUploader] Loading photos, count:', photos.length);
@@ -95,6 +97,7 @@ export default function PhotoUploader({
         aspect: [4, 3],
         quality: 0.8,
         allowsMultipleSelection: true,
+        selectionLimit: 20,
       });
 
       console.log('[PhotoUploader] Image picker result:', { canceled: result.canceled, assetsLength: result.assets?.length });
@@ -237,9 +240,11 @@ export default function PhotoUploader({
       
       console.log('[PhotoUploader] Upload completed for photo:', photo.id);
       updatePhotoStatus(photo.id, 'completed', uploadUrl);
+      toast.show('Photo saved', 'success');
     } catch (error) {
       console.error('[PhotoUploader] Upload failed for photo:', photo.id, error);
       updatePhotoStatus(photo.id, 'failed', undefined, error instanceof Error ? error.message : 'Upload failed');
+      toast.show('Failed to load photos', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -379,7 +384,7 @@ export default function PhotoUploader({
       {/* Photos header with count */}
       <View style={styles.photosHeader}>
         <Text style={styles.photosTitle}>Photos</Text>
-        <Text style={styles.photosCount}>{completedPhotos}/20</Text>
+        <Text style={styles.photosCount}>{completedPhotos}/{maxPhotos}</Text>
       </View>
 
       {/* Add Photos Button */}
@@ -404,13 +409,13 @@ export default function PhotoUploader({
 
       {/* Photo grid */}
       {photos.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll} testID="photo-scroll">
           {photos.map(renderPhoto)}
         </ScrollView>
       )}
 
       {/* Overall upload status */}
-      <View style={styles.statusRow}>
+      <View style={styles.statusRow} testID="upload-status-row">
         {uploading.length > 0 ? (
           <>
             <ActivityIndicator size="small" color="#007AFF" />
@@ -434,7 +439,7 @@ export default function PhotoUploader({
 
       {/* Error for failed uploads */}
       {failedPhotos > 0 && (
-        <View style={styles.errorContainer}>
+        <View style={styles.errorContainer} testID="upload-error">
           <AlertCircle size={16} color="#FF3B30" />
           <Text style={styles.errorText}>Failed to load photos.</Text>
         </View>
