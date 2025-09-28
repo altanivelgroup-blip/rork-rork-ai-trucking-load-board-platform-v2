@@ -49,12 +49,7 @@ export default function PhotoUploader({
     );
 
     // Convert to blob
-    const response = await Promise.race([
-      fetch(manipulated.uri),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Fetch timeout (15s)')), 15000)
-      ),
-    ]);
+    const response = await fetch(manipulated.uri);
     const blob = await response.blob();
     
     // Log blob size in MB
@@ -81,15 +76,15 @@ export default function PhotoUploader({
     
     const storageRef = ref(storage, path);
 
-    // Simple upload (temporarily without timeout)
+    // Simple upload (no timeout, no resumable)
     await uploadBytes(storageRef, blob);
     
     console.log("[Debug] Upload completed successfully for image", index);
 
     // Get URL
-    const url = await getDownloadURL(storageRef);
+    const downloadURL = await getDownloadURL(storageRef);
 
-    return { id: fileId, url, path };
+    return { id: fileId, url: downloadURL, path };
   };
 
   const uploadWithRetry = async (uri: string, index: number, attempts = 3): Promise<{id:string;url:string;path:string}> => {
@@ -212,7 +207,9 @@ export default function PhotoUploader({
           
           try {
             console.log(`[PhotoUploader] Starting upload for image ${globalIndex}/${assets.length} in batch ${batchNumber}`);
-            const uploaded = await uploadWithRetry(asset.uri, globalIndex);
+            // Temporarily bypass retry wrapper for testing
+            const uploaded = await uploadSingleImage(asset.uri, globalIndex);
+            // const uploaded = await uploadWithRetry(asset.uri, globalIndex);
             
             // Update progress atomically
             setUploadedCount(prev => {
@@ -325,7 +322,9 @@ export default function PhotoUploader({
       const item = retryQueue[i];
       try {
         setProgress(`Retrying image ${i + 1}/${retryQueue.length}...`);
-        const uploaded = await uploadWithRetry(item.uri, item.index);
+        // Temporarily bypass retry wrapper for testing
+        const uploaded = await uploadSingleImage(item.uri, item.index);
+        // const uploaded = await uploadWithRetry(item.uri, item.index);
         uploadedItems.push(uploaded);
         setUploadedCount(prev => prev + 1);
         console.log(`[PhotoUploader] Retry successful for image ${item.index}`);
