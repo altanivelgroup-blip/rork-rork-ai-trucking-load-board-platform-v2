@@ -350,13 +350,32 @@ async function uploadWithFallback(
         message: err?.message,
         fullError: err
       });
+
+      // If Firebase hit retry-limit, try a smaller, non-resumable upload once
+      if (code.includes('retry-limit-exceeded')) {
+        try {
+          console.log('[PhotoUploader] Retrying with stronger compression and non-resumable upload');
+          const smaller = await prepareForUpload(input, { maxWidth: 1024, maxHeight: 1024, baseQuality: 0.6 });
+          const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+          const altRef = ref(getFirebase().storage, path.replace(/(\.[a-z0-9]+)$/i, '-sm$1'));
+          updateProgress?.(90);
+          const result = await uploadBytes(altRef, smaller.blob, { contentType: smaller.mime, cacheControl: 'public, max-age=31536000' });
+          const altUrl = await getDownloadURL(result.ref);
+          updateProgress?.(100);
+          console.log('[PhotoUploader] ✅ Fallback non-resumable upload succeeded');
+          return altUrl;
+        } catch (fallbackErr: any) {
+          console.error('[PhotoUploader] ❌ Fallback non-resumable upload failed:', fallbackErr);
+          throw err;
+        }
+      }
       
-      // Don't use fallback for retry-limit-exceeded or network issues - throw the error so user can retry
-      if (code.includes('retry-limit-exceeded') || code.includes('timeout') || code.includes('network') || code.includes('connection')) {
+      // For other transient errors, surface to caller so UI can prompt retry
+      if (code.includes('timeout') || code.includes('network') || code.includes('connection')) {
         throw err;
       }
       
-      // For other errors, use fallback
+      // For non-network errors, use a temporary placeholder to keep UX moving
       console.log('[PhotoUploader] Using fallback placeholder image');
       const fallbackKey = uuid.v4() as string;
       updateProgress?.(100);
