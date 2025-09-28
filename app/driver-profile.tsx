@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { useProfileCache } from '@/hooks/useProfileCache';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench, Camera } from 'lucide-react-native';
-// import PhotoUploader from '@/components/PhotoUploader'; // Removed for restructuring
+import PhotoUploader, { PhotoData } from '@/components/PhotoUploader';
 import { FuelKind, VehicleType, Driver } from '@/types';
 import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 
@@ -27,6 +27,7 @@ export default function DriverProfileScreen() {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [bootstrapping, setBootstrapping] = useState<boolean>(false);
   const [validatingExperience, setValidatingExperience] = useState<boolean>(false);
+  const [photos, setPhotos] = useState<PhotoData[]>([]);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -1032,20 +1033,24 @@ const insets = useSafeAreaInsets();
           </View>
         </View>
 
-        {/* Profile Photos - Temporarily Hidden */}
-        {false && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Camera size={20} color={theme.colors.primary} />
-              <Text style={styles.sectionTitle}>Profile Photos</Text>
-            </View>
-            <Text style={styles.sectionSubtitle}>
-              Add photos of yourself, your truck, and equipment to build trust with shippers.
-            </Text>
-            
-            <Text style={{ color: '#666', fontStyle: 'italic' }}>Photo upload temporarily disabled during restructuring</Text>
+        {/* Profile Photos */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Camera size={20} color={theme.colors.primary} />
+            <Text style={styles.sectionTitle}>Profile Photos</Text>
           </View>
-        )}
+          <Text style={styles.sectionSubtitle}>
+            Add photos of yourself, your truck, and equipment to build trust with shippers.
+          </Text>
+          
+          <PhotoUploader
+            photos={photos}
+            onPhotosChange={setPhotos}
+            maxPhotos={10}
+            storagePath={`drivers/${userId}/profile-photos`}
+            mockMode={true}
+          />
+        </View>
 
         {/* Equipment & Maintenance */}
         <View style={styles.section}>
