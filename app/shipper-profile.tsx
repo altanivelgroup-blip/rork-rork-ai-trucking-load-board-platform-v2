@@ -26,7 +26,7 @@ import {
   Camera,
 
 } from 'lucide-react-native';
-import { PhotoUploader } from '@/components/PhotoUploader';
+import PhotoUploader, { PhotoData } from '@/components/PhotoUploader';
 
 export default function ShipperProfileScreen() {
   const router = useRouter();
@@ -37,6 +37,8 @@ export default function ShipperProfileScreen() {
   const { settings, updateChannel, updateCategory } = useNotificationSettings();
   const insets = useSafeAreaInsets();
   const isShipper = user?.role === 'shipper';
+  
+  const [testPhotos, setTestPhotos] = useState<PhotoData[]>([]);
   
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [formData, setFormData] = useState({
@@ -519,14 +521,11 @@ export default function ShipperProfileScreen() {
               Test the photo upload functionality directly here without going through multiple steps.
             </Text>
             <PhotoUploader 
-              entityType="shipper-profile"
-              entityId={user?.id || 'test-shipper'}
-              minPhotos={1}
+              photos={testPhotos}
+              onPhotosChange={setTestPhotos}
               maxPhotos={10}
+              storagePath={`shipper-profiles/${user?.id || 'test-shipper'}`}
               mockMode={true}
-              onChange={(photos, primary, inProgress) => {
-                console.log('[ShipperProfile] Photos changed. Total:', photos.length, 'Uploading:', inProgress);
-              }}
             />
           </View>
         </View>
