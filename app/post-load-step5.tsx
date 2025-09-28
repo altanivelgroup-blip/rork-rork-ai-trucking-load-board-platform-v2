@@ -1,15 +1,15 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Send } from 'lucide-react-native';
+import { Send, Upload, Camera, Image as ImageIcon } from 'lucide-react-native';
 
 import { usePostLoad } from '@/hooks/usePostLoad';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Load, VehicleType } from '@/types';
-// import PhotoUploader from '@/components/PhotoUploader'; // Removed for restructuring
+import * as ImagePicker from 'expo-image-picker';
 import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
 import { ref as storageRefV9, uploadBytes, getDownloadURL as getDownloadURLv9 } from 'firebase/storage';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
@@ -299,6 +299,7 @@ function PostLoadStep5() {
   const router = useRouter();
   const { draft, setField, reset } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
+  const [isUploading, setIsUploading] = useState(false);
 
   const toast = useToast();
   const loadsStore = useLoads();
@@ -306,6 +307,37 @@ function PostLoadStep5() {
   const onPrevious = useCallback(() => {
     try { router.back(); } catch (e) { console.log('[PostLoadStep5] previous error', e); }
   }, [router]);
+
+  const pickImages = useCallback(async () => {
+    try {
+      setIsUploading(true);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        aspect: [4, 3],
+      });
+
+      if (!result.canceled && result.assets) {
+        const currentPhotos = draft.photoUrls || [];
+        const newPhotos = result.assets.map(asset => asset.uri);
+        const allPhotos = [...currentPhotos, ...newPhotos];
+        setField('photoUrls', allPhotos);
+        toast?.success?.(`Added ${result.assets.length} photo(s)`);
+      }
+    } catch (error) {
+      console.error('[PostLoadStep5] Image picker error:', error);
+      toast?.show?.('Failed to pick images', 'error');
+    } finally {
+      setIsUploading(false);
+    }
+  }, [draft.photoUrls, setField, toast]);
+
+  const removePhoto = useCallback((index: number) => {
+    const currentPhotos = draft.photoUrls || [];
+    const updatedPhotos = currentPhotos.filter((_, i) => i !== index);
+    setField('photoUrls', updatedPhotos);
+  }, [draft.photoUrls, setField]);
 
   // ✅ PERMANENT FIX: Remove infinite loop - contact is managed locally in component
   // The contact field will be passed to submitLoadWithPhotos when needed
@@ -416,10 +448,49 @@ function PostLoadStep5() {
               </Text>
             )}
 
-            <View style={styles.photoUploaderContainer}>
-              <Text style={styles.placeholderText}>
-                Photo upload component removed for restructuring.
-              </Text>
+            <View style={styles.photoSection}>
+              <View style={styles.photoHeader}>
+                <Text style={styles.photoTitle}>Photos</Text>
+                <Text style={styles.photoCount}>{draft.photoUrls?.length || 0}/20</Text>
+                <Pressable style={styles.settingsBtn}>
+                  <Text style={styles.settingsText}>⚙️</Text>
+                </Pressable>
+              </View>
+              
+              <Pressable 
+                onPress={pickImages} 
+                style={styles.addPhotosBtn}
+                disabled={isUploading}
+              >
+                <Upload color={theme.colors.white} size={20} />
+                <Text style={styles.addPhotosBtnText}>
+                  {isUploading ? 'Adding Photos...' : 'Add Photos'}
+                </Text>
+              </Pressable>
+              
+              {draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5 && (
+                <View style={styles.warningBanner}>
+                  <Text style={styles.warningBannerText}>
+                    ⚠️ You need at least 5 photos to publish.
+                  </Text>
+                </View>
+              )}
+              
+              {(draft.photoUrls?.length || 0) > 0 && (
+                <View style={styles.photoGrid}>
+                  {draft.photoUrls?.map((uri, index) => (
+                    <View key={index} style={styles.photoPreview}>
+                      <Image source={{ uri }} style={styles.photoImage} />
+                      <Pressable 
+                        onPress={() => removePhoto(index)}
+                        style={styles.removePhotoBtn}
+                      >
+                        <Text style={styles.removePhotoBtnText}>×</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           </View>
 
@@ -594,13 +665,39 @@ const styles = StyleSheet.create({
   postBtn: { flex: 1, backgroundColor: '#22c55e', paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   postBtnDisabled: { backgroundColor: '#94a3b8' },
   postBtnText: { color: theme.colors.white, fontSize: theme.fontSize.lg, fontWeight: '800' },
-  photoUploaderContainer: { marginTop: 8 },
-  placeholderText: {
-    color: theme.colors.gray,
+  photoSection: { marginTop: 8 },
+  photoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  photoTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.dark,
+    flex: 1,
+  },
+  photoCount: {
     fontSize: theme.fontSize.md,
+    color: theme.colors.gray,
+    marginRight: 8,
+  },
+  settingsBtn: {
+    padding: 4,
+  },
+  settingsText: {
+    fontSize: 16,
+  },
+  warningBanner: {
+    backgroundColor: '#fef3c7',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  warningBannerText: {
+    color: '#92400e',
+    fontSize: theme.fontSize.sm,
     textAlign: 'center',
-    padding: theme.spacing.md,
-    fontStyle: 'italic',
   },
 });
 
