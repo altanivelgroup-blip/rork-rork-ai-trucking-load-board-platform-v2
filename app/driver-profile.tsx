@@ -1032,18 +1032,20 @@ const insets = useSafeAreaInsets();
           </View>
         </View>
 
-        {/* Profile Photos */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Camera size={20} color={theme.colors.primary} />
-            <Text style={styles.sectionTitle}>Profile Photos</Text>
+        {/* Profile Photos - Temporarily Hidden */}
+        {false && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Camera size={20} color={theme.colors.primary} />
+              <Text style={styles.sectionTitle}>Profile Photos</Text>
+            </View>
+            <Text style={styles.sectionSubtitle}>
+              Add photos of yourself, your truck, and equipment to build trust with shippers.
+            </Text>
+            
+            <Text style={{ color: '#666', fontStyle: 'italic' }}>Photo upload temporarily disabled during restructuring</Text>
           </View>
-          <Text style={styles.sectionSubtitle}>
-            Add photos of yourself, your truck, and equipment to build trust with shippers.
-          </Text>
-          
-          <Text style={{ color: '#666', fontStyle: 'italic' }}>Photo upload temporarily disabled during restructuring</Text>
-        </View>
+        )}
 
         {/* Equipment & Maintenance */}
         <View style={styles.section}>

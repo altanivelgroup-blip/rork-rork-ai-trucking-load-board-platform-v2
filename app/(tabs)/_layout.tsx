@@ -46,6 +46,7 @@ export default function TabsLayout() {
           backgroundColor: theme.colors.white,
           borderTopWidth: 1,
           borderTopColor: theme.colors.border,
+          overflow: 'hidden',
         },
         tabBarLabelStyle: {
           fontSize: theme.fontSize.xs,
