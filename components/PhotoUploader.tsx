@@ -56,6 +56,10 @@ export default function PhotoUploader({
       ),
     ]);
     const blob = await response.blob();
+    
+    // Log blob size in MB
+    const blobSizeMB = (blob.size / (1024 * 1024)).toFixed(2);
+    console.log(`[PhotoUploader] Blob size: ${blobSizeMB} MB for image ${index}`);
 
     // Create storage ref
     const storage = getStorage();
@@ -77,19 +81,10 @@ export default function PhotoUploader({
     
     const storageRef = ref(storage, path);
 
-    // Upload with timeout
-    await Promise.race([
-      uploadBytes(storageRef, blob, {
-        contentType: "image/jpeg",
-        customMetadata: {
-          uploadedBy: userId,
-          uploadedAt: timestamp.toString(),
-        }
-      }),
-      new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("Upload timeout (30s)")), 30000)
-      )
-    ]);
+    // Simple upload (temporarily without timeout)
+    await uploadBytes(storageRef, blob);
+    
+    console.log("[Debug] Upload completed successfully for image", index);
 
     // Get URL
     const url = await getDownloadURL(storageRef);
