@@ -357,18 +357,35 @@ export default function PhotoUploader({
           {getStatusIcon()}
         </View>
 
-        {/* Progress percentage bubble */}
+        {/* Progress percentage bubble - larger and more visible */}
         {photo.status === 'uploading' && (
           <View style={styles.progressBubble}>
             <Text style={styles.progressText}>{Math.round(photo.progress ?? 0)}%</Text>
           </View>
         )}
 
-        {/* Saved pill */}
+        {/* Large progress overlay for better visibility */}
+        {photo.status === 'uploading' && (
+          <View style={styles.uploadingOverlay}>
+            <View style={styles.uploadingContent}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={styles.uploadingText}>{Math.round(photo.progress ?? 0)}%</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Saved pill - enhanced */}
         {photo.status === 'completed' && (
           <View style={styles.savedPill}>
-            <CheckCircle size={12} color="#FFFFFF" />
+            <CheckCircle size={14} color="#FFFFFF" />
             <Text style={styles.savedPillText}>Saved</Text>
+          </View>
+        )}
+
+        {/* Success overlay for completed photos */}
+        {photo.status === 'completed' && (
+          <View style={styles.completedOverlay}>
+            <CheckCircle size={24} color="#34C759" />
           </View>
         )}
 
@@ -464,23 +481,38 @@ export default function PhotoUploader({
 
       {/* Photo grid */}
       {photos.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll} testID="photo-scroll">
-          {photos.map(renderPhoto)}
-        </ScrollView>
+        <View>
+          <Text style={styles.photoGridTitle}>Your Photos ({completedPhotos}/{photos.length})</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll} testID="photo-scroll">
+            {photos.map(renderPhoto)}
+          </ScrollView>
+        </View>
       )}
 
       {/* Overall upload status */}
       <View style={styles.statusRow} testID="upload-status-row">
         {uploading.length > 0 ? (
-          <>
-            <ActivityIndicator size="small" color="#007AFF" />
-            <Text style={styles.statusText}>Uploading {uploading.length} photo(s)... {overallProgress}%</Text>
-          </>
-        ) : (
-          <>
+          <View style={styles.uploadingStatusContainer}>
+            <View style={styles.uploadingHeader}>
+              <ActivityIndicator size="small" color="#007AFF" />
+              <Text style={styles.statusText}>Uploading {uploading.length} photo(s)...</Text>
+            </View>
+            <View style={styles.overallProgressContainer}>
+              <View style={styles.overallProgressBar}>
+                <View style={[styles.overallProgressFill, { width: `${overallProgress}%` }]} />
+              </View>
+              <Text style={styles.overallProgressText}>{overallProgress}%</Text>
+            </View>
+          </View>
+        ) : completedPhotos > 0 ? (
+          <View style={styles.completedStatusContainer}>
             <CheckCircle size={16} color="#34C759" />
-            <Text style={styles.statusText}>{completedPhotos} saved{completedPhotos > 0 ? ' • All set' : ''}</Text>
-          </>
+            <Text style={styles.statusText}>{completedPhotos} photo{completedPhotos > 1 ? 's' : ''} saved successfully!</Text>
+          </View>
+        ) : (
+          <View style={styles.emptyStatusContainer}>
+            <Text style={styles.emptyStatusText}>No photos uploaded yet</Text>
+          </View>
         )}
       </View>
 
@@ -554,6 +586,57 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontWeight: '500',
   },
+  photoGridTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 8,
+  },
+  uploadingStatusContainer: {
+    flex: 1,
+  },
+  uploadingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  overallProgressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  overallProgressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#E5E5EA',
+    borderRadius: 3,
+  },
+  overallProgressFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+    borderRadius: 3,
+  },
+  overallProgressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+    minWidth: 35,
+    textAlign: 'right',
+  },
+  completedStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyStatusContainer: {
+    alignItems: 'center',
+  },
+  emptyStatusText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontStyle: 'italic',
+  },
   addPhotosButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -615,10 +698,30 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     left: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadingContent: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  uploadingText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#007AFF',
   },
   progressText: {
     color: '#FFFFFF',
@@ -633,13 +736,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  completedOverlay: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 16,
+    padding: 4,
   },
   savedPillText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   removeButton: {
