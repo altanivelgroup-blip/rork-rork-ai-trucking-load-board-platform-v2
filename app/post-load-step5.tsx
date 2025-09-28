@@ -9,7 +9,7 @@ import { usePostLoad } from '@/hooks/usePostLoad';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Load, VehicleType } from '@/types';
-import PhotoUploader from '@/components/PhotoUploader';
+// import PhotoUploader from '@/components/PhotoUploader'; // Removed for restructuring
 import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
 import { ref as storageRefV9, uploadBytes, getDownloadURL as getDownloadURLv9 } from 'firebase/storage';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
@@ -417,18 +417,9 @@ function PostLoadStep5() {
             )}
 
             <View style={styles.photoUploaderContainer}>
-              <PhotoUploader
-                loadId={auth?.currentUser?.uid ? `${auth.currentUser.uid}-${draft.reference}` : draft.reference}
-                userId={auth?.currentUser?.uid || 'anonymous'}
-                role="shipper"
-                allowMultiple={draft.vehicleType === 'car-hauler'}
-                buttonLabel={draft.vehicleType === 'car-hauler' ? 'Upload 5 Photos (Required)' : 'Upload Photos'}
-                onUploaded={useCallback((items: {id:string;url:string;path:string}[]) => {
-                  console.log('[PostLoadStep5] PhotoUploader onUploaded', { count: items.length });
-                  const urls = items.map(item => item.url);
-                  setField('photoUrls', urls);
-                }, [setField])}
-              />
+              <Text style={styles.placeholderText}>
+                Photo upload component removed for restructuring.
+              </Text>
             </View>
           </View>
 
@@ -604,6 +595,13 @@ const styles = StyleSheet.create({
   postBtnDisabled: { backgroundColor: '#94a3b8' },
   postBtnText: { color: theme.colors.white, fontSize: theme.fontSize.lg, fontWeight: '800' },
   photoUploaderContainer: { marginTop: 8 },
+  placeholderText: {
+    color: theme.colors.gray,
+    fontSize: theme.fontSize.md,
+    textAlign: 'center',
+    padding: theme.spacing.md,
+    fontStyle: 'italic',
+  },
 });
 
 export default PostLoadStep5;

@@ -15,7 +15,7 @@ import { theme } from '@/constants/theme';
 import TypeSubtypeSelector from '@/components/TypeSubtypeSelector';
 import { TRUCK_SUBTYPES, TRAILER_SUBTYPES, AnySubtype } from '@/constants/vehicleOptions';
 
-import { PhotoUploader } from '@/components/PhotoUploader';
+// import { PhotoUploader } from '@/components/PhotoUploader'; // Removed for restructuring
 import { useToast } from '@/components/Toast';
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { getVehicle, updateVehicle, createVehicleWithId } from '@/lib/firebase';
@@ -604,13 +604,9 @@ export default function VehicleEditScreen() {
             Add at least 5 high-quality photos of your vehicle. The first photo will be used as the cover image.
           </Text>
           
-          <PhotoUploader
-            entityType="vehicle"
-            entityId={state.vehicle.id}
-            minPhotos={5}
-            maxPhotos={20}
-            onChange={handlePhotoChange}
-          />
+          <Text style={styles.placeholderText}>
+            Photo upload component removed for restructuring.
+          </Text>
         </View>
         
         {/* Authentication Error */}
@@ -943,5 +939,12 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: theme.fontSize.md,
     fontWeight: '600' as const,
+  },
+  placeholderText: {
+    color: theme.colors.gray,
+    fontSize: theme.fontSize.md,
+    textAlign: 'center',
+    padding: theme.spacing.md,
+    fontStyle: 'italic',
   },
 });
