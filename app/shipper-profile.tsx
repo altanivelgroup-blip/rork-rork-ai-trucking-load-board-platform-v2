@@ -112,14 +112,7 @@ export default function ShipperProfileScreen() {
   }, [logout, router]);
 
   const quickActions = [
-    {
-      id: 'photo-upload',
-      title: 'Photo Upload',
-      subtitle: 'Quick photo upload test',
-      icon: Camera,
-      route: '/photo-upload',
-      color: '#10b981'
-    },
+
     {
       id: 'ai-tools',
       title: 'AI Tools',

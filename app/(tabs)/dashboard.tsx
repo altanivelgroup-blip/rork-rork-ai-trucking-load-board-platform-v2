@@ -541,7 +541,7 @@ export default function DashboardScreen() {
                   try {
                     console.log('[Dashboard] Sign out pressed');
                     await signOut(auth);
-                    router.replace('/signin');
+                    router.replace('/login');
                   } catch (e) {
                     console.warn('[Dashboard] Sign out failed', e);
                   }
@@ -558,7 +558,7 @@ export default function DashboardScreen() {
                 onPress={() => {
                   try {
                     console.log('[Dashboard] Sign in pressed');
-                    router.push('/signin');
+                    router.push('/login');
                   } catch (e) {
                     console.warn('[Dashboard] Sign in navigation failed', e);
                   }
@@ -658,13 +658,7 @@ export default function DashboardScreen() {
                   style={[styles.aiLoadsButton, { backgroundColor: theme.colors.dark }]}>
                   <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>Refresh</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => router.push('/photo-uploader-test')}
-                  testID="btnPhotoTest"
-                  accessibilityRole="button"
-                  style={[styles.aiLoadsButton, { backgroundColor: '#FF6B35' }]}>
-                  <Text style={styles.aiLoadsButtonText} allowFontScaling={false}>Photo Test</Text>
-                </TouchableOpacity>
+
               </View>
             )}
           </View>
