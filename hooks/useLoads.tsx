@@ -746,7 +746,7 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
           return;
         }
         
-        // Get Firebase instance - auth is optional for public read access
+        // Get Firebase instance - auth is required for Firestore access
         const { db } = getFirebase();
         if (!mounted || !db) {
           console.log('[LOADS_DISAPPEAR_FIX] Firebase not available or component unmounted - will retry');
@@ -757,13 +757,25 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
           return;
         }
         
-        // Try to ensure auth but don't fail if it's not available (public read access)
-        try {
-          await ensureFirebaseAuth();
-          console.log('[LOADS_DISAPPEAR_FIX] Firebase auth available for real-time listener');
-        } catch (authError) {
-          console.log('[LOADS_DISAPPEAR_FIX] Auth not available, using public read access:', authError);
+        // PERMISSION FIX: Ensure authentication before setting up listener
+        console.log('[LOADS_DISAPPEAR_FIX] Ensuring Firebase authentication...');
+        const authSuccess = await ensureFirebaseAuth();
+        if (!authSuccess) {
+          console.warn('[LOADS_DISAPPEAR_FIX] Authentication failed, falling back to persisted data');
+          if (mounted) {
+            try {
+              const persisted = await readPersisted();
+              const fallbackLoads = mergeUniqueById(mockLoads, persisted);
+              setLoads(fallbackLoads);
+              console.log(`[LOADS_DISAPPEAR_FIX] Fallback applied - restored ${fallbackLoads.length} loads`);
+            } catch (fallbackErr) {
+              console.warn('[LOADS_DISAPPEAR_FIX] Fallback failed:', fallbackErr);
+              setLoads([...mockLoads]);
+            }
+          }
+          return;
         }
+        console.log('[LOADS_DISAPPEAR_FIX] ✅ Firebase authentication confirmed for real-time listener');
         
         // Clean up existing listener
         if (unsubscribeRef.current) {
@@ -872,26 +884,43 @@ const [LoadsProviderInternal, useLoadsInternal] = createContextHook<LoadsState>(
             }
           }
         }, async (err) => {
-          console.error('[LOADS_DISAPPEAR_FIX] Real-time listener error:', (err as any)?.code || (err as any)?.message);
+          const errorCode = (err as any)?.code || 'unknown';
+          const errorMessage = (err as any)?.message || 'Unknown error';
+          console.error('[LOADS_DISAPPEAR_FIX] Real-time listener error:', errorCode, errorMessage);
+          
+          // PERMISSION FIX: Handle permission-denied errors specifically
+          if (errorCode === 'permission-denied') {
+            console.warn('[LOADS_DISAPPEAR_FIX] Permission denied - attempting to re-authenticate...');
+            try {
+              const reAuthSuccess = await ensureFirebaseAuth();
+              if (reAuthSuccess && mounted) {
+                console.log('[LOADS_DISAPPEAR_FIX] Re-authentication successful, restarting listener...');
+                // Restart the listener after successful re-auth
+                setTimeout(startCrossPlatformListener, 2000);
+                return;
+              }
+            } catch (reAuthError) {
+              console.warn('[LOADS_DISAPPEAR_FIX] Re-authentication failed:', reAuthError);
+            }
+          }
           
           // LOADS_RESTORE_FIX: Aggressive fallback to restore loads
           if (mounted) {
             try {
               const persisted = await readPersisted();
-              const fallbackLoads = persisted; // Use only real persisted data
-              setLoads(fallbackLoads); // Show all without expiration filtering
+              const fallbackLoads = mergeUniqueById(mockLoads, persisted);
+              setLoads(fallbackLoads);
               console.log(`[LOADS_RESTORE_FIX] Applied fallback - restored ${fallbackLoads.length} loads`);
             } catch (fallbackErr) {
               console.warn('[LOADS_RESTORE_FIX] Fallback failed:', fallbackErr);
-              setLoads([]); // Empty state instead of mock data
+              setLoads([...mockLoads]); // Use mock data as last resort
             }
           }
           
-          // Auto-reconnect after error
-          if (mounted) {
-            console.log('[LOADS_DISAPPEAR_FIX] Auto-reconnect disabled - drivers need unlimited time');
-            // TIMEOUT DISABLED: Drivers need unlimited time to browse loads
-            // reconnectTimer = setTimeout(startCrossPlatformListener, 15000);
+          // Auto-reconnect after error (except for permission issues)
+          if (mounted && errorCode !== 'permission-denied') {
+            console.log('[LOADS_DISAPPEAR_FIX] Scheduling reconnection in 15 seconds...');
+            reconnectTimer = setTimeout(startCrossPlatformListener, 15000);
           }
         });
         
