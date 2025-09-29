@@ -695,7 +695,19 @@ export async function getDriverProfile(userId: string) {
       throw new Error("Firebase authentication failed");
     }
 
-    const { db } = getFirebase();
+    const { auth, db } = getFirebase();
+    
+    // Verify we have an authenticated user
+    if (!auth.currentUser) {
+      console.error("[GET_DRIVER_PROFILE] No authenticated user after ensureFirebaseAuth");
+      throw new Error("No authenticated user");
+    }
+    
+    console.log("[GET_DRIVER_PROFILE] Authenticated as:", {
+      uid: auth.currentUser.uid,
+      isAnonymous: auth.currentUser.isAnonymous,
+      requestedUserId: userId
+    });
 
     // Try to get from drivers collection first
     const driverRef = doc(db, "drivers", userId);
@@ -737,6 +749,17 @@ export async function getDriverProfile(userId: string) {
     };
   } catch (error: any) {
     console.error("[GET_DRIVER_PROFILE] ❌ Failed to get driver profile:", error);
+    console.error("[GET_DRIVER_PROFILE] Error details:", {
+      code: error?.code,
+      message: error?.message,
+      userId: userId
+    });
+    
+    // Return a more user-friendly error
+    if (error?.code === 'permission-denied') {
+      throw new Error('Permission denied. Please ensure you are signed in.');
+    }
+    
     throw error;
   }
 }
