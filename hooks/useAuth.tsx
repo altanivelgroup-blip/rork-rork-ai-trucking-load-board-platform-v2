@@ -124,56 +124,154 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 lastLoginAt: new Date(),
               } as Admin;
             } else {
-              // For drivers, try to load saved profile from Firestore
-              let savedMpg = 8.5; // Default fallback
+              // For drivers, try to load complete saved profile from Firestore
+              console.log('[auth] Loading driver profile from Firestore...');
               try {
                 const { getDriverProfile } = await import('@/lib/firebase');
                 const profileResult = await getDriverProfile(firebaseUser.uid);
+                
                 if (profileResult.success && profileResult.data) {
                   const profile = profileResult.data;
-                  // Use saved MPG if available
-                  if (profile.mpgRated) {
-                    savedMpg = profile.mpgRated;
-                    console.log(`[auth] Loaded saved MPG from Firestore: ${savedMpg}`);
-                  } else if (profile.fuelProfile?.averageMpg) {
-                    savedMpg = profile.fuelProfile.averageMpg;
-                    console.log(`[auth] Loaded saved MPG from fuelProfile: ${savedMpg}`);
-                  }
+                  console.log('[auth] ✅ Loaded complete driver profile from Firestore:', {
+                    name: profile.fullName || profile.name,
+                    email: profile.email,
+                    phone: profile.phone,
+                    vehicleMake: profile.vehicleMake,
+                    vehicleModel: profile.vehicleModel,
+                    mpgRated: profile.mpgRated,
+                    hasCompanyInfo: !!(profile.companyName || profile.mcNumber)
+                  });
+                  
+                  // Use the complete saved profile
+                  userObject = {
+                    id: firebaseUser.uid,
+                    role: 'driver',
+                    email: profile.email || email,
+                    name: profile.fullName || profile.name || name,
+                    phone: profile.phone || '',
+                    membershipTier: 'basic',
+                    createdAt: new Date(),
+                    cdlNumber: profile.cdlNumber || '',
+                    vehicleTypes: profile.vehicleTypes || [],
+                    rating: 4.8,
+                    completedLoads: 24,
+                    documents: [],
+                    wallet: {
+                      balance: profile.balance || 2450,
+                      pendingEarnings: 850,
+                      totalEarnings: 12500,
+                      transactions: [],
+                    },
+                    fuelProfile: profile.fuelProfile || {
+                      vehicleType: profile.truckType || 'truck',
+                      averageMpg: profile.mpgRated || 8.5,
+                      fuelPricePerGallon: 3.85,
+                      fuelType: profile.fuelType || 'diesel',
+                      tankCapacity: profile.tankGallons || 150,
+                    },
+                    mpgRated: profile.mpgRated || 8.5,
+                    isAvailable: true,
+                    verificationStatus: profile.verificationStatus || 'verified',
+                    // Include all the saved profile fields
+                    company: profile.company,
+                    truckType: profile.truckType,
+                    tankSize: profile.tankSize,
+                    fuelTypePreference: profile.fuelTypePreference,
+                    yearsExperience: profile.yearsExperience,
+                    safetyCertifications: profile.safetyCertifications,
+                    vehicleMake: profile.vehicleMake,
+                    vehicleModel: profile.vehicleModel,
+                    vehicleYear: profile.vehicleYear,
+                    fuelType: profile.fuelType,
+                    vin: profile.vin,
+                    plate: profile.plate,
+                    tankGallons: profile.tankGallons,
+                    gvwrLbs: profile.gvwrLbs,
+                    trailerMake: profile.trailerMake,
+                    trailerModel: profile.trailerModel,
+                    trailerYear: profile.trailerYear,
+                    trailerVin: profile.trailerVin,
+                    trailerPlate: profile.trailerPlate,
+                    trailerInsuranceCarrier: profile.trailerInsuranceCarrier,
+                    trailerPolicyNumber: profile.trailerPolicyNumber,
+                    trailerGvwrLbs: profile.trailerGvwrLbs,
+                    trailerType: profile.trailerType,
+                    companyName: profile.companyName,
+                    mcNumber: profile.mcNumber,
+                    dotNumber: profile.dotNumber,
+                    insuranceCarrier: profile.insuranceCarrier,
+                    policyNumber: profile.policyNumber,
+                  } as Driver;
+                  
+                  console.log('[auth] ✅ Driver profile fully loaded and restored');
+                } else {
+                  console.log('[auth] ⚠️ No saved profile found, creating default driver profile');
+                  // Create default profile if none exists
+                  userObject = {
+                    id: firebaseUser.uid,
+                    role: 'driver',
+                    email,
+                    name,
+                    phone: '',
+                    membershipTier: 'basic',
+                    createdAt: new Date(),
+                    cdlNumber: '',
+                    vehicleTypes: [],
+                    rating: 4.8,
+                    completedLoads: 24,
+                    documents: [],
+                    wallet: {
+                      balance: 2450,
+                      pendingEarnings: 850,
+                      totalEarnings: 12500,
+                      transactions: [],
+                    },
+                    fuelProfile: {
+                      vehicleType: 'truck',
+                      averageMpg: 8.5,
+                      fuelPricePerGallon: 3.85,
+                      fuelType: 'diesel',
+                      tankCapacity: 150,
+                    },
+                    mpgRated: 8.5,
+                    isAvailable: true,
+                    verificationStatus: 'verified',
+                  } as Driver;
                 }
               } catch (profileError) {
-                console.warn('[auth] Failed to load driver profile, using default MPG:', profileError);
+                console.warn('[auth] ❌ Failed to load driver profile, using default:', profileError);
+                // Fallback to default profile
+                userObject = {
+                  id: firebaseUser.uid,
+                  role: 'driver',
+                  email,
+                  name,
+                  phone: '',
+                  membershipTier: 'basic',
+                  createdAt: new Date(),
+                  cdlNumber: '',
+                  vehicleTypes: [],
+                  rating: 4.8,
+                  completedLoads: 24,
+                  documents: [],
+                  wallet: {
+                    balance: 2450,
+                    pendingEarnings: 850,
+                    totalEarnings: 12500,
+                    transactions: [],
+                  },
+                  fuelProfile: {
+                    vehicleType: 'truck',
+                    averageMpg: 8.5,
+                    fuelPricePerGallon: 3.85,
+                    fuelType: 'diesel',
+                    tankCapacity: 150,
+                  },
+                  mpgRated: 8.5,
+                  isAvailable: true,
+                  verificationStatus: 'verified',
+                } as Driver;
               }
-              
-              userObject = {
-                id: firebaseUser.uid,
-                role: 'driver',
-                email,
-                name,
-                phone: '',
-                membershipTier: 'basic',
-                createdAt: new Date(),
-                cdlNumber: '',
-                vehicleTypes: [],
-                rating: 4.8,
-                completedLoads: 24,
-                documents: [],
-                wallet: {
-                  balance: 2450,
-                  pendingEarnings: 850,
-                  totalEarnings: 12500,
-                  transactions: [],
-                },
-                fuelProfile: {
-                  vehicleType: 'truck',
-                  averageMpg: savedMpg,
-                  fuelPricePerGallon: 3.85,
-                  fuelType: 'diesel',
-                  tankCapacity: 150,
-                },
-                mpgRated: savedMpg,
-                isAvailable: true,
-                verificationStatus: 'verified',
-              } as Driver;
             }
             
             setUser(userObject);
