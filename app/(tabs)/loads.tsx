@@ -133,7 +133,7 @@ export default function LoadsScreen() {
     setDeleteConfirmModal({ visible: true, loadId });
   }, []);
   
-  // Load last bulk import ID and trigger initial load restoration
+  // Load last bulk import ID and trigger comprehensive load restoration
   useEffect(() => {
     const loadLastBulkImportId = async () => {
       try {
@@ -147,18 +147,32 @@ export default function LoadsScreen() {
     };
     
     const initializeLoads = async () => {
-      console.log('[LOADS_RESTORE] 🚀 Initializing loads on component mount');
+      console.log('[LOADS_RESTORE_234] 🚀 COMPREHENSIVE LOAD RESTORATION - Starting...');
       try {
+        // Force a comprehensive refresh to restore all loads
         await refreshLoads();
-        console.log('[LOADS_RESTORE] ✅ Initial load restoration completed');
+        console.log(`[LOADS_RESTORE_234] ✅ Successfully restored ${filteredLoads.length} loads to loads page`);
+        show(`Restored ${filteredLoads.length} loads successfully!`, 'success');
       } catch (error) {
-        console.warn('[LOADS_RESTORE] ⚠️ Initial load restoration failed:', error);
+        console.error('[LOADS_RESTORE_234] ❌ Load restoration failed:', error);
+        show('Load restoration failed - trying fallback...', 'warning');
+        // Fallback: try again after a short delay
+        setTimeout(async () => {
+          try {
+            await refreshLoads();
+            console.log(`[LOADS_RESTORE_234] ✅ Fallback restoration successful - ${filteredLoads.length} loads`);
+            show(`Fallback successful: ${filteredLoads.length} loads restored!`, 'success');
+          } catch (fallbackError) {
+            console.error('[LOADS_RESTORE_234] ❌ Fallback also failed:', fallbackError);
+            show('Load restoration failed completely', 'error');
+          }
+        }, 2000);
       }
     };
     
     loadLastBulkImportId();
     initializeLoads();
-  }, [refreshLoads]);
+  }, [refreshLoads, show]);
   
   return (
     <>
@@ -178,22 +192,35 @@ export default function LoadsScreen() {
                 style={refreshing ? { transform: [{ rotate: '180deg' }] } : undefined}
               />
             </TouchableOpacity>
-            {/* Debug: Force Load Restoration Button */}
+            {/* RESTORE LOADS 234 - Enhanced Force Restoration Button */}
             <TouchableOpacity 
-              style={[styles.headerButton, { backgroundColor: theme.colors.success }]}
+              style={[styles.headerButton, { backgroundColor: theme.colors.success, paddingHorizontal: 8 }]}
               onPress={async () => {
-                console.log('[LOADS_RESTORE] 🔧 Debug: Force load restoration triggered');
-                show('Restoring loads from all sources...', 'info');
+                console.log('[LOADS_RESTORE_234] 🔧 FORCE RESTORATION - User triggered comprehensive load restore');
+                show('🔄 Restoring all loads from all sources...', 'info');
+                setRefreshing(true);
                 try {
+                  // Clear any existing filters that might hide loads
+                  setFilters({});
+                  setShowBulkOnly(false);
+                  setShowLastImportOnly(false);
+                  
+                  // Force comprehensive refresh
                   await refreshLoads();
-                  show(`Successfully restored ${filteredLoads.length} loads!`, 'success');
+                  
+                  const totalLoads = filteredLoads.length;
+                  console.log(`[LOADS_RESTORE_234] ✅ FORCE RESTORATION SUCCESS - ${totalLoads} loads now visible`);
+                  show(`🎉 SUCCESS! Restored ${totalLoads} loads to your loads page!`, 'success');
                 } catch (error) {
-                  console.error('[LOADS_RESTORE] Debug restoration failed:', error);
-                  show('Load restoration failed', 'error');
+                  console.error('[LOADS_RESTORE_234] ❌ FORCE RESTORATION FAILED:', error);
+                  show('❌ Force restoration failed - check console', 'error');
+                } finally {
+                  setRefreshing(false);
                 }
               }}
+              testID="force-restore-loads-btn"
             >
-              <RefreshCw size={16} color={theme.colors.white} />
+              <Text style={{ color: theme.colors.white, fontSize: 10, fontWeight: 'bold' }}>RESTORE</Text>
             </TouchableOpacity>
             {isShipper && (
               <>
@@ -217,11 +244,28 @@ export default function LoadsScreen() {
       <View style={styles.container}>
         {/* Header Controls */}
         <View style={styles.headerControls}>
-          {/* Load Count */}
+          {/* Enhanced Load Count with Restoration Status */}
           <View style={styles.loadCountSection}>
             <Text style={styles.loadCountText}>
-              {isLoading ? 'Loading...' : `${loads.length} load${loads.length !== 1 ? 's' : ''} found`}
+              {isLoading ? '🔄 Loading loads...' : `📦 ${loads.length} load${loads.length !== 1 ? 's' : ''} found`}
             </Text>
+            {loads.length === 0 && !isLoading && (
+              <TouchableOpacity 
+                style={styles.restoreHintButton}
+                onPress={async () => {
+                  console.log('[LOADS_RESTORE_234] 🔧 Restore hint button pressed');
+                  show('🔄 Attempting to restore your loads...', 'info');
+                  try {
+                    await refreshLoads();
+                    show(`✅ Restored ${filteredLoads.length} loads!`, 'success');
+                  } catch (error) {
+                    show('❌ Restoration failed', 'error');
+                  }
+                }}
+              >
+                <Text style={styles.restoreHintText}>🔄 Tap to restore loads</Text>
+              </TouchableOpacity>
+            )}
           </View>
           
           {/* Equipment Type Filters */}
@@ -791,6 +835,20 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     color: '#EF4444',
+  },
+  restoreHintButton: {
+    marginTop: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+    alignSelf: 'center',
+  },
+  restoreHintText: {
+    color: theme.colors.white,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
 });
