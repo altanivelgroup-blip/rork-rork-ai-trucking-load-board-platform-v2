@@ -53,7 +53,7 @@ export interface PhotoUploaderProps {
   onChange?: (photos: string[], primaryPhoto: string, uploadsInProgress: number) => void;
 }
 
-interface PhotoItem {
+export interface PhotoData {
   url: string;
   uploading?: boolean;
   progress?: number;
@@ -61,6 +61,8 @@ interface PhotoItem {
   id: string;
   originalFile?: AnyImage;
 }
+
+interface PhotoItem extends PhotoData {}
 
 async function upsertLoadPhoto(loadId: string, url: string, makePrimary = false) {
   const { db } = getFirebase();
@@ -247,7 +249,7 @@ async function uploadSmart(path: string, blob: Blob, mime: string, key: string, 
       });
       
       return await new Promise<string>((resolve, reject) => {
-        let timeoutId: NodeJS.Timeout | null = null;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
         let isCompleted = false;
         
         // Set timeout with better error handling
