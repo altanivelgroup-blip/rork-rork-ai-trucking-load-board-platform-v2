@@ -689,7 +689,30 @@ export async function getDriverProfile(userId: string) {
   try {
     console.log("[GET_DRIVER_PROFILE] Fetching driver profile for user:", userId);
 
-    const authSuccess = await ensureFirebaseAuth();
+  // Mirrors mpgRated <-> fuelProfile.averageMpg if one is missing or mismatched.
+export async function repairDriverMpg(uid: string) {
+  const { db } = getFirebase();
+  const ref = doc(db, 'drivers', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { fixed: false, reason: 'no-doc' };
+
+  const d = snap.data() as any;
+  const rated = typeof d.mpgRated === 'number' ? d.mpgRated : undefined;
+  const avg   = typeof d?.fuelProfile?.averageMpg === 'number' ? d.fuelProfile.averageMpg : undefined;
+  const mpg   = rated ?? avg;
+
+  if (typeof mpg !== 'number') return { fixed: false, reason: 'no-mpg' };
+  if (rated === mpg && avg === mpg) return { fixed: false, reason: 'already-mirrored' };
+
+  await setDoc(ref, {
+    mpgRated: mpg,
+    fuelProfile: { ...(d.fuelProfile ?? {}), averageMpg: mpg },
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  return { fixed: true, value: mpg };
+}
+  const authSuccess = await ensureFirebaseAuth();
     if (!authSuccess) {
       console.warn("[GET_DRIVER_PROFILE] Firebase auth failed");
       throw new Error("Firebase authentication failed");
