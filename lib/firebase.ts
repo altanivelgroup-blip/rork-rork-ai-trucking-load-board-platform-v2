@@ -69,16 +69,9 @@ export async function testFirebaseConnection() {
         limit(3)
       );
       const publicSnap = await getDocsFromServer(publicQuery);
-      console.log(
-        "[Firebase Test] ✅ Public read OK, docs:",
-        publicSnap.docs.length
-      );
+      console.log("[Firebase Test] ✅ Public read OK, docs:", publicSnap.docs.length);
     } catch (readError: any) {
-      console.warn(
-        "[Firebase Test] ⚠️ Public read failed:",
-        readError.code,
-        readError.message
-      );
+      console.warn("[Firebase Test] ⚠️ Public read failed:", readError.code, readError.message);
     }
 
     // Test 3: User-specific read (simplified to avoid index issues)
@@ -90,38 +83,19 @@ export async function testFirebaseConnection() {
         limit(5)
       );
       const userSnap = await getDocsFromServer(userQuery);
-      console.log(
-        "[Firebase Test] ✅ User-specific read OK, docs:",
-        userSnap.docs.length
-      );
+      console.log("[Firebase Test] ✅ User-specific read OK, docs:", userSnap.docs.length);
     } catch (userReadError: any) {
-      if (
-        userReadError.code === "failed-precondition" &&
-        userReadError.message.includes("index")
-      ) {
-        console.warn(
-          "[Firebase Test] ⚠️ Index required for complex queries - this is normal for new projects"
-        );
+      if (userReadError.code === "failed-precondition" && userReadError.message.includes("index")) {
+        console.warn("[Firebase Test] ⚠️ Index required for complex queries - this is normal for new projects");
         try {
           const simpleQuery = query(collection(db, LOADS_COLLECTION), limit(3));
           const simpleSnap = await getDocsFromServer(simpleQuery);
-          console.log(
-            "[Firebase Test] ✅ Simple read OK, docs:",
-            simpleSnap.docs.length
-          );
+          console.log("[Firebase Test] ✅ Simple read OK, docs:", simpleSnap.docs.length);
         } catch (simpleError: any) {
-          console.warn(
-            "[Firebase Test] ❌ Even simple read failed:",
-            simpleError.code,
-            simpleError.message
-          );
+          console.warn("[Firebase Test] ❌ Even simple read failed:", simpleError.code, simpleError.message);
         }
       } else {
-        console.warn(
-          "[Firebase Test] ⚠️ User-specific read failed:",
-          userReadError.code,
-          userReadError.message
-        );
+        console.warn("[Firebase Test] ⚠️ User-specific read failed:", userReadError.code, userReadError.message);
       }
     }
 
@@ -145,19 +119,13 @@ export async function testFirebaseConnection() {
       await deleteDoc(testDoc);
       console.log("[Firebase Test] 🧹 Test document cleaned up");
     } catch (writeError: any) {
-      console.warn(
-        "[Firebase Test] ❌ Write test failed:",
-        writeError.code,
-        writeError.message
-      );
+      console.warn("[Firebase Test] ❌ Write test failed:", writeError.code, writeError.message);
 
       let errorGuidance = writeError.message;
       if (writeError.code === "permission-denied") {
-        errorGuidance =
-          "Anonymous users need write permissions. Check Firestore security rules.";
+        errorGuidance = "Anonymous users need write permissions. Check Firestore security rules.";
       } else if (writeError.code === "failed-precondition") {
-        errorGuidance =
-          "Database index required. Check Firebase Console for index creation link.";
+        errorGuidance = "Database index required. Check Firebase Console for index creation link.";
       }
 
       return {
@@ -197,19 +165,14 @@ export async function testFirebaseConnection() {
 }
 
 // ---- ENFORCE LOAD RULES: Archive expired loads (7-day auto-delete from board) ----
-export async function archiveExpiredLoads(): Promise<{
-  scanned: number;
-  archived: number;
-}> {
+export async function archiveExpiredLoads(): Promise<{ scanned: number; archived: number }> {
   const { db } = getFirebase();
   const now = Date.now();
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
   let archived = 0;
   let scanned = 0;
 
-  console.log(
-    "[ArchiveExpired] ENFORCE RULES - Starting 7-day auto-delete from board"
-  );
+  console.log("[ArchiveExpired] ENFORCE RULES - Starting 7-day auto-delete from board");
 
   try {
     const q = query(
@@ -220,9 +183,7 @@ export async function archiveExpiredLoads(): Promise<{
     const snap = await getDocs(q as any);
     scanned = snap.docs.length;
 
-    console.log(
-      `[ArchiveExpired] ENFORCE RULES - Scanned ${scanned} loads for 7-day rule`
-    );
+    console.log(`[ArchiveExpired] ENFORCE RULES - Scanned ${scanned} loads for 7-day rule`);
 
     if (scanned === 0) return { scanned, archived };
 
@@ -235,8 +196,7 @@ export async function archiveExpiredLoads(): Promise<{
         : new Date(data?.deliveryDate || 0);
       const deliveryTimestamp = deliveryDate.getTime();
 
-      const shouldArchive =
-        deliveryTimestamp < sevenDaysAgo && !isNaN(deliveryTimestamp);
+      const shouldArchive = deliveryTimestamp < sevenDaysAgo && !isNaN(deliveryTimestamp);
 
       if (shouldArchive) {
         console.log(
@@ -257,13 +217,9 @@ export async function archiveExpiredLoads(): Promise<{
 
     if (archived > 0) {
       await batch.commit();
-      console.log(
-        `[ArchiveExpired] ENFORCE RULES - Successfully auto-deleted ${archived} loads from board (kept in history)`
-      );
+      console.log(`[ArchiveExpired] ENFORCE RULES - Successfully auto-deleted ${archived} loads from board (kept in history)`);
     } else {
-      console.log(
-        "[ArchiveExpired] ENFORCE RULES - No loads eligible for board auto-delete at this time"
-      );
+      console.log("[ArchiveExpired] ENFORCE RULES - No loads eligible for board auto-delete at this time");
     }
 
     return { scanned, archived };
@@ -274,17 +230,13 @@ export async function archiveExpiredLoads(): Promise<{
 }
 
 // ---- ENFORCE LOAD RULES: Purge archived loads (only when manually deleted from profile) ----
-export async function purgeArchivedLoads(
-  days: number = 14
-): Promise<{ scanned: number; purged: number }> {
+export async function purgeArchivedLoads(days: number = 14): Promise<{ scanned: number; purged: number }> {
   const { db } = getFirebase();
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   let purged = 0;
   let scanned = 0;
 
-  console.log(
-    `[PurgeArchived] ENFORCE RULES - Starting purge of manually deleted loads older than ${days} days`
-  );
+  console.log(`[PurgeArchived] ENFORCE RULES - Starting purge of manually deleted loads older than ${days} days`);
 
   try {
     const q = query(
@@ -297,17 +249,13 @@ export async function purgeArchivedLoads(
     const snap = await getDocs(q as any);
     const toDelete = snap.docs.filter((d) => {
       const data = d.data() as any;
-      const archivedAt = data?.archivedAt?.toDate
-        ? data.archivedAt.toDate().getTime()
-        : 0;
+      const archivedAt = data?.archivedAt?.toDate ? data.archivedAt.toDate().getTime() : 0;
 
       const shouldDelete = typeof archivedAt === "number" && archivedAt < cutoff;
 
       if (shouldDelete) {
         console.log(
-          `[PurgeArchived] ENFORCE RULES - Marking manually deleted load for purge: ${d.id}, archived: ${new Date(
-            archivedAt
-          ).toISOString()}`
+          `[PurgeArchived] ENFORCE RULES - Marking manually deleted load for purge: ${d.id}, archived: ${new Date(archivedAt).toISOString()}`
         );
       }
 
@@ -315,9 +263,7 @@ export async function purgeArchivedLoads(
     });
 
     scanned = toDelete.length;
-    console.log(
-      `[PurgeArchived] ENFORCE RULES - Found ${scanned} manually deleted loads eligible for purge`
-    );
+    console.log(`[PurgeArchived] ENFORCE RULES - Found ${scanned} manually deleted loads eligible for purge`);
 
     if (scanned === 0) return { scanned, purged };
 
@@ -328,9 +274,7 @@ export async function purgeArchivedLoads(
     });
 
     await batch.commit();
-    console.log(
-      `[PurgeArchived] ENFORCE RULES - Successfully purged ${purged} manually deleted loads`
-    );
+    console.log(`[PurgeArchived] ENFORCE RULES - Successfully purged ${purged} manually deleted loads`);
 
     return { scanned, purged };
   } catch (e) {
@@ -369,8 +313,7 @@ function getOffsetMsForTZ(tz: string, atUtcMs: number): number | null {
       second: "2-digit",
     });
     const parts = fmt.formatToParts(new Date(atUtcMs));
-    const tzName =
-      parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+    const tzName = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
     const off = parseGmtOffset(tzName);
     return off;
   } catch (e) {
@@ -404,15 +347,9 @@ function toUtcMsForLocalWallTime(
   return refined;
 }
 
-export function computeExpiresAtMsFromLocalTZ(
-  deliveryLocalISO: string,
-  tz: string
-): number {
+export function computeExpiresAtMsFromLocalTZ(deliveryLocalISO: string, tz: string): number {
   try {
-    const providedTz =
-      FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0
-        ? FORCE_DELIVERY_TZ
-        : tz;
+    const providedTz = (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) ? FORCE_DELIVERY_TZ : tz;
     const safeTz = (() => {
       try {
         new Intl.DateTimeFormat("en-US", { timeZone: providedTz });
@@ -426,9 +363,7 @@ export function computeExpiresAtMsFromLocalTZ(
     const hasTime = /T\d{2}:\d{2}/.test(raw);
     const normalized = hasTime ? raw : `${raw}T17:00`;
 
-    const m = normalized.match(
-      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?/
-    );
+    const m = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?/);
     if (!m) throw new Error("invalid ISO");
     const y = Number(m[1]);
     const mo = Number(m[2]) - 1;
@@ -448,19 +383,16 @@ export function computeExpiresAtMsFromLocalTZ(
 }
 
 // ======================
-// MPG helpers (NEW)
+// MPG helpers
 // ======================
 function pickNumber(v: any): number | undefined {
   const n = typeof v === "string" ? Number(v) : v;
   return Number.isFinite(n) ? n : undefined;
 }
 
-function withNormalizedMpg<T extends { mpgRated?: any; fuelProfile?: any }>(
-  obj: T
-) {
+function withNormalizedMpg<T extends { mpgRated?: any; fuelProfile?: any }>(obj: T) {
   const mpg = pickNumber(obj.mpgRated ?? obj.fuelProfile?.averageMpg);
   if (mpg == null) return obj;
-
   return {
     ...obj,
     mpgRated: mpg,
@@ -476,20 +408,15 @@ function withNormalizedMpg<T extends { mpgRated?: any; fuelProfile?: any }>(
 // ======================
 export async function saveDriverProfile(driverData: {
   userId: string;
-  // Personal Information
   fullName: string;
   email: string;
   phone?: string;
   company?: string;
-
-  // Basic Driver Profile Fields
   truckType?: string;
   tankSize?: number;
   fuelTypePreference?: "diesel" | "gasoline";
   yearsExperience?: number;
   safetyCertifications?: string;
-
-  // Vehicle Information
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleYear?: number;
@@ -499,8 +426,6 @@ export async function saveDriverProfile(driverData: {
   plate?: string;
   tankGallons?: number;
   gvwrLbs?: number;
-
-  // Trailer Information
   trailerMake?: string;
   trailerModel?: string;
   trailerYear?: number;
@@ -510,61 +435,51 @@ export async function saveDriverProfile(driverData: {
   trailerPolicyNumber?: string;
   trailerGvwrLbs?: number;
   trailerType?: string;
-
-  // Company & Insurance
   companyName?: string;
   mcNumber?: string;
   dotNumber?: string;
   insuranceCarrier?: string;
   policyNumber?: string;
-
-  // Additional fields
   role?: string;
   isActive?: boolean;
   balance?: number;
 }) {
   try {
-    console.log(
-      "[SAVE_DRIVER_PROFILE] Starting driver profile save for user:",
-      driverData.userId
-    );
-    console.log(
-      "[SAVE_DRIVER_PROFILE] Profile data:",
-      JSON.stringify(driverData, null, 2)
-    );
+    console.log("[SAVE_DRIVER_PROFILE] Starting driver profile save for user:", driverData.userId);
+    console.log("[SAVE_DRIVER_PROFILE] Profile data:", JSON.stringify(driverData, null, 2));
 
     const authSuccess = await ensureFirebaseAuth();
     if (!authSuccess) {
-      console.warn(
-        "[SAVE_DRIVER_PROFILE] Firebase auth failed, throwing error"
-      );
+      console.warn("[SAVE_DRIVER_PROFILE] Firebase auth failed, throwing error");
       throw new Error("Firebase authentication failed");
     }
 
     const { auth, db } = getFirebase();
     const currentUser = auth.currentUser;
-
     if (!currentUser) {
       console.warn("[SAVE_DRIVER_PROFILE] No authenticated user");
       throw new Error("No authenticated user");
     }
 
-    // Build raw profile from inputs
+    const driverRef = doc(db, "drivers", driverData.userId);
+    const existingSnap = await getDoc(driverRef);
+    const timestamps = existingSnap.exists()
+      ? { updatedAt: serverTimestamp() }
+      : { createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+
+    // Build raw profile from inputs (no timestamps here)
     const rawProfile = {
-      // Personal Information
       fullName: driverData.fullName || "",
       email: driverData.email || "",
       phone: driverData.phone || "",
       company: driverData.company || "",
 
-      // Basic Driver Profile Fields
       truckType: driverData.truckType || "",
       tankSize: pickNumber(driverData.tankSize) ?? null,
       fuelTypePreference: driverData.fuelTypePreference || "diesel",
       yearsExperience: pickNumber(driverData.yearsExperience) ?? null,
       safetyCertifications: driverData.safetyCertifications || "",
 
-      // Vehicle Information
       vehicleMake: driverData.vehicleMake || "",
       vehicleModel: driverData.vehicleModel || "",
       vehicleYear: pickNumber(driverData.vehicleYear) ?? null,
@@ -575,7 +490,6 @@ export async function saveDriverProfile(driverData: {
       tankGallons: pickNumber(driverData.tankGallons) ?? null,
       gvwrLbs: pickNumber(driverData.gvwrLbs) ?? null,
 
-      // Fuel Profile (will be normalized)
       fuelProfile: driverData.mpgRated
         ? {
             vehicleType: driverData.truckType || "truck",
@@ -586,7 +500,6 @@ export async function saveDriverProfile(driverData: {
           }
         : (null as any),
 
-      // Trailer Information
       trailerMake: driverData.trailerMake || "",
       trailerModel: driverData.trailerModel || "",
       trailerYear: pickNumber(driverData.trailerYear) ?? null,
@@ -597,40 +510,27 @@ export async function saveDriverProfile(driverData: {
       trailerGvwrLbs: pickNumber(driverData.trailerGvwrLbs) ?? null,
       trailerType: driverData.trailerType || "",
 
-      // Company & Insurance
       companyName: driverData.companyName || "",
       mcNumber: driverData.mcNumber || "",
       dotNumber: driverData.dotNumber || "",
       insuranceCarrier: driverData.insuranceCarrier || "",
       policyNumber: driverData.policyNumber || "",
 
-      // System fields
       role: driverData.role || "driver",
       isActive: driverData.isActive !== undefined ? driverData.isActive : true,
       balance: pickNumber(driverData.balance) ?? 0,
       userId: driverData.userId,
       createdBy: currentUser.uid,
-
-      // Timestamps
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     };
 
     // Mirror MPG into both fields
     const driverProfileData = withNormalizedMpg(rawProfile);
 
-    console.log(
-      "[SAVE_DRIVER_PROFILE] Prepared profile data for Firestore:",
-      JSON.stringify(driverProfileData, null, 2)
-    );
+    console.log("[SAVE_DRIVER_PROFILE] Prepared profile data for Firestore:", JSON.stringify({ ...driverProfileData, ...timestamps }, null, 2));
 
-    // Save to drivers collection
-    const driverRef = doc(db, "drivers", driverData.userId);
-    await setDoc(driverRef, driverProfileData, { merge: true });
-
-    console.log(
-      "[SAVE_DRIVER_PROFILE] ✅ Driver profile saved successfully to drivers collection"
-    );
+    // Write to drivers collection (preserving createdAt if doc exists)
+    await setDoc(driverRef, { ...driverProfileData, ...timestamps }, { merge: true });
+    console.log("[SAVE_DRIVER_PROFILE] ✅ Driver profile saved successfully to drivers collection");
 
     // Also save to users collection for compatibility
     const userRef = doc(db, "users", driverData.userId);
@@ -646,19 +546,16 @@ export async function saveDriverProfile(driverData: {
       createdBy: currentUser.uid,
       updatedAt: serverTimestamp(),
     };
-
     await setDoc(userRef, userData, { merge: true });
-    console.log(
-      "[SAVE_DRIVER_PROFILE] ✅ User profile saved successfully to users collection"
-    );
+    console.log("[SAVE_DRIVER_PROFILE] ✅ User profile saved successfully to users collection");
 
     return {
       success: true,
       message: "Driver profile saved successfully",
       userId: driverData.userId,
       written: {
-        mpgRated: driverProfileData.mpgRated,
-        fuelProfile: driverProfileData.fuelProfile,
+        mpgRated: (driverProfileData as any).mpgRated,
+        fuelProfile: (driverProfileData as any).fuelProfile,
       },
     };
   } catch (error: any) {
@@ -671,15 +568,12 @@ export async function saveDriverProfile(driverData: {
 
     let errorMessage = "Failed to save driver profile";
     if (error?.code === "permission-denied") {
-      errorMessage =
-        "Permission denied. Please check your account permissions.";
+      errorMessage = "Permission denied. Please check your account permissions.";
     } else if (error?.code === "unavailable") {
-      errorMessage =
-        "Firebase service unavailable. Please try again later.";
+      errorMessage = "Firebase service unavailable. Please try again later.";
     } else if (error?.code === "unauthenticated") {
       errorMessage = "User not authenticated. Please sign in again.";
     }
-
     throw new Error(errorMessage);
   }
 }
@@ -689,47 +583,24 @@ export async function getDriverProfile(userId: string) {
   try {
     console.log("[GET_DRIVER_PROFILE] Fetching driver profile for user:", userId);
 
-  // Mirrors mpgRated <-> fuelProfile.averageMpg if one is missing or mismatched.
-export async function repairDriverMpg(uid: string) {
-  const { db } = getFirebase();
-  const ref = doc(db, 'drivers', uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return { fixed: false, reason: 'no-doc' };
-
-  const d = snap.data() as any;
-  const rated = typeof d.mpgRated === 'number' ? d.mpgRated : undefined;
-  const avg   = typeof d?.fuelProfile?.averageMpg === 'number' ? d.fuelProfile.averageMpg : undefined;
-  const mpg   = rated ?? avg;
-
-  if (typeof mpg !== 'number') return { fixed: false, reason: 'no-mpg' };
-  if (rated === mpg && avg === mpg) return { fixed: false, reason: 'already-mirrored' };
-
-  await setDoc(ref, {
-    mpgRated: mpg,
-    fuelProfile: { ...(d.fuelProfile ?? {}), averageMpg: mpg },
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
-
-  return { fixed: true, value: mpg };
-}
-  const authSuccess = await ensureFirebaseAuth();
+    const authSuccess = await ensureFirebaseAuth();
     if (!authSuccess) {
       console.warn("[GET_DRIVER_PROFILE] Firebase auth failed");
       throw new Error("Firebase authentication failed");
     }
 
     const { auth, db } = getFirebase();
-    
+
     // Verify we have an authenticated user
     if (!auth.currentUser) {
       console.error("[GET_DRIVER_PROFILE] No authenticated user after ensureFirebaseAuth");
       throw new Error("No authenticated user");
     }
-    
+
     console.log("[GET_DRIVER_PROFILE] Authenticated as:", {
       uid: auth.currentUser.uid,
       isAnonymous: auth.currentUser.isAnonymous,
-      requestedUserId: userId
+      requestedUserId: userId,
     });
 
     // Try to get from drivers collection first
@@ -738,14 +609,8 @@ export async function repairDriverMpg(uid: string) {
 
     if (driverSnap.exists()) {
       const data = withNormalizedMpg(driverSnap.data() as any);
-      console.log(
-        "[GET_DRIVER_PROFILE] ✅ Driver profile found in drivers collection (normalized MPG)"
-      );
-      return {
-        success: true,
-        data: data,
-        source: "drivers",
-      };
+      console.log("[GET_DRIVER_PROFILE] ✅ Driver profile found in drivers collection (normalized MPG)");
+      return { success: true, data, source: "drivers" };
     }
 
     // Fallback to users collection
@@ -754,37 +619,53 @@ export async function repairDriverMpg(uid: string) {
 
     if (userSnap.exists()) {
       const data = withNormalizedMpg(userSnap.data() as any);
-      console.log(
-        "[GET_DRIVER_PROFILE] ✅ User profile found in users collection (normalized MPG)"
-      );
-      return {
-        success: true,
-        data: data,
-        source: "users",
-      };
+      console.log("[GET_DRIVER_PROFILE] ✅ User profile found in users collection (normalized MPG)");
+      return { success: true, data, source: "users" };
     }
 
     console.log("[GET_DRIVER_PROFILE] ❌ No profile found for user:", userId);
-    return {
-      success: false,
-      message: "Driver profile not found",
-      data: null,
-    };
+    return { success: false, message: "Driver profile not found", data: null };
   } catch (error: any) {
     console.error("[GET_DRIVER_PROFILE] ❌ Failed to get driver profile:", error);
     console.error("[GET_DRIVER_PROFILE] Error details:", {
       code: error?.code,
       message: error?.message,
-      userId: userId
+      userId,
     });
-    
-    // Return a more user-friendly error
-    if (error?.code === 'permission-denied') {
-      throw new Error('Permission denied. Please ensure you are signed in.');
+
+    if (error?.code === "permission-denied") {
+      throw new Error("Permission denied. Please ensure you are signed in.");
     }
-    
     throw error;
   }
+}
+
+// ---- Mirrors mpgRated <-> fuelProfile.averageMpg if one is missing or mismatched.
+export async function repairDriverMpg(uid: string) {
+  const { db } = getFirebase();
+  const ref = doc(db, "drivers", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { fixed: false, reason: "no-doc" };
+
+  const d = snap.data() as any;
+  const rated = typeof d.mpgRated === "number" ? d.mpgRated : undefined;
+  const avg = typeof d?.fuelProfile?.averageMpg === "number" ? d.fuelProfile.averageMpg : undefined;
+  const mpg = rated ?? avg;
+
+  if (typeof mpg !== "number") return { fixed: false, reason: "no-mpg" };
+  if (rated === mpg && avg === mpg) return { fixed: false, reason: "already-mirrored" };
+
+  await setDoc(
+    ref,
+    {
+      mpgRated: mpg,
+      fuelProfile: { ...(d.fuelProfile ?? {}), averageMpg: mpg },
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return { fixed: true, value: mpg };
 }
 
 // ======================
@@ -816,9 +697,7 @@ export async function postLoad(args: {
 
     const authSuccess = await ensureFirebaseAuth();
     if (!authSuccess) {
-      console.warn(
-        "[POST_LOAD] Firebase auth failed, throwing error to trigger fallback"
-      );
+      console.warn("[POST_LOAD] Firebase auth failed, throwing error to trigger fallback");
       throw new Error("Firebase authentication failed");
     }
 
@@ -826,9 +705,7 @@ export async function postLoad(args: {
     const uid = auth.currentUser?.uid;
 
     if (!uid) {
-      console.warn(
-        "[POST_LOAD] No authenticated user, throwing error to trigger fallback"
-      );
+      console.warn("[POST_LOAD] No authenticated user, throwing error to trigger fallback");
       throw new Error("No authenticated user");
     }
 
@@ -875,10 +752,7 @@ export async function postLoad(args: {
       status: LOAD_STATUS.OPEN,
       pickupDate: Timestamp.fromDate(new Date(args.pickupDate)),
       deliveryDate: Timestamp.fromDate(new Date(args.deliveryDate)),
-      attachments: (args.finalPhotos ?? []).map((p) => ({
-        url: p.url,
-        path: p.path ?? null,
-      })),
+      attachments: (args.finalPhotos ?? []).map((p) => ({ url: p.url, path: p.path ?? null })),
       createdAt: serverTimestamp(),
       clientCreatedAt: Date.now(),
       isArchived: false,
@@ -907,11 +781,7 @@ export async function postLoad(args: {
 
     const refDoc = doc(db, LOADS_COLLECTION, args.id);
     const existing = await (await import("firebase/firestore")).getDoc(refDoc);
-    const createOnly = existing.exists()
-      ? {}
-      : {
-          clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2",
-        };
+    const createOnly = existing.exists() ? {} : { clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2" };
 
     const computeExpires = (() => {
       try {
@@ -935,48 +805,26 @@ export async function postLoad(args: {
     } as const;
 
     console.log("[POST_LOAD] Attempting to write to Firestore...");
-
     await setDoc(refDoc, loadData, { merge: true });
-
-    console.log(
-      "[POST_LOAD] Successfully wrote to Firestore:",
-      `${LOADS_COLLECTION}/${args.id}`
-    );
+    console.log("[POST_LOAD] Successfully wrote to Firestore:", `${LOADS_COLLECTION}/${args.id}`);
   } catch (error: any) {
     if (error?.code === "permission-denied") {
-      console.warn(
-        "[POST_LOAD] Firebase permission denied - this is expected in development mode."
-      );
-      console.warn(
-        "[POST_LOAD] Anonymous users cannot write to production Firestore. Falling back to local storage."
-      );
+      console.warn("[POST_LOAD] Firebase permission denied - this is expected in development mode.");
+      console.warn("[POST_LOAD] Anonymous users cannot write to production Firestore. Falling back to local storage.");
       const { auth: authInstance } = getFirebase();
       console.log(
         "[POST_LOAD] Current user:",
         authInstance.currentUser
-          ? {
-              uid: authInstance.currentUser.uid,
-              isAnonymous: authInstance.currentUser.isAnonymous,
-              email: authInstance.currentUser.email,
-            }
+          ? { uid: authInstance.currentUser.uid, isAnonymous: authInstance.currentUser.isAnonymous, email: authInstance.currentUser.email }
           : "No user"
       );
     } else if (error?.code === "unavailable") {
-      console.warn(
-        "[POST_LOAD] Firebase service unavailable - network or server issue. Falling back to local storage."
-      );
+      console.warn("[POST_LOAD] Firebase service unavailable - network or server issue. Falling back to local storage.");
     } else if (error?.code === "unauthenticated") {
-      console.warn(
-        "[POST_LOAD] User not authenticated properly. Falling back to local storage."
-      );
+      console.warn("[POST_LOAD] User not authenticated properly. Falling back to local storage.");
     } else {
-      console.warn(
-        "[POST_LOAD] Firebase write failed:",
-        error?.code || "unknown-code",
-        error?.message || "Unknown error"
-      );
+      console.warn("[POST_LOAD] Firebase write failed:", error?.code || "unknown-code", error?.message || "Unknown error");
     }
-
     throw error;
   }
 }
@@ -1058,9 +906,7 @@ export async function getVehicle(vehicleId: string) {
         });
 
         if (oldData.createdBy !== uid && oldData.userId !== uid) {
-          console.log(
-            "[getVehicle] Vehicle belongs to different user, access denied"
-          );
+          console.log("[getVehicle] Vehicle belongs to different user, access denied");
           throw new Error("Not found");
         }
 
@@ -1070,7 +916,7 @@ export async function getVehicle(vehicleId: string) {
       } else {
         console.log("[getVehicle] Vehicle not found in old path either");
 
-        console.log("[getVehicle] Debugging - listing all user vehicles...");
+        console.log("[getVehicle] Debugging - listing all user vehicles...]");
         try {
           await listUserVehicles();
         } catch (listError) {
@@ -1095,10 +941,7 @@ export async function getVehicle(vehicleId: string) {
   return { id: snap.id, ...data };
 }
 
-export async function updateVehicle(
-  vehicleId: string,
-  patch: Partial<Vehicle>
-) {
+export async function updateVehicle(vehicleId: string, patch: Partial<Vehicle>) {
   const { auth, db } = getFirebase();
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error("Not signed in");
@@ -1124,10 +967,7 @@ export async function listUserVehicles() {
       console.log(`  - ${doc.id}: ${data.name} (${data.make} ${data.model})`);
     });
 
-    const oldPathQuery = query(
-      collection(db, "vehicles"),
-      where("createdBy", "==", uid)
-    );
+    const oldPathQuery = query(collection(db, "vehicles"), where("createdBy", "==", uid));
     const oldPathSnap = await getDocs(oldPathQuery);
     console.log("[listUserVehicles] Old path vehicles:", oldPathSnap.docs.length);
     oldPathSnap.docs.forEach((doc) => {
@@ -1174,9 +1014,7 @@ export async function migrateVehicleToNewPath(vehicleId: string) {
     };
 
     await setDoc(newRef, migratedData, { merge: true });
-    console.log(
-      "[migrateVehicleToNewPath] ✅ Vehicle migrated to new path"
-    );
+    console.log("[migrateVehicleToNewPath] ✅ Vehicle migrated to new path");
 
     return { id: vehicleId, ...migratedData };
   } catch (error) {
