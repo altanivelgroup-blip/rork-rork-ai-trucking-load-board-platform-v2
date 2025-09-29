@@ -438,13 +438,27 @@ export function PhotoUploader({
         }));
         const primaryPhoto = data.primaryPhoto ?? (photos[0]?.url ?? '');
         setState((prev) => ({ ...prev, photos, primaryPhoto, loading: false }));
+        console.log('[PhotoUploader] ✅ Loaded', photos.length, 'photos successfully');
       } else {
-        setState((prev) => ({ ...prev, loading: false }));
+        console.log('[PhotoUploader] Document does not exist, starting with empty photos');
+        setState((prev) => ({ ...prev, photos: [], primaryPhoto: '', loading: false }));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[PhotoUploader] Error loading photos:', error);
-      toast.show('Failed to load photos', 'error');
-      setState(prev => ({ ...prev, loading: false }));
+      
+      // Don't show error toast for common cases like document not existing
+      if (error?.code === 'permission-denied') {
+        console.log('[PhotoUploader] Permission denied - user may not be authenticated, starting with empty photos');
+      } else if (error?.code === 'not-found') {
+        console.log('[PhotoUploader] Document not found, starting with empty photos');
+      } else {
+        // Only show error for unexpected errors
+        console.warn('[PhotoUploader] Unexpected error loading photos:', error?.code, error?.message);
+        toast.show('Could not load existing photos, but you can still add new ones', 'warning');
+      }
+      
+      // Always set loading to false and start with empty photos
+      setState(prev => ({ ...prev, photos: [], primaryPhoto: '', loading: false }));
     }
   }, [entityType, entityId, toast]);
 
