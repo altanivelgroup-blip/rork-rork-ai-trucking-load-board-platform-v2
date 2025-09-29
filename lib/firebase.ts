@@ -55,6 +55,27 @@ export async function testFirebaseConnection() {
         }
       };
     }
+// --- MPG helpers ---
+function pickNumber(v: any): number | undefined {
+  const n = typeof v === 'string' ? Number(v) : v;
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function withNormalizedMpg<T extends { mpgRated?: any; fuelProfile?: any }>(obj: T) {
+  const mpg = pickNumber(
+    obj.mpgRated ?? obj.fuelProfile?.averageMpg
+  );
+  if (mpg == null) return obj;
+
+  return {
+    ...obj,
+    mpgRated: mpg,
+    fuelProfile: {
+      ...(obj.fuelProfile ?? {}),
+      averageMpg: mpg,
+    },
+  };
+}
 
     // Test 2: Basic Firestore read (public data)
     console.log("[Firebase Test] 📖 Testing Firestore read access...");
