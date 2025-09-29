@@ -124,6 +124,26 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 lastLoginAt: new Date(),
               } as Admin;
             } else {
+              // For drivers, try to load saved profile from Firestore
+              let savedMpg = 8.5; // Default fallback
+              try {
+                const { getDriverProfile } = await import('@/lib/firebase');
+                const profileResult = await getDriverProfile(firebaseUser.uid);
+                if (profileResult.success && profileResult.data) {
+                  const profile = profileResult.data;
+                  // Use saved MPG if available
+                  if (profile.mpgRated) {
+                    savedMpg = profile.mpgRated;
+                    console.log(`[auth] Loaded saved MPG from Firestore: ${savedMpg}`);
+                  } else if (profile.fuelProfile?.averageMpg) {
+                    savedMpg = profile.fuelProfile.averageMpg;
+                    console.log(`[auth] Loaded saved MPG from fuelProfile: ${savedMpg}`);
+                  }
+                }
+              } catch (profileError) {
+                console.warn('[auth] Failed to load driver profile, using default MPG:', profileError);
+              }
+              
               userObject = {
                 id: firebaseUser.uid,
                 role: 'driver',
@@ -145,11 +165,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
                 },
                 fuelProfile: {
                   vehicleType: 'truck',
-                  averageMpg: 8.5,
+                  averageMpg: savedMpg,
                   fuelPricePerGallon: 3.85,
                   fuelType: 'diesel',
                   tankCapacity: 150,
                 },
+                mpgRated: savedMpg,
                 isAvailable: true,
                 verificationStatus: 'verified',
               } as Driver;

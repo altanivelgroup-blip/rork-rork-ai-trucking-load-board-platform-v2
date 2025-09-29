@@ -473,6 +473,15 @@ export async function saveDriverProfile(driverData: {
       tankGallons: driverData.tankGallons || null,
       gvwrLbs: driverData.gvwrLbs || null,
       
+      // Fuel Profile (sync with mpgRated)
+      fuelProfile: driverData.mpgRated ? {
+        vehicleType: driverData.truckType || 'truck',
+        averageMpg: driverData.mpgRated,
+        fuelType: driverData.fuelType || 'diesel',
+        tankCapacity: driverData.tankGallons || 150,
+        fuelPricePerGallon: 3.85,
+      } : null,
+      
       // Trailer Information
       trailerMake: driverData.trailerMake || '',
       trailerModel: driverData.trailerModel || '',
