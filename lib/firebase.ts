@@ -467,7 +467,14 @@ export async function saveDriverProfile(driverData: {
       throw new Error("No authenticated user");
     }
 
-    const driverRef = doc(db, "drivers", driverData.userId);
+    if (currentUser.uid !== driverData.userId) {
+      console.error("[SAVE_DRIVER_PROFILE] ❌ User ID mismatch - cannot save other user's profile");
+      console.error("[SAVE_DRIVER_PROFILE] Current user:", currentUser.uid);
+      console.error("[SAVE_DRIVER_PROFILE] Requested userId:", driverData.userId);
+      throw new Error("Permission denied: Cannot modify other user's profile");
+    }
+
+    const driverRef = doc(db, "drivers", currentUser.uid);
     const existingSnap = await getDoc(driverRef);
     const timestamps = existingSnap.exists()
       ? { updatedAt: serverTimestamp() }
@@ -525,7 +532,7 @@ export async function saveDriverProfile(driverData: {
       role: driverData.role || "driver",
       isActive: driverData.isActive !== undefined ? driverData.isActive : true,
       balance: pickNumber(driverData.balance) ?? 0,
-      userId: driverData.userId,
+      userId: currentUser.uid,
       createdBy: currentUser.uid,
     };
 
@@ -542,7 +549,7 @@ export async function saveDriverProfile(driverData: {
     console.log("[SAVE_DRIVER_PROFILE] ✅ Driver profile saved successfully to drivers collection");
 
     // Also save to users collection for compatibility
-    const userRef = doc(db, "users", driverData.userId);
+    const userRef = doc(db, "users", currentUser.uid);
     const userData = {
       role: "driver",
       profileData: {
@@ -551,7 +558,7 @@ export async function saveDriverProfile(driverData: {
         phone: driverData.phone || "",
         company: driverData.company || "",
       },
-      userId: driverData.userId,
+      userId: currentUser.uid,
       createdBy: currentUser.uid,
       updatedAt: serverTimestamp(),
     };
@@ -561,7 +568,7 @@ export async function saveDriverProfile(driverData: {
     return {
       success: true,
       message: "Driver profile saved successfully",
-      userId: driverData.userId,
+      userId: currentUser.uid,
       written: {
         mpgRated: (driverProfileData as any).mpgRated,
         fuelProfile: (driverProfileData as any).fuelProfile,
