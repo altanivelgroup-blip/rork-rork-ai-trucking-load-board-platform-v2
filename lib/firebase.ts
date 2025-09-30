@@ -758,6 +758,78 @@ function selectRemoteAttachments(finalPhotos: AnyPhoto[] | undefined) {
 // ======================
 // MAIN: post a load
 // ======================
+// --- Attachments sanitizer (keeps only tiny remote links) ---
+type AnyPhoto =
+  | string
+  | {
+      url?: string;
+      downloadURL?: string;
+      uri?: string;
+      path?: string | null;
+      [k: string]: any;
+    };
+
+/**
+ * Keep only safe, small, remote URLs for Firestore.
+ * Drops data: URIs, file: URIs, non-http(s) values, overly long strings,
+ * and caps the list so the array never gets near Firestore’s 1MB doc limit.
+ */
+function selectRemoteAttachments(
+  finalPhotos: AnyPhoto[] | undefined
+): { url: string; path: string | null }[] {
+  if (!Array.isArray(finalPhotos)) return [];
+
+  const out: { url: string; path: string | null }[] = [];
+  const seen = new Set<string>();
+
+  for (const p of finalPhotos) {
+    const urlRaw =
+      typeof p === "string" ? p : p?.downloadURL || p?.url || p?.uri || "";
+
+    // Skip empties, base64/data/file, and non-http(s)
+    if (
+      !urlRaw ||
+      /^data:/i.test(urlRaw) ||
+      /^file:/i.test(urlRaw) ||
+      !/^https?:\/\//i.test(urlRaw)
+    ) {
+      continue;
+    }
+
+    // Cap URL length (Firebase download URLs are long but < ~2k is fine)
+    if (urlRaw.length > 2048) continue;
+
+    // Keep a tiny storage path only if it looks like a normal path
+    let safePath: string | null = null;
+    if (typeof p === "object" && p && typeof p.path === "string") {
+      const path = p.path.trim();
+      if (
+        path &&
+        !/^data:/i.test(path) &&
+        !/^file:/i.test(path) &&
+        path.length <= 200 &&
+        /^[\w\-\/.]+$/.test(path)
+      ) {
+        safePath = path;
+      }
+    }
+
+    // Deduplicate by URL
+    if (seen.has(urlRaw)) continue;
+    seen.add(urlRaw);
+
+    out.push({ url: urlRaw, path: safePath });
+
+    // Safety cap so the array can’t get huge
+    if (out.length >= 12) break;
+  }
+
+  return out;
+}
+
+// ======================
+// MAIN: post a load
+// ======================
 export async function postLoad(args: {
   id: string;
   title: string;
@@ -767,7 +839,7 @@ export async function postLoad(args: {
   rate: number | string;
   pickupDate: Date;
   deliveryDate: Date;
-  finalPhotos: AnyPhoto[];               // <— accepts strings or objects
+  finalPhotos: AnyPhoto[]; // <— accepts strings or objects
   deliveryTZ?: string | null;
   deliveryDateLocal?: string | null;
 }) {
@@ -784,15 +856,18 @@ export async function postLoad(args: {
 
     const authSuccess = await ensureFirebaseAuth();
     if (!authSuccess) {
-      console.warn("[POST_LOAD] Firebase auth failed, throwing error to trigger fallback");
+      console.warn(
+        "[POST_LOAD] Firebase auth failed, throwing error to trigger fallback"
+      );
       throw new Error("Firebase authentication failed");
     }
 
     const { auth, db, app } = getFirebase();
     const uid = auth.currentUser?.uid;
-
     if (!uid) {
-      console.warn("[POST_LOAD] No authenticated user, throwing error to trigger fallback");
+      console.warn(
+        "[POST_LOAD] No authenticated user, throwing error to trigger fallback"
+      );
       throw new Error("No authenticated user");
     }
 
@@ -817,7 +892,8 @@ export async function postLoad(args: {
           hour12: false,
         });
         const parts = fmt.formatToParts(date);
-        const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+        const get = (t: string) =>
+          parts.find((p) => p.type === t)?.value ?? "";
         const yyyy = get("year");
         const mm = get("month");
         const dd = get("day");
@@ -840,20 +916,25 @@ export async function postLoad(args: {
       vehicleType: String(args.vehicleType),
       rate: rateNum,
       status: LOAD_STATUS.OPEN,
+
       pickupDate: Timestamp.fromDate(new Date(args.pickupDate)),
       deliveryDate: Timestamp.fromDate(new Date(args.deliveryDate)),
 
-      attachments: safeAttachments,               // only https URLs
-      attachmentsCount: safeAttachments.length,   // useful for UI
+      attachments: safeAttachments, // only https URLs
+      attachmentsCount: safeAttachments.length, // useful for UI
 
       createdAt: serverTimestamp(),
       clientCreatedAt: Date.now(),
       isArchived: false,
       archivedAt: null,
+
       deliveryTZ: args.deliveryTZ ?? null,
       deliveryDateLocal: (() => {
         try {
-          if (args.deliveryDateLocal && typeof args.deliveryDateLocal === "string") {
+          if (
+            args.deliveryDateLocal &&
+            typeof args.deliveryDateLocal === "string"
+          ) {
             return args.deliveryDateLocal;
           }
           const dd = new Date(args.deliveryDate);
@@ -869,12 +950,15 @@ export async function postLoad(args: {
           return undefined;
         }
       })(),
+
       revenueUsd: rateNum,
     } as const;
 
     const refDoc = doc(db, LOADS_COLLECTION, args.id);
     const existing = await (await import("firebase/firestore")).getDoc(refDoc);
-    const createOnly = existing.exists() ? {} : { clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2" };
+    const createOnly = existing.exists()
+      ? {}
+      : { clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2" };
 
     const computeExpires = (() => {
       try {
@@ -899,24 +983,43 @@ export async function postLoad(args: {
 
     console.log("[POST_LOAD] Attempting to write to Firestore...");
     await setDoc(refDoc, loadData, { merge: true });
-    console.log("[POST_LOAD] Successfully wrote to Firestore:", `${LOADS_COLLECTION}/${args.id}`);
+    console.log(
+      "[POST_LOAD] Successfully wrote to Firestore:",
+      `${LOADS_COLLECTION}/${args.id}`
+    );
   } catch (error: any) {
     if (error?.code === "permission-denied") {
-      console.warn("[POST_LOAD] Firebase permission denied - this is expected in development mode.");
-      console.warn("[POST_LOAD] Anonymous users cannot write to production Firestore. Falling back to local storage.");
+      console.warn(
+        "[POST_LOAD] Firebase permission denied - this is expected in development mode."
+      );
+      console.warn(
+        "[POST_LOAD] Anonymous users cannot write to production Firestore. Falling back to local storage."
+      );
       const { auth: authInstance } = getFirebase();
       console.log(
         "[POST_LOAD] Current user:",
         authInstance.currentUser
-          ? { uid: authInstance.currentUser.uid, isAnonymous: authInstance.currentUser.isAnonymous, email: authInstance.currentUser.email }
+          ? {
+              uid: authInstance.currentUser.uid,
+              isAnonymous: authInstance.currentUser.isAnonymous,
+              email: authInstance.currentUser.email,
+            }
           : "No user"
       );
     } else if (error?.code === "unavailable") {
-      console.warn("[POST_LOAD] Firebase service unavailable - network or server issue. Falling back to local storage.");
+      console.warn(
+        "[POST_LOAD] Firebase service unavailable - network or server issue. Falling back to local storage."
+      );
     } else if (error?.code === "unauthenticated") {
-      console.warn("[POST_LOAD] User not authenticated properly. Falling back to local storage.");
+      console.warn(
+        "[POST_LOAD] User not authenticated properly. Falling back to local storage."
+      );
     } else {
-      console.warn("[POST_LOAD] Firebase write failed:", error?.code || "unknown-code", error?.message || "Unknown error");
+      console.warn(
+        "[POST_LOAD] Firebase write failed:",
+        error?.code || "unknown-code",
+        error?.message || "Unknown error"
+      );
     }
     throw error;
   }
