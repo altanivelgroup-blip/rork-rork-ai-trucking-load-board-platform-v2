@@ -1,3 +1,6 @@
+// At the top of PhotoUploader.tsx
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebaseConfig'; // Double-check this path—adjust to '../../firebaseConfig' or whatever fits your structure
 import React, { useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet, View, ScrollView, Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
