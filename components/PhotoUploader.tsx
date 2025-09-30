@@ -564,9 +564,12 @@ export function PhotoUploader({
         photos: [...prev.photos, photoItem],
       }));
       const { auth } = getFirebase();
-      const uid = auth?.currentUser?.uid ?? 'NOAUTH';
+      const uid = auth?.currentUser?.uid;
+if (!uid) {
+  throw new Error('Not signed in — please log in before uploading photos.');
+}
       const safeId = String(entityId || 'NOID').trim().replace(/\s+/g, '-');
-      const basePath = `loadPhotos/${uid}/${safeId}`;
+      const basePath = `loads/${uid}/${safeId}`;
       if (qaState.qaSlowNetwork) {
         const delay = random(300, 1200);
         console.log('[QA] Simulating network delay:', delay + 'ms');
