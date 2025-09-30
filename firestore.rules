@@ -1,11 +1,90 @@
-// TESTING RULES - VERY PERMISSIVE FOR PHOTOUPLOADER TESTING ONLY
-// TODO: RESTORE PROPER SECURITY RULES AFTER TESTING
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // TESTING: Allow all operations for authenticated users
+
+    function isAuthenticatedUser() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    function isOwner(uid) {
+      return isAuthenticatedUser() && request.auth.uid == uid;
+    }
+
+    function notChangingArchive(before, after) {
+      return before == null ||
+        (before.isArchived == after.isArchived &&
+         before.archivedAt == after.archivedAt);
+    }
+
+    match /profiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isOwner(uid);
+      allow create: if isAuthenticatedUser();
+    }
+    
+    match /drivers/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isOwner(uid);
+      allow create: if isAuthenticatedUser();
+    }
+    
+    match /shippers/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isOwner(uid);
+      allow create: if isAuthenticatedUser();
+    }
+    
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isOwner(uid);
+      allow create: if isAuthenticatedUser();
+      
+      match /logins/{loginId} {
+        allow read, write: if isOwner(uid);
+        allow create: if isAuthenticatedUser();
+      }
+    }
+
+    match /loads/{docId} {
+      allow read: if true;
+      allow create: if isAuthenticatedUser();
+      allow update: if isAuthenticatedUser() && 
+        notChangingArchive(resource.data, request.resource.data);
+      allow delete: if isAuthenticatedUser() && 
+        (request.auth.uid == resource.data.createdBy || isAdmin());
+    }
+
+    match /vehicles/{docId} {
+      allow read: if true;
+      allow create: if isAuthenticatedUser();
+      allow update: if isAuthenticatedUser() && 
+        (request.auth.uid == resource.data.createdBy || isAdmin());
+      allow delete: if isAuthenticatedUser() && 
+        (request.auth.uid == resource.data.createdBy || isAdmin());
+    }
+
+    match /carrierPublic/{dot} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /reports/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /reportAnalytics/{docId} {
+      allow read, write: if isAdmin();
+    }
+
     match /{document=**} {
-      allow read, write, create, update, delete: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }
