@@ -72,7 +72,14 @@ export default function PhotoUploader({
         console.log('[PhotoUploader] Is anonymous:', auth.currentUser.isAnonymous);
 
         console.log('[PhotoUploader] Compressing image...');
-        const compressed = await prepareForUpload(input, {
+        const compressed: {
+          blob: Blob;
+          mime: string;
+          ext: string;
+          width: number;
+          height: number;
+          sizeBytes: number;
+        } = await prepareForUpload(input, {
           maxWidth: Platform.OS === 'web' ? 1600 : 1920,
           maxHeight: Platform.OS === 'web' ? 1200 : 1080,
           baseQuality: 0.8,
