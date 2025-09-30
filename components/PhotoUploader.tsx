@@ -432,6 +432,12 @@ export function PhotoUploader({
         return;
       }
       
+      console.log('[PhotoUploader] Current user:', {
+        uid: auth.currentUser.uid,
+        isAnonymous: auth.currentUser.isAnonymous,
+        email: auth.currentUser.email || 'none'
+      });
+      
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
       const docRef = doc(db, collectionName, entityId);
       const snap = await getDoc(docRef);
@@ -452,7 +458,13 @@ export function PhotoUploader({
         setState((prev) => ({ ...prev, photos: [], primaryPhoto: '', loading: false }));
       }
     } catch (error: any) {
-      console.error('[PhotoUploader] Error loading photos:', error);
+      console.error('[PhotoUploader] Error loading photos:', {
+        code: error?.code,
+        message: error?.message,
+        entityType,
+        entityId,
+        userId: getFirebase().auth?.currentUser?.uid
+      });
       
       // Don't show error toast for common cases like document not existing
       if (error?.code === 'permission-denied') {

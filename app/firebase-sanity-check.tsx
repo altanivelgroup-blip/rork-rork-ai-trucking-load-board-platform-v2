@@ -382,8 +382,8 @@ export default function FirebaseSanityCheck() {
           );
           hasWarnings = true;
         } else {
-          // Test the path structure PhotoUploader uses
-          const testPath = `loadPhotos/${currentUser.uid}/test-load-id/test-photo.jpg`;
+          // Test the path structure PhotoUploader uses: loads/{userId}/{loadId}/{fileName}
+          const testPath = `loads/${currentUser.uid}/test-load-id/test-photo.jpg`;
           const testRef = ref(storage, testPath);
           
           updateResult('PhotoUploader Integration', 'success', 
@@ -392,7 +392,8 @@ export default function FirebaseSanityCheck() {
               userId: currentUser.uid,
               testPath,
               storageReady: true,
-              firestoreReady: true
+              firestoreReady: true,
+              note: 'Using correct path: loads/{userId}/{loadId}/{fileName}'
             },
             Date.now() - startTime9
           );
