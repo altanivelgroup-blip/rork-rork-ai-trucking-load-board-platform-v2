@@ -93,6 +93,13 @@ useEffect(() => {
   let alive = true;
   (async () => {
     if (!userId) return;
+    
+    // Role guard: only drivers should query driver profiles
+    if (user?.role !== 'driver') {
+      console.log('[DriverProfile] Non-driver role detected, skipping profile query');
+      return;
+    }
+    
     try {
       const result = await getDriverProfile(userId); // reads drivers/{uid}
       if (!alive || !result || !result.success || !result.data) return;
@@ -141,12 +148,17 @@ useEffect(() => {
         insuranceCarrier: driver.insuranceCarrier ?? '',
         policyNumber: driver.policyNumber ?? '',
       });
-    } catch (e) {
-      console.warn('[DriverProfile] getDriverProfile failed', e);
+    } catch (e: any) {
+      // Silently handle permission-denied errors for non-drivers
+      if (e?.code === 'permission-denied') {
+        console.log('[DriverProfile] Permission denied (expected for non-driver roles)');
+      } else {
+        console.warn('[DriverProfile] getDriverProfile failed', e);
+      }
     }
   })();
   return () => { alive = false; };
-}, [userId]);
+}, [userId, user?.role]);
 
   const updateField = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
