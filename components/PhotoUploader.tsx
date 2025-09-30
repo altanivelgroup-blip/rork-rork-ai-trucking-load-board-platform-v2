@@ -15,7 +15,7 @@ import { X, Camera, Image as ImageIcon } from 'lucide-react-native';
 import { getFirebase } from '@/utils/firebase';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { MAX_PHOTOS } from '@/utils/photos';
-import { prepareForUpload, humanSize } from '@/utils/imagePreprocessor';
+import { prepareForUpload, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 import { useAuth } from '@/hooks/useAuth';
 
 type PhotoItem = {
@@ -58,12 +58,12 @@ export default function PhotoUploader({
 
   const uploadFile = useCallback(
     async (
-      uri: string,
+      input: AnyImage,
       index: number,
       onProgressUpdate: (index: number, progress: number) => void
     ): Promise<PhotoItem | null> => {
       try {
-        console.log('[PhotoUploader] Starting upload for:', uri);
+        console.log('[PhotoUploader] Starting upload for input');
         console.log('[PhotoUploader] Context:', context);
         console.log('[PhotoUploader] DraftId:', draftId);
 
@@ -84,9 +84,9 @@ export default function PhotoUploader({
         let compressed: UploadPrepared;
         try {
           compressed = await Promise.race<UploadPrepared>([
-            prepareForUpload(uri, {
-              maxWidth: 1920,
-              maxHeight: 1080,
+            prepareForUpload(input, {
+              maxWidth: Platform.OS === 'web' ? 1600 : 1920,
+              maxHeight: Platform.OS === 'web' ? 1200 : 1080,
               baseQuality: 0.8,
             }),
             new Promise<never>((_, reject) =>
@@ -96,22 +96,24 @@ export default function PhotoUploader({
         } catch (compressionError: any) {
           console.warn('[PhotoUploader] Compression failed or timed out, using direct upload:', compressionError.message);
           
-          const response = await fetch(uri);
-          const blob = await response.blob();
+          const normalized = typeof input === 'string' || (typeof input === 'object' && input && 'uri' in (input as any))
+            ? await fetch(typeof input === 'string' ? input : (input as any).uri).then((r) => r.blob())
+            : (input as Blob | File instanceof Blob ? (input as Blob) : (input as File));
+          const blob = normalized instanceof Blob ? normalized : await Promise.resolve(new Blob());
           compressed = {
             blob,
             mime: (blob.type || 'image/jpeg') as string,
             ext: (blob.type?.includes('png') ? 'png' : 'jpg') as string,
             width: 0,
             height: 0,
-            sizeBytes: blob.size as number,
+            sizeBytes: (blob.size ?? 0) as number,
           } as UploadPrepared;
         }
 
         console.log('[PhotoUploader] Compression complete:', {
           originalSize: 'unknown',
-          compressedSize: humanSize(compressed.sizeBytes ?? 0),
-          dimensions: `${compressed.width ?? 0}x${compressed.height ?? 0}`,
+          compressedSize: humanSize((compressed as UploadPrepared).sizeBytes ?? 0),
+          dimensions: `${(compressed as UploadPrepared).width ?? 0}x${(compressed as UploadPrepared).height ?? 0}`,
         });
 
         const safeId = String(draftId || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -134,7 +136,7 @@ export default function PhotoUploader({
           isAuthenticated: !!auth.currentUser,
           userEmail: auth.currentUser?.email,
           isAnonymous: auth.currentUser?.isAnonymous,
-          fileSize: humanSize(compressed.sizeBytes ?? 0),
+          fileSize: humanSize((compressed as UploadPrepared).sizeBytes ?? 0),
         });
 
         console.log('[PhotoUploader] 📁 Creating storage reference...');
@@ -142,32 +144,57 @@ export default function PhotoUploader({
         console.log('[PhotoUploader] Storage ref created:', storageRef.fullPath);
         
         console.log('[PhotoUploader] 🚀 Starting upload task...');
-        const uploadTask = uploadBytesResumable(storageRef, compressed.blob, {
-          contentType: compressed.mime,
+        const uploadTask = uploadBytesResumable(storageRef, (compressed as UploadPrepared).blob, {
+          contentType: (compressed as UploadPrepared).mime,
           cacheControl: 'public,max-age=31536000',
         });
         
         console.log('[PhotoUploader] ✅ Upload task created successfully');
 
         await new Promise<void>((resolve, reject) => {
-          uploadTask.on(
+          let lastBytes = 0;
+          let stallTimer: ReturnType<typeof setTimeout> | null = null;
+          const STALL_LIMIT_MS = 20000;
+
+          const resetStallTimer = () => {
+            if (stallTimer) clearTimeout(stallTimer);
+            stallTimer = setTimeout(() => {
+              console.warn('[PhotoUploader] ⏱️ Upload stalled, canceling task');
+              try {
+                uploadTask.cancel();
+              } catch {}
+              reject(new Error('Network stall during upload. Please retry.'));
+            }, STALL_LIMIT_MS);
+          };
+
+          const unsub = uploadTask.on(
             'state_changed',
             (snapshot) => {
               const progress = Math.round(
-                (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+                (snapshot.bytesTransferred / Math.max(1, snapshot.totalBytes)) * 100
               );
+              if (snapshot.bytesTransferred !== lastBytes) {
+                lastBytes = snapshot.bytesTransferred;
+                resetStallTimer();
+              }
               onProgressUpdate(index, progress);
-              console.log('[PhotoUploader] Upload progress:', progress + '%');
+              console.log('[PhotoUploader] Upload progress:', progress + '%', snapshot.bytesTransferred, '/', snapshot.totalBytes);
             },
             (error) => {
+              if (stallTimer) clearTimeout(stallTimer);
               console.error('[PhotoUploader] Upload error:', error);
+              try { unsub(); } catch {}
               reject(error);
             },
             () => {
+              if (stallTimer) clearTimeout(stallTimer);
               console.log('[PhotoUploader] Upload complete');
+              try { unsub(); } catch {}
               resolve();
             }
           );
+
+          resetStallTimer();
         });
 
         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -189,7 +216,7 @@ export default function PhotoUploader({
           message: error?.message,
           name: error?.name,
           stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
-          uri,
+          input,
         });
 
         let errorMessage = 'Upload failed';
@@ -241,17 +268,19 @@ export default function PhotoUploader({
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         quality: 1.0,
         selectionLimit: remaining,
+        base64: false,
       });
 
       if (result.canceled) return;
 
       setUploading(true);
 
-      const selectedUris = result.assets.map((asset) => asset.uri);
+      const selected = result.assets.map((asset) => ({ uri: asset.uri, file: (asset as any)?.file as File | undefined, type: (asset as any)?.type as string | undefined, name: (asset as any)?.file?.name as string | undefined }));
+      const selectedUris = selected.map((a) => a.uri);
       console.log('[PhotoUploader] Selected images:', selectedUris.length);
 
       const tempPhotos: PhotoItem[] = selectedUris.map((uri) => ({
@@ -280,8 +309,8 @@ export default function PhotoUploader({
         });
       };
 
-      const uploadPromises = selectedUris.map((uri, idx) =>
-        uploadFile(uri, idx, handleProgressUpdate)
+      const uploadPromises = selected.map((a, idx) =>
+        uploadFile(a.file ?? { uri: a.uri, name: a.name, type: a.type }, idx, handleProgressUpdate)
       );
       const uploadedPhotos = await Promise.all(uploadPromises);
 
@@ -360,7 +389,7 @@ export default function PhotoUploader({
         });
       };
 
-      const uploadedPhoto = await uploadFile(uri, 0, handleProgressUpdate);
+      const uploadedPhoto = await uploadFile({ uri }, 0, handleProgressUpdate);
 
       if (uploadedPhoto) {
         const updatedPhotos = [...photos, uploadedPhoto];
