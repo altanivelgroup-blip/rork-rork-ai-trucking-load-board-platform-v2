@@ -668,25 +668,55 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
       
       // CRITICAL FIX: Filter out any non-https URLs (base64, file://, etc.) to prevent Firestore size limit
       const validPhotoUrls = finalPhotoUrls.filter(url => {
-        if (!url || typeof url !== 'string') return false;
-        // Only allow https:// URLs
-        if (!/^https:\/\//i.test(url)) {
-          console.warn('[PostLoad] Filtering out invalid photo URL:', url.substring(0, 50));
+        if (!url || typeof url !== 'string') {
+          console.warn('[PostLoad] Filtering out non-string photo URL');
           return false;
         }
-        // Ensure URL is not too long (Firebase Storage URLs are typically < 2KB)
-        if (url.length > 2048) {
+        // Only allow https:// URLs (no data:, file://, blob:, etc.)
+        if (!/^https:\/\//i.test(url)) {
+          console.warn('[PostLoad] Filtering out invalid photo URL (not https):', url.substring(0, 50));
+          return false;
+        }
+        // Ensure URL is not too long (Firebase Storage URLs are typically 200-500 chars)
+        // Set conservative limit to prevent Firestore array size issues
+        if (url.length > 1024) {
           console.warn('[PostLoad] Filtering out oversized photo URL:', url.length, 'bytes');
+          return false;
+        }
+        // Additional check: ensure it's a Firebase Storage URL or valid image URL
+        const isFirebaseStorage = url.includes('firebasestorage.googleapis.com');
+        const isValidImageUrl = /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url);
+        if (!isFirebaseStorage && !isValidImageUrl) {
+          console.warn('[PostLoad] Filtering out non-image URL:', url.substring(0, 50));
           return false;
         }
         return true;
       });
       
+      // Calculate total array size to ensure we're under Firestore's 1MB limit
+      const totalArraySize = validPhotoUrls.reduce((sum, url) => sum + url.length, 0);
+      const maxAllowedSize = 1048487; // Firestore's limit
+      
       console.log('[PostLoad] Filtered photos:', {
         original: finalPhotoUrls.length,
         valid: validPhotoUrls.length,
-        filtered: finalPhotoUrls.length - validPhotoUrls.length
+        filtered: finalPhotoUrls.length - validPhotoUrls.length,
+        totalArraySize,
+        maxAllowedSize,
+        percentUsed: Math.round((totalArraySize / maxAllowedSize) * 100) + '%'
       });
+      
+      // If still too large, throw error before attempting Firestore write
+      if (totalArraySize > maxAllowedSize) {
+        const avgUrlSize = Math.round(totalArraySize / validPhotoUrls.length);
+        console.error('[PostLoad] Photo URLs array exceeds Firestore limit:', {
+          totalSize: totalArraySize,
+          limit: maxAllowedSize,
+          photoCount: validPhotoUrls.length,
+          avgUrlSize
+        });
+        throw new Error(`Photo data too large (${Math.round(totalArraySize / 1024)}KB). This usually means photos weren't uploaded to Firebase Storage properly. Please try uploading photos again.`);
+      }
       
       // Validate we have the required number of photos (no placeholders)
       if (validPhotoUrls.length < minRequired) {
