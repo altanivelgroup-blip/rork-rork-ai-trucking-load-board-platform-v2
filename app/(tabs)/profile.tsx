@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import uuid from 'react-native-uuid';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -97,7 +98,10 @@ export default function ProfileScreen() {
       title: 'Add Vehicle',
       subtitle: 'Set MPG and details',
       icon: <Truck size={20} color={theme.colors.secondary} />,
-      route: '/vehicle-edit',
+      action: () => {
+        const newVehicleId = uuid.v4() as string;
+        router.push(`/vehicle-edit?vehicle_id=${newVehicleId}`);
+      },
       showChevron: true
     },
     {
