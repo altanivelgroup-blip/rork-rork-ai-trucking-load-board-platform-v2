@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -288,82 +288,91 @@ export default function CSVBulkUploadScreen() {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }, []);
 
-  const normalizeNumber = useCallback((value: string | null | undefined): number | null => {
-    if (!value?.trim()) return null;
-    const cleaned = value.replace(/[$,]/g, '').trim();
-    const num = Number(cleaned);
-    return isNaN(num) ? null : Math.max(0, num);
+  const normalizeNumber = useMemo(() => {
+    return (value: string | null | undefined): number | null => {
+      if (!value?.trim()) return null;
+      const cleaned = value.replace(/[$,]/g, '').trim();
+      const num = Number(cleaned);
+      return isNaN(num) ? null : Math.max(0, num);
+    };
   }, []);
 
-  const normalizeDate = useCallback((value: string | null | undefined): string | null => {
-    if (!value?.trim()) return null;
-    try {
-      const date = new Date(value.trim());
-      if (isNaN(date.getTime())) return null;
-      return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
-    } catch {
-      return null;
-    }
-  }, []);
-
-  // Helper functions for location parsing
-  const parseLocationText = useCallback((locationStr: string): { city: string; state: string; zip: string } | null => {
-    if (!locationStr?.trim()) return null;
-    
-    // Try to parse "City, ST ZIP" format
-    const parts = locationStr.trim().split(',');
-    if (parts.length >= 2) {
-      const city = parts[0].trim();
-      const stateZipPart = parts[1].trim();
-      
-      // Extract state (2 letters) and zip
-      const stateZipMatch = stateZipPart.match(/^([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/);
-      if (stateZipMatch) {
-        return {
-          city,
-          state: stateZipMatch[1],
-          zip: stateZipMatch[2] || ''
-        };
+  const normalizeDate = useMemo(() => {
+    return (value: string | null | undefined): string | null => {
+      if (!value?.trim()) return null;
+      try {
+        const date = new Date(value.trim());
+        if (isNaN(date.getTime())) return null;
+        return date.toISOString().split('T')[0];
+      } catch {
+        return null;
       }
-    }
-    
-    return null;
+    };
   }, []);
 
-  const toTimestampOrNull = useCallback((dateStr: string | null): Timestamp | null => {
-    if (!dateStr) return null;
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return null;
-      return Timestamp.fromDate(date);
-    } catch {
+  const parseLocationText = useMemo(() => {
+    return (locationStr: string): { city: string; state: string; zip: string } | null => {
+      if (!locationStr?.trim()) return null;
+      
+      const parts = locationStr.trim().split(',');
+      if (parts.length >= 2) {
+        const city = parts[0].trim();
+        const stateZipPart = parts[1].trim();
+        
+        const stateZipMatch = stateZipPart.match(/^([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/);
+        if (stateZipMatch) {
+          return {
+            city,
+            state: stateZipMatch[1],
+            zip: stateZipMatch[2] || ''
+          };
+        }
+      }
+      
       return null;
-    }
+    };
   }, []);
 
-  const stripMoney = useCallback((value: string | null | undefined): number | null => {
-    if (!value?.trim()) return null;
-    const cleaned = value.replace(/[$,]/g, '').trim();
-    const num = Number(cleaned);
-    return isNaN(num) ? null : Math.max(0, num);
+  const toTimestampOrNull = useMemo(() => {
+    return (dateStr: string | null): Timestamp | null => {
+      if (!dateStr) return null;
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return null;
+        return Timestamp.fromDate(date);
+      } catch {
+        return null;
+      }
+    };
   }, []);
 
-  // Compute row hash for duplicate detection
-  const computeRowHash = useCallback((row: NormalizedPreviewRow): string => {
-    const hashInput = [
-      row.title || '',
-      row.equipmentType || '',
-      row.origin || '',
-      row.destination || '',
-      row.pickupDate || '',
-      row.deliveryDate || '',
-      row.rate?.toString() || ''
-    ].join('|').toLowerCase().trim();
-    
-    return CryptoJS.SHA1(hashInput).toString();
+  const stripMoney = useMemo(() => {
+    return (value: string | null | undefined): number | null => {
+      if (!value?.trim()) return null;
+      const cleaned = value.replace(/[$,]/g, '').trim();
+      const num = Number(cleaned);
+      return isNaN(num) ? null : Math.max(0, num);
+    };
   }, []);
 
-  const validateRowData = useCallback((row: CSVRow, template: TemplateType): { status: 'valid' | 'invalid'; errors: string[] } => {
+  const computeRowHash = useMemo(() => {
+    return (row: NormalizedPreviewRow): string => {
+      const hashInput = [
+        row.title || '',
+        row.equipmentType || '',
+        row.origin || '',
+        row.destination || '',
+        row.pickupDate || '',
+        row.deliveryDate || '',
+        row.rate?.toString() || ''
+      ].join('|').toLowerCase().trim();
+      
+      return CryptoJS.SHA1(hashInput).toString();
+    };
+  }, []);
+
+  const validateRowData = useMemo(() => {
+    return (row: CSVRow, template: TemplateType): { status: 'valid' | 'invalid'; errors: string[] } => {
     const errors: string[] = [];
     
     if (template === 'simple') {
@@ -409,13 +418,15 @@ export default function CSVBulkUploadScreen() {
       }
     }
     
-    return {
-      status: errors.length === 0 ? 'valid' : 'invalid',
-      errors
+      return {
+        status: errors.length === 0 ? 'valid' : 'invalid',
+        errors
+      };
     };
   }, [normalizeNumber, normalizeDate]);
 
-  const normalizeRowForPreview = useCallback((row: CSVRow, template: TemplateType): NormalizedPreviewRow => {
+  const normalizeRowForPreview = useMemo(() => {
+    return (row: CSVRow, template: TemplateType): NormalizedPreviewRow => {
     const validation = validateRowData(row, template);
     
     let normalizedRow: NormalizedPreviewRow;
@@ -497,7 +508,8 @@ export default function CSVBulkUploadScreen() {
       destination: normalizedRow.destination
     });
     
-    return normalizedRow;
+      return normalizedRow;
+    };
   }, [validateRowData, normalizeNumber, normalizeDate, computeRowHash]);
 
   // Transform parsed row to Firestore document format using normalized mapping
@@ -564,22 +576,25 @@ export default function CSVBulkUploadScreen() {
     };
   }, [user]);
 
-  const sanitizeForFirestore = useCallback((input: any): any => {
-    if (input === undefined) return null;
-    if (input === null) return null;
-    if (Array.isArray(input)) return input.map(sanitizeForFirestore);
-    if (typeof input === 'object') {
-      const out: Record<string, any> = {};
-      Object.keys(input).forEach((key) => {
-        const v = (input as Record<string, any>)[key];
-        const sv = sanitizeForFirestore(v);
-        if (sv !== undefined) {
-          out[key] = sv;
-        }
-      });
-      return out;
-    }
-    return input;
+  const sanitizeForFirestore = useMemo(() => {
+    const sanitize = (input: any): any => {
+      if (input === undefined) return null;
+      if (input === null) return null;
+      if (Array.isArray(input)) return input.map(sanitize);
+      if (typeof input === 'object') {
+        const out: Record<string, any> = {};
+        Object.keys(input).forEach((key) => {
+          const v = (input as Record<string, any>)[key];
+          const sv = sanitize(v);
+          if (sv !== undefined) {
+            out[key] = sv;
+          }
+        });
+        return out;
+      }
+      return input;
+    };
+    return sanitize;
   }, []);
 
   // Check for duplicate rows in Firestore
