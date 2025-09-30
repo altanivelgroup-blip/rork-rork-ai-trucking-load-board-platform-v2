@@ -36,15 +36,6 @@ type PhotoUploaderProps = {
   context?: 'load' | 'vehicle' | 'document' | 'other';
 };
 
-type UploadPrepared = {
-  blob: Blob;
-  mime: string;
-  ext: string;
-  width: number;
-  height: number;
-  sizeBytes: number;
-};
-
 export default function PhotoUploader({
   draftId,
   photos,
@@ -81,7 +72,7 @@ export default function PhotoUploader({
         console.log('[PhotoUploader] Is anonymous:', auth.currentUser.isAnonymous);
 
         console.log('[PhotoUploader] Compressing image...');
-        const compressed: UploadPrepared = await prepareForUpload(input, {
+        const compressed = await prepareForUpload(input, {
           maxWidth: Platform.OS === 'web' ? 1600 : 1920,
           maxHeight: Platform.OS === 'web' ? 1200 : 1080,
           baseQuality: 0.8,
