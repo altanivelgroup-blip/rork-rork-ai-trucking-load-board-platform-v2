@@ -1,6 +1,6 @@
-export const MAX_PHOTOS = 20;           // allow up to 20 per load
-const MAX_URL_BYTES = 1024;             // ~1KB per URL
-const MAX_FIELD_BYTES = 1_000_000;      // Firestore per-field limit
+export const MAX_PHOTOS = 20;
+const MAX_URL_BYTES = 1024;
+const MAX_FIELD_BYTES = 1_000_000;
 
 const byteLen = (s: string) => new TextEncoder().encode(s).length;
 
@@ -12,7 +12,7 @@ export function sanitizePhotoUrls(urls?: string[]) {
   const filtered = (urls ?? [])
     .filter(Boolean)
     .map(u => String(u).trim())
-    .filter(u => u.startsWith('https://'))  // no data:, blob:, file:
+    .filter(u => u.startsWith('https://'))
     .filter(isLikelyImageUrl)
     .filter(u => byteLen(u) <= MAX_URL_BYTES)
     .slice(0, MAX_PHOTOS);
