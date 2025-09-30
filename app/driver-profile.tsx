@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/Toast';
 import { useProfileCache } from '@/hooks/useProfileCache';
 import { User, Truck, FileText, Shield, Fuel, Container, Wrench, Camera } from 'lucide-react-native';
-import { PhotoUploader, PhotoData } from '@/components/PhotoUploader';
+import PhotoUploader from '@/components/PhotoUploader';
 import { FuelKind, VehicleType, Driver } from '@/types';
 import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 
@@ -19,7 +19,7 @@ import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 
 
 // Options moved to shared constants to keep logic in sync
-export default function DriverProfileScreen() {
+function DriverProfileScreen() {
   const router = useRouter();
   const { user, register, userId, updateProfile } = useAuth();
   const { updateCachedProfile, validateExperience } = useProfileCache();
@@ -27,7 +27,7 @@ export default function DriverProfileScreen() {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [bootstrapping, setBootstrapping] = useState<boolean>(false);
   const [validatingExperience, setValidatingExperience] = useState<boolean>(false);
-  const [photos, setPhotos] = useState<PhotoData[]>([]);
+  const [photos, setPhotos] = useState<Array<{ url: string; path: string | null }>>([]);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -1071,24 +1071,14 @@ const insets = useSafeAreaInsets();
           </Text>
           
           <PhotoUploader
-            entityType="vehicle"
-            entityId={`driver-${userId}`}
-            maxPhotos={10}
-            minPhotos={0}
-            onChange={(photoUrls: string[], primaryPhoto: string, uploadsInProgress: number) => {
-              console.log('[DriverProfile] PhotoUploader onChange:', {
-                photoUrls,
-                primaryPhoto,
-                uploadsInProgress
-              });
-              const photoData: PhotoData[] = photoUrls.map((url: string, index: number) => ({
-                id: `photo-${index}`,
-                url,
-                uploading: false,
-                progress: 100
-              }));
-              setPhotos(photoData);
+            draftId={`driver-${userId}`}
+            photos={photos}
+            onPhotosChange={(newPhotos) => {
+              console.log('[DriverProfile] PhotoUploader onChange:', newPhotos);
+              setPhotos(newPhotos);
             }}
+            maxPhotos={10}
+            context="vehicle"
           />
         </View>
 
@@ -1433,3 +1423,5 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+export default DriverProfileScreen;
