@@ -10,7 +10,6 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
-  Button,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
@@ -21,16 +20,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { parseCSV, buildTemplateCSV, validateCSVHeaders } from '@/utils/csv';
 import { VehicleType } from '@/types';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// ✅ Firebase imports
-import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp, getDoc, addDoc, collection } from 'firebase/firestore';
-import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import { subscribeFormFill, consumeStagedFormFill } from '@/lib/formFillBus';
 import { useFocusEffect } from '@react-navigation/native';
-import { sanitizePhotoUrls } from '@/utils/photos';
-import { auth, db } from '@/lib/firebase';
+import PhotoUploader from '@/components/PhotoUploader';
+import { createLoad, CreateLoadInput } from '@/lib/loads/createLoad';
 
 
 type VehicleOption = {
@@ -53,6 +46,8 @@ export default function PostLoadScreen() {
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
   const appliedOnceRef = useRef<boolean>(false);
+  const [photos, setPhotos] = useState<{ url: string; path: string | null }[]>([]);
+  const [isPosting, setIsPosting] = useState(false);
 
   const canProceed = useMemo(() => {
     return draft.title.trim().length > 0 && draft.description.trim().length > 0 && !!draft.vehicleType;
@@ -103,165 +98,15 @@ export default function PostLoadScreen() {
 
 const onNext = useCallback(async () => {
   try {
-    // guard
     if (!canProceed) return;
 
     const loadId: string = (draft as any)?.id || `load-${Date.now()}`;
-    console.log('[PostLoad] FIXED: Starting cross-platform load creation with ID:', loadId);
+    console.log('[PostLoad] Starting load creation with ID:', loadId);
 
-    try {
-      // FIXED: Enhanced Firebase authentication with better error handling
-      console.log('[PostLoad] FIXED: Ensuring Firebase authentication...');
-      const authSuccess = await ensureFirebaseAuth();
-      
-      if (!authSuccess) {
-        console.warn('[PostLoad] FIXED: Firebase auth failed, but continuing with fallback');
-        throw new Error('Firebase authentication failed');
-      }
-      
-      const { db, auth } = getFirebase();
-      
-      if (!auth?.currentUser?.uid) {
-        console.warn('[PostLoad] FIXED: No authenticated user found');
-        throw new Error('No authenticated user');
-      }
-      
-console.log('[PostLoad] FIXED: Authenticated user:', auth.currentUser.uid);
-console.log('[PostLoad] FIXED: User is anonymous:', auth.currentUser.isAnonymous);
-
-// 🔹 ADD THIS BLOCK (line 129)
-const userRef = doc(db, "users", auth.currentUser.uid);
-const userSnap = await getDoc(userRef);
-
-let shipperCompany = "Unknown Shipper";
-if (userSnap.exists()) {
-  shipperCompany = userSnap.data().companyName || userSnap.data().profileData?.company || "Unknown Shipper";
-}
-console.log('[PostLoad] shipper company', shipperCompany);
-// 🔹 END ADD
-const ref = doc(db, LOADS_COLLECTION, loadId);
-const existing = await getDoc(ref);
-      
-      // CROSS-PLATFORM FIX: Enhanced data structure for universal compatibility
-      const baseData = {
-        id: loadId,
-        title: (draft.title || '').trim(),
-        description: (draft.description || '').trim(),
-        vehicleType: draft.vehicleType || 'cargo-van',
-        status: 'OPEN' as const, // Use consistent status for cross-platform queries
-        isArchived: false, // Explicit archiving flag
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        clientCreatedAt: serverTimestamp(), // For ordering compatibility
-        
-        // CROSS-PLATFORM: Add multiple field formats for compatibility
-        originCity: (draft as any).origin?.city || 'Las Vegas',
-        originState: (draft as any).origin?.state || 'NV',
-        destCity: (draft as any).destination?.city || 'Las Vegas', 
-        destState: (draft as any).destination?.state || 'NV',
-        distanceMi: (draft as any).distanceMi || 0,
-        revenueUsd: (draft as any).revenueUsd || 350,
-        rateTotalUSD: (draft as any).revenueUsd || 350,
-        rate: (draft as any).revenueUsd || 350,
-        equipmentType: draft.vehicleType || 'cargo-van',
-        weightLbs: 0,
-        
-        // Structured data for advanced queries
-        origin: {
-          city: (draft as any).origin?.city || 'Las Vegas',
-          state: (draft as any).origin?.state || 'NV',
-          address: '',
-          zipCode: '',
-          lat: 0,
-          lng: 0
-        },
-        destination: {
-          city: (draft as any).destination?.city || 'Las Vegas',
-          state: (draft as any).destination?.state || 'NV', 
-          address: '',
-          zipCode: '',
-          lat: 0,
-          lng: 0
-        }
-      };
-      
-      const createOnly = existing.exists() ? {} : { 
-        createdBy: auth.currentUser.uid,
-        clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2",
-      };
-      
-      console.log('[PostLoad] FIXED: Writing to Firestore with data:', { ...baseData, ...createOnly });
-      await setDoc(ref, { ...baseData, ...createOnly }, { merge: true });
-      
-      // FIXED: Enhanced server confirmation
-      try {
-        const { getDocFromServer } = await import('firebase/firestore');
-        const confirmSnap = await getDocFromServer(ref as any);
-        console.log('[PostLoad] FIXED: Server confirm exists:', confirmSnap.exists());
-        console.log('[PostLoad] FIXED: Server data:', confirmSnap.data());
-      } catch (confirmErr) {
-        console.log('[PostLoad] FIXED: getDocFromServer not available, skipping server confirm', confirmErr);
-      }
-      
-      console.log('[PostLoad] ✅ FIXED: Successfully saved to Firebase - visible across all platforms');
-      console.log('[PostLoad] ✅ FIXED: Cross-platform sync complete');
-      console.log('[PostLoad] ✅ FIXED: Load posted to live board/posts with proper dates');
-      console.log('[SharedSync] Sync fixed: write path', `${LOADS_COLLECTION}/${loadId}`);
-      console.log('[CSV FIXED] Individual load posting - board visibility enabled');
-      
-    } catch (firebaseError: any) {
-      console.error('[PostLoad] FIXED: Firebase save failed:', {
-        code: firebaseError?.code,
-        message: firebaseError?.message,
-        name: firebaseError?.name
-      });
-      
-      // FIXED: Better error messages for different failure types
-      if (firebaseError?.code === 'permission-denied') {
-        console.error('[PostLoad] FIXED: Permission denied - check Firebase rules');
-        Alert.alert(
-          'Permission Error', 
-          'Unable to save load due to permissions. The load has been saved locally and will sync when permissions are fixed.'
-        );
-      } else if (firebaseError?.code === 'unavailable') {
-        console.error('[PostLoad] FIXED: Firebase service unavailable');
-        Alert.alert(
-          'Service Unavailable', 
-          'Firebase is temporarily unavailable. The load has been saved locally and will sync when service is restored.'
-        );
-      } else {
-        console.error('[PostLoad] FIXED: Unknown Firebase error');
-        Alert.alert(
-          'Sync Issue', 
-          'Load saved locally. It will sync across devices once connection is restored.'
-        );
-      }
-      
-      // Fallback to local storage for development
-      const draftData = {
-        id: loadId,
-        title: (draft.title || '').trim(),
-        description: (draft.description || '').trim(),
-        vehicleType: draft.vehicleType || null,
-        status: 'DRAFT',
-        createdBy: 'local-user',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      
-      // Store in AsyncStorage as fallback
-      await AsyncStorage.setItem(`draft-${loadId}`, JSON.stringify(draftData));
-      console.log('[PostLoad] FIXED: Saved to local storage as fallback');
-    }
-
-    // go to step 2 and pass the id
     router.push({ pathname: '/post-load-step2', params: { loadId } });
   } catch (e: any) {
-    console.error('[PostLoad] FIXED: Critical error:', e);
-    Alert.alert(
-      'Error Saving Load', 
-      'There was an issue saving your load. Please check your internet connection and try again.'
-    );
+    console.error('[PostLoad] Navigation error:', e);
+    Alert.alert('Error', 'Unable to proceed to next step.');
   }
 }, [canProceed, draft, router]);
 
@@ -424,52 +269,66 @@ const existing = await getDoc(ref);
     }
   }, [addLoadsBulkWithToast, csvRowToLoad]);
 
-  const isSubmitting = draft.isPosting;
+  const draftId = useMemo(() => (draft as any)?.id || `draft-${Date.now()}`, [draft]);
 
-  const uploadedUrls = useMemo(() => {
-    const urlsFromPhotos = (draft.photoUrls ?? []).filter((u) => typeof u === 'string' && u.startsWith('https://'));
-    const urlsFromAttachments = (draft.attachments ?? [])
-      .map((a) => (a?.uri ? String(a.uri) : ''))
-      .filter((u) => typeof u === 'string' && u.startsWith('https://'));
-    const merged = [...urlsFromPhotos, ...urlsFromAttachments];
-    return Array.from(new Set(merged));
-  }, [draft.photoUrls, draft.attachments]);
-
-  const { valid } = useMemo(() => sanitizePhotoUrls(uploadedUrls), [uploadedUrls]);
-  const canPostPhotos = valid.length > 0;
-  const disabledPost = isSubmitting || !canPostPhotos;
-
-  const onPost = useCallback(async () => {
+  const onPostLoad = useCallback(async () => {
+    if (isPosting) return;
+    
     try {
-      const uploaded = Array.isArray(uploadedUrls) ? uploadedUrls : [];
-      const { valid, totalArraySize } = sanitizePhotoUrls(uploaded);
-      if (totalArraySize > 800_000) {
-        Alert.alert('Too many/long photo links', 'Remove a few photos and try again.');
+      setIsPosting(true);
+      console.log('[PostLoad] Starting load creation with photos...');
+
+      const photoUrls = photos.map(p => p.url);
+      
+      const loadInput: CreateLoadInput = {
+        title: draft.title.trim(),
+        pickupCity: (draft as any).origin?.city || '',
+        pickupState: (draft as any).origin?.state,
+        deliveryCity: (draft as any).destination?.city || '',
+        deliveryState: (draft as any).destination?.state,
+        vehicleType: draft.vehicleType || 'cargo-van',
+        price: (draft as any).revenueUsd || 0,
+        distance: (draft as any).distanceMi,
+        description: draft.description.trim(),
+        attachments: photoUrls,
+        isBackhaul: false,
+      };
+
+      const result = await createLoad(loadInput);
+
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to create load');
         return;
       }
-      const uid = auth.currentUser?.uid;
-      if (!uid) { Alert.alert('Not signed in'); return; }
 
-      const docData = {
-        title: String(draft.title || '').slice(0,120),
-        pickupCity: String(draft.pickup || ''),
-        deliveryCity: String(draft.delivery || ''),
-        vehicleType: String(draft.vehicleType || ''),
-        price: Number((draft.rateAmount || '').replace(/[^0-9.]/g, '')) || 0,
-        attachments: valid,
-        createdBy: uid,
-        status: 'open',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      } as const;
+      console.log('[PostLoad] ✅ Load created successfully:', result.loadId);
+      
+      if (result.photosFiltered) {
+        console.log('[PostLoad] Photos filtered:', {
+          original: result.photosFiltered.original,
+          valid: result.photosFiltered.valid,
+          totalBytes: result.photosFiltered.totalBytes,
+        });
+      }
 
-      const ref = await addDoc(collection(db, 'loads'), docData);
-      console.log('[PostLoad] Filtered photos:', { original: uploaded.length, validCount: valid.length, totalArraySize });
-      router.push({ pathname: '/load-details', params: { id: ref.id } });
+      Alert.alert('Success', 'Load posted successfully!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            setPhotos([]);
+            router.push({ pathname: '/load-details', params: { id: result.loadId } });
+          },
+        },
+      ]);
     } catch (e: any) {
-      Alert.alert('Post failed', e?.message || String(e));
+      console.error('[PostLoad] Error:', e);
+      Alert.alert('Error', e?.message || 'Failed to post load');
+    } finally {
+      setIsPosting(false);
     }
-  }, [uploadedUrls, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, router]);
+  }, [isPosting, photos, draft, router]);
+
+  const canPostLoad = canProceed && photos.length > 0 && !isPosting;
 
   const onDownloadTemplate = useCallback(async () => {
     try {
@@ -610,6 +469,16 @@ const existing = await getDoc(ref);
               </View>
             </View>
           </View>
+
+          <View style={styles.card}>
+            <PhotoUploader
+              draftId={draftId}
+              photos={photos}
+              onPhotosChange={setPhotos}
+              maxPhotos={20}
+              disabled={isPosting}
+            />
+          </View>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -627,12 +496,18 @@ const existing = await getDoc(ref);
               </Pressable>
             </View>
             <View style={{ flex: 1 }}>
-              <Button
-                title={disabledPost ? 'Post Load' : 'Post Load'}
-                onPress={onPost}
-                disabled={disabledPost}
-                testID="postButton"
-              />
+              <Pressable
+                onPress={onPostLoad}
+                style={[styles.primaryBtn, !canPostLoad && styles.primaryBtnDisabled]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canPostLoad }}
+                disabled={!canPostLoad}
+                testID="postLoadButton"
+              >
+                <Text style={styles.primaryBtnText}>
+                  {isPosting ? 'Posting...' : 'Post Load'}
+                </Text>
+              </Pressable>
             </View>
           </View>
         </View>
