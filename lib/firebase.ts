@@ -23,6 +23,10 @@ import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
 import { LOADS_COLLECTION, LOAD_STATUS } from "@/lib/loadSchema";
 import { FORCE_DELIVERY_TZ } from "@/utils/env";
 
+// Re-export core handles for convenience
+const { auth, db } = getFirebase();
+export { auth, db };
+
 // ---- Quick connection test you can call from anywhere ----
 export async function testFirebaseConnection() {
   try {
