@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  Button,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
@@ -28,7 +29,8 @@ import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import { subscribeFormFill, consumeStagedFormFill } from '@/lib/formFillBus';
 import { useFocusEffect } from '@react-navigation/native';
-
+import { sanitizePhotoUrls } from '@/utils/photos';
+import { createShipperLoad } from '@/lib/loads/createLoad';
 
 
 type VehicleOption = {
@@ -135,6 +137,7 @@ let shipperCompany = "Unknown Shipper";
 if (userSnap.exists()) {
   shipperCompany = userSnap.data().companyName || userSnap.data().profileData?.company || "Unknown Shipper";
 }
+console.log('[PostLoad] shipper company', shipperCompany);
 // 🔹 END ADD
 const ref = doc(db, LOADS_COLLECTION, loadId);
 const existing = await getDoc(ref);
@@ -152,29 +155,29 @@ const existing = await getDoc(ref);
         clientCreatedAt: serverTimestamp(), // For ordering compatibility
         
         // CROSS-PLATFORM: Add multiple field formats for compatibility
-        originCity: draft.origin?.city || 'Las Vegas',
-        originState: draft.origin?.state || 'NV',
-        destCity: draft.destination?.city || 'Las Vegas', 
-        destState: draft.destination?.state || 'NV',
-        distanceMi: draft.distanceMi || 0,
-        revenueUsd: draft.revenueUsd || 350,
-        rateTotalUSD: draft.revenueUsd || 350,
-        rate: draft.revenueUsd || 350,
+        originCity: (draft as any).origin?.city || 'Las Vegas',
+        originState: (draft as any).origin?.state || 'NV',
+        destCity: (draft as any).destination?.city || 'Las Vegas', 
+        destState: (draft as any).destination?.state || 'NV',
+        distanceMi: (draft as any).distanceMi || 0,
+        revenueUsd: (draft as any).revenueUsd || 350,
+        rateTotalUSD: (draft as any).revenueUsd || 350,
+        rate: (draft as any).revenueUsd || 350,
         equipmentType: draft.vehicleType || 'cargo-van',
         weightLbs: 0,
         
         // Structured data for advanced queries
         origin: {
-          city: draft.origin?.city || 'Las Vegas',
-          state: draft.origin?.state || 'NV',
+          city: (draft as any).origin?.city || 'Las Vegas',
+          state: (draft as any).origin?.state || 'NV',
           address: '',
           zipCode: '',
           lat: 0,
           lng: 0
         },
         destination: {
-          city: draft.destination?.city || 'Las Vegas',
-          state: draft.destination?.state || 'NV', 
+          city: (draft as any).destination?.city || 'Las Vegas',
+          state: (draft as any).destination?.state || 'NV', 
           address: '',
           zipCode: '',
           lat: 0,
@@ -421,6 +424,38 @@ const existing = await getDoc(ref);
     }
   }, [addLoadsBulkWithToast, csvRowToLoad]);
 
+  const isSubmitting = draft.isPosting;
+
+  const uploadedUrls = useMemo(() => {
+    const urlsFromPhotos = (draft.photoUrls ?? []).filter((u) => typeof u === 'string' && u.startsWith('https://'));
+    const urlsFromAttachments = (draft.attachments ?? [])
+      .map((a) => (a?.uri ? String(a.uri) : ''))
+      .filter((u) => typeof u === 'string' && u.startsWith('https://'));
+    const merged = [...urlsFromPhotos, ...urlsFromAttachments];
+    return Array.from(new Set(merged));
+  }, [draft.photoUrls, draft.attachments]);
+
+  const { valid } = useMemo(() => sanitizePhotoUrls(uploadedUrls), [uploadedUrls]);
+  const canPostPhotos = valid.length > 0;
+  const disabledPost = isSubmitting || !canPostPhotos;
+
+  const onPost = useCallback(async () => {
+    try {
+      const payload: Record<string, any> = {
+        title: (draft.title || '').trim(),
+        pickupCity: (draft.pickup || '').trim(),
+        deliveryCity: (draft.delivery || '').trim(),
+        vehicleType: draft.vehicleType || '',
+        price: Number((draft.rateAmount || '').replace(/[^0-9.]/g, '')) || 0,
+        attachments: uploadedUrls,
+      };
+      const id = await createShipperLoad(payload);
+      router.push({ pathname: '/load-details', params: { id } });
+    } catch (e: any) {
+      Alert.alert('Post failed', e?.message || String(e));
+    }
+  }, [draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, uploadedUrls, router]);
+
   const onDownloadTemplate = useCallback(async () => {
     try {
       const csv = buildTemplateCSV();
@@ -563,16 +598,28 @@ const existing = await getDoc(ref);
         </ScrollView>
 
         <View style={styles.footer}>
-          <Pressable
-            onPress={onNext}
-            style={[styles.primaryBtn, !canProceed && styles.primaryBtnDisabled]}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canProceed }}
-            disabled={!canProceed}
-            testID="nextButton"
-          >
-            <Text style={styles.primaryBtnText}>Next</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Pressable
+                onPress={onNext}
+                style={[styles.primaryBtn, !canProceed && styles.primaryBtnDisabled]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canProceed }}
+                disabled={!canProceed}
+                testID="nextButton"
+              >
+                <Text style={styles.primaryBtnText}>Next</Text>
+              </Pressable>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                title={disabledPost ? 'Post Load' : 'Post Load'}
+                onPress={onPost}
+                disabled={disabledPost}
+                testID="postButton"
+              />
+            </View>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
