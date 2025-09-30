@@ -22,7 +22,23 @@ import {
 import { getFirebase, ensureFirebaseAuth } from "@/utils/firebase";
 import { LOADS_COLLECTION, LOAD_STATUS } from "@/lib/loadSchema";
 import { FORCE_DELIVERY_TZ } from "@/utils/env";
+// firebaseConfig.ts
+import { initializeApp } from 'firebase/app';
+import { getStorage } from 'firebase/storage'; // Add other services if needed (e.g., getFirestore)
 
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID",
+  // Add measurementId if using Analytics
+};
+
+const app = initializeApp(firebaseConfig);
+export const storage = getStorage(app);
+// export const db = getFirestore(app); // If you need Firestore too
 // Re-export core handles for convenience
 const { auth, db } = getFirebase();
 export { auth, db };
