@@ -1,3 +1,4 @@
+// utils/csv.ts
 import * as XLSX from 'xlsx';
 
 export type CSVRow = Record<string, string>;
@@ -144,16 +145,43 @@ export function buildSimpleTemplateCSV(): string {
   const r1 = ['Dallas, TX','Houston, TX','Car Hauler','5000','1200'];
   const r2 = ['Las Vegas, NV','Phoenix, AZ','Box Truck','8000','1600'];
   const r3 = ['Miami, FL','Atlanta, GA','Flatbed','12000','2400'];
-  
-  // Add comment about auto-filled dates
   const comment = '# FIXED: Dates auto-filled (pickup: tomorrow, delivery: day after) for board visibility';
-  
   return comment + '\n' + headers.join(',') + '\n' + r1.map(csvEscape).join(',') + '\n' + r2.map(csvEscape).join(',') + '\n' + r3.map(csvEscape).join(',') + '\n';
 }
 
 export function csvEscape(v: string): string {
   if (v.includes(',') || v.includes('"') || v.includes('\n')) return '"' + v.replace(/"/g, '""') + '"';
   return v;
+}
+
+// ---- Compatibility shim so other code can import { buildTemplateCSV } ----
+// If you’re not using CSVs, this just keeps TypeScript happy.
+export function buildTemplateCSV(
+  input?: CSVRow[] | { headers: string[]; rows: CSVRow[] }
+): string {
+  if (!input) {
+    // Provide a tiny default template
+    return buildSimpleTemplateCSV();
+  }
+  const EOL = '\r\n';
+  const escape = csvEscape;
+
+  let headers: string[] = [];
+  let rows: CSVRow[] = [];
+
+  if (Array.isArray(input)) {
+    rows = input;
+    const set = new Set<string>();
+    for (const r of rows) Object.keys(r || {}).forEach(k => set.add(k));
+    headers = Array.from(set);
+  } else {
+    headers = input.headers || [];
+    rows = input.rows || [];
+  }
+
+  const headerLine = headers.map(escape).join(',');
+  const bodyLines = rows.map(r => headers.map(h => escape(r?.[h] ?? '')).join(','));
+  return [headerLine, ...bodyLines].join(EOL);
 }
 
 export function normalizeCSVHeader(h: string): string {
@@ -164,51 +192,35 @@ export function validateCSVHeaders(headers: string[], requiredHeaders?: string[]
   if (!requiredHeaders) {
     return (headers ?? []).map(normalizeCSVHeader);
   }
-  
   const normalized = (headers ?? []).map(normalizeCSVHeader);
   const missing = requiredHeaders.filter(req => !normalized.includes(req));
   const errors: string[] = [];
-  
   if (missing.length > 0) {
     errors.push(`Missing required headers: ${missing.join(', ')}`);
   }
-  
   return errors;
 }
 
 export function validateSimpleLoadRow(row: SimpleLoadRow): string[] {
   const errors: string[] = [];
-  
-  if (!row['Origin']?.trim()) {
-    errors.push('Origin is required');
-  }
-  
-  if (!row['Destination']?.trim()) {
-    errors.push('Destination is required');
-  }
-  
-  if (!row['VehicleType']?.trim()) {
-    errors.push('VehicleType is required');
-  }
-  
+  if (!row['Origin']?.trim()) errors.push('Origin is required');
+  if (!row['Destination']?.trim()) errors.push('Destination is required');
+  if (!row['VehicleType']?.trim()) errors.push('VehicleType is required');
+
   if (!row['Weight']?.trim()) {
     errors.push('Weight is required');
   } else {
     const weight = Number(row['Weight'].replace(/[^0-9.]/g, ''));
-    if (isNaN(weight) || weight <= 0) {
-      errors.push('Weight must be a valid positive number');
-    }
+    if (isNaN(weight) || weight <= 0) errors.push('Weight must be a valid positive number');
   }
-  
+
   if (!row['Price']?.trim()) {
     errors.push('Price is required');
   } else {
     const price = Number(row['Price'].replace(/[^0-9.]/g, ''));
-    if (isNaN(price) || price <= 0) {
-      errors.push('Price must be a valid positive number');
-    }
+    if (isNaN(price) || price <= 0) errors.push('Price must be a valid positive number');
   }
-  
+
   return errors;
 }
 
@@ -246,57 +258,33 @@ export type StandardLoadRow = {
 
 export function validateStandardLoadRow(row: CSVRow): string[] {
   const errors: string[] = [];
-  
-  // Required fields for standard template
-  if (!row['title']?.trim()) {
-    errors.push('Title is required');
-  }
-  
-  if (!row['originCity']?.trim()) {
-    errors.push('Origin city is required');
-  }
-  
-  if (!row['destinationCity']?.trim()) {
-    errors.push('Destination city is required');
-  }
-  
-  if (!row['vehicleType']?.trim()) {
-    errors.push('Vehicle type is required');
-  }
-  
+  if (!row['title']?.trim()) errors.push('Title is required');
+  if (!row['originCity']?.trim()) errors.push('Origin city is required');
+  if (!row['destinationCity']?.trim()) errors.push('Destination city is required');
+  if (!row['vehicleType']?.trim()) errors.push('Vehicle type is required');
+
   if (!row['weight']?.trim()) {
     errors.push('Weight is required');
   } else {
     const weight = Number(row['weight'].replace(/[^0-9.]/g, ''));
-    if (isNaN(weight) || weight <= 0) {
-      errors.push('Weight must be a valid positive number');
-    }
+    if (isNaN(weight) || weight <= 0) errors.push('Weight must be a valid positive number');
   }
-  
+
   if (!row['rate']?.trim()) {
     errors.push('Rate is required');
   } else {
     const rate = Number(row['rate'].replace(/[^0-9.]/g, ''));
-    if (isNaN(rate) || rate <= 0) {
-      errors.push('Rate must be a valid positive number');
-    }
+    if (isNaN(rate) || rate <= 0) errors.push('Rate must be a valid positive number');
   }
-  
-  // Validate dates if provided
+
   if (row['pickupDate']?.trim()) {
     const date = new Date(row['pickupDate']);
-    if (isNaN(date.getTime())) {
-      errors.push('Pickup date must be a valid date');
-    }
+    if (isNaN(date.getTime())) errors.push('Pickup date must be a valid date');
   }
-  
   if (row['deliveryDate']?.trim()) {
     const date = new Date(row['deliveryDate']);
-    if (isNaN(date.getTime())) {
-      errors.push('Delivery date must be a valid date');
-    }
+    if (isNaN(date.getTime())) errors.push('Delivery date must be a valid date');
   }
-  
   return errors;
 }
 
@@ -378,58 +366,34 @@ export type CompleteLoadRow = {
 
 export function validateCompleteLoadRow(row: CSVRow): string[] {
   const errors: string[] = [];
-  
-  // Required fields for complete template
-  if (!row['title']?.trim()) {
-    errors.push('Title is required');
-  }
-  
-  if (!row['originCity']?.trim()) {
-    errors.push('Origin city is required');
-  }
-  
-  if (!row['destinationCity']?.trim()) {
-    errors.push('Destination city is required');
-  }
-  
-  if (!row['vehicleType']?.trim()) {
-    errors.push('Vehicle type is required');
-  }
-  
+  if (!row['title']?.trim()) errors.push('Title is required');
+  if (!row['originCity']?.trim()) errors.push('Origin city is required');
+  if (!row['destinationCity']?.trim()) errors.push('Destination city is required');
+  if (!row['vehicleType']?.trim()) errors.push('Vehicle type is required');
+
   if (!row['weight']?.trim()) {
     errors.push('Weight is required');
   } else {
     const weight = Number(row['weight'].replace(/[^0-9.]/g, ''));
-    if (isNaN(weight) || weight <= 0) {
-      errors.push('Weight must be a valid positive number');
-    }
+    if (isNaN(weight) || weight <= 0) errors.push('Weight must be a valid positive number');
   }
-  
+
   if (!row['rate']?.trim()) {
     errors.push('Rate is required');
   } else {
     const rate = Number(row['rate'].replace(/[^0-9.]/g, ''));
-    if (isNaN(rate) || rate <= 0) {
-      errors.push('Rate must be a valid positive number');
-    }
+    if (isNaN(rate) || rate <= 0) errors.push('Rate must be a valid positive number');
   }
-  
-  // Validate dates if provided
+
   if (row['pickupDate']?.trim()) {
     const date = new Date(row['pickupDate']);
-    if (isNaN(date.getTime())) {
-      errors.push('Pickup date must be a valid date');
-    }
+    if (isNaN(date.getTime())) errors.push('Pickup date must be a valid date');
   }
-  
   if (row['deliveryDate']?.trim()) {
     const date = new Date(row['deliveryDate']);
-    if (isNaN(date.getTime())) {
-      errors.push('Delivery date must be a valid date');
-    }
+    if (isNaN(date.getTime())) errors.push('Delivery date must be a valid date');
   }
-  
-  // Validate email formats if provided
+
   const emailFields = ['originEmail', 'destinationEmail', 'primaryEmail', 'backupEmail'];
   emailFields.forEach(field => {
     if (row[field]?.trim()) {
@@ -439,8 +403,7 @@ export function validateCompleteLoadRow(row: CSVRow): string[] {
       }
     }
   });
-  
-  // Validate phone numbers if provided
+
   const phoneFields = ['originPhone', 'destinationPhone', 'primaryPhone', 'backupPhone'];
   phoneFields.forEach(field => {
     if (row[field]?.trim()) {
@@ -450,11 +413,10 @@ export function validateCompleteLoadRow(row: CSVRow): string[] {
       }
     }
   });
-  
+
   return errors;
 }
 
-// Generic validation function that routes to the appropriate validator
 export function validateLoadRow(row: CSVRow, templateType: 'simple' | 'standard' | 'complete'): string[] {
   switch (templateType) {
     case 'simple':
@@ -468,17 +430,13 @@ export function validateLoadRow(row: CSVRow, templateType: 'simple' | 'standard'
   }
 }
 
-// Function to convert Excel file to CSV format
 export async function parseExcelFile(fileUri: string, fileName: string): Promise<{ headers: string[]; rows: CSVRow[] }> {
   try {
     let arrayBuffer: ArrayBuffer;
-    
     if (typeof window !== 'undefined' && fileUri.startsWith('blob:')) {
-      // Web environment
       const response = await fetch(fileUri);
       arrayBuffer = await response.arrayBuffer();
     } else {
-      // React Native environment
       try {
         const FileSystem = await import('expo-file-system');
         if (!FileSystem || !FileSystem.readAsStringAsync) {
@@ -493,42 +451,27 @@ export async function parseExcelFile(fileUri: string, fileName: string): Promise
         }
       } catch (error) {
         console.warn('FileSystem not available for Excel parsing, trying fetch fallback:', error);
-        // Fallback to fetch for React Native Web or when FileSystem is not available
         const response = await fetch(fileUri);
         arrayBuffer = await response.arrayBuffer();
       }
     }
-    
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
-    
-    // Convert to JSON with header row
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
-    
-    if (jsonData.length === 0) {
-      return { headers: [], rows: [] };
-    }
-    
+    if (jsonData.length === 0) return { headers: [], rows: [] };
     const headers = jsonData[0].map(h => (h || '').toString().trim());
     const rows: CSVRow[] = [];
-    
     for (let i = 1; i < jsonData.length; i++) {
       const rowData = jsonData[i];
       const row: CSVRow = {};
-      
       headers.forEach((header, index) => {
         const value = rowData[index];
         row[header] = (value || '').toString().trim();
       });
-      
-      // Skip empty rows
       const hasData = Object.values(row).some(v => v.trim().length > 0);
-      if (hasData) {
-        rows.push(row);
-      }
+      if (hasData) rows.push(row);
     }
-    
     return { headers, rows };
   } catch (error) {
     console.error('Error parsing Excel file:', error);
@@ -536,22 +479,16 @@ export async function parseExcelFile(fileUri: string, fileName: string): Promise
   }
 }
 
-// Function to determine file type and parse accordingly
 export async function parseFileContent(fileUri: string, fileName: string): Promise<{ headers: string[]; rows: CSVRow[] }> {
   const fileExtension = fileName.toLowerCase().split('.').pop();
-  
   if (fileExtension === 'xlsx' || fileExtension === 'xls') {
     return parseExcelFile(fileUri, fileName);
   } else {
-    // Default to CSV parsing
     let csvContent: string;
-    
     if (typeof window !== 'undefined' && fileUri.startsWith('blob:')) {
-      // Web environment
       const response = await fetch(fileUri);
       csvContent = await response.text();
     } else {
-      // React Native environment
       try {
         const FileSystem = await import('expo-file-system');
         if (!FileSystem || !FileSystem.readAsStringAsync) {
@@ -560,12 +497,10 @@ export async function parseFileContent(fileUri: string, fileName: string): Promi
         csvContent = await FileSystem.readAsStringAsync(fileUri);
       } catch (error) {
         console.warn('FileSystem not available, trying fetch fallback:', error);
-        // Fallback to fetch for React Native Web or when FileSystem is not available
         const response = await fetch(fileUri);
         csvContent = await response.text();
       }
     }
-    
     return parseCSV(csvContent);
   }
 }
