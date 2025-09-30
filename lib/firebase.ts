@@ -695,6 +695,65 @@ function selectRemoteAttachments(finalPhotos: AnyPhoto[] | undefined) {
 
   return out;
 }
+// --- Attachments sanitizer (keeps only tiny remote links) ---
+type AnyPhoto =
+  | string
+  | { url?: string; downloadURL?: string; uri?: string; path?: string | null; [k: string]: any };
+
+function selectRemoteAttachments(finalPhotos: AnyPhoto[] | undefined) {
+  if (!Array.isArray(finalPhotos)) return [];
+
+  const out: { url: string; path: string | null }[] = [];
+  const seen = new Set<string>();
+
+  for (const p of finalPhotos) {
+    const urlRaw =
+      typeof p === "string"
+        ? p
+        : (p?.downloadURL || p?.url || p?.uri || "");
+
+    // Skip empties, base64/data/file, and non-http(s)
+    if (
+      !urlRaw ||
+      /^data:/i.test(urlRaw) ||
+      /^file:/i.test(urlRaw) ||
+      !/^https?:\/\//i.test(urlRaw)
+    ) {
+      continue;
+    }
+
+    // Cap URL length (Firebase download URLs are long but < 1–2k is fine)
+    if (urlRaw.length > 2048) continue;
+
+    // Keep a tiny storage path only if it looks like a normal path
+    let safePath: string | null = null;
+    if (typeof p === "object" && p && typeof p.path === "string") {
+      const path = p.path.trim();
+      // reject base64/file and absurdly long strings
+      if (
+        path &&
+        !/^data:/i.test(path) &&
+        !/^file:/i.test(path) &&
+        path.length <= 200 &&
+        /^[\w\-\/.]+$/.test(path) // only simple storage-ish paths
+      ) {
+        safePath = path;
+      }
+    }
+
+    // Deduplicate by URL
+    const key = urlRaw;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({ url: urlRaw, path: safePath });
+
+    // Safety cap so the array can’t get huge
+    if (out.length >= 12) break;
+  }
+
+  return out;
+}
 
 // ======================
 // MAIN: post a load
