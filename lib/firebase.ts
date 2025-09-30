@@ -590,7 +590,7 @@ export async function saveDriverProfile(driverData: {
 // ---- DRIVER PROFILE: Get driver profile from Firestore ----
 export async function getDriverProfile(userId: string) {
   try {
-    console.log("[GET_DRIVER_PROFILE] Fetching driver profile for user:", userId);
+    console.log("[GET_DRIVER_PROFILE] Fetching driver profile (guarded)", { requestedUserId: userId });
 
     const authSuccess = await ensureFirebaseAuth();
     if (!authSuccess) {
@@ -602,35 +602,49 @@ export async function getDriverProfile(userId: string) {
 
     if (!auth.currentUser) {
       console.error("[GET_DRIVER_PROFILE] No authenticated user after ensureFirebaseAuth");
-      throw new Error("No authenticated user");
+      throw new Error("Not signed in");
     }
 
+    const uid = auth.currentUser.uid;
     console.log("[GET_DRIVER_PROFILE] Authenticated as:", {
-      uid: auth.currentUser.uid,
+      uid,
       isAnonymous: auth.currentUser.isAnonymous,
       requestedUserId: userId,
     });
 
-    const driverRef = doc(db, "drivers", userId);
+    // Guard: read users/{auth.currentUser.uid} first
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      console.log("[GET_DRIVER_PROFILE] users doc missing; stopping driver-specific reads");
+      return { success: false, data: null, message: "users doc missing", source: "users" } as const;
+    }
+
+    const profile: any = userSnap.data();
+    const role = profile?.role ?? profile?.profileData?.role;
+    console.log("[GET_DRIVER_PROFILE] users role:", role);
+
+    // If not a driver, STOP and return null (do NOT query any driver path)
+    if (role !== "driver") {
+      console.log("[GET_DRIVER_PROFILE] Non-driver role detected. Skipping driver collection reads.");
+      return { success: true, data: null, source: "users-non-driver" } as const;
+    }
+
+    // Only if role === 'driver' continue to read driver-specific data
+    const driverRef = doc(db, "drivers", uid);
     const driverSnap = await getDoc(driverRef);
 
     if (driverSnap.exists()) {
       const data = withNormalizedMpg(driverSnap.data() as any);
       console.log("[GET_DRIVER_PROFILE] ✅ Driver profile found in drivers collection (normalized MPG)");
-      return { success: true, data, source: "drivers" };
+      return { success: true, data, source: "drivers" } as const;
     }
 
-    const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
-
-    if (userSnap.exists()) {
-      const data = withNormalizedMpg(userSnap.data() as any);
-      console.log("[GET_DRIVER_PROFILE] ✅ User profile found in users collection (normalized MPG)");
-      return { success: true, data, source: "users" };
-    }
-
-    console.log("[GET_DRIVER_PROFILE] ❌ No profile found for user:", userId);
-    return { success: false, message: "Driver profile not found", data: null };
+    // Fallback: allow using minimal data from users doc for driver role
+    const usersData = withNormalizedMpg(profile as any);
+    console.log("[GET_DRIVER_PROFILE] ⚠️ Driver profile not found in drivers; returning users doc data");
+    return { success: true, data: usersData, source: "users-driver" } as const;
   } catch (error: any) {
     console.error("[GET_DRIVER_PROFILE] ❌ Failed to get driver profile:", error);
     console.error("[GET_DRIVER_PROFILE] Error details:", {
