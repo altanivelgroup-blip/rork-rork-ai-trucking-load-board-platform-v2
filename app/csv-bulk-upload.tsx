@@ -1016,32 +1016,22 @@ export default function CSVBulkUploadScreen() {
       
       console.log(`[BULK UPLOAD] Processing ${validRows.length} valid rows with bulk ID: ${bulkImportId}`);
       
-      // Preflight: ensure auth & permissions before we start
+      // Preflight: ensure auth before we start
       try {
-        console.log('[BULK UPLOAD] Ensuring Firebase auth before permission check...');
-        const { ensureFirebaseAuth, checkFirebasePermissions } = await import('@/utils/firebase');
+        console.log('[BULK UPLOAD] Ensuring Firebase auth...');
+        const { ensureFirebaseAuth } = await import('@/utils/firebase');
         const authed = await ensureFirebaseAuth();
         console.log('[BULK UPLOAD] ensureFirebaseAuth ->', authed);
 
-        console.log('[BULK UPLOAD] Starting permission check...');
-        const perms = await checkFirebasePermissions();
-        console.log('[BULK UPLOAD] Permission check result:', perms);
-
-        if (!perms.canRead) {
-          const msg = perms.error || 'Read permission failed.';
-          throw new Error(`❌ Firestore read check failed: ${msg}`);
-        }
-        if (!perms.canWrite) {
-          const base = perms.error || 'Write permission denied.';
-          const hint = base.includes('Failed to fetch') ? ' Check network/CORS or try disabling ad/tracker blockers.' : '';
-          throw new Error(`❌ Missing write permissions to Firestore. ${base}${hint}`.trim());
+        if (!authed) {
+          throw new Error('❌ Failed to authenticate with Firebase');
         }
 
-        console.log('[BULK UPLOAD] Permission check passed - can read/write to Firestore');
+        console.log('[BULK UPLOAD] Authentication check passed');
       } catch (preErr: any) {
-        const msg = typeof preErr?.message === 'string' ? preErr.message : 'Permission check failed';
-        console.error('[BULK UPLOAD] Permission check error:', msg);
-        console.error('[BULK UPLOAD] Permission check error details:', JSON.stringify({
+        const msg = typeof preErr?.message === 'string' ? preErr.message : 'Authentication check failed';
+        console.error('[BULK UPLOAD] Authentication check error:', msg);
+        console.error('[BULK UPLOAD] Authentication check error details:', JSON.stringify({
           name: preErr?.name,
           message: preErr?.message,
           stack: preErr?.stack
