@@ -31,8 +31,8 @@ service cloud.firestore {
     
     match /drivers/{uid} {
       allow read: if isOwner(uid) || isAdmin();
-      allow write: if isOwner(uid) || isAdmin();
-      allow create: if isOwner(uid) || isAdmin();
+      allow write: if isAuthenticatedUser() && (isOwner(uid) || isAdmin());
+      allow create: if isAuthenticatedUser() && (isOwner(uid) || isAdmin());
       
       match /vehicles/{vehicleId} {
         allow read: if isOwner(uid) || isAdmin();
