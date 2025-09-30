@@ -13,13 +13,15 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { X, Camera, Image as ImageIcon } from 'lucide-react-native';
 import { getFirebase } from '@/utils/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { MAX_PHOTOS } from '@/utils/photos';
+import { prepareForUpload, humanSize } from '@/utils/imagePreprocessor';
 
 type PhotoItem = {
   url: string;
   path: string | null;
   uploading?: boolean;
+  progress?: number;
   error?: string;
 };
 
@@ -39,9 +41,14 @@ export default function PhotoUploader({
   disabled = false,
 }: PhotoUploaderProps) {
   const [uploading, setUploading] = useState(false);
+  const [localPhotos, setLocalPhotos] = useState<PhotoItem[]>(photos);
 
   const uploadFile = useCallback(
-    async (uri: string): Promise<PhotoItem | null> => {
+    async (
+      uri: string,
+      index: number,
+      onProgressUpdate: (index: number, progress: number) => void
+    ): Promise<PhotoItem | null> => {
       try {
         console.log('[PhotoUploader] Starting upload for:', uri);
 
@@ -52,28 +59,54 @@ export default function PhotoUploader({
           throw new Error('Not signed in — please log in before uploading photos.');
         }
 
+        console.log('[PhotoUploader] Compressing image...');
+        const compressed = await prepareForUpload(uri, {
+          maxWidth: 1920,
+          maxHeight: 1080,
+          baseQuality: 0.8,
+        });
+
+        console.log('[PhotoUploader] Compression complete:', {
+          originalSize: 'unknown',
+          compressedSize: humanSize(compressed.sizeBytes),
+          dimensions: `${compressed.width}x${compressed.height}`,
+        });
+
         const safeId = String(draftId || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_');
         const photoId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-        const ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
         const basePath = `loads/${uid}/${safeId}`;
-        const fullPath = `${basePath}/${photoId}.${ext}`;
+        const fullPath = `${basePath}/${photoId}.${compressed.ext}`;
 
         console.log('[PhotoUploader] Upload path:', fullPath);
 
-        const response = await fetch(uri);
-        const blob = await response.blob();
-
-        console.log('[PhotoUploader] Blob created:', {
-          size: blob.size,
-          type: blob.type,
+        const storageRef = ref(storage, fullPath);
+        const uploadTask = uploadBytesResumable(storageRef, compressed.blob, {
+          contentType: compressed.mime,
+          cacheControl: 'public,max-age=31536000',
         });
 
-        const storageRef = ref(storage, fullPath);
-        await uploadBytes(storageRef, blob);
+        await new Promise<void>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = Math.round(
+                (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+              );
+              onProgressUpdate(index, progress);
+              console.log('[PhotoUploader] Upload progress:', progress + '%');
+            },
+            (error) => {
+              console.error('[PhotoUploader] Upload error:', error);
+              reject(error);
+            },
+            () => {
+              console.log('[PhotoUploader] Upload complete');
+              resolve();
+            }
+          );
+        });
 
-        console.log('[PhotoUploader] Upload complete, getting download URL...');
-
-        const downloadURL = await getDownloadURL(storageRef);
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
 
         console.log('[PhotoUploader] ✅ Upload successful:', {
           path: fullPath,
@@ -131,7 +164,7 @@ export default function PhotoUploader({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
-        quality: 0.8,
+        quality: 1.0,
         selectionLimit: remaining,
       });
 
@@ -146,11 +179,31 @@ export default function PhotoUploader({
         url: uri,
         path: null,
         uploading: true,
+        progress: 0,
       }));
 
-      onPhotosChange([...photos, ...tempPhotos]);
+      const startIndex = photos.length;
+      const photosWithTemp = [...photos, ...tempPhotos];
+      setLocalPhotos(photosWithTemp);
+      onPhotosChange(photosWithTemp);
 
-      const uploadPromises = selectedUris.map((uri) => uploadFile(uri));
+      const handleProgressUpdate = (relativeIndex: number, progress: number) => {
+        setLocalPhotos((currentPhotos: PhotoItem[]) => {
+          const absoluteIndex = startIndex + relativeIndex;
+          const updated = [...currentPhotos];
+          if (updated[absoluteIndex]) {
+            updated[absoluteIndex] = {
+              ...updated[absoluteIndex],
+              progress,
+            };
+          }
+          return updated;
+        });
+      };
+
+      const uploadPromises = selectedUris.map((uri, idx) =>
+        uploadFile(uri, idx, handleProgressUpdate)
+      );
       const uploadedPhotos = await Promise.all(uploadPromises);
 
       const successfulUploads = uploadedPhotos.filter(
@@ -192,7 +245,7 @@ export default function PhotoUploader({
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        quality: 0.8,
+        quality: 1.0,
         allowsEditing: false,
       });
 
@@ -207,11 +260,28 @@ export default function PhotoUploader({
         url: uri,
         path: null,
         uploading: true,
+        progress: 0,
       };
 
-      onPhotosChange([...photos, tempPhoto]);
+      const startIndex = photos.length;
+      const photosWithTemp = [...photos, tempPhoto];
+      setLocalPhotos(photosWithTemp);
+      onPhotosChange(photosWithTemp);
 
-      const uploadedPhoto = await uploadFile(uri);
+      const handleProgressUpdate = (relativeIndex: number, progress: number) => {
+        setLocalPhotos((currentPhotos: PhotoItem[]) => {
+          const updated = [...currentPhotos];
+          if (updated[startIndex]) {
+            updated[startIndex] = {
+              ...updated[startIndex],
+              progress,
+            };
+          }
+          return updated;
+        });
+      };
+
+      const uploadedPhoto = await uploadFile(uri, 0, handleProgressUpdate);
 
       if (uploadedPhoto) {
         const updatedPhotos = [...photos, uploadedPhoto];
@@ -261,23 +331,25 @@ export default function PhotoUploader({
 
   const remaining = maxPhotos - photos.length;
 
+  const displayPhotos = localPhotos.length > 0 ? localPhotos : photos;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Photos</Text>
         <Text style={styles.count}>
-          {photos.length} / {maxPhotos}
+          {displayPhotos.length} / {maxPhotos}
         </Text>
       </View>
 
-      {photos.length > 0 && (
+      {displayPhotos.length > 0 && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.photosScroll}
           contentContainerStyle={styles.photosContent}
         >
-          {photos.map((photo, index) => (
+          {displayPhotos.map((photo, index) => (
             <View key={index} style={styles.photoContainer}>
               <Image
                 source={{ uri: photo.url }}
@@ -286,7 +358,19 @@ export default function PhotoUploader({
               />
               {photo.uploading && (
                 <View style={styles.uploadingOverlay}>
-                  <ActivityIndicator size="small" color="#fff" />
+                  <View style={styles.progressContainer}>
+                    <View style={styles.progressBar}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { width: `${photo.progress || 0}%` },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.progressText}>
+                      {photo.progress || 0}%
+                    </Text>
+                  </View>
                 </View>
               )}
               {!photo.uploading && !disabled && (
@@ -387,9 +471,32 @@ const styles = StyleSheet.create({
   },
   uploadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 8,
+  },
+  progressContainer: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 4,
+  },
+  progressBar: {
+    width: '100%',
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#fff',
   },
   removeButton: {
     position: 'absolute',
