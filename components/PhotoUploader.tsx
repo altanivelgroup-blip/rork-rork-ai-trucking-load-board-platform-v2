@@ -1,17 +1,9 @@
-// At the top of PhotoUploader.tsx
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebaseConfig'; // Double-check this path—adjust to '../../firebaseConfig' or whatever fits your structure
 import React, { useState } from 'react';
-import { TouchableOpacity, Text, StyleSheet, View, ScrollView, Alert, Platform } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, View, ScrollView, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-// Change this:
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-
-// To this (alias 'ref' to 'storageRef'):
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebaseConfig'; // Adjust import to your Firebase config file
-import { useAuth } from '@hooks/useAuth'; // Assuming you have an auth hook for userId
+import { storage } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PhotoUploaderProps {
   entityType: string; // e.g., 'vehicle'
@@ -28,16 +20,18 @@ const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   onUploadFailure,
   maxPhotos = 5,
 }) => {
-  const { user } = useAuth(); // Get current user ID
-  const userId = user?.uid;
-  if (!userId) {
-    Alert.alert('Error', 'You must be logged in to upload photos.');
-    return null;
-  }
-
+  const { userId } = useAuth();
   const [photos, setPhotos] = useState<string[]>([]);
   const [progress, setProgress] = useState<number>(0);
   const [uploading, setUploading] = useState<boolean>(false);
+
+  if (!userId) {
+    return (
+      <View style={styles.container}>
+        <Text>You must be logged in to upload photos.</Text>
+      </View>
+    );
+  }
 
   const pickImage = async () => {
     if (photos.length >= maxPhotos) {
@@ -62,12 +56,12 @@ const PhotoUploader: React.FC<PhotoUploaderProps> = ({
     setUploading(true);
     const fileName = uri.split('/').pop() || `photo_${Date.now()}.jpg`;
     const storagePath = `users/${userId}/${entityType}s/${entityId}/photos/${fileName}`;
-    const storageRef = ref(storage, storagePath);
+    const fileRef = storageRef(storage, storagePath);
 
     try {
       const response = await fetch(uri);
       const blob = await response.blob();
-      const uploadTask = uploadBytesResumable(storageRef, blob);
+      const uploadTask = uploadBytesResumable(fileRef, blob);
 
       uploadTask.on(
         'state_changed',
