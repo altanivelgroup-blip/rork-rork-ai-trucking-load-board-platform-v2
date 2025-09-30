@@ -72,11 +72,32 @@ export default function PhotoUploader({
         console.log('[PhotoUploader] Is anonymous:', auth.currentUser.isAnonymous);
 
         console.log('[PhotoUploader] Compressing image...');
-        const compressed = await prepareForUpload(uri, {
-          maxWidth: 1920,
-          maxHeight: 1080,
-          baseQuality: 0.8,
-        });
+        let compressed;
+        try {
+          compressed = await Promise.race([
+            prepareForUpload(uri, {
+              maxWidth: 1920,
+              maxHeight: 1080,
+              baseQuality: 0.8,
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Compression timeout')), 10000)
+            )
+          ]);
+        } catch (compressionError: any) {
+          console.warn('[PhotoUploader] Compression failed or timed out, using direct upload:', compressionError.message);
+          
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          compressed = {
+            blob,
+            mime: blob.type || 'image/jpeg',
+            ext: blob.type?.includes('png') ? 'png' : 'jpg',
+            width: 0,
+            height: 0,
+            sizeBytes: blob.size
+          };
+        }
 
         console.log('[PhotoUploader] Compression complete:', {
           originalSize: 'unknown',
