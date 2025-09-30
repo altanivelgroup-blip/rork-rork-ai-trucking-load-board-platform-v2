@@ -21,7 +21,7 @@ import { saveDriverProfile, getDriverProfile } from '@/lib/firebase';
 // Options moved to shared constants to keep logic in sync
 export default function DriverProfileScreen() {
   const router = useRouter();
-  const { user, register, userId } = useAuth();
+  const { user, register, userId, updateProfile } = useAuth();
   const { updateCachedProfile, validateExperience } = useProfileCache();
   const toast = useToast();
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -413,6 +413,21 @@ try {
   const firebaseResult = await saveDriverProfile(finalData);
 
         console.log('[DriverProfile] Firebase save result:', firebaseResult);
+// Keep the in-memory auth user in sync so UI shows the new MPG immediately
+try {
+  const mpgNum =
+    typeof finalData.mpgRated === 'number'
+      ? finalData.mpgRated
+      : (typeof formData.mpgRated === 'string' && formData.mpgRated.trim() !== '' ? Number(formData.mpgRated) : undefined);
+
+  await updateProfile({
+    name: finalData.fullName,
+    ...(mpgNum != null ? { mpgRated: mpgNum, fuelProfile: { averageMpg: mpgNum } } : {}),
+  } as any);
+  console.log('[DriverProfile] In-memory auth user updated');
+} catch (e) {
+  console.warn('[DriverProfile] updateProfile (in-memory) failed, continuing:', e);
+}
 
         
         // Also update cached profile for offline support
