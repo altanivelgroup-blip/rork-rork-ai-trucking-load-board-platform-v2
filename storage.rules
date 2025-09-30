@@ -22,6 +22,12 @@ service firebase.storage {
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
     
+    match /profiles/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
     match /loadPhotos/{userId}/{loadId}/{fileName} {
       allow read: if true;
       allow write: if isAuthenticated();
