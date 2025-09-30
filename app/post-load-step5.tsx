@@ -3,13 +3,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/constants/theme';
-import { Send, Upload, Camera, Image as ImageIcon } from 'lucide-react-native';
+import { Send, Upload } from 'lucide-react-native';
 
 import { usePostLoad } from '@/hooks/usePostLoad';
 import { useToast } from '@/components/Toast';
 import { useLoads } from '@/hooks/useLoads';
 import { Load, VehicleType } from '@/types';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { db, storage, auth, ensureFirebaseAuth } from '@/utils/firebase';
 import { ref as storageRefV9, uploadBytes, getDownloadURL as getDownloadURLv9 } from 'firebase/storage';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
@@ -62,14 +63,6 @@ async function uploadPhotosForLoad(uid: string, loadId: string, picked: any[], o
   return urls;
 }
 
-async function reuploadUrlsToDoc(uid: string, docId: string, urls: string[]) {
-  // ✅ PERMANENT FIX: Skip re-uploading Firebase Storage URLs - they're already uploaded!
-  console.log('[Reupload] ✅ FIXED: All URLs are Firebase Storage URLs - no re-upload needed');
-  
-  // All URLs from PhotoUploader are Firebase Storage URLs - return them directly
-  return urls;
-}
-
 function mapDraftToLoad(id: string, uid: string, draft: any, photos: string[]): Load {
   const vehicleType = (draft?.vehicleType || draft?.equipmentType || 'truck') as VehicleType;
   const pickupDate = draft?.pickupDate ? new Date(draft.pickupDate) : new Date();
@@ -115,7 +108,6 @@ function mapDraftToLoad(id: string, uid: string, draft: any, photos: string[]): 
 async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsStore?: any, setField?: (k: string, v: any) => void) {
   try {
     if (draft?.isPosting) return;
-    // Mark UI as posting (stateful)
     try { setField && setField('isPosting', true); } catch {}
     if (!auth.currentUser) {
       try {
@@ -128,16 +120,14 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
     await ensureFirebaseAuth();
     if (!auth.currentUser?.uid) throw new Error('Please sign in');
 
-    // FIXED: Check both photoUrls and photosLocal for photo validation
     const pickedFromUploader: string[] = Array.isArray(draft?.photoUrls) ? draft.photoUrls : [];
     const pickedLocal = draft?.photosLocal ?? draft?.photos ?? [];
     const totalPhotoCount = Math.max(pickedFromUploader.length, pickedLocal.length);
     const picked = pickedFromUploader.length > 0 ? pickedFromUploader : pickedLocal;
-    
-    // Check photo requirements based on vehicle type
+
     const isVehicleLoad = draft?.vehicleType === 'car-hauler';
     const minPhotosRequired = isVehicleLoad ? 5 : 1;
-    
+
     console.log('[submitLoadWithPhotos] Photo validation:', {
       pickedFromUploader: pickedFromUploader.length,
       pickedLocal: pickedLocal.length,
@@ -145,7 +135,7 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       minPhotosRequired,
       isVehicleLoad
     });
-    
+
     if (totalPhotoCount < minPhotosRequired) {
       const errorMsg = isVehicleLoad 
         ? 'Vehicle loads require at least 5 photos for protection.'
@@ -183,11 +173,10 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       const docRef = await addDoc(collection(db, 'loads'), base);
       console.log('[PostLoad] created id:', docRef.id);
 
-      // ✅ PERMANENT FIX: Use photoUrls directly - they're already Firebase Storage URLs
       let urls: string[];
       if (pickedFromUploader.length > 0) {
         console.log('[PostLoad] ✅ Using PhotoUploader URLs directly - already uploaded to Firebase Storage');
-        urls = pickedFromUploader; // PhotoUploader always provides Firebase Storage URLs
+        urls = pickedFromUploader;
       } else {
         urls = await uploadPhotosForLoad(uid, docRef.id, picked as any[]);
       }
@@ -198,10 +187,8 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
         photos: urls,
         photoCount: urls.length,
         updatedAt: serverTimestamp(),
-        // Complete shipper tagging for profile accuracy
         shipperId: loadObj.shipperId,
         shipperName: loadObj.shipperName,
-        // Redundant owner tag for legacy queries
         createdBy: uid,
         origin: loadObj.origin,
         destination: loadObj.destination,
@@ -225,13 +212,12 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
         console.log('[PostLoad] optional addLoad failed', e);
       }
 
-      toast?.success?.('Load posted successfully');
+      toast?.show?.('Load posted successfully', 'success');
       console.log('[PostLoad] Navigating to loads tab after successful post');
       try {
         router?.replace?.('/(tabs)/loads');
       } catch (navError) {
         console.error('[PostLoad] Navigation error:', navError);
-        // Fallback navigation
         router?.push?.('/(tabs)/loads');
       }
       try { setField && setField('isPosting', false); } catch {}
@@ -239,11 +225,10 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
       console.warn('[PostLoad] Firestore write failed, falling back to local:', fireErr?.code, fireErr?.message);
       if (fireErr?.code === 'permission-denied' || fireErr?.code === 'unavailable' || fireErr?.code === 'unauthenticated') {
         const localId = `local-${Date.now()}`;
-        // ✅ PERMANENT FIX: Use photoUrls directly - they're already Firebase Storage URLs
         let urls: string[];
         if (pickedFromUploader.length > 0) {
           console.log('[PostLoad] ✅ Using PhotoUploader URLs directly for local fallback - already uploaded');
-          urls = pickedFromUploader; // PhotoUploader always provides Firebase Storage URLs
+          urls = pickedFromUploader;
         } else {
           urls = await uploadPhotosForLoad(uid, localId, picked as any[]);
         }
@@ -261,7 +246,6 @@ async function submitLoadWithPhotos(draft: any, toast: any, router: any, loadsSt
           router?.replace?.('/(tabs)/loads');
         } catch (navError) {
           console.error('[PostLoad] Navigation error:', navError);
-          // Fallback navigation
           router?.push?.('/(tabs)/loads');
         }
         try { setField && setField('isPosting', false); } catch {}
@@ -297,9 +281,10 @@ function Stepper({ current, total }: { current: number; total: number }) {
 }
 function PostLoadStep5() {
   const router = useRouter();
-  const { draft, setField, reset } = usePostLoad();
+  const { draft, setField } = usePostLoad();
   const [contact, setContact] = useState<string>(draft.contact || '');
   const [isUploading, setIsUploading] = useState(false);
+  const [photos, setPhotos] = useState<{ id: string; localUri: string; url?: string; status: 'picked' | 'resizing' | 'uploading' | 'uploaded' | 'error'; progress: number; error?: string }[]>([]);
 
   const toast = useToast();
   const loadsStore = useLoads();
@@ -314,78 +299,85 @@ function PostLoadStep5() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
-        quality: 0.8,
-        aspect: [4, 3],
+        allowsEditing: false,
+        quality: 1,
       });
+      if (result.canceled || !result.assets) return;
 
-      if (!result.canceled && result.assets) {
-        const currentPhotos = draft.photoUrls || [];
-        const newPhotos = result.assets.map(asset => asset.uri);
-        const allPhotos = [...currentPhotos, ...newPhotos];
-        setField('photoUrls', allPhotos);
-        toast?.success?.(`Added ${result.assets.length} photo(s)`);
+      const ensured = await ensureFirebaseAuth();
+      const uid = ensured ? auth.currentUser?.uid : undefined;
+      if (!uid) {
+        toast?.show?.('Sign in required before uploading photos', 'error');
+        return;
       }
+      const draftLoadId = String(draft.reference || `LOAD-${Date.now()}`);
+
+      const already = (draft.photoUrls?.length || 0);
+      const remainingTotal = Math.max(0, 20 - already);
+      const toProcess = result.assets.slice(0, remainingTotal);
+
+      const newItems = toProcess.map((a) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        localUri: a.uri,
+        status: 'picked' as const,
+        progress: 0,
+      }));
+      setPhotos(prev => [...prev, ...newItems]);
+
+      for (const item of newItems) {
+        try {
+          setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'resizing', progress: 5 } : p));
+          const manipulated = await ImageManipulator.manipulateAsync(
+            item.localUri,
+            [{ resize: { width: 1600 } }],
+            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          const resizedUri = manipulated.uri;
+          setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, progress: 20 } : p));
+
+          const resp = await fetch(resizedUri);
+          const blob = await resp.blob();
+          setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'uploading', progress: 40 } : p));
+
+          const photoId = item.id;
+          const path = `loads/${uid}/${draftLoadId}/${photoId}.jpg`;
+          const sRef = storageRefV9(storage, path);
+          await uploadBytes(sRef, blob, { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' });
+          const url = await getDownloadURLv9(sRef);
+
+          setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'uploaded', progress: 100, url } : p));
+          const nextUrls = (draft.photoUrls || []).concat(url);
+          setField('photoUrls', nextUrls);
+          const nextAttachments = (draft.attachments || []).concat([{ uri: url }]);
+          setField('attachments', nextAttachments as any);
+        } catch (e: any) {
+          console.error('[PhotoUpload] error', e);
+          setPhotos(prev => prev.map(p => p.id === item.id ? { ...p, status: 'error', error: e?.message || 'Upload failed' } : p));
+          toast?.show?.('Photo upload failed. Try again.', 'error');
+        }
+      }
+      toast?.show?.('Photos uploaded', 'success');
     } catch (error) {
       console.error('[PostLoadStep5] Image picker error:', error);
       toast?.show?.('Failed to pick images', 'error');
     } finally {
       setIsUploading(false);
     }
-  }, [draft.photoUrls, setField, toast]);
+  }, [draft.reference, draft.photoUrls, draft.attachments, setField, toast]);
 
-  const removePhoto = useCallback((index: number) => {
-    const currentPhotos = draft.photoUrls || [];
-    const updatedPhotos = currentPhotos.filter((_, i) => i !== index);
-    setField('photoUrls', updatedPhotos);
-  }, [draft.photoUrls, setField]);
-
-  // ✅ PERMANENT FIX: Remove infinite loop - contact is managed locally in component
-  // The contact field will be passed to submitLoadWithPhotos when needed
-  // No need to sync back to draft state which causes infinite re-renders
+  const uploadedCount = useMemo(() => (draft.photoUrls || []).filter(u => typeof u === 'string' && u.startsWith('https://')).length, [draft.photoUrls]);
 
   const handlePostLoad = useCallback(async () => {
     try {
-      console.log('[PostLoadStep5] handlePostLoad called with contact:', contact);
-      console.log('[PostLoadStep5] Current draft photoUrls:', draft.photoUrls?.length || 0);
-      
-      // Validate contact info
       if (!contact?.trim()) {
         toast?.show?.('Please enter contact information', 'error');
         return;
       }
-      
-      // FIXED: Validate photos - check both photoUrls and photosLocal
-      const photoUrlsCount = draft.photoUrls?.length || 0;
-      const photosLocalCount = draft.photosLocal?.length || 0;
-      const totalPhotoCount = Math.max(photoUrlsCount, photosLocalCount);
-      const isVehicleLoad = draft.vehicleType === 'car-hauler';
-      const minRequired = isVehicleLoad ? 5 : 1;
-      
-      console.log('[PostLoadStep5] Photo validation:', { 
-        photoUrlsCount,
-        photosLocalCount,
-        totalPhotoCount,
-        isVehicleLoad, 
-        minRequired 
-      });
-      
-      if (totalPhotoCount < minRequired) {
-        const errorMsg = isVehicleLoad 
-          ? 'Vehicle loads require at least 5 photos for protection.'
-          : 'Please add at least 1 photo.';
-        toast?.show?.(errorMsg, 'error');
-        return;
-      }
-      
-      // Update contact in draft before submitting
-      setField('contact', contact.trim());
-      
-      // Call the submit function with updated draft
       await submitLoadWithPhotos(
-        { ...draft, contact: contact.trim() }, 
-        toast, 
-        router, 
-        loadsStore, 
+        { ...draft, contact: contact.trim() },
+        toast,
+        router,
+        loadsStore,
         (k: string, v: any) => setField(k as any, v)
       );
     } catch (error: any) {
@@ -393,11 +385,6 @@ function PostLoadStep5() {
       toast?.show?.(error?.message || 'Failed to post load', 'error');
     }
   }, [contact, draft, toast, router, loadsStore, setField]);
-
-
-
-
-
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -429,38 +416,19 @@ function PostLoadStep5() {
           </View>
 
           <View style={styles.attachCard}>
-            <Text style={styles.summaryTitle}>
-              Photos ({draft.vehicleType === 'car-hauler' ? '5 required for vehicle loads' : 'min 1 recommended'})
-            </Text>
-
-            <Text style={styles.helperText} testID="attachmentsHelper">
-              Photos ready: {Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0)} 
-              {draft.vehicleType === 'car-hauler' ? ' (5 required for vehicle protection)' : ' (1+ recommended)'}
-            </Text>
-            {draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5 && (
-              <Text style={styles.errorText} testID="attachmentsError">
-                Vehicle loads require 5 photos for shipper and driver protection.
-              </Text>
-            )}
-            {draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1 && (
-              <Text style={styles.warningText} testID="attachmentsWarning">
-                At least 1 photo is recommended for better load visibility.
-              </Text>
-            )}
+            <Text style={styles.summaryTitle}>Photos</Text>
+            <Text style={styles.helperText} testID="attachmentsHelper">Photos ready: {uploadedCount} (showing up to 12)</Text>
 
             <View style={styles.photoSection}>
               <View style={styles.photoHeader}>
                 <Text style={styles.photoTitle}>Photos</Text>
-                <Text style={styles.photoCount}>{draft.photoUrls?.length || 0}/20</Text>
-                <Pressable style={styles.settingsBtn}>
-                  <Text style={styles.settingsText}>⚙️</Text>
-                </Pressable>
+                <Text style={styles.photoCount}>{Math.min(draft.photoUrls?.length || 0, 20)}/20</Text>
               </View>
               
               <Pressable 
                 onPress={pickImages} 
                 style={styles.addPhotosBtn}
-                disabled={isUploading}
+                disabled={isUploading || (draft.photoUrls?.length || 0) >= 20}
               >
                 <Upload color={theme.colors.white} size={20} />
                 <Text style={styles.addPhotosBtnText}>
@@ -468,25 +436,11 @@ function PostLoadStep5() {
                 </Text>
               </Pressable>
               
-              {draft.vehicleType === 'car-hauler' && (draft.photoUrls?.length || 0) < 5 && (
-                <View style={styles.warningBanner}>
-                  <Text style={styles.warningBannerText}>
-                    ⚠️ You need at least 5 photos to publish.
-                  </Text>
-                </View>
-              )}
-              
               {(draft.photoUrls?.length || 0) > 0 && (
                 <View style={styles.photoGrid}>
-                  {draft.photoUrls?.map((uri, index) => (
-                    <View key={index} style={styles.photoPreview}>
+                  {(draft.photoUrls || []).slice(0, 12).map((uri, index) => (
+                    <View key={`${uri}-${index}`} style={styles.photoPreview}>
                       <Image source={{ uri }} style={styles.photoImage} />
-                      <Pressable 
-                        onPress={() => removePhoto(index)}
-                        style={styles.removePhotoBtn}
-                      >
-                        <Text style={styles.removePhotoBtnText}>×</Text>
-                      </Pressable>
                     </View>
                   ))}
                 </View>
@@ -526,26 +480,10 @@ function PostLoadStep5() {
             </Pressable>
             <Pressable 
               onPress={handlePostLoad} 
-              style={[
-                styles.postBtn, 
-                (!contact?.trim() ||
-                 (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
-                 (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
-                 draft.isPosting) && styles.postBtnDisabled
-              ]} 
-              disabled={
-                !contact?.trim() ||
-                (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
-                (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
-                draft.isPosting
-              } 
+              style={[styles.postBtn, (!contact?.trim() || uploadedCount < 1 || draft.isPosting) && styles.postBtnDisabled]} 
+              disabled={!contact?.trim() || uploadedCount < 1 || draft.isPosting} 
               accessibilityRole="button" 
-              accessibilityState={{ 
-                disabled: !contact?.trim() ||
-                         (draft.vehicleType === 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 5) ||
-                         (draft.vehicleType !== 'car-hauler' && Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < 1) ||
-                         draft.isPosting 
-              }} 
+              accessibilityState={{ disabled: !contact?.trim() || uploadedCount < 1 || draft.isPosting }} 
               testID="postLoadBtn"
             >
               {draft.isPosting ? (
@@ -554,14 +492,7 @@ function PostLoadStep5() {
                 <Send color={theme.colors.white} size={18} />
               )}
               <Text style={styles.postBtnText}>
-                {draft.isPosting 
-                  ? 'Posting...' 
-                  : !contact?.trim()
-                  ? 'Enter Contact Info'
-                  : Math.max(draft.photoUrls?.length || 0, draft.photosLocal?.length || 0) < (draft.vehicleType === 'car-hauler' ? 5 : 1)
-                  ? 'Add Photos'
-                  : 'Post Load'
-                }
+                {draft.isPosting ? 'Posting...' : !contact?.trim() ? 'Enter Contact Info' : uploadedCount < 1 ? 'Add Photos' : 'Post Load'}
               </Text>
             </Pressable>
           </View>
