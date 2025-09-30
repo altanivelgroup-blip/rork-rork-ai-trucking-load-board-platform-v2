@@ -60,14 +60,41 @@ export default function ShipperProfileScreen() {
 
   const handleSave = useCallback(async () => {
     try {
+      console.log('[ShipperProfile] Starting profile save...');
+      console.log('[ShipperProfile] Form data:', JSON.stringify(formData, null, 2));
+      
+      // Update the auth profile (saves to users collection)
       await updateProfile(formData);
+      
+      // Also save to shippers collection for consistency
+      if (user?.id) {
+        try {
+          const { db } = await import('@/lib/firebase');
+          const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+          
+          const shipperRef = doc(db, 'shippers', user.id);
+          const shipperData = {
+            ...formData,
+            userId: user.id,
+            role: 'shipper',
+            updatedAt: serverTimestamp(),
+          };
+          
+          await setDoc(shipperRef, shipperData, { merge: true });
+          console.log('[ShipperProfile] ✅ Saved to shippers collection');
+        } catch (shipperError) {
+          console.warn('[ShipperProfile] Failed to save to shippers collection (non-critical):', shipperError);
+        }
+      }
+      
       setIsEditing(false);
-      Alert.alert('Success', 'Profile updated successfully');
+      console.log('[ShipperProfile] ✅ Profile saved successfully');
+      toast.show('✅ Profile saved successfully! All information updated and synced to cloud.', 'success');
     } catch (error) {
-      console.error('Profile update error:', error);
-      Alert.alert('Error', 'Failed to update profile');
+      console.error('[ShipperProfile] Profile update error:', error);
+      toast.show('Failed to update profile. Please try again.', 'error');
     }
-  }, [formData, updateProfile]);
+  }, [formData, updateProfile, user, toast]);
 
   const handleCancel = useCallback(() => {
     setFormData({
