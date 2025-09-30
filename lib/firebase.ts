@@ -175,11 +175,7 @@ export async function archiveExpiredLoads(): Promise<{ scanned: number; archived
   console.log("[ArchiveExpired] ENFORCE RULES - Starting 7-day auto-delete from board");
 
   try {
-    const q = query(
-      collection(db, LOADS_COLLECTION),
-      where("isArchived", "==", false),
-      limit(200)
-    );
+    const q = query(collection(db, LOADS_COLLECTION), where("isArchived", "==", false), limit(200));
     const snap = await getDocs(q as any);
     scanned = snap.docs.length;
 
@@ -217,9 +213,11 @@ export async function archiveExpiredLoads(): Promise<{ scanned: number; archived
 
     if (archived > 0) {
       await batch.commit();
-      console.log(`[ArchiveExpired] ENFORCE RULES - Successfully auto-deleted ${archived} loads from board (kept in history)`);
+      console.log(
+        `[ArchiveExpired] ENFORCE RULES - Successfully auto-deleted ${archived} loads from board (kept in history)`
+      );
     } else {
-      console.log("[ ArchiveExpired] ENFORCE RULES - No loads eligible for board auto-delete at this time");
+      console.log("[ArchiveExpired] ENFORCE RULES - No loads eligible for board auto-delete at this time");
     }
 
     return { scanned, archived };
@@ -255,7 +253,9 @@ export async function purgeArchivedLoads(days: number = 14): Promise<{ scanned: 
 
       if (shouldDelete) {
         console.log(
-          `[PurgeArchived] ENFORCE RULES - Marking manually deleted load for purge: ${d.id}, archived: ${new Date(archivedAt).toISOString()}`
+          `[PurgeArchived] ENFORCE RULES - Marking manually deleted load for purge: ${d.id}, archived: ${new Date(
+            archivedAt
+          ).toISOString()}`
         );
       }
 
@@ -349,7 +349,7 @@ function toUtcMsForLocalWallTime(
 
 export function computeExpiresAtMsFromLocalTZ(deliveryLocalISO: string, tz: string): number {
   try {
-    const providedTz = (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) ? FORCE_DELIVERY_TZ : tz;
+    const providedTz = FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0 ? FORCE_DELIVERY_TZ : tz;
     const safeTz = (() => {
       try {
         new Intl.DateTimeFormat("en-US", { timeZone: providedTz });
@@ -363,7 +363,9 @@ export function computeExpiresAtMsFromLocalTZ(deliveryLocalISO: string, tz: stri
     const hasTime = /T\d{2}:\d{2}/.test(raw);
     const normalized = hasTime ? raw : `${raw}T17:00`;
 
-    const m = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?/);
+    const m = normalized.match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?/
+    );
     if (!m) throw new Error("invalid ISO");
     const y = Number(m[1]);
     const mo = Number(m[2]) - 1;
@@ -526,7 +528,10 @@ export async function saveDriverProfile(driverData: {
     // Mirror MPG into both fields
     const driverProfileData = withNormalizedMpg(rawProfile);
 
-    console.log("[SAVE_DRIVER_PROFILE] Prepared profile data for Firestore:", JSON.stringify({ ...driverProfileData, ...timestamps }, null, 2));
+    console.log(
+      "[SAVE_DRIVER_PROFILE] Prepared profile data for Firestore:",
+      JSON.stringify({ ...driverProfileData, ...timestamps }, null, 2)
+    );
 
     // Write to drivers collection (preserving createdAt if doc exists)
     await setDoc(driverRef, { ...driverProfileData, ...timestamps }, { merge: true });
@@ -591,7 +596,6 @@ export async function getDriverProfile(userId: string) {
 
     const { auth, db } = getFirebase();
 
-    // Verify we have an authenticated user
     if (!auth.currentUser) {
       console.error("[GET_DRIVER_PROFILE] No authenticated user after ensureFirebaseAuth");
       throw new Error("No authenticated user");
@@ -603,7 +607,6 @@ export async function getDriverProfile(userId: string) {
       requestedUserId: userId,
     });
 
-    // Try to get from drivers collection first
     const driverRef = doc(db, "drivers", userId);
     const driverSnap = await getDoc(driverRef);
 
@@ -613,7 +616,6 @@ export async function getDriverProfile(userId: string) {
       return { success: true, data, source: "drivers" };
     }
 
-    // Fallback to users collection
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
 
@@ -673,6 +675,10 @@ type AnyPhoto =
   | string
   | { url?: string; downloadURL?: string; uri?: string; path?: string | null; [k: string]: any };
 
+/**
+ * Keep only safe, small, remote URLs for Firestore.
+ * Drops data:file URIs and caps the list so the array never nears Firestore’s 1MB doc limit.
+ */
 function selectRemoteAttachments(finalPhotos: AnyPhoto[] | undefined) {
   if (!Array.isArray(finalPhotos)) return [];
 
@@ -680,48 +686,32 @@ function selectRemoteAttachments(finalPhotos: AnyPhoto[] | undefined) {
   const seen = new Set<string>();
 
   for (const p of finalPhotos) {
-    const urlRaw =
-      typeof p === "string"
-        ? p
-        : (p?.downloadURL || p?.url || p?.uri || "");
+    const urlRaw = typeof p === "string" ? p : p?.downloadURL || p?.url || p?.uri || "";
 
     // Skip empties, base64/data/file, and non-http(s)
-    if (
-      !urlRaw ||
-      /^data:/i.test(urlRaw) ||
-      /^file:/i.test(urlRaw) ||
-      !/^https?:\/\//i.test(urlRaw)
-    ) {
+    if (!urlRaw || /^data:/i.test(urlRaw) || /^file:/i.test(urlRaw) || !/^https?:\/\//i.test(urlRaw)) {
       continue;
     }
 
-    // Cap URL length (Firebase download URLs are long but < 1–2k is fine)
+    // Cap URL length (Firebase download URLs are long but < ~2k is fine)
     if (urlRaw.length > 2048) continue;
 
     // Keep a tiny storage path only if it looks like a normal path
     let safePath: string | null = null;
     if (typeof p === "object" && p && typeof p.path === "string") {
       const path = p.path.trim();
-      // reject base64/file and absurdly long strings
-      if (
-        path &&
-        !/^data:/i.test(path) &&
-        !/^file:/i.test(path) &&
-        path.length <= 200 &&
-        /^[\w\-\/.]+$/.test(path) // only simple storage-ish paths
-      ) {
+      if (path && !/^data:/i.test(path) && !/^file:/i.test(path) && path.length <= 200 && /^[\w\-\/.]+$/.test(path)) {
         safePath = path;
       }
     }
 
     // Deduplicate by URL
-    const key = urlRaw;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen.has(urlRaw)) continue;
+    seen.add(urlRaw);
 
     out.push({ url: urlRaw, path: safePath });
 
-    // Safety cap so the array can't get huge
+    // Safety cap so the array can’t get huge
     if (out.length >= 12) break;
   }
 
@@ -757,18 +747,15 @@ export async function postLoad(args: {
 
     const authSuccess = await ensureFirebaseAuth();
     if (!authSuccess) {
-      console.warn(
-        "[POST_LOAD] Firebase auth failed, throwing error to trigger fallback"
-      );
+      console.warn("[POST_LOAD] Firebase auth failed, throwing error to trigger fallback");
       throw new Error("Firebase authentication failed");
     }
 
     const { auth, db, app } = getFirebase();
     const uid = auth.currentUser?.uid;
+
     if (!uid) {
-      console.warn(
-        "[POST_LOAD] No authenticated user, throwing error to trigger fallback"
-      );
+      console.warn("[POST_LOAD] No authenticated user, throwing error to trigger fallback");
       throw new Error("No authenticated user");
     }
 
@@ -793,8 +780,7 @@ export async function postLoad(args: {
           hour12: false,
         });
         const parts = fmt.formatToParts(date);
-        const get = (t: string) =>
-          parts.find((p) => p.type === t)?.value ?? "";
+        const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
         const yyyy = get("year");
         const mm = get("month");
         const dd = get("day");
@@ -832,18 +818,12 @@ export async function postLoad(args: {
       deliveryTZ: args.deliveryTZ ?? null,
       deliveryDateLocal: (() => {
         try {
-          if (
-            args.deliveryDateLocal &&
-            typeof args.deliveryDateLocal === "string"
-          ) {
+          if (args.deliveryDateLocal && typeof args.deliveryDateLocal === "string") {
             return args.deliveryDateLocal;
           }
           const dd = new Date(args.deliveryDate);
           const isMidnight =
-            dd.getHours() === 0 &&
-            dd.getMinutes() === 0 &&
-            dd.getSeconds() === 0 &&
-            dd.getMilliseconds() === 0;
+            dd.getHours() === 0 && dd.getMinutes() === 0 && dd.getSeconds() === 0 && dd.getMilliseconds() === 0;
           if (isMidnight) dd.setHours(17, 0, 0, 0);
           return formatLocalIso(dd, args.deliveryTZ ?? undefined);
         } catch (e) {
@@ -856,10 +836,8 @@ export async function postLoad(args: {
     } as const;
 
     const refDoc = doc(db, LOADS_COLLECTION, args.id);
-    const existing = await (await import("firebase/firestore")).getDoc(refDoc);
-    const createOnly = existing.exists()
-      ? {}
-      : { clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2" };
+    const existing = await getDoc(refDoc);
+    const createOnly = existing.exists() ? {} : { clientId: "KKfDm9aj5KZKNlgnB1KcqsKEPUX2" };
 
     const computeExpires = (() => {
       try {
@@ -884,43 +862,24 @@ export async function postLoad(args: {
 
     console.log("[POST_LOAD] Attempting to write to Firestore...");
     await setDoc(refDoc, loadData, { merge: true });
-    console.log(
-      "[POST_LOAD] Successfully wrote to Firestore:",
-      `${LOADS_COLLECTION}/${args.id}`
-    );
+    console.log("[POST_LOAD] Successfully wrote to Firestore:", `${LOADS_COLLECTION}/${args.id}`);
   } catch (error: any) {
     if (error?.code === "permission-denied") {
-      console.warn(
-        "[POST_LOAD] Firebase permission denied - this is expected in development mode."
-      );
-      console.warn(
-        "[POST_LOAD] Anonymous users cannot write to production Firestore. Falling back to local storage."
-      );
+      console.warn("[POST_LOAD] Firebase permission denied - this is expected in development mode.");
+      console.warn("[POST_LOAD] Anonymous users cannot write to production Firestore. Falling back to local storage.");
       const { auth: authInstance } = getFirebase();
       console.log(
         "[POST_LOAD] Current user:",
         authInstance.currentUser
-          ? {
-              uid: authInstance.currentUser.uid,
-              isAnonymous: authInstance.currentUser.isAnonymous,
-              email: authInstance.currentUser.email,
-            }
+          ? { uid: authInstance.currentUser.uid, isAnonymous: authInstance.currentUser.isAnonymous, email: authInstance.currentUser.email }
           : "No user"
       );
     } else if (error?.code === "unavailable") {
-      console.warn(
-        "[POST_LOAD] Firebase service unavailable - network or server issue. Falling back to local storage."
-      );
+      console.warn("[POST_LOAD] Firebase service unavailable - network or server issue. Falling back to local storage.");
     } else if (error?.code === "unauthenticated") {
-      console.warn(
-        "[POST_LOAD] User not authenticated properly. Falling back to local storage."
-      );
+      console.warn("[POST_LOAD] User not authenticated properly. Falling back to local storage.");
     } else {
-      console.warn(
-        "[POST_LOAD] Firebase write failed:",
-        error?.code || "unknown-code",
-        error?.message || "Unknown error"
-      );
+      console.warn("[POST_LOAD] Firebase write failed:", error?.code || "unknown-code", error?.message || "Unknown error");
     }
     throw error;
   }
