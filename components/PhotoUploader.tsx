@@ -81,39 +81,16 @@ export default function PhotoUploader({
         console.log('[PhotoUploader] Is anonymous:', auth.currentUser.isAnonymous);
 
         console.log('[PhotoUploader] Compressing image...');
-        let compressed: UploadPrepared;
-        try {
-          compressed = await Promise.race<UploadPrepared>([
-            prepareForUpload(input, {
-              maxWidth: Platform.OS === 'web' ? 1600 : 1920,
-              maxHeight: Platform.OS === 'web' ? 1200 : 1080,
-              baseQuality: 0.8,
-            }),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('Compression timeout')), 10000)
-            ) as unknown as Promise<UploadPrepared>,
-          ]);
-        } catch (compressionError: any) {
-          console.warn('[PhotoUploader] Compression failed or timed out, using direct upload:', compressionError.message);
-          
-          const normalized = typeof input === 'string' || (typeof input === 'object' && input && 'uri' in (input as any))
-            ? await fetch(typeof input === 'string' ? input : (input as any).uri).then((r) => r.blob())
-            : (input as Blob | File instanceof Blob ? (input as Blob) : (input as File));
-          const blob = normalized instanceof Blob ? normalized : await Promise.resolve(new Blob());
-          compressed = {
-            blob,
-            mime: (blob.type || 'image/jpeg') as string,
-            ext: (blob.type?.includes('png') ? 'png' : 'jpg') as string,
-            width: 0,
-            height: 0,
-            sizeBytes: (blob.size ?? 0) as number,
-          } as UploadPrepared;
-        }
+        const compressed: UploadPrepared = await prepareForUpload(input, {
+          maxWidth: Platform.OS === 'web' ? 1600 : 1920,
+          maxHeight: Platform.OS === 'web' ? 1200 : 1080,
+          baseQuality: 0.8,
+        });
 
         console.log('[PhotoUploader] Compression complete:', {
           originalSize: 'unknown',
-          compressedSize: humanSize((compressed as UploadPrepared).sizeBytes ?? 0),
-          dimensions: `${(compressed as UploadPrepared).width ?? 0}x${(compressed as UploadPrepared).height ?? 0}`,
+          compressedSize: humanSize(compressed.sizeBytes),
+          dimensions: `${compressed.width}x${compressed.height}`,
         });
 
         const safeId = String(draftId || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -136,7 +113,7 @@ export default function PhotoUploader({
           isAuthenticated: !!auth.currentUser,
           userEmail: auth.currentUser?.email,
           isAnonymous: auth.currentUser?.isAnonymous,
-          fileSize: humanSize((compressed as UploadPrepared).sizeBytes ?? 0),
+          fileSize: humanSize(compressed.sizeBytes),
         });
 
         console.log('[PhotoUploader] 📁 Creating storage reference...');
@@ -144,8 +121,8 @@ export default function PhotoUploader({
         console.log('[PhotoUploader] Storage ref created:', storageRef.fullPath);
         
         console.log('[PhotoUploader] 🚀 Starting upload task...');
-        const uploadTask = uploadBytesResumable(storageRef, (compressed as UploadPrepared).blob, {
-          contentType: (compressed as UploadPrepared).mime,
+        const uploadTask = uploadBytesResumable(storageRef, compressed.blob, {
+          contentType: compressed.mime,
           cacheControl: 'public,max-age=31536000',
         });
         
