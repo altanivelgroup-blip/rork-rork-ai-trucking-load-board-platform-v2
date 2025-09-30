@@ -219,7 +219,7 @@ export async function archiveExpiredLoads(): Promise<{ scanned: number; archived
       await batch.commit();
       console.log(`[ArchiveExpired] ENFORCE RULES - Successfully auto-deleted ${archived} loads from board (kept in history)`);
     } else {
-      console.log("[ArchiveExpired] ENFORCE RULES - No loads eligible for board auto-delete at this time");
+      console.log("[ ArchiveExpired] ENFORCE RULES - No loads eligible for board auto-delete at this time");
     }
 
     return { scanned, archived };
@@ -668,30 +668,6 @@ export async function repairDriverMpg(uid: string) {
   return { fixed: true, value: mpg };
 }
 
-  if (!Array.isArray(finalPhotos)) return [];
-  const out: { url: string; path: string | null }[] = [];
-
-  for (const p of finalPhotos) {
-    // normalize to a URL string + optional storage path
-    const url =
-      (typeof p === 'string' ? p : (p?.downloadURL || p?.url || p?.uri || '')) || '';
-    const path = typeof p === 'object' && p ? (p.path ?? null) : null;
-
-    // skip local/base64
-    if (!url || /^data:/i.test(url) || /^file:/i.test(url)) continue;
-
-    // only keep http(s) links (Firebase Storage download URLs, CDN, etc.)
-    if (!/^https?:\/\//i.test(url)) continue;
-
-    // avoid absurdly long strings
-    if (url.length > 2048) continue;
-
-    out.push({ url, path });
-    if (out.length >= 20) break; // safety cap
-  }
-
-  return out;
-}
 // --- Attachments sanitizer (keeps only tiny remote links) ---
 type AnyPhoto =
   | string
@@ -745,79 +721,7 @@ function selectRemoteAttachments(finalPhotos: AnyPhoto[] | undefined) {
 
     out.push({ url: urlRaw, path: safePath });
 
-    // Safety cap so the array can’t get huge
-    if (out.length >= 12) break;
-  }
-
-  return out;
-}
-
-// ======================
-// MAIN: post a load
-// ======================
-// --- Attachments sanitizer (keeps only tiny remote links) ---
-type AnyPhoto =
-  | string
-  | {
-      url?: string;
-      downloadURL?: string;
-      uri?: string;
-      path?: string | null;
-      [k: string]: any;
-    };
-
-/**
- * Keep only safe, small, remote URLs for Firestore.
- * Drops data: URIs, file: URIs, non-http(s) values, overly long strings,
- * and caps the list so the array never gets near Firestore’s 1MB doc limit.
- */
-function selectRemoteAttachments(
-  finalPhotos: AnyPhoto[] | undefined
-): { url: string; path: string | null }[] {
-  if (!Array.isArray(finalPhotos)) return [];
-
-  const out: { url: string; path: string | null }[] = [];
-  const seen = new Set<string>();
-
-  for (const p of finalPhotos) {
-    const urlRaw =
-      typeof p === "string" ? p : p?.downloadURL || p?.url || p?.uri || "";
-
-    // Skip empties, base64/data/file, and non-http(s)
-    if (
-      !urlRaw ||
-      /^data:/i.test(urlRaw) ||
-      /^file:/i.test(urlRaw) ||
-      !/^https?:\/\//i.test(urlRaw)
-    ) {
-      continue;
-    }
-
-    // Cap URL length (Firebase download URLs are long but < ~2k is fine)
-    if (urlRaw.length > 2048) continue;
-
-    // Keep a tiny storage path only if it looks like a normal path
-    let safePath: string | null = null;
-    if (typeof p === "object" && p && typeof p.path === "string") {
-      const path = p.path.trim();
-      if (
-        path &&
-        !/^data:/i.test(path) &&
-        !/^file:/i.test(path) &&
-        path.length <= 200 &&
-        /^[\w\-\/.]+$/.test(path)
-      ) {
-        safePath = path;
-      }
-    }
-
-    // Deduplicate by URL
-    if (seen.has(urlRaw)) continue;
-    seen.add(urlRaw);
-
-    out.push({ url: urlRaw, path: safePath });
-
-    // Safety cap so the array can’t get huge
+    // Safety cap so the array can't get huge
     if (out.length >= 12) break;
   }
 
@@ -836,7 +740,7 @@ export async function postLoad(args: {
   rate: number | string;
   pickupDate: Date;
   deliveryDate: Date;
-  finalPhotos: AnyPhoto[]; // <— accepts strings or objects
+  finalPhotos: AnyPhoto[];
   deliveryTZ?: string | null;
   deliveryDateLocal?: string | null;
 }) {
