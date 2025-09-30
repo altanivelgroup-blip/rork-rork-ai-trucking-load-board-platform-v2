@@ -1073,10 +1073,7 @@ const insets = useSafeAreaInsets();
           <PhotoUploader
             draftId={`driver-${userId}`}
             photos={photos}
-            onPhotosChange={(newPhotos) => {
-              console.log('[DriverProfile] PhotoUploader onChange:', newPhotos);
-              setPhotos(newPhotos);
-            }}
+            onPhotosChange={setPhotos}
             maxPhotos={10}
             context="vehicle"
           />
