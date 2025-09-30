@@ -58,28 +58,50 @@ export async function createLoad(input: CreateLoadInput): Promise<CreateLoadResu
       };
     }
 
+    const now = Date.now();
+    const pickupDateStr = input.pickupDate || new Date(now + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const deliveryDateStr = input.deliveryDate || new Date(now + 48 * 60 * 60 * 1000).toISOString().split('T')[0];
+
     const docData = {
       title: String(input.title || '').slice(0, 120),
-      pickupCity: String(input.pickupCity || ''),
-      pickupState: input.pickupState ? String(input.pickupState) : undefined,
-      pickupZip: input.pickupZip ? String(input.pickupZip) : undefined,
-      deliveryCity: String(input.deliveryCity || ''),
-      deliveryState: input.deliveryState ? String(input.deliveryState) : undefined,
-      deliveryZip: input.deliveryZip ? String(input.deliveryZip) : undefined,
+      origin: {
+        city: String(input.pickupCity || ''),
+        state: input.pickupState ? String(input.pickupState) : '',
+        zipCode: input.pickupZip ? String(input.pickupZip) : '',
+      },
+      destination: {
+        city: String(input.deliveryCity || ''),
+        state: input.deliveryState ? String(input.deliveryState) : '',
+        zipCode: input.deliveryZip ? String(input.deliveryZip) : '',
+      },
+      originCity: String(input.pickupCity || ''),
+      originState: input.pickupState ? String(input.pickupState) : '',
+      originZip: input.pickupZip ? String(input.pickupZip) : '',
+      destCity: String(input.deliveryCity || ''),
+      destState: input.deliveryState ? String(input.deliveryState) : '',
+      destZip: input.deliveryZip ? String(input.deliveryZip) : '',
       vehicleType: String(input.vehicleType || ''),
+      equipmentType: String(input.vehicleType || ''),
       vehicleSubtype: input.vehicleSubtype ? String(input.vehicleSubtype) : undefined,
-      price: Number(input.price || 0),
-      distance: input.distance ? Number(input.distance) : undefined,
-      weight: input.weight ? Number(input.weight) : undefined,
-      description: input.description ? String(input.description).slice(0, 2000) : undefined,
-      pickupDate: input.pickupDate || undefined,
-      deliveryDate: input.deliveryDate || undefined,
+      rate: Number(input.price || 0),
+      rateTotalUSD: Number(input.price || 0),
+      distance: input.distance ? Number(input.distance) : 0,
+      distanceMi: input.distance ? Number(input.distance) : 0,
+      weight: input.weight ? Number(input.weight) : 0,
+      weightLbs: input.weight ? Number(input.weight) : 0,
+      description: input.description ? String(input.description).slice(0, 2000) : '',
+      pickupDate: pickupDateStr,
+      deliveryDate: deliveryDateStr,
+      deliveryDateLocal: `${deliveryDateStr}T00:00`,
       attachments: valid,
       isBackhaul: Boolean(input.isBackhaul),
       createdBy: uid,
-      status: 'open',
+      status: 'OPEN',
+      isArchived: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      clientCreatedAt: now,
+      expiresAtMs: now + 7 * 24 * 60 * 60 * 1000,
     };
 
     Object.keys(docData).forEach(key => {
@@ -88,14 +110,25 @@ export async function createLoad(input: CreateLoadInput): Promise<CreateLoadResu
       }
     });
 
+    console.log('[createLoad] Creating load with data:', {
+      title: docData.title,
+      origin: docData.origin,
+      destination: docData.destination,
+      status: docData.status,
+      createdBy: docData.createdBy,
+    });
+
     const docRef = await addDoc(collection(db, 'loads'), docData);
 
-    console.log('[createLoad] Success:', {
+    console.log('[createLoad] ✅ SUCCESS - Load created and posted to live board:', {
       loadId: docRef.id,
+      title: docData.title,
+      status: docData.status,
       originalPhotos: uploaded.length,
       validPhotos: valid.length,
       totalBytes: totalArraySize,
     });
+    console.log('[createLoad] ✅ Load will be visible on loads page via real-time listener');
 
     return {
       success: true,
@@ -107,7 +140,7 @@ export async function createLoad(input: CreateLoadInput): Promise<CreateLoadResu
       },
     };
   } catch (error: any) {
-    console.error('[createLoad] Error:', {
+    console.error('[createLoad] ❌ ERROR:', {
       code: error?.code,
       message: error?.message,
       details: error,
