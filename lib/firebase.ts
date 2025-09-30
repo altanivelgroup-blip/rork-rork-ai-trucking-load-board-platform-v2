@@ -667,10 +667,7 @@ export async function repairDriverMpg(uid: string) {
 
   return { fixed: true, value: mpg };
 }
-// --- Attachments sanitizer (prevents >1MB docs by dropping base64/file URIs) ---
-type AnyPhoto = string | { url?: string; downloadURL?: string; uri?: string; path?: string | null };
 
-function selectRemoteAttachments(finalPhotos: AnyPhoto[] | undefined) {
   if (!Array.isArray(finalPhotos)) return [];
   const out: { url: string; path: string | null }[] = [];
 
