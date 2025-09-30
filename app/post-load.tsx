@@ -24,7 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ✅ Firebase imports
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import { subscribeFormFill, consumeStagedFormFill } from '@/lib/formFillBus';
 import { useFocusEffect } from '@react-navigation/native';
@@ -137,7 +137,7 @@ if (userSnap.exists()) {
 }
 // 🔹 END ADD
 const ref = doc(db, LOADS_COLLECTION, loadId);
-const existing = await (await import('firebase/firestore')).getDoc(ref);
+const existing = await getDoc(ref);
       
       // CROSS-PLATFORM FIX: Enhanced data structure for universal compatibility
       const baseData = {

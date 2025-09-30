@@ -5,7 +5,7 @@ import { estimateMileageFromZips } from '@/utils/distance';
 import { useLoads } from '@/hooks/useLoads';
 import { useAuth } from '@/hooks/useAuth';
 import { toNumber } from '@/utils/loadValidation';
-import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
 import { postLoad } from '@/lib/firebase';
 import { isValidIana } from '@/constants/timezones';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -666,28 +666,54 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
         setField('photoUrls', finalPhotoUrls);
       }
       
+      // CRITICAL FIX: Filter out any non-https URLs (base64, file://, etc.) to prevent Firestore size limit
+      const validPhotoUrls = finalPhotoUrls.filter(url => {
+        if (!url || typeof url !== 'string') return false;
+        // Only allow https:// URLs
+        if (!/^https:\/\//i.test(url)) {
+          console.warn('[PostLoad] Filtering out invalid photo URL:', url.substring(0, 50));
+          return false;
+        }
+        // Ensure URL is not too long (Firebase Storage URLs are typically < 2KB)
+        if (url.length > 2048) {
+          console.warn('[PostLoad] Filtering out oversized photo URL:', url.length, 'bytes');
+          return false;
+        }
+        return true;
+      });
+      
+      console.log('[PostLoad] Filtered photos:', {
+        original: finalPhotoUrls.length,
+        valid: validPhotoUrls.length,
+        filtered: finalPhotoUrls.length - validPhotoUrls.length
+      });
+      
       // Validate we have the required number of photos (no placeholders)
-      if (finalPhotoUrls.length < minRequired) {
+      if (validPhotoUrls.length < minRequired) {
         const errorMsg = isVehicleLoad 
-          ? `Vehicle loads require exactly ${minRequired} photos for protection. Only ${finalPhotoUrls.length} uploaded successfully.`
-          : `At least ${minRequired} photo is required. Only ${finalPhotoUrls.length} uploaded successfully.`;
+          ? `Vehicle loads require exactly ${minRequired} photos for protection. Only ${validPhotoUrls.length} valid photos uploaded.`
+          : `At least ${minRequired} photo is required. Only ${validPhotoUrls.length} valid photos uploaded.`;
         throw new Error(errorMsg);
       }
       
-      console.log('[PostLoad] ✅ All photos uploaded successfully - final photo URLs count:', finalPhotoUrls.length);
+      // Use validPhotoUrls from here on
+      finalPhotoUrls = validPhotoUrls;
+      
+      console.log('[PostLoad] ✅ All photos validated and ready - final photo URLs count:', finalPhotoUrls.length);
+      console.log('[PostLoad] ✅ Photo URLs size check:', {
+        totalUrls: finalPhotoUrls.length,
+        estimatedBytes: finalPhotoUrls.reduce((sum, url) => sum + url.length, 0),
+        maxAllowed: 1048487
+      });
       console.log('[PostLoad] ✅ Submitted images saved - Displaying correctly');
       
-      // Check Firebase permissions first
-      const permissions = await checkFirebasePermissions();
-      console.log('[PostLoad] Firebase permissions check:', permissions);
-      
-      if (permissions.canWrite) {
+      // Try Firebase write first
         try {
           // Use the new postLoad function with proper schema
           const rateNum = toNumber(currentDraft.rateAmount);
           const loadId = `load-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
-          console.log('[PostLoad] Attempting Firebase write with permissions:', permissions);
+          console.log('[PostLoad] Attempting Firebase write...');
           
           const tzSelected = (FORCE_DELIVERY_TZ && FORCE_DELIVERY_TZ.length > 0) ? FORCE_DELIVERY_TZ : currentDraft.deliveryTZ;
           const localStr = currentDraft.deliveryDateLocal;
@@ -752,7 +778,7 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           console.log('[PostLoad] Added optimistic load to local storage');
           
         } catch (firebaseError: any) {
-          console.warn('[PostLoad] Firebase write failed despite permissions check:', {
+          console.warn('[PostLoad] Firebase write failed:', {
             code: firebaseError?.code,
             message: firebaseError?.message,
             name: firebaseError?.name
@@ -761,6 +787,10 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
           // Provide user-friendly error context
           if (firebaseError?.code === 'permission-denied') {
             console.log('[PostLoad] Permission denied - this is expected in development mode with anonymous users');
+          } else if (firebaseError?.code === 'invalid-argument' && firebaseError?.message?.includes('array')) {
+            console.error('[PostLoad] CRITICAL: Array field exceeds Firestore 1MB limit');
+            console.error('[PostLoad] Photo URLs total size:', finalPhotoUrls.reduce((sum, url) => sum + url.length, 0), 'bytes');
+            throw new Error('Photo data too large for Firestore. Please contact support.');
           } else {
             console.warn('[PostLoad] Firebase error, using local storage fallback');
           }
@@ -774,18 +804,6 @@ export const [PostLoadProvider, usePostLoad] = createContextHook<PostLoadState>(
             throw new Error('Photos must be uploaded before creating load. Please retry photo upload.');
           }
         }
-      } else {
-        console.warn('[PostLoad] Firebase write not available:', permissions.error || 'Unknown reason');
-        
-        // ENFORCE LOAD RULES: No Firebase write permissions, use local storage
-        console.log('[PostLoad] ENFORCE RULES - No Firebase write permissions, posting locally with cross-platform intent');
-        if (finalPhotoUrls.length >= minRequired) {
-          await createLocalLoad(currentDraft, pickupDate, deliveryDate, finalPhotoUrls, finalContactInfo);
-          console.log('[PostLoad] ENFORCE RULES - Load posted locally, visible on this device and will sync when permissions available');
-        } else {
-          throw new Error('Photos must be uploaded before creating load. Please retry photo upload.');
-        }
-      }
       
       // Reset state after successful posting
       reset();
