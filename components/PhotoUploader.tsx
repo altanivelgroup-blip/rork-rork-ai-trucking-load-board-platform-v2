@@ -4,6 +4,11 @@ import { storage } from '../firebaseConfig'; // Double-check this path—adjust 
 import React, { useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet, View, ScrollView, Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+// Change this:
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+
+// To this (alias 'ref' to 'storageRef'):
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebaseConfig'; // Adjust import to your Firebase config file
 import { useAuth } from '@hooks/useAuth'; // Assuming you have an auth hook for userId
