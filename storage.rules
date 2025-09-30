@@ -22,7 +22,7 @@ service firebase.storage {
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
     
-    match /profiles/{userId}/{allPaths=**} {
+    match /profiles/{userId}/{context}/{fileName} {
       allow read: if true;
       allow write: if isAuthenticated() && request.auth.uid == userId;
       allow delete: if isAuthenticated() && request.auth.uid == userId;
@@ -36,14 +36,14 @@ service firebase.storage {
     
     match /loadPhotos/{userId}/{loadId}/{fileName} {
       allow read: if true;
-      allow write: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
     
     match /vehiclePhotos/{userId}/{vehicleId}/{fileName} {
       allow read: if true;
-      allow write: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
     
     match /reports/{allPaths=**} {
@@ -52,12 +52,6 @@ service firebase.storage {
     
     match /reportAnalytics/{allPaths=**} {
       allow read, write: if isAdmin();
-    }
-    
-    match /{allPaths=**} {
-      allow read: if true;
-      allow write: if isAuthenticated() && 
-        (allPaths.matches('.*Photos/.*') || allPaths.matches('.*photos/.*') || allPaths.matches('.*images/.*'));
     }
   }
 }
