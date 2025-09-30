@@ -30,6 +30,7 @@ import HeaderBack from '@/components/HeaderBack';
 import { useLoads } from '@/hooks/useLoads';
 import { useToast } from '@/components/Toast';
 import { BulkImportSession } from '@/types';
+import { sanitizePhotoUrls } from '@/utils/photos';
 import DuplicateCheckerModal from '@/components/DuplicateCheckerModal';
 
 
@@ -510,7 +511,7 @@ export default function CSVBulkUploadScreen() {
       rate: parsedRow.rate?.toString(),
       pickupDate: parsedRow.pickupDate,
       deliveryDate: parsedRow.deliveryDate,
-      weight: null, // Not available in preview format
+      weight: null,
       description: null,
       contactName: null,
       contactEmail: null,
@@ -529,17 +530,29 @@ export default function CSVBulkUploadScreen() {
     if (destinationParts.length >= 2) csvRowData.destState = destinationParts[1];
     if (destinationParts.length >= 3) csvRowData.destZip = destinationParts[2];
     
+    // Sanitize photo URLs if present in the CSV data
+    const rawPhotos = Array.isArray((csvRowData as any).attachments)
+      ? ((csvRowData as any).attachments as string[])
+      : String((csvRowData as any).attachments || '')
+          .split(/;|,/)
+          .map(s => s.trim())
+          .filter(Boolean);
+    const { valid: sanitizedPhotos, totalArraySize } = sanitizePhotoUrls(rawPhotos);
+    if (totalArraySize > 800_000) {
+      console.log('[CSV BULK] attachments too large; trimmed', { bytes: totalArraySize, kept: sanitizedPhotos.length });
+    }
+    
     // Use the normalized mapping
     const normalizedDoc = normalizeCsvRow(csvRowData, uid);
     
     // Add additional fields for compatibility with existing system
     return {
       ...normalizedDoc,
-      status: 'OPEN', // Override to match existing system
+      status: 'OPEN',
       bulkImportId,
       isArchived: false,
       clientCreatedAt: Date.now(),
-      expiresAtMs: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
+      expiresAtMs: Date.now() + 7 * 24 * 60 * 60 * 1000,
       deliveryDateLocal: parsedRow.deliveryDate ? `${parsedRow.deliveryDate}T00:00` : null,
       shipperName: (user as any)?.name || (user as any)?.email || 'Shipper',
       vehicleCount: null,
@@ -547,6 +560,7 @@ export default function CSVBulkUploadScreen() {
       destCity: normalizedDoc.destination.city,
       rateTotalUSD: normalizedDoc.rate,
       rowHash: parsedRow.rowHash,
+      attachments: sanitizedPhotos,
     };
   }, [user]);
 
