@@ -631,32 +631,13 @@ export async function getDriverProfile(userId: string) {
       return { success: true, data: null, source: "users-non-driver" } as const;
     }
 
-    // Only if role === 'driver' continue to read driver-specific data
-    const driverRef = doc(db, "drivers", uid);
-    const driverSnap = await getDoc(driverRef);
-
-    if (driverSnap.exists()) {
-      const data = withNormalizedMpg(driverSnap.data() as any);
-      console.log("[GET_DRIVER_PROFILE] ✅ Driver profile found in drivers collection (normalized MPG)");
-      return { success: true, data, source: "drivers" } as const;
-    }
-
-    // Fallback: allow using minimal data from users doc for driver role
+    // Driver role: return users/{uid} data only
     const usersData = withNormalizedMpg(profile as any);
-    console.log("[GET_DRIVER_PROFILE] ⚠️ Driver profile not found in drivers; returning users doc data");
+    console.log("[GET_DRIVER_PROFILE] Using users collection only; returning users doc data for driver role");
     return { success: true, data: usersData, source: "users-driver" } as const;
-  } catch (error: any) {
-    console.error("[GET_DRIVER_PROFILE] ❌ Failed to get driver profile:", error);
-    console.error("[GET_DRIVER_PROFILE] Error details:", {
-      code: error?.code,
-      message: error?.message,
-      userId,
-    });
-
-    if (error?.code === "permission-denied") {
-      throw new Error("Permission denied. Please ensure you are signed in.");
-    }
-    throw error;
+  } catch (e: any) {
+    console.log('[GET_DRIVER_PROFILE] code:', e?.code, 'message:', e?.message, 'details:', e);
+    throw e;
   }
 }
 
