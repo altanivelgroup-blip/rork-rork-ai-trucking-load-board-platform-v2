@@ -35,6 +35,15 @@ type PhotoUploaderProps = {
   context?: 'load' | 'vehicle' | 'document' | 'other';
 };
 
+type UploadPrepared = {
+  blob: Blob;
+  mime: string;
+  ext: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+};
+
 export default function PhotoUploader({
   draftId,
   photos,
@@ -72,17 +81,17 @@ export default function PhotoUploader({
         console.log('[PhotoUploader] Is anonymous:', auth.currentUser.isAnonymous);
 
         console.log('[PhotoUploader] Compressing image...');
-        let compressed;
+        let compressed: UploadPrepared;
         try {
-          compressed = await Promise.race([
+          compressed = await Promise.race<UploadPrepared>([
             prepareForUpload(uri, {
               maxWidth: 1920,
               maxHeight: 1080,
               baseQuality: 0.8,
             }),
-            new Promise((_, reject) => 
+            new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('Compression timeout')), 10000)
-            )
+            ) as unknown as Promise<UploadPrepared>,
           ]);
         } catch (compressionError: any) {
           console.warn('[PhotoUploader] Compression failed or timed out, using direct upload:', compressionError.message);
@@ -91,18 +100,18 @@ export default function PhotoUploader({
           const blob = await response.blob();
           compressed = {
             blob,
-            mime: blob.type || 'image/jpeg',
-            ext: blob.type?.includes('png') ? 'png' : 'jpg',
+            mime: (blob.type || 'image/jpeg') as string,
+            ext: (blob.type?.includes('png') ? 'png' : 'jpg') as string,
             width: 0,
             height: 0,
-            sizeBytes: blob.size
-          };
+            sizeBytes: blob.size as number,
+          } as UploadPrepared;
         }
 
         console.log('[PhotoUploader] Compression complete:', {
           originalSize: 'unknown',
-          compressedSize: humanSize(compressed.sizeBytes),
-          dimensions: `${compressed.width}x${compressed.height}`,
+          compressedSize: humanSize(compressed.sizeBytes ?? 0),
+          dimensions: `${compressed.width ?? 0}x${compressed.height ?? 0}`,
         });
 
         const safeId = String(draftId || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -125,7 +134,7 @@ export default function PhotoUploader({
           isAuthenticated: !!auth.currentUser,
           userEmail: auth.currentUser?.email,
           isAnonymous: auth.currentUser?.isAnonymous,
-          fileSize: humanSize(compressed.sizeBytes),
+          fileSize: humanSize(compressed.sizeBytes ?? 0),
         });
 
         console.log('[PhotoUploader] 📁 Creating storage reference...');
