@@ -55,13 +55,18 @@ export default function PhotoUploader({
     ): Promise<PhotoItem | null> => {
       try {
         console.log('[PhotoUploader] Starting upload for:', uri);
+        console.log('[PhotoUploader] Context:', context);
+        console.log('[PhotoUploader] DraftId:', draftId);
 
         const { auth, storage } = getFirebase();
-        const uid = auth?.currentUser?.uid;
-
-        if (!uid) {
+        
+        if (!auth.currentUser) {
+          console.error('[PhotoUploader] No authenticated user');
           throw new Error('Not signed in — please log in before uploading photos.');
         }
+        
+        const uid = auth.currentUser.uid;
+        console.log('[PhotoUploader] Authenticated user:', uid);
 
         console.log('[PhotoUploader] Compressing image...');
         const compressed = await prepareForUpload(uri, {
@@ -88,13 +93,26 @@ export default function PhotoUploader({
           fullPath = `${basePath}/${photoId}.${compressed.ext}`;
         }
 
-        console.log('[PhotoUploader] Upload path:', fullPath);
+        console.log('[PhotoUploader] Upload details:', {
+          path: fullPath,
+          uid,
+          role,
+          context,
+          safeId,
+          isAuthenticated: !!auth.currentUser,
+          userEmail: auth.currentUser?.email,
+        });
 
+        console.log('[PhotoUploader] Creating storage reference...');
         const storageRef = ref(storage, fullPath);
+        
+        console.log('[PhotoUploader] Starting upload task...');
         const uploadTask = uploadBytesResumable(storageRef, compressed.blob, {
           contentType: compressed.mime,
           cacheControl: 'public,max-age=31536000',
         });
+        
+        console.log('[PhotoUploader] Upload task created successfully');
 
         await new Promise<void>((resolve, reject) => {
           uploadTask.on(
@@ -129,15 +147,25 @@ export default function PhotoUploader({
           path: fullPath,
         };
       } catch (error: any) {
-        console.error('[PhotoUploader] Upload error:', {
+        const { auth: authInstance } = getFirebase();
+        
+        console.error('[PhotoUploader] ❌ Upload error:', {
           code: error?.code,
           message: error?.message,
+          name: error?.name,
+          stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
           uri,
         });
 
         let errorMessage = 'Upload failed';
-        if (error?.code === 'storage/unauthorized') {
-          errorMessage = 'Permission denied. Please check your account.';
+        if (error?.code === 'storage/unauthorized' || error?.code === 'permission-denied') {
+          errorMessage = 'Permission denied. Please sign out and sign back in.';
+          console.error('[PhotoUploader] Permission denied - auth state:', {
+            hasCurrentUser: !!authInstance?.currentUser,
+            uid: authInstance?.currentUser?.uid,
+            email: authInstance?.currentUser?.email,
+            isAnonymous: authInstance?.currentUser?.isAnonymous,
+          });
         } else if (error?.code === 'storage/canceled') {
           errorMessage = 'Upload canceled';
         } else if (error?.code === 'storage/unknown') {
