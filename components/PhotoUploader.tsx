@@ -61,12 +61,15 @@ export default function PhotoUploader({
         const { auth, storage } = getFirebase();
         
         if (!auth.currentUser) {
-          console.error('[PhotoUploader] No authenticated user');
-          throw new Error('Not signed in — please log in before uploading photos.');
+          console.error('[PhotoUploader] ❌ No authenticated user');
+          Alert.alert('Authentication Required', 'Please sign in to upload photos.');
+          throw new Error('Not signed in');
         }
         
         const uid = auth.currentUser.uid;
-        console.log('[PhotoUploader] Authenticated user:', uid);
+        console.log('[PhotoUploader] ✅ Authenticated user:', uid);
+        console.log('[PhotoUploader] User email:', auth.currentUser.email);
+        console.log('[PhotoUploader] Is anonymous:', auth.currentUser.isAnonymous);
 
         console.log('[PhotoUploader] Compressing image...');
         const compressed = await prepareForUpload(uri, {
@@ -87,13 +90,12 @@ export default function PhotoUploader({
         
         let fullPath: string;
         if (context === 'vehicle' || context === 'document' || safeId.startsWith('driver-') || safeId.startsWith('shipper-')) {
-          fullPath = `profiles/${uid}/${context || 'photos'}/${photoId}.${compressed.ext}`;
+          fullPath = `profiles/${uid}/${context || 'vehicle'}/${photoId}.${compressed.ext}`;
         } else {
-          const basePath = `loads/${safeId}/${role}/${uid}`;
-          fullPath = `${basePath}/${photoId}.${compressed.ext}`;
+          fullPath = `loads/${safeId}/${role}/${uid}/${photoId}.${compressed.ext}`;
         }
 
-        console.log('[PhotoUploader] Upload details:', {
+        console.log('[PhotoUploader] 📤 Upload details:', {
           path: fullPath,
           uid,
           role,
@@ -101,18 +103,21 @@ export default function PhotoUploader({
           safeId,
           isAuthenticated: !!auth.currentUser,
           userEmail: auth.currentUser?.email,
+          isAnonymous: auth.currentUser?.isAnonymous,
+          fileSize: humanSize(compressed.sizeBytes),
         });
 
-        console.log('[PhotoUploader] Creating storage reference...');
+        console.log('[PhotoUploader] 📁 Creating storage reference...');
         const storageRef = ref(storage, fullPath);
+        console.log('[PhotoUploader] Storage ref created:', storageRef.fullPath);
         
-        console.log('[PhotoUploader] Starting upload task...');
+        console.log('[PhotoUploader] 🚀 Starting upload task...');
         const uploadTask = uploadBytesResumable(storageRef, compressed.blob, {
           contentType: compressed.mime,
           cacheControl: 'public,max-age=31536000',
         });
         
-        console.log('[PhotoUploader] Upload task created successfully');
+        console.log('[PhotoUploader] ✅ Upload task created successfully');
 
         await new Promise<void>((resolve, reject) => {
           uploadTask.on(
@@ -158,23 +163,28 @@ export default function PhotoUploader({
         });
 
         let errorMessage = 'Upload failed';
+        let errorTitle = 'Upload Failed';
+        
         if (error?.code === 'storage/unauthorized' || error?.code === 'permission-denied') {
-          errorMessage = 'Permission denied. Please sign out and sign back in.';
-          console.error('[PhotoUploader] Permission denied - auth state:', {
+          errorTitle = 'Permission Denied';
+          errorMessage = 'Storage permission denied. Please check:\n\n1. You are signed in\n2. Storage rules are deployed\n3. Try signing out and back in';
+          console.error('[PhotoUploader] ❌ Permission denied - auth state:', {
             hasCurrentUser: !!authInstance?.currentUser,
             uid: authInstance?.currentUser?.uid,
             email: authInstance?.currentUser?.email,
             isAnonymous: authInstance?.currentUser?.isAnonymous,
+            context,
+            draftId,
           });
         } else if (error?.code === 'storage/canceled') {
           errorMessage = 'Upload canceled';
         } else if (error?.code === 'storage/unknown') {
-          errorMessage = 'Network error. Please try again.';
+          errorMessage = 'Network error. Please check your connection and try again.';
         } else if (error?.message) {
           errorMessage = error.message;
         }
 
-        Alert.alert('Upload Failed', errorMessage);
+        Alert.alert(errorTitle, errorMessage);
         return null;
       }
     },
