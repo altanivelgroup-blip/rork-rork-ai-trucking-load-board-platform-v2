@@ -79,8 +79,14 @@ export default function PhotoUploader({
         const safeId = String(draftId || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_');
         const photoId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
         const role = user?.role || 'driver';
-        const basePath = `loads/${safeId}/${role}/${uid}`;
-        const fullPath = `${basePath}/${photoId}.${compressed.ext}`;
+        
+        let fullPath: string;
+        if (context === 'vehicle' || context === 'document' || safeId.startsWith('driver-') || safeId.startsWith('shipper-')) {
+          fullPath = `profiles/${uid}/${context || 'photos'}/${photoId}.${compressed.ext}`;
+        } else {
+          const basePath = `loads/${safeId}/${role}/${uid}`;
+          fullPath = `${basePath}/${photoId}.${compressed.ext}`;
+        }
 
         console.log('[PhotoUploader] Upload path:', fullPath);
 
@@ -144,7 +150,7 @@ export default function PhotoUploader({
         return null;
       }
     },
-    [draftId, user?.role]
+    [draftId, user?.role, context]
   );
 
   const pickImages = useCallback(async () => {
