@@ -17,79 +17,8 @@ import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebas
 import { MAX_PHOTOS } from '@/utils/photos';
 import { prepareForUpload, humanSize, type AnyImage } from '@/utils/imagePreprocessor';
 import { useAuth } from '@/hooks/useAuth';
-// Your current code with fixes added (at the top, add these imports if not there)
-import uuid from 'react-native-uuid';  // Install if needed: npm i react-native-uuid
+import { theme } from '@/constants/theme';
 
-// Add these globals for queuing (from clone)
-const MAX_CONCURRENCY = 2;
-let activeUploads = 0;
-const uploadQueue: (() => Promise<void>)[] = [];
-
-async function runNextUpload() {
-  if (activeUploads >= MAX_CONCURRENCY || uploadQueue.length === 0) return;
-  activeUploads++;
-  const job = uploadQueue.shift()!;
-  try {
-    await job();
-  } finally {
-    activeUploads--;
-    runNextUpload();
-  }
-}
-
-function enqueueUpload(job: () => Promise<void>) {
-  uploadQueue.push(job);
-  runNextUpload();
-}
-
-// In your uploadFile function, add retry logic (simple version from clone)
-const uploadFile = useCallback(
-  async (
-    input: AnyImage,
-    tempId: string,
-    onProgressUpdate: (progress: number) => void
-  ): Promise<{ url: string; path: string } | null> => {
-    try {
-      // Your existing code here...
-
-      // Inside the try, after compression, wrap the upload in a retry function
-      let attempts = 0;
-      const maxAttempts = 3;  // Retry up to 3 times on error
-      while (attempts < maxAttempts) {
-        try {
-          // Your uploadTask code here...
-          // (the Promise for state_changed)
-          break;  // Success, exit loop
-        } catch (error) {
-          attempts++;
-          if (attempts >= maxAttempts) throw error;
-          console.log(`[PhotoUploader] Retry attempt ${attempts}...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));  // Wait 1s before retry
-        }
-      }
-
-      // Rest of your code...
-    } catch (error: any) {
-      // Your error handling...
-    }
-  },
-  [entityType, entityId, user?.role]
-);
-
-// In pickImages and takePhoto, use enqueueUpload instead of direct calls
-const pickImages = useCallback(async () => {
-  // Your code...
-  for (let i = 0; i < selectedAssets.length; i++) {
-    const asset = selectedAssets[i];
-    enqueueUpload(async () => {
-      // Your upload logic here
-    });
-  }
-}, /* your deps */);
-
-// Same for takePhoto: wrap the upload in enqueueUpload(async () => { ... });
-
-/* Rest of your code remains the same */
 type PhotoItem = {
   url: string;
   path: string | null;
@@ -126,7 +55,6 @@ export default function PhotoUploader({
 }: PhotoUploaderProps) {
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
-  const [localPhotos, setLocalPhotos] = useState<PhotoItem[]>(photos);
 
   const uploadFile = useCallback(
     async (
@@ -272,13 +200,329 @@ export default function PhotoUploader({
     [draftId, user?.role, context]
   );
 
-  // The rest of the code (pickImages, takePhoto, removePhoto, and return JSX) remains the same as your original.
-  // No changes needed there—it's already clean!
+  const pickImages = useCallback(async () => {
+    if (disabled || uploading) return;
+    
+    const remaining = maxPhotos - photos.length;
+    if (remaining <= 0) {
+      Alert.alert('Maximum Photos', `You can only upload ${maxPhotos} photos.`);
+      return;
+    }
 
-  // ... (paste the rest of your original code here, from pickImages onward)
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant photo library access to upload images.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 1,
+        selectionLimit: remaining,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      setUploading(true);
+      const newPhotos = [...photos];
+
+      for (let i = 0; i < result.assets.length; i++) {
+        const asset = result.assets[i];
+        const tempIndex = newPhotos.length;
+        
+        newPhotos.push({
+          url: asset.uri,
+          path: null,
+          uploading: true,
+          progress: 0,
+        });
+        
+        onPhotosChange(newPhotos);
+
+        const uploaded = await uploadFile(
+          asset.uri,
+          tempIndex,
+          (idx, progress) => {
+            newPhotos[idx] = {
+              ...newPhotos[idx],
+              progress,
+            };
+            onPhotosChange([...newPhotos]);
+          }
+        );
+
+        if (uploaded) {
+          newPhotos[tempIndex] = {
+            ...uploaded,
+            uploading: false,
+          };
+        } else {
+          newPhotos[tempIndex] = {
+            ...newPhotos[tempIndex],
+            uploading: false,
+            error: 'Upload failed',
+          };
+        }
+        
+        onPhotosChange([...newPhotos]);
+      }
+    } catch (error: any) {
+      console.error('[PhotoUploader] Pick images error:', error);
+      Alert.alert('Error', 'Failed to pick images. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  }, [photos, maxPhotos, disabled, uploading, onPhotosChange, uploadFile]);
+
+  const takePhoto = useCallback(async () => {
+    if (disabled || uploading) return;
+    
+    const remaining = maxPhotos - photos.length;
+    if (remaining <= 0) {
+      Alert.alert('Maximum Photos', `You can only upload ${maxPhotos} photos.`);
+      return;
+    }
+
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant camera access to take photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+        allowsEditing: false,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      setUploading(true);
+      const newPhotos = [...photos];
+      const asset = result.assets[0];
+      const tempIndex = newPhotos.length;
+      
+      newPhotos.push({
+        url: asset.uri,
+        path: null,
+        uploading: true,
+        progress: 0,
+      });
+      
+      onPhotosChange(newPhotos);
+
+      const uploaded = await uploadFile(
+        asset.uri,
+        tempIndex,
+        (idx, progress) => {
+          newPhotos[idx] = {
+            ...newPhotos[idx],
+            progress,
+          };
+          onPhotosChange([...newPhotos]);
+        }
+      );
+
+      if (uploaded) {
+        newPhotos[tempIndex] = {
+          ...uploaded,
+          uploading: false,
+        };
+      } else {
+        newPhotos[tempIndex] = {
+          ...newPhotos[tempIndex],
+          uploading: false,
+          error: 'Upload failed',
+        };
+      }
+      
+      onPhotosChange([...newPhotos]);
+    } catch (error: any) {
+      console.error('[PhotoUploader] Take photo error:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  }, [photos, maxPhotos, disabled, uploading, onPhotosChange, uploadFile]);
+
+  const removePhoto = useCallback(async (index: number) => {
+    const photo = photos[index];
+    
+    if (photo.uploading) {
+      Alert.alert('Upload in Progress', 'Please wait for the upload to complete before removing.');
+      return;
+    }
+
+    try {
+      if (photo.path) {
+        const { storage } = getFirebase();
+        const storageRef = ref(storage, photo.path);
+        await deleteObject(storageRef);
+        console.log('[PhotoUploader] Photo deleted from storage:', photo.path);
+      }
+
+      const newPhotos = photos.filter((_, i) => i !== index);
+      onPhotosChange(newPhotos);
+    } catch (error: any) {
+      console.error('[PhotoUploader] Remove photo error:', error);
+      if (error?.code !== 'storage/object-not-found') {
+        Alert.alert('Error', 'Failed to remove photo. Please try again.');
+      } else {
+        const newPhotos = photos.filter((_, i) => i !== index);
+        onPhotosChange(newPhotos);
+      }
+    }
+  }, [photos, onPhotosChange]);
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.actions}>
+        <TouchableOpacity
+          style={[styles.button, disabled && styles.buttonDisabled]}
+          onPress={pickImages}
+          disabled={disabled || uploading}
+        >
+          <ImageIcon size={20} color={theme.colors.white} />
+          <Text style={styles.buttonText}>Choose Photos</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, disabled && styles.buttonDisabled]}
+          onPress={takePhoto}
+          disabled={disabled || uploading}
+        >
+          <Camera size={20} color={theme.colors.white} />
+          <Text style={styles.buttonText}>Take Photo</Text>
+        </TouchableOpacity>
+      </View>
+
+      {photos.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+          {photos.map((photo, index) => (
+            <View key={index} style={styles.photoContainer}>
+              <Image source={{ uri: photo.url }} style={styles.photo} />
+              
+              {photo.uploading && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color={theme.colors.white} />
+                  {photo.progress !== undefined && (
+                    <Text style={styles.progressText}>{photo.progress}%</Text>
+                  )}
+                </View>
+              )}
+
+              {photo.error && (
+                <View style={styles.errorOverlay}>
+                  <Text style={styles.errorText}>Failed</Text>
+                </View>
+              )}
+
+              {!photo.uploading && (
+                <TouchableOpacity
+                  style={styles.removeButton}
+                  onPress={() => removePhoto(index)}
+                >
+                  <X size={16} color={theme.colors.white} />
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
+      <Text style={styles.hint}>
+        {photos.length} / {maxPhotos} photos
+      </Text>
+    </View>
+  );
 }
 
-// Styles remain the same
 const styles = StyleSheet.create({
-  // ... (your original styles)
+  container: {
+    gap: 12,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  button: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonText: {
+    color: theme.colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  photoScroll: {
+    marginTop: 8,
+  },
+  photoContainer: {
+    width: 120,
+    height: 120,
+    marginRight: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.lightGray,
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+  },
+  uploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  errorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(220, 38, 38, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  removeButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hint: {
+    fontSize: 12,
+    color: theme.colors.gray,
+    textAlign: 'center',
+  },
 });
