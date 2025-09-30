@@ -146,7 +146,7 @@ export default function CSVBulkUploadScreen() {
   }, [toast]);
 
   // Load import history - FIXED: Properly memoized to prevent infinite re-renders
-  const loadImportHistory = useCallback(async () => {
+  const loadImportHistory = useCallback(async (): Promise<void> => {
     try {
       const { auth, db } = getFirebase();
       const uid = auth.currentUser?.uid;
@@ -191,7 +191,7 @@ export default function CSVBulkUploadScreen() {
     templateType: TemplateType,
     fileName: string,
     totals: { valid: number; skipped: number; written: number }
-  ) => {
+  ): Promise<void> => {
     try {
       const { auth, db } = getFirebase();
       const uid = auth.currentUser?.uid;
@@ -217,12 +217,12 @@ export default function CSVBulkUploadScreen() {
   }, []);
 
   // Navigate to loads filtered by bulk import ID
-  const viewBulkImportLoads = useCallback((bulkImportId: string) => {
+  const viewBulkImportLoads = useCallback((bulkImportId: string): void => {
     router.push(`/loads?bulkImportId=${bulkImportId}`);
   }, [router]);
 
   // Undo bulk import by ID
-  const undoBulkImport = useCallback(async (bulkImportId: string) => {
+  const undoBulkImport = useCallback(async (bulkImportId: string): Promise<void> => {
     Alert.alert(
       'Undo Import',
       'This will mark all documents from this import as deleted. Continue?',
@@ -280,11 +280,11 @@ export default function CSVBulkUploadScreen() {
     loadImportHistory();
   }, [loadImportHistory]); // FIXED: Include loadImportHistory in dependencies but it's memoized with empty deps
 
-  const generateLoadId = useCallback(() => {
+  const generateLoadId = useCallback((): string => {
     return 'LOAD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   }, []);
 
-  const generateBulkImportId = useCallback(() => {
+  const generateBulkImportId = useCallback((): string => {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }, []);
 
@@ -501,7 +501,7 @@ export default function CSVBulkUploadScreen() {
   }, [validateRowData, normalizeNumber, normalizeDate, computeRowHash]);
 
   // Transform parsed row to Firestore document format using normalized mapping
-  const toFirestoreDoc = useCallback((parsedRow: NormalizedPreviewRow, templateType: TemplateType, bulkImportId: string): any => {
+  const toFirestoreDoc = useCallback((parsedRow: NormalizedPreviewRow, templateType: TemplateType, bulkImportId: string): Record<string, any> => {
     const uid = user?.id || 'unknown';
     
     // Convert NormalizedPreviewRow to the format expected by normalizeCsvRow
@@ -845,7 +845,7 @@ export default function CSVBulkUploadScreen() {
   }, []);
 
   // Web file input change handler
-  const onWebFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onWebFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
     const res = await readHeaderLine({ webFile: file });
     if (!res.ok) return showToast(res.message, 'error');
@@ -853,14 +853,14 @@ export default function CSVBulkUploadScreen() {
   }, [readHeaderLine, showToast]);
 
   // Native file picker handler
-  const onPickNativeFile = useCallback(async () => {
+  const onPickNativeFile = useCallback(async (): Promise<void> => {
     const res = await readHeaderLine({ nativePick: true });
     if (!res.ok) return showToast(res.message, 'error');
     handleHeadersLine(res.headersLine, res.fileName, res.uri, res.webFile);
   }, [readHeaderLine, showToast]);
 
   // Common header processing logic
-  const handleHeadersLine = useCallback((headersLine: string, fileName: string, uri?: string, webFile?: File) => {
+  const handleHeadersLine = useCallback((headersLine: string, fileName: string, uri?: string, webFile?: File): void => {
     try {
       // Parse headers from the first line
       const headers = headersLine.split(',').map(h => h.replace(/"/g, '').trim());
@@ -890,7 +890,7 @@ export default function CSVBulkUploadScreen() {
     }
   }, [selectedTemplate, showToast]);
 
-  const handleFileSelect = useCallback(async () => {
+  const handleFileSelect = useCallback(async (): Promise<void> => {
     try {
       setIsLoading(true);
       setHeaderValidation(null);
@@ -943,11 +943,11 @@ export default function CSVBulkUploadScreen() {
     }
   }, [readHeaderLine, handleHeadersLine, onPickNativeFile, showToast]); // FIXED: Use correct dependencies
 
-  const removeRow = useCallback((index: number) => {
+  const removeRow = useCallback((index: number): void => {
     setProcessedRows(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  const performImport = useCallback(async (dryRun: boolean = false) => {
+  const performImport = useCallback(async (dryRun: boolean = false): Promise<void> => {
     try {
       setIsImporting(true);
       setImportProgress({ current: 0, total: 0 });
@@ -1242,7 +1242,7 @@ export default function CSVBulkUploadScreen() {
     }
   }, [normalizedRows, selectedTemplate, generateBulkImportId, generateLoadId, toFirestoreDoc, showToast, checkForDuplicates, user?.id, refreshLoads, createBulkImportSession, loadImportHistory]);
 
-  const handleImport = useCallback(async () => {
+  const handleImport = useCallback(async (): Promise<void> => {
     console.log('[HANDLE IMPORT] Starting import process...');
     console.log('[HANDLE IMPORT] User:', !!user);
     console.log('[HANDLE IMPORT] User ID:', user?.id);
@@ -1294,7 +1294,7 @@ export default function CSVBulkUploadScreen() {
     }
   }, [user, normalizedRows, showToast, performImport, showDuplicateChecker]);
 
-  const downloadSkippedRows = useCallback(async (rowsToDownload?: NormalizedPreviewRow[]) => {
+  const downloadSkippedRows = useCallback(async (rowsToDownload?: NormalizedPreviewRow[]): Promise<void> => {
     const skippedRows = rowsToDownload || normalizedRows.filter(row => row.status === 'invalid' || row.status === 'duplicate');
     
     if (skippedRows.length === 0) {
@@ -1352,13 +1352,13 @@ export default function CSVBulkUploadScreen() {
   }, [normalizedRows, showToast]);
 
   // Download skipped rows from history
-  const downloadHistorySkippedRows = useCallback(async (session: BulkImportSession) => {
+  const downloadHistorySkippedRows = useCallback(async (session: BulkImportSession): Promise<void> => {
     // For now, we'll show a message that this feature requires stored error data
     // In a full implementation, you'd store the skipped rows data in the session
     showToast('Skipped rows data not available for historical imports', 'error');
   }, [showToast]);
 
-  const undoLastImport = useCallback(async () => {
+  const undoLastImport = useCallback(async (): Promise<void> => {
     if (!lastBulkImportId) {
       showToast('No recent import to undo', 'error');
       return;
@@ -1416,7 +1416,7 @@ export default function CSVBulkUploadScreen() {
 
 
 
-  const downloadTemplate = useCallback((templateType: 'simple' | 'complete' | 'canonical') => {
+  const downloadTemplate = useCallback((templateType: 'simple' | 'complete' | 'canonical'): void => {
     let template: string;
     let filename: string;
     
@@ -1465,7 +1465,7 @@ export default function CSVBulkUploadScreen() {
   const invalidCount = normalizedRows.filter(r => r.status === 'invalid').length;
   const duplicateCount = normalizedRows.filter(r => r.status === 'duplicate').length;
   
-  const toggleErrorExpansion = useCallback((index: number) => {
+  const toggleErrorExpansion = useCallback((index: number): void => {
     setExpandedErrors(prev => {
       const newSet = new Set(prev);
       if (newSet.has(index)) {

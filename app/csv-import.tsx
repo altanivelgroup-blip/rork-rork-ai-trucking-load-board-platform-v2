@@ -190,7 +190,7 @@ export default function CSVImportScreen() {
     toast.show(message, type);
   }, [toast]);
 
-  const normalizeHeader = useCallback((h: string) => {
+  const normalizeHeader = useCallback((h: string): string => {
     const key = h.trim().toLowerCase();
     for (const can of Object.keys(HEADER_MAP)) {
       const arr = HEADER_MAP[can];
@@ -201,21 +201,21 @@ export default function CSVImportScreen() {
     return h.trim();
   }, []);
 
-  const parseMoney = (v: string): number => {
+  const parseMoney = useCallback((v: string): number => {
     if (!v) return NaN;
     const cleaned = v.replace(/[$,\s]/g, '');
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : NaN;
-  };
+  }, []);
 
-  const parseNumber = (v: string): number => {
+  const parseNumber = useCallback((v: string): number => {
     if (!v) return NaN;
     const cleaned = v.replace(/[,\s]/g, '');
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : NaN;
-  };
+  }, []);
 
-  const parseDateFlexible = (v: string, fallbackTime: string | null): { ok: boolean; out?: string; reason?: string } => {
+  const parseDateFlexible = useCallback((v: string, fallbackTime: string | null): { ok: boolean; out?: string; reason?: string } => {
     const formats = ['YYYY-MM-DD HH:mm','YYYY-MM-DDTHH:mm','M/D/YYYY H:mm','M/D/YY H:mm','YYYY-MM-DD'];
     const s = (v ?? '').trim();
     const fail = { ok: false, reason: `invalid format; accepted: ${formats.join(', ')}` } as const;
@@ -246,23 +246,23 @@ export default function CSVImportScreen() {
       return out ? { ok: true, out } : fail;
     }
     return fail;
-  };
+  }, []);
 
-  const normalizeVehicleType = (v: string): { ok: boolean; out?: string; reason?: string; normalized?: string } => {
+  const normalizeVehicleType = useCallback((v: string): { ok: boolean; out?: string; reason?: string; normalized?: string } => {
     const s = (v ?? '').toString().trim().toLowerCase().replace(/-/g, ' ');
     const mapped = TYPE_MAP[s];
     if (mapped) return { ok: true, out: mapped, normalized: mapped };
     const found = (Object.values(TYPE_MAP) as string[]).find(t => t.toLowerCase() === s);
     if (found) return { ok: true, out: found, normalized: found };
     return { ok: false, reason: `vehicleType must be one of ${[...new Set(Object.values(TYPE_MAP))].join(', ')}` };
-  };
+  }, []);
 
-  const processCSVData = useCallback((headersRaw: string[], rows: CSVRow[]) => {
+  const processCSVData = useCallback((headersRaw: string[], rows: CSVRow[]): void => {
     console.log('[CSV] Raw headers:', headersRaw);
-    const headers = headersRaw.map(normalizeHeader);
+    const headers: string[] = headersRaw.map(normalizeHeader);
     console.log('[CSV] Normalized headers:', headers);
 
-    const out: ProcessedRow[] = rows.map((row) => {
+    const out: ProcessedRow[] = rows.map((row: CSVRow): ProcessedRow => {
       const reasons: RowReason[] = [];
 
       const getByHeaderName = (name: string): string => {
@@ -424,9 +424,9 @@ export default function CSVImportScreen() {
     });
 
     setProcessedRows(out);
-  }, [normalizeHeader]);
+  }, [normalizeHeader, parseMoney, parseNumber, parseDateFlexible, normalizeVehicleType]);
 
-  const handleFileSelect = useCallback(async () => {
+  const handleFileSelect = useCallback(async (): Promise<void> => {
     try {
       setIsLoading(true);
       const result = await DocumentPicker.getDocumentAsync({ type: 'text/csv', copyToCacheDirectory: true });
@@ -450,11 +450,11 @@ export default function CSVImportScreen() {
     }
   }, [processCSVData, showToast]);
 
-  const toggleRowSkip = useCallback((index: number) => {
+  const toggleRowSkip = useCallback((index: number): void => {
     setProcessedRows(prev => prev.map((row, i) => i === index ? { ...row, skip: !row.skip } : row));
   }, []);
 
-  const handleImport = useCallback(async () => {
+  const handleImport = useCallback(async (): Promise<void> => {
     if (!user) {
       showToast('Authentication required', 'error');
       return;

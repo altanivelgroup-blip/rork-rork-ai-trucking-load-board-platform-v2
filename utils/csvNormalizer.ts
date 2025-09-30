@@ -20,13 +20,13 @@ type LoadDoc = {
   contactPhone?: string;
 };
 
-function toTsDate(s?: string | null) {
+function toTsDate(s?: string | null): Timestamp | null {
   if (!s) return null;
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
 }
 
-function toNumber(n?: string | number | null) {
+function toNumber(n?: string | number | null): number {
   if (n == null) return 0;
   return Number(String(n).replace(/[^\d.]/g, "")) || 0;
 }
