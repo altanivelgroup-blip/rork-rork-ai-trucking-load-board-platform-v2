@@ -667,6 +667,34 @@ export async function repairDriverMpg(uid: string) {
 
   return { fixed: true, value: mpg };
 }
+// --- Attachments sanitizer (prevents >1MB docs by dropping base64/file URIs) ---
+type AnyPhoto = string | { url?: string; downloadURL?: string; uri?: string; path?: string | null };
+
+function selectRemoteAttachments(finalPhotos: AnyPhoto[] | undefined) {
+  if (!Array.isArray(finalPhotos)) return [];
+  const out: { url: string; path: string | null }[] = [];
+
+  for (const p of finalPhotos) {
+    // normalize to a URL string + optional storage path
+    const url =
+      (typeof p === 'string' ? p : (p?.downloadURL || p?.url || p?.uri || '')) || '';
+    const path = typeof p === 'object' && p ? (p.path ?? null) : null;
+
+    // skip local/base64
+    if (!url || /^data:/i.test(url) || /^file:/i.test(url)) continue;
+
+    // only keep http(s) links (Firebase Storage download URLs, CDN, etc.)
+    if (!/^https?:\/\//i.test(url)) continue;
+
+    // avoid absurdly long strings
+    if (url.length > 2048) continue;
+
+    out.push({ url, path });
+    if (out.length >= 20) break; // safety cap
+  }
+
+  return out;
+}
 
 // ======================
 // MAIN: post a load
@@ -680,7 +708,7 @@ export async function postLoad(args: {
   rate: number | string;
   pickupDate: Date;
   deliveryDate: Date;
-  finalPhotos: { url: string; path?: string | null }[];
+  finalPhotos: AnyPhoto[];               // <— accepts strings or objects
   deliveryTZ?: string | null;
   deliveryDateLocal?: string | null;
 }) {
@@ -743,6 +771,9 @@ export async function postLoad(args: {
       }
     }
 
+    // ✅ sanitize photos so we only store small remote URLs
+    const safeAttachments = selectRemoteAttachments(args.finalPhotos);
+
     const baseData = {
       title: String(args.title).trim(),
       origin: String(args.origin).trim(),
@@ -752,7 +783,10 @@ export async function postLoad(args: {
       status: LOAD_STATUS.OPEN,
       pickupDate: Timestamp.fromDate(new Date(args.pickupDate)),
       deliveryDate: Timestamp.fromDate(new Date(args.deliveryDate)),
-      attachments: (args.finalPhotos ?? []).map((p) => ({ url: p.url, path: p.path ?? null })),
+
+      attachments: safeAttachments,               // only https URLs
+      attachmentsCount: safeAttachments.length,   // useful for UI
+
       createdAt: serverTimestamp(),
       clientCreatedAt: Date.now(),
       isArchived: false,
