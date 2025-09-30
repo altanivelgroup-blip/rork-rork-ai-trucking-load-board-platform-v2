@@ -423,7 +423,15 @@ export function PhotoUploader({
   const loadPhotos = useCallback(async () => {
     try {
       console.log('[PhotoUploader] Loading photos for', entityType, entityId);
-      const { db } = getFirebase();
+      
+      // Check if user is authenticated before attempting to load photos
+      const { auth, db } = getFirebase();
+      if (!auth?.currentUser) {
+        console.log('[PhotoUploader] User not authenticated, starting with empty photos');
+        setState(prev => ({ ...prev, photos: [], primaryPhoto: '', loading: false }));
+        return;
+      }
+      
       const collectionName = entityType === 'load' ? LOADS_COLLECTION : VEHICLES_COLLECTION;
       const docRef = doc(db, collectionName, entityId);
       const snap = await getDoc(docRef);
