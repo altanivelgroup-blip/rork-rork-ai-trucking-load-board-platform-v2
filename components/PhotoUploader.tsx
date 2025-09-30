@@ -16,6 +16,7 @@ import { getFirebase } from '@/utils/firebase';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { MAX_PHOTOS } from '@/utils/photos';
 import { prepareForUpload, humanSize } from '@/utils/imagePreprocessor';
+import { useAuth } from '@/hooks/useAuth';
 
 type PhotoItem = {
   url: string;
@@ -31,6 +32,7 @@ type PhotoUploaderProps = {
   onPhotosChange: (photos: PhotoItem[]) => void;
   maxPhotos?: number;
   disabled?: boolean;
+  context?: 'load' | 'vehicle' | 'document' | 'other';
 };
 
 export default function PhotoUploader({
@@ -39,7 +41,9 @@ export default function PhotoUploader({
   onPhotosChange,
   maxPhotos = MAX_PHOTOS,
   disabled = false,
+  context = 'load',
 }: PhotoUploaderProps) {
+  const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [localPhotos, setLocalPhotos] = useState<PhotoItem[]>(photos);
 
@@ -74,7 +78,8 @@ export default function PhotoUploader({
 
         const safeId = String(draftId || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_');
         const photoId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-        const basePath = `loads/${uid}/${safeId}`;
+        const role = user?.role || 'driver';
+        const basePath = `loads/${safeId}/${role}/${uid}`;
         const fullPath = `${basePath}/${photoId}.${compressed.ext}`;
 
         console.log('[PhotoUploader] Upload path:', fullPath);
@@ -139,7 +144,7 @@ export default function PhotoUploader({
         return null;
       }
     },
-    [draftId]
+    [draftId, user?.role]
   );
 
   const pickImages = useCallback(async () => {
