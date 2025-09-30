@@ -16,11 +16,11 @@ import * as FileSystem from 'expo-file-system';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { parseCSV, CSVRow, buildCanonicalTemplateCSV, buildSimpleTemplateCSV, buildCompleteTemplateCSV } from '@/utils/csv';
-import { getFirebase, ensureFirebaseAuth, checkFirebasePermissions } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { LOADS_COLLECTION } from '@/lib/loadSchema';
+import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
+import { serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import HeaderBack from '@/components/HeaderBack';
 import { useToast } from '@/components/Toast';
+import { sanitizePhotoUrls } from '@/utils/photos';
 
 // Canonical columns we accept for full template
 const CANONICAL_HEADERS = [
@@ -467,12 +467,6 @@ export default function CSVImportScreen() {
         showToast('Authentication with Firebase failed. Please retry or open Firebase Sanity Check.', 'error');
         return;
       }
-      const perms = await checkFirebasePermissions();
-      if (!perms.canWrite) {
-        console.warn('[CSV Import] Permission check failed:', perms.error);
-        showToast(perms.error ?? 'Missing or insufficient permissions to write to Firestore', 'error');
-        return;
-      }
       const { db } = getFirebase();
       const rowsToImport = processedRows.filter(r => !r.skip && r.parsed);
       let imported = 0;
@@ -480,62 +474,37 @@ export default function CSVImportScreen() {
       let i = 0;
       for (const r of rowsToImport) {
         const p = r.parsed as Canonical;
-        const id = `csv-${Date.now()}-${i++}`;
+        const uid = getFirebase().auth?.currentUser?.uid ?? user.id;
+        if (!uid) throw new Error('Not signed in');
+
+        // sanitize attachments from CSV if present
+        const raw = Array.isArray((p as any).attachments)
+          ? ((p as any).attachments as string[])
+          : String((p as any).attachments || '')
+              .split(/;|,/)
+              .map(s => s.trim())
+              .filter(Boolean);
+        const { valid, totalArraySize } = sanitizePhotoUrls(raw);
+        if (totalArraySize > 800_000) {
+          console.log('[CSV Import] attachments too large; trimming', { bytes: totalArraySize, kept: valid.length });
+        }
+
         const docData = {
-          title: p.title,
-          description: p.description,
-          origin: `${p.originCity}${p.originState ? ', '+p.originState : ''}`,
-          destination: `${p.destinationCity}${p.destState ? ', '+p.destState : ''}`,
-          vehicleType: p.vehicleType,
-          rate: p.rate,
-          status: 'OPEN',
-          createdBy: (getFirebase().auth?.currentUser?.uid ?? user.id),
-          // Shipper tagging for complete profile data across devices
-          shipperId: (getFirebase().auth?.currentUser?.uid ?? user.id),
-          shipperName: (user?.name ?? user?.email ?? 'Shipper'),
-          pickupDate: p.pickupDate,
-          deliveryDate: p.deliveryDate,
-          deliveryTZ: p.timeZone,
+          title: String(p.title || '').slice(0,120),
+          pickupCity: String(p.originCity || ''),
+          deliveryCity: String(p.destinationCity || ''),
+          vehicleType: String(p.vehicleType || ''),
+          price: Number(p.rate || 0),
+          attachments: valid,
+          createdBy: uid,
+          status: 'open',
           createdAt: serverTimestamp(),
-          clientCreatedAt: Date.now(),
-          attachments: [],
-          weightLbs: p.weight,
-          revenueUsd: p.rate,
-          distanceMi: p.distance,
-          // Additional fields from expanded template
-          originPlace: p.originAddress || p.originZip ? {
-            city: p.originCity,
-            state: p.originState || '',
-            lat: 0,
-            lng: 0
-          } : undefined,
-          destinationPlace: p.destinationAddress || p.destinationZip ? {
-            city: p.destinationCity,
-            state: p.destState || '',
-            lat: 0,
-            lng: 0
-          } : undefined,
-          // Store additional CSV data as metadata
-          csvMetadata: {
-            originAddress: p.originAddress,
-            originZip: p.originZip,
-            destinationAddress: p.destinationAddress,
-            destinationZip: p.destinationZip,
-            ratePerMile: p.ratePerMile,
-            specialRequirements: p.specialRequirements,
-            contactName: p.contactName,
-            contactPhone: p.contactPhone,
-            contactEmail: p.contactEmail,
-            loadType: p.loadType,
-            dimensions: p.dimensions,
-            hazmat: p.hazmat,
-            temperature: p.temperature,
-            notes: p.notes,
-          },
-        };
-        console.log('[FIXED][CSV IMPORT] Tagged load with shipperId and shipperName for complete profile data');
-        await setDoc(doc(db, LOADS_COLLECTION, id), docData);
+          updatedAt: serverTimestamp(),
+        } as const;
+        const ref = await addDoc(collection(db, 'loads'), docData);
+        console.log('[CSV Import] row %d saved with %d photos (%d bytes) id=%s', i, valid.length, totalArraySize, ref.id);
         imported++;
+        i++;
       }
       showToast(`Imported ${imported} loads. Skipped: ${skipped}`);
       setProcessedRows([]);

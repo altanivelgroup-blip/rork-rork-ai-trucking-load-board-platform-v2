@@ -25,12 +25,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ✅ Firebase imports
 import { getFirebase, ensureFirebaseAuth } from '@/utils/firebase';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, addDoc, collection } from 'firebase/firestore';
 import { LOADS_COLLECTION } from '@/lib/loadSchema';
 import { subscribeFormFill, consumeStagedFormFill } from '@/lib/formFillBus';
 import { useFocusEffect } from '@react-navigation/native';
 import { sanitizePhotoUrls } from '@/utils/photos';
-import { createShipperLoad } from '@/lib/loads/createLoad';
+import { auth, db } from '@/lib/firebase';
 
 
 type VehicleOption = {
@@ -441,20 +441,35 @@ const existing = await getDoc(ref);
 
   const onPost = useCallback(async () => {
     try {
-      const payload: Record<string, any> = {
-        title: (draft.title || '').trim(),
-        pickupCity: (draft.pickup || '').trim(),
-        deliveryCity: (draft.delivery || '').trim(),
-        vehicleType: draft.vehicleType || '',
+      const uploaded = Array.isArray(uploadedUrls) ? uploadedUrls : [];
+      const { valid, totalArraySize } = sanitizePhotoUrls(uploaded);
+      if (totalArraySize > 800_000) {
+        Alert.alert('Too many/long photo links', 'Remove a few photos and try again.');
+        return;
+      }
+      const uid = auth.currentUser?.uid;
+      if (!uid) { Alert.alert('Not signed in'); return; }
+
+      const docData = {
+        title: String(draft.title || '').slice(0,120),
+        pickupCity: String(draft.pickup || ''),
+        deliveryCity: String(draft.delivery || ''),
+        vehicleType: String(draft.vehicleType || ''),
         price: Number((draft.rateAmount || '').replace(/[^0-9.]/g, '')) || 0,
-        attachments: uploadedUrls,
-      };
-      const id = await createShipperLoad(payload);
-      router.push({ pathname: '/load-details', params: { id } });
+        attachments: valid,
+        createdBy: uid,
+        status: 'open',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      } as const;
+
+      const ref = await addDoc(collection(db, 'loads'), docData);
+      console.log('[PostLoad] Filtered photos:', { original: uploaded.length, validCount: valid.length, totalArraySize });
+      router.push({ pathname: '/load-details', params: { id: ref.id } });
     } catch (e: any) {
       Alert.alert('Post failed', e?.message || String(e));
     }
-  }, [draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, uploadedUrls, router]);
+  }, [uploadedUrls, draft.title, draft.pickup, draft.delivery, draft.vehicleType, draft.rateAmount, router]);
 
   const onDownloadTemplate = useCallback(async () => {
     try {
